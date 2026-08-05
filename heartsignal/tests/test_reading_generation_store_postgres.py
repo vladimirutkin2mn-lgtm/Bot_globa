@@ -4,8 +4,13 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import User
-from app.db.reading_models import Persona
-from app.domain.reading import ReadingDraftRequest, ReadingStatus, ReadingSymbolInput
+from app.db.reading_models import Persona, Reading
+from app.domain.reading import (
+    ReadingDraftRequest,
+    ReadingStatus,
+    ReadingSymbolInput,
+    SymbolOrientation,
+)
 from app.domain.reading_generation import (
     ReadingGenerationClaimStatus,
     ReadingGenerationFinalizeStatus,
@@ -35,13 +40,13 @@ def _symbols() -> tuple[ReadingSymbolInput, ...]:
         ReadingSymbolInput(
             symbol_id="major_20",
             position="current_influence",
-            orientation="reversed",
+            orientation=SymbolOrientation.REVERSED,
             catalog_version="tarot-major-v1",
         ),
         ReadingSymbolInput(
             symbol_id="major_07",
             position="hidden_factor",
-            orientation="upright",
+            orientation=SymbolOrientation.UPRIGHT,
             catalog_version="tarot-major-v1",
         ),
     )
@@ -77,7 +82,7 @@ async def _draft(
     cipher: AESGCMSensitiveContentCipher,
     *,
     telegram_offset: int,
-) -> tuple[User, User, Persona, object]:
+) -> tuple[User, User, Persona, Reading]:
     owner, stranger, persona = await _seed(
         sessions,
         telegram_offset=telegram_offset,
@@ -156,7 +161,7 @@ async def test_failure_is_retryable_and_clears_previous_failure_code(
     assert failed is ReadingGenerationFinalizeStatus.COMPLETED
     assert retried.status is ReadingGenerationClaimStatus.CLAIMED
     async with payment_db() as session:
-        stored = await session.get(type(reading), reading.id)
+        stored = await session.get(Reading, reading.id)
         assert stored is not None
         assert stored.status == ReadingStatus.GENERATING.value
         assert stored.failure_code is None
