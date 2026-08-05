@@ -1,0 +1,94 @@
+name: HeartSignal Baseline CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "heartsignal/**"
+      - ".github/workflows/heartsignal-ci.yml"
+  pull_request:
+    paths:
+      - "heartsignal/**"
+      - ".github/workflows/heartsignal-ci.yml"
+
+concurrency:
+  group: heartsignal-ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: heartsignal
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: heartsignal_test
+          POSTGRES_USER: heartsignal
+          POSTGRES_PASSWORD: heartsignal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U heartsignal -d heartsignal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://heartsignal:heartsignal@localhost:5432/heartsignal_test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: heartsignal/pyproject.toml
+
+      - name: Install project and development dependencies
+        run: pip install -e '.[dev]'
+
+      - name: Check formatting
+        run: ruff format --check app tests migrations
+
+      - name: Lint
+        run: ruff check app tests migrations
+
+      - name: Type-check
+        run: mypy app tests
+
+      - name: Validate Alembic migration chain
+        env:
+          DATABASE_URL: postgresql+asyncpg://heartsignal:heartsignal@localhost:5432/heartsignal_test
+          TELEGRAM_BOT_TOKEN: 123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          CONTENT_ENCRYPTION_KEY: ci-only-key
+        run: |
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
+
+      - name: Test
+        run: pytest --junitxml=pytest-report.xml
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heartsignal-pytest-report
+          path: heartsignal/pytest-report.xml
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Prepare Compose environment
+        run: cp .env.example .env
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build production image
+        run: docker build --tag heartsignal:ci .
