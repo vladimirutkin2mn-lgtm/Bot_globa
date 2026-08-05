@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,7 +17,11 @@ from app.domain.reading_generation import (
     ReadingSymbolContext,
     StoredReadingResult,
 )
-from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet
+from app.prompts.reading import (
+    ReadingPromptNotFoundError,
+    ReadingPromptSet,
+    load_reading_prompts,
+)
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMCompletion,
@@ -28,6 +33,7 @@ from app.providers.llm.base import (
     LLMUnexpectedError,
 )
 from app.services.reading_generation import (
+    ReadingGenerationResult,
     ReadingGenerationService,
     ReadingGenerationStatus,
 )
@@ -66,7 +72,7 @@ def _valid_payload(symbols: tuple[ReadingSymbolContext, ...] | None = None) -> s
     return json.dumps(
         {
             "title": "A decision that benefits from a slower review",
-            "opening": "The spread highlights momentum and the need for deliberate evaluation.",
+            "opening": "The spread highlights momentum and deliberate evaluation.",
             "symbols": [
                 {
                     "symbol_id": item.symbol.symbol_id,
@@ -177,12 +183,14 @@ def _service(
     llm: ControlledLLM,
     *,
     max_repair_attempts: int = 1,
-    prompt_loader=None,  # type: ignore[no-untyped-def]
+    prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
 ) -> ReadingGenerationService:
-    kwargs: dict[str, object] = {"max_repair_attempts": max_repair_attempts}
-    if prompt_loader is not None:
-        kwargs["prompt_loader"] = prompt_loader
-    return ReadingGenerationService(store, llm, **kwargs)  # type: ignore[arg-type]
+    return ReadingGenerationService(
+        store,
+        llm,
+        max_repair_attempts=max_repair_attempts,
+        prompt_loader=prompt_loader,
+    )
 
 
 async def _run(
@@ -190,7 +198,7 @@ async def _run(
     llm: ControlledLLM,
     *,
     max_repair_attempts: int = 1,
-):  # type: ignore[no-untyped-def]
+) -> ReadingGenerationResult:
     service = _service(store, llm, max_repair_attempts=max_repair_attempts)
     return await service.generate_preview(store.reading_id, store.user_id, _symbols())
 
@@ -211,8 +219,10 @@ async def test_valid_first_response_persists_only_validated_result() -> None:
 
 async def test_invalid_first_output_is_regenerated_once_without_prior_payload() -> None:
     store = MemoryStore()
-    invalid = json.dumps({"title": PRIOR_OUTPUT_MARKER})
-    llm = ControlledLLM(invalid, _valid_payload())
+    llm = ControlledLLM(
+        json.dumps({"title": PRIOR_OUTPUT_MARKER}),
+        _valid_payload(),
+    )
 
     result = await _run(store, llm)
 
