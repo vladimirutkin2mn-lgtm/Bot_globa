@@ -33,9 +33,7 @@ class TarotFullRenderer:
             selected = cards_by_position.get(symbol.position)
             card_name = selected.card.name_ru if selected is not None else symbol.symbol_id
             orientation = self._orientation(symbol.orientation)
-            symbol_sections.append(
-                f"{index}. {card_name} — {orientation}\n{symbol.interpretation}"
-            )
+            symbol_sections.append(f"{index}. {card_name} — {orientation}\n{symbol.interpretation}")
 
         pattern_lines = [f"• {value}" for value in result.patterns]
         scenario_sections = []

@@ -226,7 +226,11 @@ class CreditsService:
                 return RefundOutcome.SPEND_NOT_FOUND
             if spend.user_id != user_id or spend.reading_id != reading_id:
                 return RefundOutcome.AUTHORIZATION_MISMATCH
-            if spend.analysis_id is not None or spend.type != "spend" or spend.amount != -expected_cost:
+            if (
+                spend.analysis_id is not None
+                or spend.type != "spend"
+                or spend.amount != -expected_cost
+            ):
                 return RefundOutcome.INVALID_SPEND
             if (
                 reading.full_access_transaction_id == spend_id

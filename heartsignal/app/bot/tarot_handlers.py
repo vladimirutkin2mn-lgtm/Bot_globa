@@ -330,11 +330,7 @@ async def unlock_tarot(
         ):
             rendered = full_renderer.render(outcome)
             for index, chunk in enumerate(rendered.chunks):
-                markup = (
-                    tarot_full_result_keyboard()
-                    if index == len(rendered.chunks) - 1
-                    else None
-                )
+                markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
                 await callback.message.answer(chunk, reply_markup=markup)
             return
     await callback.message.answer(UNLOCK_FAILED, reply_markup=tarot_result_keyboard())

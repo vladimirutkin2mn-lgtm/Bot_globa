@@ -64,17 +64,22 @@ def test_paid_reading_migration_round_trip_when_unlinked() -> None:
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
-        assert asyncio.run(
-            _scalar(
-                url,
-                schema,
-                "SELECT count(*) FROM information_schema.columns "
-                "WHERE table_schema=current_schema() AND table_name='credit_transactions' "
-                "AND column_name='reading_id'",
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT count(*) FROM information_schema.columns "
+                    "WHERE table_schema=current_schema() AND table_name='credit_transactions' "
+                    "AND column_name='reading_id'",
+                )
             )
-        ) == 1
+            == 1
+        )
         subprocess.run(("alembic", "downgrade", _PARENT), check=True, env=environment)
-        assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
+        assert (
+            asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
+        )
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
