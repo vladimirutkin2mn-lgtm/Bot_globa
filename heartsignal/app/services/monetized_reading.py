@@ -1,6 +1,7 @@
 """Financial orchestration for unlocking an already generated oracle reading."""
 
 import asyncio
+import json
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -133,7 +134,11 @@ class MonetizedReadingService:
     async def _validated_result(self, reading_id: UUID, user_id: UUID) -> ReadingResult | None:
         try:
             payload = await self._readings.load_result(reading_id, user_id)
-            return None if payload is None else ReadingResult.model_validate(payload)
+            if payload is None:
+                return None
+            return ReadingResult.model_validate_json(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            )
         except (ValidationError, ValueError, TypeError):
             return None
 
