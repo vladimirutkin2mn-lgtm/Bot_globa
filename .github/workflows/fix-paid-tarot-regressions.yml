@@ -37,40 +37,53 @@ jobs:
               'heartsignal/tests/test_subscription_job_migration.py',
               'heartsignal/tests/test_subscription_period_migration.py',
           ]
-          pattern = re.compile(r'(_HEAD(?:_REVISION)?\s*=\s*)"20260805_17"')
+          head_pattern = re.compile(r'(_HEAD(?:_REVISION)?\s*=\s*)"20260805_17"')
           for name in migration_tests:
               path = Path(name)
-              text = path.read_text()
-              updated, count = pattern.subn(r'\1"20260805_18"', text)
+              updated, count = head_pattern.subn(
+                  r'\1"20260805_18"',
+                  path.read_text(),
+              )
               if count != 1:
                   raise SystemExit(f'expected one head constant in {name}, got {count}')
               path.write_text(updated)
 
           domain = Path('heartsignal/app/domain/reading.py')
-          text = domain.read_text()
-          old = '''    ReadingStatus.PREVIEW_READY: frozenset(
-              {ReadingStatus.GENERATING, ReadingStatus.FULL_READY, ReadingStatus.DELETED}
-          ),'''
-          new = '''    ReadingStatus.PREVIEW_READY: frozenset(
-              {ReadingStatus.FULL_READY, ReadingStatus.DELETED}
-          ),'''
-          if old not in text:
-              raise SystemExit('preview transition anchor missing')
-          domain.write_text(text.replace(old, new, 1))
+          transition_pattern = re.compile(
+              r'ReadingStatus\.PREVIEW_READY: frozenset\(\s*'
+              r'\{ReadingStatus\.GENERATING, ReadingStatus\.FULL_READY, '
+              r'ReadingStatus\.DELETED\}\s*\),'
+          )
+          transition_replacement = (
+              'ReadingStatus.PREVIEW_READY: frozenset(\n'
+              '        {ReadingStatus.FULL_READY, ReadingStatus.DELETED}\n'
+              '    ),'
+          )
+          updated, count = transition_pattern.subn(
+              transition_replacement,
+              domain.read_text(),
+          )
+          if count != 1:
+              raise SystemExit(f'expected one preview transition, got {count}')
+          domain.write_text(updated)
 
           history = Path('heartsignal/tests/test_reading_history_postgres.py')
-          text = history.read_text()
-          old = '''                topic="other_persona",
-                  status=ReadingStatus.FULL_READY.value,
-                  access_level=ReadingAccess.FULL.value,
-                  cost_units=0,'''
-          new = '''                topic="other_persona",
-                  status=ReadingStatus.PREVIEW_READY.value,
-                  access_level=ReadingAccess.PREVIEW.value,
-                  cost_units=0,'''
-          if old not in text:
-              raise SystemExit('history fixture anchor missing')
-          history.write_text(text.replace(old, new, 1))
+          history_pattern = re.compile(
+              r'(topic="other_persona",\s*)'
+              r'status=ReadingStatus\.FULL_READY\.value,\s*'
+              r'access_level=ReadingAccess\.FULL\.value,'
+          )
+          history_replacement = (
+              r'\1status=ReadingStatus.PREVIEW_READY.value,\n'
+              '                access_level=ReadingAccess.PREVIEW.value,'
+          )
+          updated, count = history_pattern.subn(
+              history_replacement,
+              history.read_text(),
+          )
+          if count != 1:
+              raise SystemExit(f'expected one history fixture, got {count}')
+          history.write_text(updated)
 
           Path('.github/workflows/fix-paid-tarot-regressions.yml').unlink()
           PY
