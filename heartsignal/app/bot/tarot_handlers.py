@@ -241,7 +241,9 @@ async def _deliver(
             await message.answer(chunk, reply_markup=markup)
         return
     if status is ReadingGenerationStatus.ALREADY_PROCESSING:
-        await message.answer(ALREADY_PROCESSING, reply_markup=tarot_retry_keyboard(outcome.reading_id))
+        await message.answer(
+            ALREADY_PROCESSING, reply_markup=tarot_retry_keyboard(outcome.reading_id)
+        )
         return
     if status is ReadingGenerationStatus.FAILED:
         await message.answer(FAILED, reply_markup=tarot_retry_keyboard(outcome.reading_id))
