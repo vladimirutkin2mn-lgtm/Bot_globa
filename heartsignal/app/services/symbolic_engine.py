@@ -54,6 +54,7 @@ class TarotSymbolicEngine:
             self._catalog.cards,
             key=lambda card: self._digest(seed, "card", card.code),
         )
+        selected_cards = ordered_cards[: len(spread.positions)]
         return tuple(
             SelectedTarotCard(
                 ordinal=index,
@@ -63,7 +64,7 @@ class TarotSymbolicEngine:
                 catalog_version=self._catalog.version,
             )
             for index, (position, card) in enumerate(
-                zip(spread.positions, ordered_cards, strict=True)
+                zip(spread.positions, selected_cards, strict=True)
             )
         )
 
