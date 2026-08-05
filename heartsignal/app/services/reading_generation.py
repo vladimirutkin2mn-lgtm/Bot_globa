@@ -143,7 +143,9 @@ class ReadingGenerationService:
             attempts += 1
             last_completion = await self._llm.generate_analysis(request)
             try:
-                validated = self._validator.validate(last_completion.payload, list(expected_symbols))
+                validated = self._validator.validate(
+                    last_completion.payload, list(expected_symbols)
+                )
             except InvalidReadingResult as error:
                 if self._max_repairs == 0:
                     raise
@@ -217,9 +219,7 @@ class ReadingGenerationService:
                 last_completion,
             )
         except LLMTimeoutError:
-            return await self._fail(
-                reading_id, user_id, "llm_timeout", attempts, last_completion
-            )
+            return await self._fail(reading_id, user_id, "llm_timeout", attempts, last_completion)
         except LLMRateLimitError:
             return await self._fail(
                 reading_id, user_id, "llm_rate_limited", attempts, last_completion
