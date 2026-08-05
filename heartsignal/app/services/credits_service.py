@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Analysis, CreditReservation, CreditTransaction, User
+from app.db.reading_models import Reading
 
 
 class SpendOutcome(StrEnum):
@@ -17,6 +18,7 @@ class SpendOutcome(StrEnum):
     ALREADY_SPENT_REFUNDED = "already_spent_refunded"
     INSUFFICIENT_BALANCE = "insufficient_balance"
     ANALYSIS_NOT_FOUND = "analysis_not_found"
+    READING_NOT_FOUND = "reading_not_found"
     INVALID_AMOUNT = "invalid_amount"
 
 
@@ -124,6 +126,131 @@ class CreditsService:
             session.add(row)
             await session.flush()
             return SpendResult(SpendOutcome.SPENT, row.id, available - amount)
+
+    async def spend_reading(
+        self,
+        user_id: UUID,
+        reading_id: UUID,
+        amount: int,
+    ) -> SpendResult:
+        if amount < 1:
+            return SpendResult(SpendOutcome.INVALID_AMOUNT)
+        key = f"reading_full_access:{reading_id}"
+        async with self._sessions.begin() as session:
+            user = await session.scalar(
+                select(User)
+                .where(User.id == user_id, User.privacy_status == "active")
+                .with_for_update()
+            )
+            if user is None:
+                return SpendResult(SpendOutcome.READING_NOT_FOUND)
+            reading = await session.scalar(
+                select(Reading).where(
+                    Reading.id == reading_id,
+                    Reading.user_id == user_id,
+                    Reading.status.in_(("preview_ready", "full_ready")),
+                )
+            )
+            if reading is None:
+                return SpendResult(SpendOutcome.READING_NOT_FOUND)
+            existing = await session.scalar(
+                select(CreditTransaction).where(CreditTransaction.idempotency_key == key)
+            )
+            balance = int(
+                await session.scalar(
+                    select(func.coalesce(func.sum(CreditTransaction.amount), 0)).where(
+                        CreditTransaction.user_id == user_id
+                    )
+                )
+                or 0
+            )
+            if existing is not None:
+                if not (
+                    existing.user_id == user_id
+                    and existing.reading_id == reading_id
+                    and existing.analysis_id is None
+                    and existing.type == "spend"
+                    and existing.amount == -amount
+                ):
+                    return SpendResult(SpendOutcome.READING_NOT_FOUND, balance=balance)
+                refunded = await session.scalar(
+                    select(CreditTransaction.id).where(
+                        CreditTransaction.reverses_transaction_id == existing.id
+                    )
+                )
+                if refunded is not None:
+                    return SpendResult(SpendOutcome.ALREADY_SPENT_REFUNDED, balance=balance)
+                return SpendResult(SpendOutcome.ALREADY_SPENT_ACTIVE, existing.id, balance)
+            reserved = int(
+                await session.scalar(
+                    select(func.coalesce(func.sum(CreditReservation.credit_units), 0)).where(
+                        CreditReservation.user_id == user_id,
+                        CreditReservation.status == "active",
+                    )
+                )
+                or 0
+            )
+            available = max(0, balance - reserved)
+            if available < amount:
+                return SpendResult(SpendOutcome.INSUFFICIENT_BALANCE, balance=available)
+            row = CreditTransaction(
+                user_id=user_id,
+                type="spend",
+                amount=-amount,
+                idempotency_key=key,
+                reading_id=reading_id,
+            )
+            session.add(row)
+            await session.flush()
+            return SpendResult(SpendOutcome.SPENT, row.id, available - amount)
+
+    async def refund_reading_if_not_full(
+        self,
+        user_id: UUID,
+        reading_id: UUID,
+        spend_id: UUID,
+        expected_cost: int,
+    ) -> RefundOutcome:
+        async with self._sessions.begin() as session:
+            reading = await session.scalar(
+                select(Reading)
+                .where(Reading.id == reading_id, Reading.user_id == user_id)
+                .with_for_update()
+            )
+            if reading is None:
+                return RefundOutcome.AUTHORIZATION_MISMATCH
+            spend = await session.scalar(
+                select(CreditTransaction).where(CreditTransaction.id == spend_id).with_for_update()
+            )
+            if spend is None:
+                return RefundOutcome.SPEND_NOT_FOUND
+            if spend.user_id != user_id or spend.reading_id != reading_id:
+                return RefundOutcome.AUTHORIZATION_MISMATCH
+            if spend.analysis_id is not None or spend.type != "spend" or spend.amount != -expected_cost:
+                return RefundOutcome.INVALID_SPEND
+            if (
+                reading.full_access_transaction_id == spend_id
+                and reading.cost_units == expected_cost
+            ):
+                return RefundOutcome.ACCESS_ALREADY_GRANTED
+            existing = await session.scalar(
+                select(CreditTransaction.id).where(
+                    CreditTransaction.reverses_transaction_id == spend.id
+                )
+            )
+            if existing is not None:
+                return RefundOutcome.ALREADY_REFUNDED
+            session.add(
+                CreditTransaction(
+                    user_id=user_id,
+                    type="refund",
+                    amount=-spend.amount,
+                    idempotency_key=f"refund:{spend.id}",
+                    reading_id=reading_id,
+                    reverses_transaction_id=spend.id,
+                )
+            )
+            return RefundOutcome.REFUNDED
 
     async def refund(self, user_id: UUID, analysis_id: UUID, spend_id: UUID) -> RefundOutcome:
         """Compatibility wrapper that delegates to the safe analysis-aware boundary."""

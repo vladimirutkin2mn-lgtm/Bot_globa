@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import User
+from app.db.models import CreditTransaction, User
 from app.db.reading_models import Persona, Reading, ReadingPrivateContent, ReadingSymbol
 from app.domain.reading import (
     ReadingAccess,
@@ -180,8 +180,10 @@ class SqlAlchemyReadingRepository:
         *,
         full: bool,
     ) -> Reading:
+        if full:
+            raise ValueError("direct full generation requires paid promotion")
         reading = await self._required_locked(reading_id, user_id)
-        target = ReadingStatus.FULL_READY if full else ReadingStatus.PREVIEW_READY
+        target = ReadingStatus.PREVIEW_READY
         ensure_reading_transition(ReadingStatus(reading.status), target)
         self._validate_symbols(symbols)
         private = await self._private_row(reading.id)
@@ -205,20 +207,59 @@ class SqlAlchemyReadingRepository:
             ]
         )
         reading.status = target.value
-        reading.access_level = ReadingAccess.FULL.value if full else ReadingAccess.PREVIEW.value
+        reading.access_level = ReadingAccess.PREVIEW.value
         reading.generated_at = datetime.now(UTC)
         reading.failure_code = None
         await self._session.flush()
         return reading
 
-    async def promote_full_access(self, reading_id: UUID, user_id: UUID) -> Reading:
+    async def promote_full_access(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+        cost_units: int,
+        transaction_id: UUID,
+    ) -> Reading:
+        if cost_units < 1:
+            raise ValueError("paid reading cost must be positive")
         reading = await self._required_locked(reading_id, user_id)
-        ensure_reading_transition(ReadingStatus(reading.status), ReadingStatus.FULL_READY)
         private = await self._private_row(reading.id)
         if private.result_ciphertext is None:
             raise RuntimeError("reading result is unavailable")
+        spend = await self._session.scalar(
+            select(CreditTransaction)
+            .where(CreditTransaction.id == transaction_id)
+            .with_for_update()
+        )
+        if (
+            spend is None
+            or spend.user_id != user_id
+            or spend.reading_id != reading_id
+            or spend.analysis_id is not None
+            or spend.type != "spend"
+            or spend.amount != -cost_units
+        ):
+            raise ValueError("reading spend transaction mismatch")
+        refunded = await self._session.scalar(
+            select(CreditTransaction.id)
+            .where(CreditTransaction.reverses_transaction_id == spend.id)
+            .with_for_update()
+        )
+        if refunded is not None:
+            raise ValueError("reading spend was refunded")
+        if ReadingStatus(reading.status) is ReadingStatus.FULL_READY:
+            if (
+                reading.full_access_transaction_id == transaction_id
+                and reading.cost_units == cost_units
+                and reading.access_level == ReadingAccess.FULL.value
+            ):
+                return reading
+            raise ValueError("reading full access transaction mismatch")
+        ensure_reading_transition(ReadingStatus(reading.status), ReadingStatus.FULL_READY)
         reading.status = ReadingStatus.FULL_READY.value
         reading.access_level = ReadingAccess.FULL.value
+        reading.cost_units = cost_units
+        reading.full_access_transaction_id = transaction_id
         await self._session.flush()
         return reading
 

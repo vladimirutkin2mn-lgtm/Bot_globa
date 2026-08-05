@@ -13,6 +13,7 @@ from app.domain.reading import (
     ReadingSymbolInput,
     SymbolOrientation,
 )
+from app.services.credits_service import CreditsService
 from app.services.reading_service import PersonaUnavailableError, ReadingService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
 
@@ -45,7 +46,7 @@ def _request(*, persona_code: str = "tarot_reader") -> ReadingDraftRequest:
         engine_version="reading-v1",
         prompt_version="tarot-v1",
         schema_version="reading-result-v1",
-        cost_units=1,
+        cost_units=0,
     )
 
 
@@ -96,9 +97,15 @@ async def test_reading_lifecycle_encrypts_content_and_purges_on_delete(
     assert preview.access_level == "preview"
     assert await service.load_result(reading.id, owner.id) == result
 
-    full = await service.promote_full_access(reading.id, owner.id)
+    credits = CreditsService(payment_db)
+    await credits.grant(owner.id, 1, "reading-service-paid-grant")
+    spent = await credits.spend_reading(owner.id, reading.id, 1)
+    assert spent.transaction_id is not None
+    full = await service.promote_full_access(reading.id, owner.id, 1, spent.transaction_id)
     assert full.status == ReadingStatus.FULL_READY.value
     assert full.access_level == "full"
+    assert full.cost_units == 1
+    assert full.full_access_transaction_id == spent.transaction_id
     assert await service.load_result(reading.id, owner.id) == result
 
     deleted = await service.delete_owned(reading.id, owner.id)
@@ -165,13 +172,13 @@ async def test_failed_generation_can_retry_but_ready_reading_cannot_restart(
     assert failed.failure_code == "provider_timeout"
 
     await service.start_generation(reading.id, owner.id)
-    ready = await service.complete_full(
+    ready = await service.complete_preview(
         reading.id,
         owner.id,
         {"title": "Retry succeeded"},
         _symbols(),
     )
-    assert ready.status == ReadingStatus.FULL_READY.value
+    assert ready.status == ReadingStatus.PREVIEW_READY.value
 
     with pytest.raises(InvalidReadingTransition):
         await service.start_generation(reading.id, owner.id)

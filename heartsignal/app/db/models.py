@@ -321,8 +321,9 @@ class CreditTransaction(Base):
             name="ck_credit_transactions_sign",
         ),
         CheckConstraint(
-            "type <> 'spend' OR analysis_id IS NOT NULL",
-            name="ck_credit_transactions_spend_analysis",
+            "type <> 'spend' OR ((analysis_id IS NOT NULL AND reading_id IS NULL) OR "
+            "(analysis_id IS NULL AND reading_id IS NOT NULL))",
+            name="ck_credit_transactions_spend_target",
         ),
         CheckConstraint(
             "type <> 'purchase' OR (payment_order_id IS NOT NULL AND product_code IS NOT NULL)",
@@ -344,6 +345,9 @@ class CreditTransaction(Base):
     amount: Mapped[int] = mapped_column(Integer)
     idempotency_key: Mapped[str] = mapped_column(String(255), unique=True)
     analysis_id: Mapped[UUID | None] = mapped_column(ForeignKey("analyses.id", ondelete="RESTRICT"))
+    reading_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("readings.id", ondelete="RESTRICT"), index=True
+    )
     payment_order_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("payment_orders.id", ondelete="RESTRICT"), unique=True
     )

@@ -12,15 +12,19 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards import main_menu_keyboard
 from app.bot.states import TarotStates
+from app.bot.tarot_full_renderer import TarotFullRenderer
 from app.bot.tarot_keyboards import (
     TAROT_TOPIC_LABELS,
     tarot_context_keyboard,
+    tarot_full_result_keyboard,
     tarot_history_keyboard,
+    tarot_insufficient_keyboard,
     tarot_result_keyboard,
     tarot_retry_keyboard,
     tarot_topics_keyboard,
 )
 from app.bot.tarot_renderer import TarotPreviewRenderer
+from app.services.monetized_reading import MonetizedReadingService, MonetizedReadingStatus
 from app.services.onboarding import OnboardingService
 from app.services.reading_generation import ReadingGenerationStatus
 from app.services.reading_history import ReadingHistoryService
@@ -33,6 +37,7 @@ from app.services.tarot_reading import (
 router = Router(name="tarot")
 logger = logging.getLogger(__name__)
 renderer = TarotPreviewRenderer()
+full_renderer = TarotFullRenderer()
 
 WELCOME = (
     "🔮 Таролог\n\nВыберите тему. Карты выбираются приложением и не меняются при повторе. "
@@ -54,6 +59,9 @@ UNAVAILABLE = "Таролог временно недоступен. Начни�
 FAILED = "Не удалось завершить интерпретацию. Карты сохранены, поэтому попытку можно повторить."
 HISTORY_TITLE = "Ваши последние готовые расклады:"
 HISTORY_EMPTY = "Готовых раскладов пока нет."
+UNLOCKING = "Проверяю баланс и открываю полный расклад…"
+INSUFFICIENT = "Для полного расклада нужно {price} кр. Доступный баланс: {balance} кр."
+UNLOCK_FAILED = "Не удалось открыть полный расклад. Списание отменено или возвращено."
 
 
 @router.message(Command("tarot"))
@@ -160,6 +168,7 @@ async def open_tarot_history(
     state: FSMContext,
     onboarding: OnboardingService,
     tarot_use_case: TarotReadingUseCase,
+    tarot_monetized: MonetizedReadingService,
 ) -> None:
     await callback.answer()
     if not isinstance(callback.message, Message):
@@ -177,7 +186,7 @@ async def open_tarot_history(
     await state.set_state(TarotStates.generating)
     await callback.message.answer(OPENING)
     outcome = await tarot_use_case.generate_existing_preview(reading_id, user.id)
-    await _deliver(callback.message, state, outcome)
+    await _deliver(callback.message, state, outcome, tarot_monetized)
 
 
 @router.callback_query(F.data.startswith("tarot:topic:"))
@@ -214,6 +223,7 @@ async def skip_tarot_context(
     state: FSMContext,
     onboarding: OnboardingService,
     tarot_use_case: TarotReadingUseCase,
+    tarot_monetized: MonetizedReadingService,
 ) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
@@ -223,6 +233,7 @@ async def skip_tarot_context(
             state,
             onboarding,
             tarot_use_case,
+            tarot_monetized,
             context=None,
         )
 
@@ -233,6 +244,7 @@ async def receive_tarot_context(
     state: FSMContext,
     onboarding: OnboardingService,
     tarot_use_case: TarotReadingUseCase,
+    tarot_monetized: MonetizedReadingService,
 ) -> None:
     if message.from_user is None:
         return
@@ -246,6 +258,7 @@ async def receive_tarot_context(
         state,
         onboarding,
         tarot_use_case,
+        tarot_monetized,
         context=context,
     )
 
@@ -273,7 +286,57 @@ async def retry_tarot(
     await state.set_state(TarotStates.generating)
     await callback.message.answer(PROCESSING)
     outcome = await tarot_use_case.generate_existing_preview(reading_id, user.id)
-    await _deliver(callback.message, state, outcome)
+    await _deliver(callback.message, state, outcome, tarot_monetized)
+
+
+@router.callback_query(F.data.startswith("tarot:unlock:"))
+async def unlock_tarot(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    tarot_use_case: TarotReadingUseCase,
+    tarot_monetized: MonetizedReadingService,
+) -> None:
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None:
+        await state.clear()
+        await callback.message.answer(NOT_ONBOARDED)
+        return
+    try:
+        reading_id = UUID((callback.data or "").removeprefix("tarot:unlock:"))
+    except ValueError:
+        await callback.message.answer(UNAVAILABLE, reply_markup=tarot_result_keyboard())
+        return
+    await callback.message.answer(UNLOCKING)
+    unlocked = await tarot_monetized.unlock_full(reading_id, user.id)
+    if unlocked.status is MonetizedReadingStatus.INSUFFICIENT_CREDITS:
+        await callback.message.answer(
+            INSUFFICIENT.format(
+                price=tarot_monetized.price_credits,
+                balance=unlocked.balance or 0,
+            ),
+            reply_markup=tarot_insufficient_keyboard(reading_id),
+        )
+        return
+    if unlocked.status is MonetizedReadingStatus.FULL_COMPLETED:
+        outcome = await tarot_use_case.generate_existing_preview(reading_id, user.id)
+        if (
+            outcome.generation.status is ReadingGenerationStatus.COMPLETED
+            and outcome.generation.result is not None
+        ):
+            rendered = full_renderer.render(outcome)
+            for index, chunk in enumerate(rendered.chunks):
+                markup = (
+                    tarot_full_result_keyboard()
+                    if index == len(rendered.chunks) - 1
+                    else None
+                )
+                await callback.message.answer(chunk, reply_markup=markup)
+            return
+    await callback.message.answer(UNLOCK_FAILED, reply_markup=tarot_result_keyboard())
 
 
 @router.message(TarotStates.generating)
@@ -329,6 +392,7 @@ async def _generate_new(
     state: FSMContext,
     onboarding: OnboardingService,
     tarot_use_case: TarotReadingUseCase,
+    tarot_monetized: MonetizedReadingService,
     *,
     context: str | None,
 ) -> None:
@@ -351,20 +415,25 @@ async def _generate_new(
         await state.clear()
         await message.answer(UNAVAILABLE, reply_markup=tarot_result_keyboard())
         return
-    await _deliver(message, state, outcome)
+    await _deliver(message, state, outcome, tarot_monetized)
 
 
 async def _deliver(
     message: Message,
     state: FSMContext,
     outcome: TarotPreviewOutcome,
+    monetized: MonetizedReadingService,
 ) -> None:
     await state.clear()
     status = outcome.generation.status
     if status is ReadingGenerationStatus.COMPLETED and outcome.generation.result is not None:
         rendered = renderer.render(outcome)
         for index, chunk in enumerate(rendered.chunks):
-            markup = tarot_result_keyboard() if index == len(rendered.chunks) - 1 else None
+            markup = (
+                tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
+                if index == len(rendered.chunks) - 1
+                else None
+            )
             await message.answer(chunk, reply_markup=markup)
         return
     if status is ReadingGenerationStatus.ALREADY_PROCESSING:
