@@ -31,9 +31,7 @@ class Persona(Base):
     prompt_version: Mapped[str] = mapped_column(String(64))
     schema_version: Mapped[str] = mapped_column(String(64))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -74,17 +72,13 @@ class Reading(Base):
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     persona_id: Mapped[UUID] = mapped_column(
         ForeignKey("personas.id", ondelete="RESTRICT"), index=True
     )
     topic: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(24), default="draft", server_default="draft")
-    access_level: Mapped[str] = mapped_column(
-        String(16), default="none", server_default="none"
-    )
+    access_level: Mapped[str] = mapped_column(String(16), default="none", server_default="none")
     cost_units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     engine_version: Mapped[str] = mapped_column(String(64))
     prompt_version: Mapped[str] = mapped_column(String(64))
@@ -92,9 +86,7 @@ class Reading(Base):
     generation_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_code: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -128,9 +120,7 @@ class ReadingPrivateContent(Base):
         DateTime(timezone=True), index=True
     )
     content_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -160,7 +150,5 @@ class ReadingSymbol(Base):
     position: Mapped[str] = mapped_column(String(64))
     orientation: Mapped[str] = mapped_column(String(16), default="neutral")
     catalog_version: Mapped[str] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     reading: Mapped[Reading] = relationship(back_populates="symbols")
