@@ -107,9 +107,9 @@ async def test_reading_lifecycle_encrypts_content_and_purges_on_delete(
         stored = await session.get(Reading, reading.id)
         private = await session.get(ReadingPrivateContent, reading.id)
         symbol_count = await session.scalar(
-            select(func.count()).select_from(ReadingSymbol).where(
-                ReadingSymbol.reading_id == reading.id
-            )
+            select(func.count())
+            .select_from(ReadingSymbol)
+            .where(ReadingSymbol.reading_id == reading.id)
         )
         assert stored is not None and stored.deleted_at is not None
         assert private is not None and private.content_deleted_at is not None
