@@ -1,7 +1,5 @@
 """Inline keyboards for the isolated tarot MVP flow."""
 
-# ruff: noqa: RUF001
-
 from uuid import UUID
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
