@@ -54,13 +54,13 @@ jobs:
         run: pip install -e '.[dev]'
 
       - name: Check formatting
-        run: ruff format --check app tests migrations
+        run: ruff format --check app tests migrations scripts
 
       - name: Lint
-        run: ruff check app tests migrations
+        run: ruff check app tests migrations scripts
 
       - name: Type-check
-        run: mypy app tests
+        run: mypy app tests scripts
 
       - name: Validate Alembic migration chain
         env:
