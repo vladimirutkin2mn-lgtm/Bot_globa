@@ -72,8 +72,14 @@ jobs:
           alembic downgrade -1
           alembic upgrade head
 
+      - name: Reset test database after migration validation
+        run: python scripts/reset_test_database.py
+
       - name: Verify protected platform invariants
         run: bash scripts/run_platform_invariants.sh --junitxml=platform-invariants-report.xml
+
+      - name: Reset test database before full suite
+        run: python scripts/reset_test_database.py
 
       - name: Test
         run: pytest --junitxml=pytest-report.xml
