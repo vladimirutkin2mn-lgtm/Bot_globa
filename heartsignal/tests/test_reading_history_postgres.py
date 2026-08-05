@@ -115,8 +115,7 @@ async def test_history_lists_only_owned_ready_persona_rows_in_reverse_order(
     assert [item.topic for item in second.items] == ["love"]
     assert not second.has_next and second.page == 1
     assert all(
-        item.status == ReadingStatus.PREVIEW_READY.value
-        for item in (*first.items, *second.items)
+        item.status == ReadingStatus.PREVIEW_READY.value for item in (*first.items, *second.items)
     )
 
 
