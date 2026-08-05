@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 
-from app.bot.tarot_renderer import TELEGRAM_LIMIT, TARGET_CHUNK
+from app.bot.tarot_renderer import TARGET_CHUNK, TELEGRAM_LIMIT
 from app.domain.reading import SymbolOrientation
 from app.services.tarot_reading import TarotPreviewOutcome
 
