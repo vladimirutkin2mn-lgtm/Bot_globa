@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "heartsignal"
+name = "bot-globa"
 version = "0.1.0"
-description = "Telegram-first relationship communication assistant"
+description = "Telegram-first platform for a personalized AI oracle"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
