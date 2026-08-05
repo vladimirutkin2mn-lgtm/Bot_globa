@@ -68,7 +68,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
     PersonaDefinition(
         code="tarot_reader",
         display_name="Таролог",
-        description="Символический расклад с картами, сценариями и практическим следующим шагом.",
+        description="Symbolic cards, possible scenarios and one practical next step.",
         engine=PersonaEngine.SYMBOLIC,
         supported_topics=("love", "work", "decision", "repeating_pattern", "general_forecast"),
         required_inputs=(PersonaInput.QUESTION,),
@@ -80,7 +80,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
     PersonaDefinition(
         code="love_oracle",
         display_name="Любовный оракул",
-        description="Рефлексивный разбор отношений, границ, дистанции и следующего шага.",
+        description="Reflective relationship reading focused on distance, boundaries and choices.",
         engine=PersonaEngine.SYMBOLIC,
         supported_topics=("love", "communication", "boundaries", "choice", "repeating_pattern"),
         required_inputs=(PersonaInput.QUESTION,),
@@ -92,7 +92,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
     PersonaDefinition(
         code="mystical_psychologist",
         display_name="Мистический психолог",
-        description="Архетипы и повторяющиеся паттерны без диагностики и псевдотерапии.",
+        description="Archetypes and recurring patterns without diagnosis or therapy claims.",
         engine=PersonaEngine.REFLECTIVE,
         supported_topics=("decision", "repeating_pattern", "self_reflection", "work", "love"),
         required_inputs=(PersonaInput.QUESTION,),
@@ -104,7 +104,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
     PersonaDefinition(
         code="astrologer",
         display_name="Астролог",
-        description="Гороскоп на основе рассчитанных положений планет, а не выдуманного LLM-текста.",
+        description="Horoscope interpretation based only on a structured astrology calculation.",
         engine=PersonaEngine.ASTROLOGY,
         supported_topics=("natal_profile", "week_forecast", "month_forecast", "decision", "love"),
         required_inputs=(
