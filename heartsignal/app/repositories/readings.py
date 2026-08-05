@@ -138,9 +138,7 @@ class SqlAlchemyReadingRepository:
             raise ValueError("invalid decrypted reading source shape")
         return ReadingSource(question=question, context=context)
 
-    async def load_result(
-        self, reading_id: UUID, user_id: UUID
-    ) -> dict[str, object] | None:
+    async def load_result(self, reading_id: UUID, user_id: UUID) -> dict[str, object] | None:
         row = await self._session.scalar(
             select(ReadingPrivateContent)
             .join(Reading, Reading.id == ReadingPrivateContent.reading_id)
@@ -187,9 +185,7 @@ class SqlAlchemyReadingRepository:
         ensure_reading_transition(ReadingStatus(reading.status), target)
         self._validate_symbols(symbols)
         private = await self._private_row(reading.id)
-        private.result_ciphertext = self._cipher.encrypt_json(
-            ContentPurpose.READING_RESULT, result
-        )
+        private.result_ciphertext = self._cipher.encrypt_json(ContentPurpose.READING_RESULT, result)
         private.result_format_version = 1
         private.content_deleted_at = None
         await self._session.execute(
@@ -209,9 +205,7 @@ class SqlAlchemyReadingRepository:
             ]
         )
         reading.status = target.value
-        reading.access_level = (
-            ReadingAccess.FULL.value if full else ReadingAccess.PREVIEW.value
-        )
+        reading.access_level = ReadingAccess.FULL.value if full else ReadingAccess.PREVIEW.value
         reading.generated_at = datetime.now(UTC)
         reading.failure_code = None
         await self._session.flush()
@@ -228,9 +222,7 @@ class SqlAlchemyReadingRepository:
         await self._session.flush()
         return reading
 
-    async def fail_generation(
-        self, reading_id: UUID, user_id: UUID, failure_code: str
-    ) -> Reading:
+    async def fail_generation(self, reading_id: UUID, user_id: UUID, failure_code: str) -> Reading:
         reading = await self._required_locked(reading_id, user_id)
         ensure_reading_transition(ReadingStatus(reading.status), ReadingStatus.FAILED)
         reading.status = ReadingStatus.FAILED.value
