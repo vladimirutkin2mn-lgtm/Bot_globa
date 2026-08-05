@@ -1,0 +1,85 @@
+name: Fix paid tarot regressions
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'feat/paid-tarot-unlock'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Update migration heads and close preview regeneration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          migration_tests = [
+              'heartsignal/tests/test_followup_migration.py',
+              'heartsignal/tests/test_fsm_migration.py',
+              'heartsignal/tests/test_privacy_migration_data.py',
+              'heartsignal/tests/test_reading_migration.py',
+              'heartsignal/tests/test_refund_ledger_migration.py',
+              'heartsignal/tests/test_release_gate_migration.py',
+              'heartsignal/tests/test_subscription_job_migration.py',
+              'heartsignal/tests/test_subscription_period_migration.py',
+          ]
+          pattern = re.compile(r'(_HEAD(?:_REVISION)?\s*=\s*)"20260805_17"')
+          for name in migration_tests:
+              path = Path(name)
+              text = path.read_text()
+              updated, count = pattern.subn(r'\1"20260805_18"', text)
+              if count != 1:
+                  raise SystemExit(f'expected one head constant in {name}, got {count}')
+              path.write_text(updated)
+
+          domain = Path('heartsignal/app/domain/reading.py')
+          text = domain.read_text()
+          old = '''    ReadingStatus.PREVIEW_READY: frozenset(
+              {ReadingStatus.GENERATING, ReadingStatus.FULL_READY, ReadingStatus.DELETED}
+          ),'''
+          new = '''    ReadingStatus.PREVIEW_READY: frozenset(
+              {ReadingStatus.FULL_READY, ReadingStatus.DELETED}
+          ),'''
+          if old not in text:
+              raise SystemExit('preview transition anchor missing')
+          domain.write_text(text.replace(old, new, 1))
+
+          history = Path('heartsignal/tests/test_reading_history_postgres.py')
+          text = history.read_text()
+          old = '''                topic="other_persona",
+                  status=ReadingStatus.FULL_READY.value,
+                  access_level=ReadingAccess.FULL.value,
+                  cost_units=0,'''
+          new = '''                topic="other_persona",
+                  status=ReadingStatus.PREVIEW_READY.value,
+                  access_level=ReadingAccess.PREVIEW.value,
+                  cost_units=0,'''
+          if old not in text:
+              raise SystemExit('history fixture anchor missing')
+          history.write_text(text.replace(old, new, 1))
+
+          Path('.github/workflows/fix-paid-tarot-regressions.yml').unlink()
+          PY
+
+      - name: Commit regression fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix paid tarot regression contracts"
+          git push origin "HEAD:${{ github.head_ref }}"
