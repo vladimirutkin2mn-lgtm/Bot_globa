@@ -87,7 +87,10 @@ async def test_reading_lifecycle_encrypts_content_and_purges_on_delete(
         assert "рабочими".encode() not in private.context_ciphertext
 
     await service.start_generation(reading.id, owner.id)
-    result = {"title": "Выбор", "practical_step": "Сравнить обратимость решений"}
+    result: dict[str, object] = {
+        "title": "Выбор",
+        "practical_step": "Сравнить обратимость решений",
+    }
     preview = await service.complete_preview(reading.id, owner.id, result, _symbols())
     assert preview.status == ReadingStatus.PREVIEW_READY.value
     assert preview.access_level == "preview"
