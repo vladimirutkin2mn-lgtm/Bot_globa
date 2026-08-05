@@ -75,9 +75,7 @@ class ReadingService:
         async with self._sessions.begin() as session:
             return await self._repository(session).promote_full_access(reading_id, user_id)
 
-    async def fail_generation(
-        self, reading_id: UUID, user_id: UUID, failure_code: str
-    ) -> Reading:
+    async def fail_generation(self, reading_id: UUID, user_id: UUID, failure_code: str) -> Reading:
         async with self._sessions.begin() as session:
             return await self._repository(session).fail_generation(
                 reading_id, user_id, failure_code
@@ -91,9 +89,7 @@ class ReadingService:
         async with self._sessions() as session:
             return await self._repository(session).load_source(reading_id, user_id)
 
-    async def load_result(
-        self, reading_id: UUID, user_id: UUID
-    ) -> dict[str, object] | None:
+    async def load_result(self, reading_id: UUID, user_id: UUID) -> dict[str, object] | None:
         async with self._sessions() as session:
             return await self._repository(session).load_result(reading_id, user_id)
 
