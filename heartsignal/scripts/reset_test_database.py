@@ -9,31 +9,28 @@ import asyncio
 import os
 from urllib.parse import urlparse
 
-import asyncpg
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
-def _asyncpg_dsn(value: str) -> str:
-    return value.replace("postgresql+asyncpg://", "postgresql://", 1)
-
-
-def _validated_test_dsn() -> str:
-    raw = os.environ.get("TEST_DATABASE_URL", "").strip()
-    if not raw:
+def _validated_test_url() -> str:
+    value = os.environ.get("TEST_DATABASE_URL", "").strip()
+    if not value:
         raise RuntimeError("TEST_DATABASE_URL is required")
-    dsn = _asyncpg_dsn(raw)
-    database = urlparse(dsn).path.removeprefix("/")
+    database = urlparse(value).path.removeprefix("/")
     if not database.endswith("_test"):
         raise RuntimeError("refusing to reset a database without the _test suffix")
-    return dsn
+    return value
 
 
 async def _reset() -> None:
-    connection = await asyncpg.connect(_validated_test_dsn())
+    engine = create_async_engine(_validated_test_url())
     try:
-        await connection.execute("DROP SCHEMA public CASCADE")
-        await connection.execute("CREATE SCHEMA public")
+        async with engine.begin() as connection:
+            await connection.execute(text("DROP SCHEMA public CASCADE"))
+            await connection.execute(text("CREATE SCHEMA public"))
     finally:
-        await connection.close()
+        await engine.dispose()
 
 
 def main() -> None:
