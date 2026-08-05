@@ -14,7 +14,9 @@ class RenderedTarotPreview:
     chunks: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not self.chunks or any(not chunk or len(chunk) > TELEGRAM_LIMIT for chunk in self.chunks):
+        if not self.chunks or any(
+            not chunk or len(chunk) > TELEGRAM_LIMIT for chunk in self.chunks
+        ):
             raise ValueError("invalid tarot preview chunks")
 
 
