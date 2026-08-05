@@ -13,10 +13,14 @@ TopicCode = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=2, max_length=64, pattern=r"^[a-z0-9_]+$"),
 ]
-PrivateText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=8000)]
+PrivateText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=8000)
+]
 VersionCode = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"),
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"
+    ),
 ]
 
 
