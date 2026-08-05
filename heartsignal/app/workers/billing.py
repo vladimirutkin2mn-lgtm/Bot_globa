@@ -1,0 +1,123 @@
+"""Runnable payment jobs, reconciliation, subscription lifecycle, and outbox worker."""
+
+import asyncio
+import logging
+import signal
+import socket
+from datetime import UTC, datetime, timedelta
+
+from app.config import Settings, get_settings
+from app.db.session import create_engine, create_session_factory
+from app.logging import configure_logging
+from app.providers.analytics import DiscardingAnalyticsClient
+from app.providers.payments.base import PaymentProviderName
+from app.providers.payments.composition import create_payment_components
+from app.providers.payments.yookassa_gateway import YooKassaGateway
+from app.providers.payments.yookassa_subscription_gateway import YooKassaSubscriptionGateway
+from app.services.billing_job_worker import BillingJobWorker
+from app.services.billing_outbox_service import BillingOutboxWorker
+from app.services.checkout_service import ReceiptContactCipher
+from app.services.payment_completion_service import PaymentCompletionService
+from app.services.payment_reconciliation_service import PaymentReconciliationSweeper
+from app.services.refund_reconciliation_service import RefundReconciliationService
+from app.services.subscription_event_processor import SubscriptionEventProcessor
+from app.services.subscription_lifecycle import SubscriptionLifecycleService
+
+logger = logging.getLogger(__name__)
+
+
+async def run(settings: Settings | None = None, stop: asyncio.Event | None = None) -> None:
+    resolved = settings or get_settings()
+    configure_logging(resolved.log_level)
+    engine = create_engine(str(resolved.database_url))
+    sessions = create_session_factory(engine)
+    components = create_payment_components(resolved)
+    gateways = {name.value: gateway for name, gateway in components.gateways.items()}
+    subscription_gateways = {
+        name.value: gateway for name, gateway in components.subscription_gateways.items()
+    }
+    refund_gateways = {name.value: gateway for name, gateway in components.refund_gateways.items()}
+    if resolved.yookassa_recurring_enabled:
+        yookassa = components.subscription_gateways.get(PaymentProviderName.YOOKASSA)
+        if not isinstance(yookassa, YooKassaGateway):
+            raise ValueError("YooKassa recurring gateway is unavailable")
+        subscription_gateways[PaymentProviderName.YOOKASSA.value] = YooKassaSubscriptionGateway(
+            sessions, resolved, yookassa
+        )
+    completion = PaymentCompletionService(sessions, resolved.app_env == "production")
+    lifecycle = SubscriptionLifecycleService(sessions)
+    subscription_processor = SubscriptionEventProcessor(
+        sessions, lifecycle, resolved.subscription_grace_period_days
+    )
+    refund_processor = RefundReconciliationService(
+        sessions,
+        resolved.billing_pending_reconciliation_seconds,
+    )
+    jobs = BillingJobWorker(
+        sessions,
+        gateways,
+        completion,
+        resolved.billing_worker_lease_seconds,
+        resolved.billing_retry_base_seconds,
+        resolved.billing_worker_max_attempts,
+        resolved.payment_public_base_url,
+        ReceiptContactCipher(resolved.content_encryption_key.get_secret_value()),
+        subscription_gateways,
+        subscription_processor,
+        refund_gateways,
+        refund_processor,
+    )
+    outbox = BillingOutboxWorker(
+        sessions,
+        DiscardingAnalyticsClient(),
+        resolved.billing_worker_lease_seconds,
+        resolved.billing_retry_base_seconds,
+        resolved.billing_worker_max_attempts,
+    )
+    sweeper = PaymentReconciliationSweeper(
+        sessions, resolved.billing_pending_reconciliation_seconds, set(gateways)
+    )
+    stopped = stop or asyncio.Event()
+    worker_id = f"{socket.gethostname()}:{id(stopped)}"
+    loop = asyncio.get_running_loop()
+    if stop is None:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, stopped.set)
+    next_sweep = datetime.now(UTC)
+    try:
+        while not stopped.is_set():
+            now = datetime.now(UTC)
+            if now >= next_sweep:
+                await sweeper.enqueue_stale()
+                if resolved.subscriptions_enabled:
+                    await lifecycle.enqueue_due_renewals(now=now)
+                    await lifecycle.finalize_terminal_states(
+                        now=now,
+                        grace_period=timedelta(days=resolved.subscription_grace_period_days),
+                    )
+                next_sweep = now + timedelta(
+                    seconds=resolved.billing_reconciliation_interval_seconds
+                )
+            try:
+                worked = await jobs.run_once(worker_id)
+                worked = await outbox.run_once(worker_id) or worked
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("billing_worker_iteration_failed")
+                worked = False
+            if not worked:
+                try:
+                    await asyncio.wait_for(stopped.wait(), timeout=1.0)
+                except TimeoutError:
+                    pass
+    finally:
+        await engine.dispose()
+
+
+def main() -> None:
+    asyncio.run(run())
+
+
+if __name__ == "__main__":
+    main()
