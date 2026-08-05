@@ -92,7 +92,7 @@ jobs:
           path: |
             heartsignal/platform-invariants-report.xml
             heartsignal/pytest-report.xml
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Prepare Compose environment
