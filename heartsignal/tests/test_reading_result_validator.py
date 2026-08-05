@@ -63,10 +63,7 @@ def _valid_payload() -> dict[str, object]:
             }
         ],
         "reflection_questions": ["Which choice better matches the value you want to protect?"],
-        "practical_step": (
-            "Delay the final commitment until you compare the two options "
-            "in writing."
-        ),
+        "practical_step": "Compare both options in writing before committing.",
         "uncertainty_note": "The cards cannot determine which external offer will succeed.",
         "share_card": {
             "headline": "Your decision asks for a slower review",
