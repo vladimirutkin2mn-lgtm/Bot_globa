@@ -17,6 +17,9 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 class ContentPurpose(StrEnum):
     ANALYSIS_SOURCE = "analysis-source"
     ANALYSIS_RESULT = "analysis-result"
+    READING_QUESTION = "reading-question"
+    READING_CONTEXT = "reading-context"
+    READING_RESULT = "reading-result"
     TELEGRAM_UPDATE = "telegram-update"
     TELEGRAM_FSM_DATA = "telegram-fsm-data"
     PAYMENT_METHOD = "payment-method"
