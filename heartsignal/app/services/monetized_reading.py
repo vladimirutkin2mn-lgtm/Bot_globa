@@ -3,7 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -125,9 +125,10 @@ class MonetizedReadingService:
 
     async def _state(self, reading_id: UUID, user_id: UUID) -> Reading | None:
         async with self._sessions() as session:
-            return await session.scalar(
+            value = await session.scalar(
                 select(Reading).where(Reading.id == reading_id, Reading.user_id == user_id)
             )
+            return cast(Reading | None, value)
 
     async def _validated_result(self, reading_id: UUID, user_id: UUID) -> ReadingResult | None:
         try:
