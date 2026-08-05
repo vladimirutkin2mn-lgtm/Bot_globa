@@ -11,11 +11,15 @@ Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 SymbolCode = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"),
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"
+    ),
 ]
 PositionCode = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"),
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"
+    ),
 ]
 
 
