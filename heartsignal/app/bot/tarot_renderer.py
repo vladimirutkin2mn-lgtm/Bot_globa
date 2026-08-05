@@ -1,5 +1,7 @@
 """Render a bounded Telegram preview from an already validated tarot result."""
 
+# ruff: noqa: RUF001
+
 from dataclasses import dataclass
 
 from app.domain.reading import SymbolOrientation
