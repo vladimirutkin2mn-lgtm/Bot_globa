@@ -1,340 +1,275 @@
 # MVP backlog — персональный AI-оракул
 
-Этот backlog переводит архитектурный план в последовательность небольших pull requests. Приоритет — как можно раньше получить работающий paid vertical slice, не переписывая зрелые billing, privacy и release-механизмы HeartSignal.
+Backlog рассчитан на четыре MVP-направления: таролог, любовный оракул, мистический психолог и персональный гороскоп.
 
 Обозначения:
 
 - **P0** — блокирует MVP;
 - **P1** — нужно для ограниченного коммерческого запуска;
 - **P2** — рост после подтверждения спроса;
-- **S/M/L** — относительный размер задачи, а не календарная оценка.
+- **S/M/L** — относительный размер.
 
 ---
 
 ## Milestone 0 — перенести и зафиксировать рабочую базу
 
-### ORA-001 · Extract HeartSignal subtree — P0 / L
+### ORA-001 · Extract HeartSignal baseline — P0 / L
 
-- [ ] Получить split-ветку из `fabric_bot/ideas/ai-relationship-platform` с сохранением истории.
-- [ ] Импортировать её в отдельную ветку `migration/heartsignal-baseline`.
+- [ ] Извлечь `fabric_bot/ideas/ai-relationship-platform` с историей.
+- [ ] Импортировать в `migration/heartsignal-baseline`.
 - [ ] Поднять PostgreSQL и приложение через Docker Compose.
-- [ ] Запустить весь исходный test suite.
-- [ ] Зафиксировать baseline commit и результат тестов в PR.
+- [ ] Запустить исходный test suite.
+- [ ] Подключить CI в `Bot_globa`.
 - [ ] Не менять поведение приложения в этом PR.
 
-**Acceptance:** код собирается, миграции применяются на чистую БД, исходные тесты зелёные, CI работает в `Bot_globa`.
+**Acceptance:** код собирается, миграции применяются на чистую БД, исходные тесты зелёные.
 
 ### ORA-002 · Repository and package identity — P0 / S
 
-- [ ] Переименовать package/project metadata.
-- [ ] Обновить README, env example, Docker image names и CI labels.
-- [ ] Удалить ссылки на старый repository deployment.
-- [ ] Проверить отсутствие секретов и production identifiers.
+- [ ] Обновить project metadata, README, env example и image names.
+- [ ] Удалить старые deployment identifiers и проверить секреты.
+- [ ] Не переписывать исторические migration IDs.
 
-**Acceptance:** поиск по старому имени не находит пользовательских текстов и deployment identifiers; исторические migration IDs не переписываются.
+**Acceptance:** проект запускается из `Bot_globa`, а финансовая история миграций сохранена.
 
 ### ORA-003 · Freeze platform invariants — P0 / M
 
-- [ ] Описать invariants для ledger, purchases, subscriptions, refunds и follow-up entitlement.
-- [ ] Добавить characterization tests перед доменной переделкой.
-- [ ] Зафиксировать privacy deletion и encryption round-trip tests.
+- [ ] Characterization tests для credits, purchases, subscriptions и refunds.
+- [ ] Exactly-once tests для entitlement и webhook replay.
+- [ ] Encryption round-trip и privacy deletion tests.
 
-**Acceptance:** тесты падают при повторном списании, двойной выдаче entitlement, утечке plaintext или неидемпотентном webhook replay.
+**Acceptance:** тесты ловят двойное списание, повторную выдачу entitlement и утечку plaintext.
 
 ---
 
-## Milestone 1 — один работающий расклад от вопроса до оплаты
+## Milestone 1 — Tarot vertical slice
 
 ### ORA-101 · Reading domain — P0 / L
 
-- [ ] Добавить новые Alembic migrations.
-- [ ] Создать `Persona`, `Reading`, `ReadingPrivateContent`, `ReadingSymbol`.
-- [ ] Добавить статусы `draft`, `generating`, `preview_ready`, `full_ready`, `failed`, `deleted`.
-- [ ] Зашифровать question, optional context и full output.
-- [ ] Добавить repository/service слой без Telegram-зависимостей.
-
-**Acceptance:** CRUD и state transitions покрыты unit/integration tests; sensitive fields отсутствуют в plaintext БД и логах.
+- [ ] Новые Alembic migrations.
+- [ ] `Persona`, `Reading`, `ReadingPrivateContent`, `ReadingSymbol`.
+- [ ] Состояния draft/generating/preview_ready/full_ready/failed/deleted.
+- [ ] Шифрование вопроса, контекста и полного результата.
 
 ### ORA-102 · Persona registry — P0 / M
 
-- [ ] Создать registry с versioned persona definitions.
-- [ ] Реализовать persona `tarot_reader_v1`.
+- [ ] Versioned persona definitions.
+- [ ] `tarot_reader_v1`.
 - [ ] Разделить global policy, persona style и runtime request.
-- [ ] Сохранять persona/prompt/schema versions в `Reading`.
-- [ ] Запретить persona prompt переопределять global policy.
+- [ ] Сохранять prompt/schema versions.
 
-**Acceptance:** один и тот же reading можно воспроизвести с сохранёнными версиями; неизвестная/выключенная persona не запускается.
+### ORA-103 · Deterministic Symbolic Engine — P0 / M
 
-### ORA-103 · Deterministic symbolic engine — P0 / M
-
-- [ ] Завести versioned catalog карт/символов.
-- [ ] Выбирать символы по seed, связанному с `reading_id`.
-- [ ] Поддержать spread positions и upright/reversed configuration.
-- [ ] Передавать модели уже выбранные символы.
-- [ ] Не менять расклад при LLM retry или worker replay.
-
-**Acceptance:** повторный запуск одного reading возвращает те же symbol IDs, positions и orientations.
+- [ ] Versioned catalog карт.
+- [ ] Seed от `reading_id`.
+- [ ] Positions и upright/reversed.
+- [ ] Один расклад при LLM retry и worker replay.
 
 ### ORA-104 · Structured ReadingResult — P0 / L
 
-- [ ] Описать строгую Pydantic-схему результата.
-- [ ] Добавить provider adapter, validation и один controlled repair retry.
-- [ ] Проверять соответствие symbol IDs входному раскладу.
-- [ ] Разделить model result и Telegram renderer.
-- [ ] Добавить golden fixtures для типовых тем.
-
-**Acceptance:** невалидный JSON не попадает пользователю; модель не может подменить выбранные карты; repair metrics доступны.
+- [ ] Строгая Pydantic schema.
+- [ ] Validation и один controlled repair retry.
+- [ ] Проверка symbol IDs.
+- [ ] Golden fixtures.
 
 ### ORA-105 · Telegram intake — P0 / L
 
-- [ ] Новый `/start` и onboarding.
-- [ ] 18+ gate и короткое объяснение развлекательного формата.
-- [ ] Выбор persona и topic.
-- [ ] Ввод вопроса и необязательного контекста.
-- [ ] Возможность отменить/исправить вопрос до генерации.
-- [ ] Защита от двойного callback/retry.
-
-**Acceptance:** пользователь проходит путь от нового аккаунта до preview; повтор Telegram update не создаёт второй reading.
+- [ ] Новый onboarding и 18+ gate.
+- [ ] Выбор persona/topic.
+- [ ] Ввод вопроса и контекста.
+- [ ] Idempotency Telegram callbacks.
 
 ### ORA-106 · Preview/full renderer — P0 / M
 
-- [ ] Сформировать законченный бесплатный preview.
-- [ ] Сформировать полный Telegram report из той же схемы.
-- [ ] Исключить приватные поля из preview analytics/logging.
-- [ ] Добавить pagination для длинного ответа.
-- [ ] Сохранить безопасный replay готового результата.
-
-**Acceptance:** preview и full не противоречат друг другу; replay не вызывает LLM и не списывает кредиты повторно.
+- [ ] Законченный бесплатный preview.
+- [ ] Полный Telegram report.
+- [ ] Pagination и replay без нового LLM.
 
 ### ORA-107 · Free entitlement and paid unlock — P0 / L
 
-- [ ] Создать one-time free preview entitlement для нового пользователя.
-- [ ] Добавить SKU `reading_single`.
-- [ ] Связать full generation/unlock с существующим ledger.
-- [ ] Списывать exactly once после подтверждённого entitlement.
-- [ ] Обработать race между callback, webhook и worker replay.
+- [ ] One-time free preview.
+- [ ] `reading_single`.
+- [ ] Exactly-once unlock/spend.
+- [ ] Race handling callback/webhook/worker.
 
-**Acceptance:** один пользователь не получает бесконечные free previews; paid reading не списывается дважды; после восстановления worker результат доступен.
+**Milestone acceptance:** новый пользователь получает preview, оплачивает full reading и может открыть его повторно без нового списания.
 
 ---
 
-## Milestone 2 — безопасность как часть движка
+## Milestone 2 — безопасность
 
-### ORA-201 · Oracle input risk classifier — P0 / L
+### ORA-201 · Input risk classifier — P0 / L
 
-- [ ] Определять self-harm, violence/stalking, medical, legal, financial/gambling и high-stakes certainty requests.
-- [ ] Разделить `allow`, `allow_with_limits`, `handoff`, `block`.
-- [ ] Не передавать заблокированный запрос в persona prompt.
-- [ ] Сохранять только минимальную audit-категорию без чувствительного текста.
-
-**Acceptance:** adversarial fixture set стабильно маршрутизируется; blocked content не генерирует мистический ответ.
+- [ ] Self-harm, violence/stalking, medical, legal, financial/gambling и certainty requests.
+- [ ] `allow`, `allow_with_limits`, `handoff`, `block`.
+- [ ] Заблокированный запрос не попадает в persona prompt.
 
 ### ORA-202 · Output safety validator — P0 / L
 
-- [ ] Ловить гарантии будущего и точные даты как факты.
-- [ ] Ловить утверждения о мыслях третьего лица.
-- [ ] Ловить смерть, болезнь, беременность, измену, преступление и проклятие как “достоверные выводы”.
-- [ ] Ловить страховые upsell-паттерны и зависимость.
-- [ ] Делать safe repair либо заменять ответ безопасным fallback.
+- [ ] Гарантии будущего и точные даты как факты.
+- [ ] Мысли третьих лиц.
+- [ ] Болезнь, смерть, беременность, измена, преступление и проклятие.
+- [ ] Fear upsell и dependency patterns.
 
-**Acceptance:** запрещённые паттерны покрыты тестами; невалидный ответ не показывается и не становится share payload.
+### ORA-203 · Crisis handoffs — P0 / M
 
-### ORA-203 · Crisis and real-world handoffs — P0 / M
-
-- [ ] Создать отдельные neutral templates для кризиса, насилия и медицинских симптомов.
-- [ ] В чувствительном сценарии прекращать гадательную часть.
-- [ ] Добавить локализуемую конфигурацию ресурсов помощи.
-- [ ] Не использовать такой handoff для маркетинга или upsell.
-
-**Acceptance:** handoff отображается вместо расклада; событие аналитики не содержит исходный текст.
+- [ ] Neutral templates.
+- [ ] Прекращение мистической части.
+- [ ] Локализуемые ресурсы помощи.
 
 ### ORA-204 · Safety regression suite — P0 / M
 
-- [ ] Набор минимум из benign, ambiguous и adversarial сценариев для всех persona.
-- [ ] Проверка prompt injection внутри вопроса пользователя.
-- [ ] Проверка malicious memory items.
-- [ ] Проверка share-card sanitization.
-- [ ] Подключить suite к LLM staging quality gate.
-
-**Acceptance:** release readiness блокирует деплой при safety regression.
+- [ ] Benign, ambiguous и adversarial fixtures для всех четырёх направлений.
+- [ ] Prompt injection и malicious memory.
+- [ ] Share sanitization.
+- [ ] Интеграция в staging quality gate.
 
 ---
 
-## Milestone 3 — персональный оракул с памятью
+## Milestone 3 — память и continuity
 
 ### ORA-301 · Memory model and consent — P0 / L
 
-- [ ] Добавить `MemoryItem` с source reading, type, confidence, timestamps и deletion state.
-- [ ] Получать явное согласие на долгосрочную память.
-- [ ] По умолчанию не сохранять model speculation.
-- [ ] Ограничить типы разрешённых memory facts.
-- [ ] Шифровать чувствительное значение.
-
-**Acceptance:** без consent новый memory item не создаётся; speculative output невозможно сохранить как fact.
+- [ ] `MemoryItem`, provenance, confidence и deletion state.
+- [ ] Explicit consent.
+- [ ] Только разрешённые типы фактов.
+- [ ] Шифрование значений.
 
 ### ORA-302 · Memory extraction — P0 / L
 
-- [ ] Извлекать candidate items только из пользовательского вопроса/подтверждённых данных.
-- [ ] Дедуплицировать повторяющиеся темы и людей.
-- [ ] Хранить source IDs и provenance.
-- [ ] Ограничить число items, отправляемых в один prompt.
-- [ ] Добавить expiry/retention policy.
+- [ ] Извлечение только из пользовательского ввода и подтверждений.
+- [ ] Deduplication и source IDs.
+- [ ] Fixed prompt context limit.
 
-**Acceptance:** extractor не превращает интерпретацию модели в биографический факт; prompt context имеет фиксированный лимит.
+### ORA-303 · User controls — P0 / M
 
-### ORA-303 · User memory controls — P0 / M
-
-- [ ] Экран “Что я помню”.
-- [ ] Удаление отдельного элемента.
-- [ ] Полная очистка.
-- [ ] Отключение/повторное включение памяти.
-- [ ] Подтверждение необратимого удаления.
-
-**Acceptance:** удалённый item физически/криптографически недоступен и не появляется в следующих prompts.
+- [ ] «Что я помню».
+- [ ] Удаление одного элемента.
+- [ ] Полная очистка и отключение памяти.
 
 ### ORA-304 · Contextual continuity — P1 / M
 
-- [ ] Показывать пользователю, когда используется прошлый контекст.
-- [ ] Добавлять source-aware формулировки “ранее ты рассказывала…”.
-- [ ] Не выдавать continuity за подтверждение предсказания.
-- [ ] Добавить opt-out для конкретного reading.
-
-**Acceptance:** пользователь понимает происхождение персонализации и может исключить память из запроса.
+- [ ] Source-aware формулировки.
+- [ ] Показ использования прошлого контекста.
+- [ ] Opt-out для конкретного reading.
 
 ### ORA-305 · Paid contextual follow-up — P0 / M
 
-- [ ] Адаптировать существующий follow-up entitlement.
-- [ ] Один follow-up входит в полный reading.
-- [ ] Ответ grounding только на текущем reading и разрешённой памяти.
-- [ ] Exactly-once consumption и безопасный replay.
-
-**Acceptance:** follow-up не создаёт новый расклад, не меняет символы и не списывается повторно.
+- [ ] Один follow-up в полном reading.
+- [ ] Exactly-once consumption.
+- [ ] Без нового расклада и повторного списания.
 
 ---
 
-## Milestone 4 — три персонажа и продуктовый каталог
+## Milestone 4 — четыре направления
 
 ### ORA-401 · Love Oracle persona — P0 / M
 
-- [ ] Новый prompt/style pack.
-- [ ] Специальный запрет на claims о точных мыслях/чувствах другого человека.
-- [ ] Темы: дистанция, границы, выбор, коммуникация, повторяющийся паттерн.
+- [ ] Prompt/style pack.
+- [ ] Темы: дистанция, границы, коммуникация и следующий шаг.
+- [ ] Запрет claims о точных мыслях/чувствах другого человека.
 - [ ] Golden и adversarial tests.
-
-**Acceptance:** ответы остаются рефлексивными, не подтверждают измену и не советуют преследование/манипуляцию.
 
 ### ORA-402 · Mystical Psychologist persona — P0 / M
 
-- [ ] Новый prompt/style pack.
-- [ ] Не использовать клинические диагнозы и псевдотерапевтические утверждения.
-- [ ] Делать акцент на архетипах, наблюдениях и вопросах.
+- [ ] Prompt/style pack.
+- [ ] Архетипы, наблюдения и рефлексивные вопросы.
+- [ ] Никаких диагнозов и claims о лицензированной терапии.
 - [ ] Golden и adversarial tests.
 
-**Acceptance:** persona не называет расстройства и не выдаёт себя за лицензированного специалиста.
+### ORA-403 · BirthProfile and Astrology Calculation Engine — P0 / L
 
-### ORA-403 · Product catalog migration — P0 / M
+- [ ] `BirthProfile` с зашифрованными исходными данными.
+- [ ] Нормализация места и часового пояса рождения.
+- [ ] Подключение расчётной библиотеки или сервиса.
+- [ ] Версионированный `NatalChartResult` с provenance.
+- [ ] Planetary positions, aspects и houses только при достаточном качестве времени.
+- [ ] Воспроизводимые fixtures для известных входов.
 
-- [ ] Создать versioned catalog новых SKU.
-- [ ] Убрать relationship-analysis labels из checkout и receipts.
-- [ ] Настроить credits для single/pack/subscription.
-- [ ] Сохранить provider reconciliation и refund paths.
-- [ ] Проверить Stripe/YooKassa sandbox acceptance.
+**Acceptance:** одинаковые нормализованные входы дают одинаковую карту; неизвестное время не создаёт асцендент и дома.
 
-**Acceptance:** каждый provider event однозначно связан с новым SKU; refund возвращает право/деньги по существующим invariants.
+### ORA-404 · Horoscope persona and renderer — P0 / L
 
-### ORA-404 · Subscription and daily message entitlement — P1 / L
+- [ ] Horoscope prompt/style pack.
+- [ ] Натальный профиль и недельный/месячный прогноз.
+- [ ] LLM получает только рассчитанные chart facts.
+- [ ] Validator запрещает менять положения планет.
+- [ ] Ограничения входных данных отображаются пользователю.
+- [ ] Golden и adversarial tests.
 
-- [ ] Выдавать подписочные кредиты exactly once за период.
-- [ ] Добавить opt-in на daily message.
-- [ ] Ограничить частоту и тихие часы пользователя.
-- [ ] Не создавать тревожные push-тексты.
-- [ ] Позволить отключить сообщения отдельно от подписки.
+**Acceptance:** текст ссылается только на расчётный payload и не выдаёт прогноз за гарантированное событие.
 
-**Acceptance:** retry scheduler не создаёт дубликаты; отписка от daily messages применяется немедленно.
+### ORA-405 · Product catalog migration — P0 / M
+
+- [ ] `reading_single`, packs, subscription и astrology SKUs.
+- [ ] Новые checkout/receipt labels.
+- [ ] Provider reconciliation и refund paths.
+- [ ] Stripe/YooKassa sandbox acceptance.
+
+### ORA-406 · Subscription and daily messages — P1 / L
+
+- [ ] Exactly-once subscription credits.
+- [ ] Opt-in и quiet hours.
+- [ ] Отдельное отключение daily messages.
+- [ ] Никаких тревожных push-текстов.
 
 ---
 
-## Milestone 5 — вирусность без утечки приватности
+## Milestone 5 — вирусность
 
 ### ORA-501 · Safe share payload — P1 / M
 
-- [ ] Генерировать headline/short text как часть structured result.
-- [ ] Пропускать payload через отдельный safety/sensitivity validator.
-- [ ] Не включать вопрос, контекст, память и имена по умолчанию.
-- [ ] Дать пользователю preview и явное подтверждение.
-
-**Acceptance:** карточка может быть опубликована без раскрытия приватного reading; unsafe payload блокируется.
+- [ ] Headline/short text в structured result.
+- [ ] Отдельная safety/sensitivity validation.
+- [ ] Без вопроса, контекста, памяти, имён и birth data по умолчанию.
+- [ ] Preview и явное подтверждение.
 
 ### ORA-502 · Telegram sharing and attribution — P1 / M
 
-- [ ] Создать deep link/referral token без user ID в открытом виде.
-- [ ] Добавить Telegram share action.
-- [ ] Атрибутировать start/activation/purchase.
-- [ ] Установить TTL и abuse limits для token.
-
-**Acceptance:** переход по ссылке не раскрывает владельца reading; повтор/бот-трафик не раздаёт unlimited rewards.
+- [ ] Deep link/referral token без открытого user ID.
+- [ ] Attribution start/activation/purchase.
+- [ ] TTL и abuse limits.
 
 ### ORA-503 · Image card renderer — P2 / L
 
-- [ ] Versioned visual templates.
-- [ ] Safe typography/layout для длинного текста.
-- [ ] Object storage lifecycle и deletion hooks.
+- [ ] Versioned templates.
+- [ ] Storage lifecycle и deletion hooks.
 - [ ] Alt text/accessibility.
-
-**Acceptance:** удаление аккаунта удаляет связанные assets; renderer не получает исходный приватный вопрос.
 
 ---
 
-## Milestone 6 — аналитика и ограниченный запуск
+## Milestone 6 — аналитика и запуск
 
 ### ORA-601 · Product event taxonomy — P0 / M
 
-- [ ] Реализовать события из архитектурного плана.
-- [ ] Ввести anonymous/user-scoped identifiers по privacy правилам.
-- [ ] Не логировать вопросы и полный текст readings.
-- [ ] Проверить event deduplication.
-
-**Acceptance:** funnel и retention считаются без доступа к приватному содержимому.
+- [ ] Funnel, persona, astrology intake, purchase, memory, follow-up, share и safety events.
+- [ ] Не логировать вопросы, readings и birth data.
+- [ ] Event deduplication.
 
 ### ORA-602 · Cost and quality observability — P0 / M
 
-- [ ] Tokens/cost/latency по provider, model, persona и prompt version.
-- [ ] JSON validation и repair rate.
-- [ ] Safety fallback/handoff rate.
-- [ ] Billing/refund/reconciliation health.
-- [ ] Алерты без sensitive payloads.
-
-**Acceptance:** можно определить дорогую или нестабильную persona/prompt version без просмотра пользовательского текста.
+- [ ] LLM cost/latency по model/persona/prompt version.
+- [ ] Astrology calculation latency/errors/version.
+- [ ] Validation, repair, safety fallback и billing health.
 
 ### ORA-603 · Oracle staging quality gate — P0 / L
 
-- [ ] Fixed evaluation dataset по персонажам и темам.
-- [ ] Structural, safety и style assertions.
-- [ ] Проверка deployed prompt/schema/model versions.
-- [ ] Артефакт с provenance и сроком действия.
-- [ ] Интеграция с существующим release-readiness control plane.
-
-**Acceptance:** stale/missing/failed quality evidence блокирует production release.
+- [ ] Fixed dataset по четырём направлениям.
+- [ ] Structural, calculation, safety и style assertions.
+- [ ] Проверка deployed prompt/schema/model/engine versions.
 
 ### ORA-604 · Limited-release controls — P0 / M
 
-- [ ] Feature flag/allowlist или процентный rollout.
-- [ ] Kill switch для LLM generation и отдельных persona.
-- [ ] Spend cap и rate limits.
-- [ ] Runbook для provider outage, unsafe output spike и billing incident.
-- [ ] Rollback rehearsal.
-
-**Acceptance:** новый трафик можно остановить без потери уже оплаченных готовых readings; rollback не ломает ledger.
+- [ ] Feature flags и rollout.
+- [ ] Kill switch по persona/engine.
+- [ ] Spend caps, rate limits и rollback runbook.
 
 ### ORA-605 · Launch review — P0 / S
 
-- [ ] Пройти readiness gates для точного commit.
-- [ ] Проверить privacy deletion end-to-end.
-- [ ] Проверить purchase/refund/subscription sandbox paths.
-- [ ] Проверить safety fixtures и manual spot review.
-- [ ] Зафиксировать launch commit и владельца rollback decision.
-
-**Acceptance:** ограниченный production launch разрешён только при зелёном readiness snapshot.
+- [ ] Privacy deletion end-to-end, включая BirthProfile.
+- [ ] Purchase/refund/subscription sandbox paths.
+- [ ] Safety и astrology fixtures.
+- [ ] Readiness snapshot для точного commit.
 
 ---
 
@@ -342,26 +277,24 @@
 
 ### ORA-701 · Pair compatibility — P2 / L
 
-Отдельная consent-модель, `PairProfile`, симметричный ввод данных и отсутствие claims о мыслях второго человека.
+Отдельная consent-модель, `PairProfile` и отсутствие claims о мыслях второго человека.
 
 ### ORA-702 · Voice response — P2 / L
 
-TTS-провайдер, voice consent/licensing, cost controls, audio lifecycle и отдельная safety проверка текста до синтеза.
+TTS, лицензирование голоса, cost controls и safety до синтеза.
 
 ### ORA-703 · Dream interpreter — P2 / M
 
-Отдельный persona pack и memory policy: сон сохраняется только как пользовательский рассказ, не как факт реального события.
+Отдельный persona pack; сон хранится как пользовательский рассказ, а не реальное событие.
 
-### ORA-704 · Astrology engine — P2 / L
+### ORA-704 · Advanced astrology — P2 / L
 
-Только с отдельной библиотекой/сервисом вычислений, provenance входных данных и часовым поясом рождения. LLM отвечает за объяснение, но не придумывает положения планет.
+Ректификация времени, хорарная астрология, расширенные транзиты и синастрия после проверки спроса.
 
 ---
 
-## Порядок исполнения
+## Критический путь
 
-Критический путь MVP:
+`ORA-001 → ORA-003 → ORA-101/102/103/104/105/106/107 → ORA-201/202/204 → ORA-301/303/305 → ORA-401 → ORA-402 → ORA-403 → ORA-404 → ORA-405 → ORA-601/602/603/604/605`
 
-`ORA-001 → ORA-003 → ORA-101 → ORA-103 → ORA-104 → ORA-105 → ORA-106 → ORA-107 → ORA-201/202/204 → ORA-301/303 → ORA-305 → ORA-401/402 → ORA-403 → ORA-601/602/603/604/605`
-
-Задачи P2 не должны попадать в критический путь до получения данных по activation, paid conversion, repeat usage, safety complaints и unit economics.
+Первый следующий шаг: `ORA-001 · Extract HeartSignal baseline`.
