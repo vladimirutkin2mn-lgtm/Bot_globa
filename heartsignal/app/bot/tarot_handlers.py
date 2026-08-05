@@ -269,6 +269,7 @@ async def retry_tarot(
     state: FSMContext,
     onboarding: OnboardingService,
     tarot_use_case: TarotReadingUseCase,
+    tarot_monetized: MonetizedReadingService,
 ) -> None:
     await callback.answer()
     if not isinstance(callback.message, Message):
