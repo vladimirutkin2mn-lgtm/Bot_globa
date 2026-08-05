@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - migration/heartsignal-baseline
     paths:
       - "heartsignal/**"
       - ".github/workflows/heartsignal-ci.yml"
