@@ -1,6 +1,7 @@
 """PostgreSQL coverage for safe paginated reading history metadata."""
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -113,15 +114,19 @@ async def test_history_lists_only_owned_ready_persona_rows_in_reverse_order(
     assert first.has_next and first.page == 0
     assert [item.topic for item in second.items] == ["love"]
     assert not second.has_next and second.page == 1
-    assert all(item.status == ReadingStatus.PREVIEW_READY.value for item in (*first.items, *second.items))
+    assert all(
+        item.status == ReadingStatus.PREVIEW_READY.value
+        for item in (*first.items, *second.items)
+    )
 
 
 async def test_history_rejects_invalid_pagination_before_query(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     history = ReadingHistoryService(payment_db)
+    user_id = uuid4()
 
     with pytest.raises(ValueError, match="non-negative"):
-        await history.list_ready(User().id, "tarot_reader", page=-1)
+        await history.list_ready(user_id, "tarot_reader", page=-1)
     with pytest.raises(ValueError, match="page size"):
-        await history.list_ready(User().id, "tarot_reader", page_size=21)
+        await history.list_ready(user_id, "tarot_reader", page_size=21)
