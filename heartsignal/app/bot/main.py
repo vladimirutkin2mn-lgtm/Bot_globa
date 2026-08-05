@@ -14,6 +14,7 @@ from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
+from app.bot.tarot_handlers import router as tarot_router
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
@@ -25,15 +26,26 @@ from app.providers.analytics_postgres import create_analytics_client
 from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
 from app.providers.payments.composition import create_payment_components
+from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
 from app.services.checkout_service import CheckoutService
+from app.services.persona_registry import PersonaRegistryService
+from app.services.reading_generation import ReadingGenerationService
+from app.services.reading_service import ReadingService
 from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
 from app.services.subscription_checkout_service import SubscriptionCheckoutService
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
 from app.services.subscription_management_service import SubscriptionManagementService
+from app.services.tarot_reading import TarotReadingUseCase
 
 logger = logging.getLogger(__name__)
+
+
+async def sync_persona_registry(persona_registry: PersonaRegistryService) -> None:
+    """Ensure all versioned MVP personas exist before Telegram updates are accepted."""
+
+    await persona_registry.sync_mvp_personas()
 
 
 def create_dispatcher(
@@ -92,12 +104,27 @@ def create_dispatcher(
     dispatcher.include_router(followup_router)
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
+    dispatcher.include_router(tarot_router)
     dispatcher.include_router(router)
     dispatcher["database_engine"] = resolved_engine
     dispatcher["owns_database_engine"] = engine is None
     dispatcher["llm_client"] = llm
     dispatcher["analytics"] = analytics
     dispatcher["error_reporter"] = reporter
+    dispatcher["persona_registry"] = PersonaRegistryService(sessions)
+    dispatcher["tarot_use_case"] = TarotReadingUseCase.from_services(
+        ReadingService(sessions, cipher, settings.raw_content_retention_days),
+        ReadingGenerationService(
+            SqlAlchemyReadingGenerationStore(
+                sessions,
+                cipher,
+                settings.raw_content_retention_days,
+            ),
+            llm,
+            max_repair_attempts=settings.llm_max_repair_attempts,
+        ),
+    )
+    dispatcher.startup.register(sync_persona_registry)
     return dispatcher
 
 

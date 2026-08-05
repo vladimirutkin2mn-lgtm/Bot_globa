@@ -15,3 +15,9 @@ class IntakeStates(StatesGroup):
 
 class PaymentStates(StatesGroup):
     waiting_for_receipt_contact = State()
+
+
+class TarotStates(StatesGroup):
+    waiting_for_question = State()
+    waiting_for_context = State()
+    generating = State()
