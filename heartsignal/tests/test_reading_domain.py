@@ -18,7 +18,7 @@ def test_reading_draft_request_is_strict_and_normalized() -> None:
         persona_code="tarot_reader",
         topic="decision",
         question="  Что мне сейчас важно увидеть?  ",
-        context="Не могу выбрать между двумя вариантами",
+        context="I cannot choose between two options",
         engine_version="reading-v1",
         prompt_version="tarot-v1",
         schema_version="reading-result-v1",
@@ -67,6 +67,6 @@ def test_symbol_input_has_closed_orientation_contract() -> None:
         ReadingSymbolInput(
             symbol_id="major_02",
             position="current influence",
-            orientation="sideways",
+            orientation="sideways",  # type: ignore[arg-type]
             catalog_version="tarot-v1",
         )
