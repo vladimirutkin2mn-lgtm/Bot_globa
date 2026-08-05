@@ -24,7 +24,7 @@ Telegram-first продукт, который создаёт персонали�
 ## Документы
 
 - [План адаптации fabric_bot](docs/FABRIC_BOT_ADAPTATION_PLAN.md)
-- [MVP scope v2: четыре направления](docs/MVP_SCOPE_V2.md)
+- [MVP scope: четыре направления](docs/MVP_SCOPE_V2.md)
 - [Исполнимый MVP backlog](docs/MVP_BACKLOG.md)
 
 ## Первый технический шаг
