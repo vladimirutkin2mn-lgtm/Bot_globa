@@ -32,10 +32,7 @@ def test_astrologer_requires_calculation_and_never_invents_unknown_birth_time_da
     assert PersonaInput.BIRTH_DATE in astrologer.required_inputs
     assert PersonaInput.BIRTH_PLACE in astrologer.required_inputs
     assert PersonaInput.BIRTH_TIME in astrologer.optional_inputs
-    assert (
-        astrologer.unknown_birth_time_policy
-        is UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT
-    )
+    assert astrologer.unknown_birth_time_policy is UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT
 
 
 def test_only_astrologer_requires_calculation_engine() -> None:
