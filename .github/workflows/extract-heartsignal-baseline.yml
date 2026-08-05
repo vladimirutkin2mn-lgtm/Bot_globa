@@ -1,11 +1,13 @@
 name: Extract HeartSignal baseline
 
 on:
-  push:
+  pull_request:
     branches:
-      - migration/heartsignal-baseline
-    paths:
-      - ".github/workflows/extract-heartsignal-baseline.yml"
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
   workflow_dispatch:
 
 permissions:
@@ -17,13 +19,15 @@ concurrency:
 
 jobs:
   extract:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'migration/heartsignal-baseline'
     runs-on: ubuntu-latest
+    env:
+      TARGET_BRANCH: ${{ github.head_ref || 'migration/heartsignal-baseline' }}
     steps:
-      - name: Check out Bot_globa
+      - name: Check out Bot_globa target branch
         uses: actions/checkout@v4
         with:
-          ref: migration/heartsignal-baseline
+          ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
           path: target
 
@@ -58,7 +62,13 @@ jobs:
             fabric-source heartsignal-split \
             -m "Extract HeartSignal baseline from fabric_bot@9251f2f"
 
-          git -C target push origin HEAD:migration/heartsignal-baseline
+          rm -f target/.baseline-trigger
+          if ! git -C target diff --quiet || ! git -C target diff --cached --quiet; then
+            git -C target add -A
+            git -C target commit -m "Remove baseline extraction trigger"
+          fi
+
+          git -C target push origin "HEAD:${TARGET_BRANCH}"
 
       - name: Record extraction provenance
         if: always()
