@@ -26,6 +26,7 @@ from app.logging import configure_logging
 from app.observability.errors import LoggingErrorReporter, NoOpErrorReporter
 from app.observability.http import HttpObservabilityMiddleware
 from app.observability.settings import ObservabilitySettings, get_observability_settings
+from app.platform.identity import PRODUCT_IDENTITY
 from app.providers.analytics_postgres import create_analytics_client
 from app.providers.payments.composition import create_payment_components
 from app.services.admin_metrics import AdminMetricsService
@@ -109,7 +110,11 @@ def create_app(
                 await resolved_bot.session.close()
             await resolved_engine.dispose()
 
-    application = FastAPI(title="HeartSignal API", version="0.1.0", lifespan=lifespan)
+    application = FastAPI(
+        title=PRODUCT_IDENTITY.api_title,
+        version=PRODUCT_IDENTITY.version,
+        lifespan=lifespan,
+    )
     application.add_middleware(HttpObservabilityMiddleware, reporter=reporter)
     application.state.db_engine = resolved_engine
     application.state.expected_schema_heads = schema_heads
