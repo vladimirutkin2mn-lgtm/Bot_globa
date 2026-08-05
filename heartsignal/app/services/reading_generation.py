@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -12,6 +13,7 @@ from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
     ReadingGenerationClaimStatus,
+    ReadingGenerationContext,
     ReadingGenerationFinalizeStatus,
     ReadingSymbolContext,
 )
@@ -88,7 +90,7 @@ class ReadingGenerationService:
         llm: LLMClient,
         *,
         max_repair_attempts: int = 1,
-        prompt_loader: type[object] | None = None,
+        prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
         validator: ReadingResultValidator | None = None,
     ) -> None:
         if max_repair_attempts not in {0, 1}:
@@ -96,7 +98,7 @@ class ReadingGenerationService:
         self._store = store
         self._llm = llm
         self._max_repairs = max_repair_attempts
-        self._prompt_loader = load_reading_prompts if prompt_loader is None else prompt_loader
+        self._prompt_loader = prompt_loader
         self._validator = validator or ReadingResultValidator()
 
     async def generate_preview(
@@ -129,7 +131,7 @@ class ReadingGenerationService:
                     attempts,
                     last_completion,
                 )
-            prompts = self._load_prompts(context.prompt_version)
+            prompts = self._prompt_loader(context.prompt_version)
             user_prompt = self._user_prompt(context, symbol_contexts, prompts)
             request = LLMRequest(
                 system_prompt=prompts.system,
@@ -315,21 +317,16 @@ class ReadingGenerationService:
         return tuple(item.symbol for item in contexts)
 
     @staticmethod
-    def _load_prompts(version: str) -> ReadingPromptSet:
-        return load_reading_prompts(version)
-
-    @staticmethod
     def _user_prompt(
-        context: object,
+        context: ReadingGenerationContext,
         symbol_contexts: tuple[ReadingSymbolContext, ...],
         prompts: ReadingPromptSet,
     ) -> str:
-        generation = context
         payload = {
-            "persona_code": generation.persona_code,
-            "topic": generation.topic,
-            "user_question": generation.question,
-            "optional_context": generation.context,
+            "persona_code": context.persona_code,
+            "topic": context.topic,
+            "user_question": context.question,
+            "optional_context": context.context,
             "selected_symbols": [
                 {
                     "symbol_id": item.symbol.symbol_id,
