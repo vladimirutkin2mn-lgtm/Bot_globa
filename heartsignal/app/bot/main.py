@@ -30,6 +30,7 @@ from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
 from app.services.checkout_service import CheckoutService
 from app.services.persona_registry import PersonaRegistryService
 from app.services.reading_generation import ReadingGenerationService
+from app.services.reading_history import ReadingHistoryService
 from app.services.reading_service import ReadingService
 from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
@@ -112,6 +113,7 @@ def create_dispatcher(
     dispatcher["analytics"] = analytics
     dispatcher["error_reporter"] = reporter
     dispatcher["persona_registry"] = PersonaRegistryService(sessions)
+    dispatcher["tarot_history"] = ReadingHistoryService(sessions)
     dispatcher["tarot_use_case"] = TarotReadingUseCase.from_services(
         ReadingService(sessions, cipher, settings.raw_content_retention_days),
         ReadingGenerationService(

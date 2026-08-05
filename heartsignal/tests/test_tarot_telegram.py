@@ -2,8 +2,10 @@
 
 from uuid import uuid4
 
+from app.bot.keyboards import main_menu_keyboard
 from app.bot.tarot_keyboards import (
     tarot_context_keyboard,
+    tarot_history_keyboard,
     tarot_result_keyboard,
     tarot_retry_keyboard,
     tarot_topics_keyboard,
@@ -90,10 +92,16 @@ def test_renderer_chunks_large_valid_sections_below_telegram_limit() -> None:
 def test_tarot_callbacks_contain_only_codes_or_reading_id() -> None:
     reading_id = uuid4()
     keyboards = (
+        main_menu_keyboard(),
         tarot_topics_keyboard(),
         tarot_context_keyboard(),
         tarot_result_keyboard(),
         tarot_retry_keyboard(reading_id),
+        tarot_history_keyboard(
+            ((reading_id, "Выбор · 05.08.2026"),),
+            page=1,
+            has_next=True,
+        ),
     )
     callbacks = [
         button.callback_data or ""
@@ -105,4 +113,9 @@ def test_tarot_callbacks_contain_only_codes_or_reading_id() -> None:
     assert callbacks
     assert all(PRIVATE_MARKER not in callback for callback in callbacks)
     assert all(len(callback.encode()) <= 64 for callback in callbacks)
+    assert "menu:tarot" in callbacks
+    assert "tarot:history" in callbacks
     assert f"tarot:retry:{reading_id}" in callbacks
+    assert f"tarot:history:open:{reading_id}" in callbacks
+    assert "tarot:history:page:0" in callbacks
+    assert "tarot:history:page:2" in callbacks
