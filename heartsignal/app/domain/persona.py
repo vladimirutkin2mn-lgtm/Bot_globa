@@ -55,7 +55,10 @@ class PersonaDefinition:
                 raise ValueError("astrology persona must require a birth date")
             if PersonaInput.BIRTH_PLACE not in self.required_inputs:
                 raise ValueError("astrology persona must require a birth place")
-            if self.unknown_birth_time_policy is not UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT:
+            if (
+                self.unknown_birth_time_policy
+                is not UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT
+            ):
                 raise ValueError("astrology persona must define the unknown birth-time policy")
         elif self.requires_calculation_engine:
             raise ValueError("only an astrology persona may require a calculation engine")
