@@ -1,0 +1,127 @@
+"""PostgreSQL coverage for safe paginated reading history metadata."""
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.db.models import User
+from app.db.reading_models import Persona, Reading, ReadingPrivateContent
+from app.domain.reading import ReadingAccess, ReadingStatus
+from app.services.reading_history import ReadingHistoryService
+
+pytestmark = pytest.mark.postgres
+
+
+async def test_history_lists_only_owned_ready_persona_rows_in_reverse_order(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    now = datetime.now(UTC)
+    async with payment_db.begin() as session:
+        owner = User(telegram_user_id=894001, first_name="HistoryOwner")
+        stranger = User(telegram_user_id=894002, first_name="HistoryStranger")
+        tarot = Persona(
+            code="tarot_reader",
+            display_name="Tarot Reader",
+            prompt_version="tarot-reader-v1",
+            schema_version="reading-result-v1",
+        )
+        other = Persona(
+            code="love_oracle_history",
+            display_name="Love Oracle",
+            prompt_version="love-oracle-v1",
+            schema_version="reading-result-v1",
+        )
+        session.add_all((owner, stranger, tarot, other))
+        await session.flush()
+
+        ready_rows = [
+            Reading(
+                user_id=owner.id,
+                persona_id=tarot.id,
+                topic=topic,
+                status=ReadingStatus.PREVIEW_READY.value,
+                access_level=ReadingAccess.PREVIEW.value,
+                cost_units=0,
+                engine_version="tarot-symbolic-v1",
+                prompt_version="tarot-reader-v1",
+                schema_version="reading-result-v1",
+                generated_at=now - timedelta(days=index),
+                created_at=now - timedelta(days=index),
+            )
+            for index, topic in enumerate(("decision", "work", "love"))
+        ]
+        excluded = [
+            Reading(
+                user_id=owner.id,
+                persona_id=tarot.id,
+                topic="draft",
+                status=ReadingStatus.DRAFT.value,
+                access_level=ReadingAccess.NONE.value,
+                cost_units=0,
+                engine_version="tarot-symbolic-v1",
+                prompt_version="tarot-reader-v1",
+                schema_version="reading-result-v1",
+                created_at=now + timedelta(minutes=1),
+            ),
+            Reading(
+                user_id=stranger.id,
+                persona_id=tarot.id,
+                topic="stranger",
+                status=ReadingStatus.PREVIEW_READY.value,
+                access_level=ReadingAccess.PREVIEW.value,
+                cost_units=0,
+                engine_version="tarot-symbolic-v1",
+                prompt_version="tarot-reader-v1",
+                schema_version="reading-result-v1",
+                generated_at=now + timedelta(minutes=2),
+                created_at=now + timedelta(minutes=2),
+            ),
+            Reading(
+                user_id=owner.id,
+                persona_id=other.id,
+                topic="other_persona",
+                status=ReadingStatus.FULL_READY.value,
+                access_level=ReadingAccess.FULL.value,
+                cost_units=0,
+                engine_version="reflection-v1",
+                prompt_version="love-oracle-v1",
+                schema_version="reading-result-v1",
+                generated_at=now + timedelta(minutes=3),
+                created_at=now + timedelta(minutes=3),
+            ),
+        ]
+        session.add_all((*ready_rows, *excluded))
+        await session.flush()
+        session.add(
+            ReadingPrivateContent(
+                reading_id=ready_rows[0].id,
+                question_ciphertext=b"not-valid-ciphertext",
+                question_format_version=999,
+                context_ciphertext=b"also-invalid",
+                context_format_version=999,
+                result_ciphertext=b"invalid-result",
+                result_format_version=999,
+            )
+        )
+
+    history = ReadingHistoryService(payment_db)
+    first = await history.list_ready(owner.id, "tarot_reader", page=0, page_size=2)
+    second = await history.list_ready(owner.id, "tarot_reader", page=1, page_size=2)
+
+    assert [item.topic for item in first.items] == ["decision", "work"]
+    assert first.has_next and first.page == 0
+    assert [item.topic for item in second.items] == ["love"]
+    assert not second.has_next and second.page == 1
+    assert all(item.status == ReadingStatus.PREVIEW_READY.value for item in (*first.items, *second.items))
+
+
+async def test_history_rejects_invalid_pagination_before_query(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    history = ReadingHistoryService(payment_db)
+
+    with pytest.raises(ValueError, match="non-negative"):
+        await history.list_ready(User().id, "tarot_reader", page=-1)
+    with pytest.raises(ValueError, match="page size"):
+        await history.list_ready(User().id, "tarot_reader", page_size=21)
