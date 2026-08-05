@@ -53,13 +53,9 @@ class SqlAlchemyReadingGenerationStore:
                     payload = await repository.load_result(reading_id, user_id)
                     symbols = await self._load_symbols(session, reading_id)
                 except (TypeError, ValueError):
-                    return ReadingGenerationClaim(
-                        ReadingGenerationClaimStatus.CORRUPTED_RESULT
-                    )
+                    return ReadingGenerationClaim(ReadingGenerationClaimStatus.CORRUPTED_RESULT)
                 if payload is None:
-                    return ReadingGenerationClaim(
-                        ReadingGenerationClaimStatus.CORRUPTED_RESULT
-                    )
+                    return ReadingGenerationClaim(ReadingGenerationClaimStatus.CORRUPTED_RESULT)
                 return ReadingGenerationClaim(
                     ReadingGenerationClaimStatus.READY,
                     ready=StoredReadingResult(payload, symbols),
