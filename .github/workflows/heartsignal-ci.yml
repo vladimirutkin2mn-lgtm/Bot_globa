@@ -54,13 +54,13 @@ jobs:
         run: pip install -e '.[dev]'
 
       - name: Check formatting
-        run: ruff format --check app tests migrations
+        run: ruff format --check app tests migrations scripts
 
       - name: Lint
-        run: ruff check app tests migrations
+        run: ruff check app tests migrations scripts
 
       - name: Type-check
-        run: mypy app tests
+        run: mypy app tests scripts
 
       - name: Validate Alembic migration chain
         env:
@@ -72,16 +72,27 @@ jobs:
           alembic downgrade -1
           alembic upgrade head
 
+      - name: Reset test database after migration validation
+        run: python scripts/reset_test_database.py
+
+      - name: Verify protected platform invariants
+        run: bash scripts/run_platform_invariants.sh --junitxml=platform-invariants-report.xml
+
+      - name: Reset test database before full suite
+        run: python scripts/reset_test_database.py
+
       - name: Test
         run: pytest --junitxml=pytest-report.xml
 
-      - name: Upload pytest report
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: heartsignal-pytest-report
-          path: heartsignal/pytest-report.xml
-          if-no-files-found: error
+          name: heartsignal-test-reports
+          path: |
+            heartsignal/platform-invariants-report.xml
+            heartsignal/pytest-report.xml
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Prepare Compose environment
