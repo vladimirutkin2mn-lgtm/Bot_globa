@@ -43,11 +43,11 @@ class ReadingResultValidator:
         expected_symbols: list[ReadingSymbolInput],
     ) -> ReadingResultValidation:
         try:
-            raw = json.loads(payload)
+            json.loads(payload)
         except json.JSONDecodeError as exc:
             raise InvalidReadingResult("invalid_json") from exc
         try:
-            result = ReadingResult.model_validate(raw)
+            result = ReadingResult.model_validate_json(payload)
         except ValidationError as exc:
             issues = tuple(
                 ".".join(str(part) for part in error["loc"]) + ":invalid"
