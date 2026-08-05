@@ -54,10 +54,10 @@ async def test_worker_replay_persists_the_same_tarot_symbols(
     replay_draw = engine.draw(reading.id, "three_card_v1")
     assert replay_draw == first_draw
     await reading_service.start_generation(reading.id, user_id)
-    await reading_service.complete_full(
+    await reading_service.complete_preview(
         reading.id,
         user_id,
-        {"title": "Full"},
+        {"title": "Replay preview"},
         [item.to_reading_symbol() for item in replay_draw],
     )
 
