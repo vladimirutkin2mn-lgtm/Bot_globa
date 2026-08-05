@@ -68,8 +68,7 @@ def test_reading_migration_round_trip_when_empty() -> None:
         assert asyncio.run(_scalar(url, schema, "SELECT count(*) FROM readings")) == 0
         subprocess.run(("alembic", "downgrade", _PARENT), check=True, env=environment)
         assert (
-            asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version"))
-            == _PARENT
+            asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
         )
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
     finally:
