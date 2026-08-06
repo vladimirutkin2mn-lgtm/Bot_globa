@@ -28,6 +28,11 @@ pytest \
   tests/test_oracle_memory_quality_postgres.py::test_quality_service_reconciles_legacy_duplicates_and_purges_loser_ciphertext \
   tests/test_oracle_memory_quality_postgres.py::test_user_stated_exact_value_supersedes_equal_model_inference \
   tests/test_oracle_memory_quality_postgres.py::test_quality_summary_counts_stale_and_corrected_items_without_values \
+  tests/test_oracle_memory_lifecycle_postgres.py::test_prompt_selection_records_use_without_exposing_value \
+  tests/test_oracle_memory_lifecycle_postgres.py::test_retention_decays_only_stale_low_confidence_model_inference \
+  tests/test_oracle_memory_lifecycle_postgres.py::test_capacity_retires_only_model_inferred_memory \
+  tests/test_oracle_memory_lifecycle_postgres.py::test_full_user_stated_memory_rejects_write_without_deleting_existing_items \
+  tests/test_oracle_memory_lifecycle_postgres.py::test_correction_persists_supersession_and_usefulness_counts \
   tests/test_reading_memory_extraction_postgres.py::test_extraction_requires_consent_preserves_topics_and_is_idempotent \
   tests/test_reading_memory_extraction_postgres.py::test_consent_is_rechecked_after_external_extraction \
   tests/test_reading_memory_extraction_jobs_postgres.py::test_ready_transition_enqueues_one_job_and_terminal_job_is_not_replayed \
@@ -36,4 +41,5 @@ pytest \
   tests/test_reading_generation_memory.py::test_v2_serializes_memory_as_separate_untrusted_json_data \
   tests/test_reading_generation_memory.py::test_frozen_v1_reading_never_retrieves_or_serializes_memory \
   tests/test_reading_generation_memory.py::test_memory_retrieval_failure_does_not_block_reading_generation \
+  tests/test_reading_memory_usage.py::test_usage_telemetry_failure_keeps_context_and_logs_no_value \
   "$@"

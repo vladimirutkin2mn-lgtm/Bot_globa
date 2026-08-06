@@ -29,6 +29,17 @@ _MEMORY_KINDS = (
 )
 _MEMORY_CLAIM_BASES = ("user_stated", "model_inferred")
 _MEMORY_SOURCE_TYPES = ("user_explicit", "reading_derived", "profile_imported")
+_MEMORY_EVENT_TYPES = (
+    "created",
+    "extracted",
+    "used",
+    "deleted",
+    "corrected",
+    "deduplicated",
+    "superseded",
+    "decayed",
+    "capacity_retired",
+)
 _MEMORY_EXTRACTION_JOB_STATUSES = (
     "pending",
     "claimed",
@@ -86,6 +97,10 @@ class OracleMemoryItem(Base):
             name="ck_oracle_memory_items_confidence",
         ),
         CheckConstraint(
+            "use_count >= 0",
+            name="ck_oracle_memory_items_use_count",
+        ),
+        CheckConstraint(
             "claim_basis IN (" + ",".join(f"'{value}'" for value in _MEMORY_CLAIM_BASES) + ")",
             name="ck_oracle_memory_items_claim_basis",
         ),
@@ -130,6 +145,11 @@ class OracleMemoryItem(Base):
     source_persona_code: Mapped[str | None] = mapped_column(String(64))
     extraction_version: Mapped[str] = mapped_column(String(64))
     candidate_key: Mapped[str | None] = mapped_column(String(64))
+    use_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    supersedes_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("oracle_memory_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -167,6 +187,36 @@ class OracleMemoryPrivateContent(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     item: Mapped[OracleMemoryItem] = relationship(back_populates="private_content")
+
+
+class OracleMemoryEvent(Base):
+    """Content-free lifecycle telemetry removed with the owning user."""
+
+    __tablename__ = "oracle_memory_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN (" + ",".join(f"'{value}'" for value in _MEMORY_EVENT_TYPES) + ")",
+            name="ck_oracle_memory_events_type",
+        ),
+        Index(
+            "ix_oracle_memory_events_user_type_created",
+            "user_id",
+            "event_type",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    memory_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("oracle_memory_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    related_memory_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("oracle_memory_items.id", ondelete="SET NULL"), nullable=True
+    )
+    event_type: Mapped[str] = mapped_column(String(32))
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ReadingMemoryExtractionJob(Base):
