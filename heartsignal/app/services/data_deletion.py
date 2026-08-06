@@ -6,9 +6,14 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import select, tuple_, update
+from sqlalchemy import delete, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.memory_models import (
+    OracleMemoryConsent,
+    OracleMemoryItem,
+    OracleMemoryPrivateContent,
+)
 from app.db.models import (
     Analysis,
     AnalysisPrivateContent,
@@ -79,7 +84,9 @@ class DataDeletionService:
             await self.session.commit()
             return DataDeletionOutcome.ALREADY_DELETED
         # Canonical privacy/billing mutation lock order:
-        # User -> PaymentOrder -> BillingJob -> ProviderWebhookEvent -> Analysis -> private content.
+        # User -> PaymentOrder -> BillingJob -> ProviderWebhookEvent -> Analysis ->
+        # AnalysisPrivateContent -> OracleMemoryConsent -> OracleMemoryItem ->
+        # OracleMemoryPrivateContent.
         discovered_orders = list(
             (
                 await self.session.execute(
@@ -160,6 +167,43 @@ class DataDeletionService:
                 row.source_deleted_at = row.result_deleted_at = now
         for analysis in analyses:
             self._clear_analysis(analysis, now)
+
+        memory_consent = await self.session.get(
+            OracleMemoryConsent,
+            user_id,
+            with_for_update=True,
+        )
+        memory_items = list(
+            (
+                await self.session.scalars(
+                    select(OracleMemoryItem)
+                    .where(OracleMemoryItem.user_id == user_id)
+                    .order_by(OracleMemoryItem.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        memory_item_ids = [item.id for item in memory_items]
+        if memory_item_ids:
+            await self.session.scalars(
+                select(OracleMemoryPrivateContent)
+                .where(OracleMemoryPrivateContent.memory_item_id.in_(memory_item_ids))
+                .order_by(OracleMemoryPrivateContent.memory_item_id)
+                .with_for_update()
+            )
+            await self.session.execute(
+                delete(OracleMemoryPrivateContent).where(
+                    OracleMemoryPrivateContent.memory_item_id.in_(memory_item_ids)
+                )
+            )
+            await self.session.execute(
+                delete(OracleMemoryItem).where(OracleMemoryItem.user_id == user_id)
+            )
+        if memory_consent is not None:
+            await self.session.execute(
+                delete(OracleMemoryConsent).where(OracleMemoryConsent.user_id == user_id)
+            )
+
         await self.session.execute(
             update(PaymentOrder)
             .where(
