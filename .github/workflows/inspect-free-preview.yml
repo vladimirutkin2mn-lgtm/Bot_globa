@@ -1,27 +1,47 @@
-name: Inspect free preview entitlement
+name: Apply shared free preview entitlement
 
 on:
   pull_request:
     branches:
       - main
     types:
-      - opened
       - synchronize
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  apply:
     if: github.head_ref == 'feat/oracle-free-preview-entitlement'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate entitlement implementation
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Execute shared entitlement patch
         shell: bash
-        working-directory: heartsignal
         run: |
-          echo '=== free_preview references ==='
-          grep -RIn --exclude-dir=.git --exclude='*.xml' 'free_preview' app tests migrations scripts || true
-          echo '=== entitlement/access candidate files ==='
-          find app tests migrations scripts -type f | grep -Ei 'preview|entitle|access|billing|credit|generation|analysis' | sort
+          python - <<'BOOTSTRAP'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/apply-shared-free-preview.yml').read_text()
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          if start_marker not in source or end_marker not in source:
+              raise SystemExit('embedded patch markers are missing')
+          body = source.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          exec(compile(textwrap.dedent(body), '<shared-preview-patch>', 'exec'))
+          BOOTSTRAP
+          rm -f heartsignal/.shared-preview-patch-trigger
+
+      - name: Commit shared entitlement implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add shared oracle free preview entitlement"
+          git push origin "HEAD:${{ github.head_ref }}"
