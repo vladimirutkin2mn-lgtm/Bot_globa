@@ -1,4 +1,4 @@
-"""Packaged Alembic metadata readiness tests."""
+"""Verify packaged Alembic metadata exposes the current deployable schema head."""
 
 from app.services.schema_health import expected_schema_heads
 
