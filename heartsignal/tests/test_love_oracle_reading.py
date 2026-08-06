@@ -256,7 +256,7 @@ async def test_postgres_love_oracle_preview_is_validated_and_idempotent(
     assert len(llm.requests) == 1
     assert '"selected_symbols":[]' in llm.requests[0].user_prompt
     assert "private thoughts, feelings, intentions" in llm.requests[0].system_prompt
-    assert "another person's inner state" in llm.requests[0].user_prompt
+    assert "the other person's inner state" in llm.requests[0].user_prompt
 
     stored_result = await readings.load_result(first.reading_id, user.id)
     assert stored_result is not None
