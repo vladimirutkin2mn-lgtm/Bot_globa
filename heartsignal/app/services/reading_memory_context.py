@@ -8,6 +8,7 @@ from uuid import UUID
 from app.domain.oracle_memory import MemoryClaimBasis, MemoryItemView, MemoryKind
 from app.domain.reading_memory_context import ReadingMemoryContextItem
 from app.services.oracle_memory import OracleMemoryService
+from app.services.oracle_memory_quality import memory_staleness_penalty
 
 _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 _STOP_WORDS = {
@@ -141,6 +142,7 @@ class OracleReadingMemoryRetriever:
                 + overlap * 80
                 + min(item.confidence_milli // 20, 50)
                 + (20 if item.claim_basis is MemoryClaimBasis.USER_STATED else 0)
+                - memory_staleness_penalty(item.kind, item.created_at)
             )
             ranked.append(
                 _RankedMemory(

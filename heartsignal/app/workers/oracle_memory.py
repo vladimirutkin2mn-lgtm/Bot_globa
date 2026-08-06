@@ -10,7 +10,7 @@ from app.db.session import create_engine, create_session_factory
 from app.logging import configure_logging
 from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
-from app.services.oracle_memory import OracleMemoryService
+from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.reading_memory_extraction import (
     LLMReadingMemoryExtractor,
     ReadingMemoryExtractionService,
@@ -32,7 +32,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
         decode_configured_key(resolved.content_encryption_key.get_secret_value())
     )
     llm = create_llm_client(resolved)
-    memory = OracleMemoryService(sessions, cipher)
+    memory = QualityManagedOracleMemoryService(sessions, cipher)
     extraction = ReadingMemoryExtractionService(
         sessions,
         cipher,
