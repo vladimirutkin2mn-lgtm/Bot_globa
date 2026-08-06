@@ -53,4 +53,5 @@ pytest \
   tests/test_birth_profile_postgres.py::test_account_deletion_cascades_profile_consent_and_ciphertext \
   tests/test_natal_chart.py::test_same_normalized_input_produces_identical_versioned_payload \
   tests/test_natal_chart.py::test_unknown_time_uses_local_noon_and_never_invents_houses \
+  tests/test_natal_chart_postgres.py::test_chart_calculation_requires_active_consented_profile \
   "$@"
