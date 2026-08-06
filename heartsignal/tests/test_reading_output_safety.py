@@ -64,9 +64,24 @@ def test_reflective_uncertainty_language_is_allowed() -> None:
     [
         ("title", "They will definitely return next week.", "output.title:guaranteed_future"),
         (
+            "title",
+            "They will return on Monday.",
+            "output.title:exact_date_prediction",
+        ),
+        (
             "opening",
             "I know exactly what he thinks about you.",
             "output.opening:third_party_mind_reading",
+        ),
+        (
+            "opening",
+            "He is cheating on you.",
+            "output.opening:infidelity_or_crime_claim",
+        ),
+        (
+            "patterns",
+            ["She committed fraud."],
+            "output.patterns.0:infidelity_or_crime_claim",
         ),
         (
             "practical_step",
@@ -76,12 +91,22 @@ def test_reflective_uncertainty_language_is_allowed() -> None:
         (
             "uncertainty_note",
             "You are diagnosed with depression.",
-            "output.uncertainty_note:medical",
+            "output.uncertainty_note:medical_claim",
         ),
         (
             "opening",
             "You will win the court case.",
-            "output.opening:legal",
+            "output.opening:legal_direction",
+        ),
+        (
+            "opening",
+            "He will die.",
+            "output.opening:death_claim",
+        ),
+        (
+            "opening",
+            "You are cursed.",
+            "output.opening:curse_claim",
         ),
         (
             "practical_step",
@@ -92,7 +117,7 @@ def test_reflective_uncertainty_language_is_allowed() -> None:
 )
 def test_unsafe_top_level_claims_are_rejected(
     field: str,
-    value: str,
+    value: object,
     expected_issue: str,
 ) -> None:
     payload = _payload()
@@ -103,7 +128,7 @@ def test_unsafe_top_level_claims_are_rejected(
 
     assert captured.value.code == "unsafe_output"
     assert expected_issue in captured.value.issues
-    assert value not in str(captured.value)
+    assert str(value) not in str(captured.value)
 
 
 def test_nested_symbol_interpretation_is_checked() -> None:
@@ -148,6 +173,7 @@ def test_share_card_fear_based_upsell_is_checked() -> None:
         _validate(payload)
 
     assert captured.value.code == "unsafe_output"
+    assert "output.share_card.short_text:curse_claim" in captured.value.issues
     assert "output.share_card.short_text:fear_based_upsell" in captured.value.issues
 
 
