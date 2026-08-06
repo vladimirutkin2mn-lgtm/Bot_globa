@@ -46,14 +46,15 @@ class YooKassaGateway:
         self._payment_method_cipher = payment_method_cipher
 
     async def create_checkout(self, request: CreateCheckout) -> HostedCheckout:
+        label = _receipt_label(request.product_code, request.receipt_label)
         payload: dict[str, object] = {
             "amount": _amount(request.amount_minor),
             "capture": True,
             "confirmation": {"type": "redirect", "return_url": request.success_url},
-            "description": f"HeartSignal: {request.product_code}"[:128],
+            "description": label,
             "metadata": {"order_id": request.order_id, "product_version": request.product_version},
         }
-        receipt = self._receipt(request.product_code, request.amount_minor, request.receipt_contact)
+        receipt = self._receipt(label, request.amount_minor, request.receipt_contact)
         if receipt is not None:
             payload["receipt"] = receipt
         value, request_id = await self._post_payment(payload, request.idempotency_key)
@@ -106,15 +107,16 @@ class YooKassaGateway:
             consent_version=request.consent_version,
             subscription_kind="initial",
         )
+        label = _receipt_label(request.product_code, request.receipt_label)
         payload: dict[str, object] = {
             "amount": _amount(request.amount_minor),
             "capture": True,
             "save_payment_method": True,
             "confirmation": {"type": "redirect", "return_url": request.success_url},
-            "description": f"HeartSignal: {request.product_code}"[:128],
+            "description": label,
             "metadata": metadata,
         }
-        receipt = self._receipt(request.product_code, request.amount_minor, request.receipt_contact)
+        receipt = self._receipt(label, request.amount_minor, request.receipt_contact)
         if receipt is not None:
             payload["receipt"] = receipt
         value, _ = await self._post_payment(payload, request.idempotency_key)
@@ -147,14 +149,15 @@ class YooKassaGateway:
             period_start=request.period_start,
             period_end=request.period_end,
         )
+        label = _receipt_label(request.product_code, request.receipt_label)
         payload: dict[str, object] = {
             "amount": _amount(request.amount_minor),
             "capture": True,
             "payment_method_id": payment_method_id,
-            "description": f"HeartSignal: {request.product_code}"[:128],
+            "description": label,
             "metadata": metadata,
         }
-        receipt = self._receipt(request.product_code, request.amount_minor, request.receipt_contact)
+        receipt = self._receipt(label, request.amount_minor, request.receipt_contact)
         if receipt is not None:
             payload["receipt"] = receipt
         value, _ = await self._post_payment(payload, request.idempotency_key)
@@ -340,7 +343,7 @@ class YooKassaGateway:
         return _required_text(decrypted.get("id"), "payment_method_id")
 
     def _receipt(
-        self, product_code: str, amount_minor: int, receipt_contact: str | None
+        self, receipt_label: str, amount_minor: int, receipt_contact: str | None
     ) -> dict[str, object] | None:
         if not receipt_contact:
             return None
@@ -349,7 +352,7 @@ class YooKassaGateway:
             "customer": {customer_key: receipt_contact},
             "items": [
                 {
-                    "description": f"HeartSignal: {product_code}",
+                    "description": receipt_label,
                     "quantity": "1.00",
                     "amount": _amount(amount_minor),
                     "vat_code": self._vat_code,
@@ -358,6 +361,13 @@ class YooKassaGateway:
                 }
             ],
         }
+
+
+def _receipt_label(product_code: str, configured: str | None) -> str:
+    label = (configured or product_code).strip()
+    if not label:
+        raise PermanentProviderError("receipt_label_missing")
+    return label[:128]
 
 
 def _subscription_metadata(
