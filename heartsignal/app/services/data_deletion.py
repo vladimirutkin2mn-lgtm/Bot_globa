@@ -9,6 +9,11 @@ from uuid import UUID
 from sqlalchemy import delete, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.birth_profile_models import (
+    BirthProfile,
+    BirthProfileConsent,
+    BirthProfilePrivateContent,
+)
 from app.db.memory_models import (
     OracleMemoryConsent,
     OracleMemoryItem,
@@ -86,7 +91,8 @@ class DataDeletionService:
         # Canonical privacy/billing mutation lock order:
         # User -> PaymentOrder -> BillingJob -> ProviderWebhookEvent -> Analysis ->
         # AnalysisPrivateContent -> OracleMemoryConsent -> OracleMemoryItem ->
-        # OracleMemoryPrivateContent.
+        # OracleMemoryPrivateContent -> BirthProfileConsent -> BirthProfile ->
+        # BirthProfilePrivateContent.
         discovered_orders = list(
             (
                 await self.session.execute(
@@ -202,6 +208,35 @@ class DataDeletionService:
         if memory_consent is not None:
             await self.session.execute(
                 delete(OracleMemoryConsent).where(OracleMemoryConsent.user_id == user_id)
+            )
+
+        birth_profile_consent = await self.session.get(
+            BirthProfileConsent,
+            user_id,
+            with_for_update=True,
+        )
+        birth_profile = await self.session.scalar(
+            select(BirthProfile)
+            .where(BirthProfile.user_id == user_id)
+            .with_for_update()
+        )
+        if birth_profile is not None:
+            await self.session.get(
+                BirthProfilePrivateContent,
+                birth_profile.id,
+                with_for_update=True,
+            )
+            await self.session.execute(
+                delete(BirthProfilePrivateContent).where(
+                    BirthProfilePrivateContent.birth_profile_id == birth_profile.id
+                )
+            )
+            await self.session.execute(
+                delete(BirthProfile).where(BirthProfile.id == birth_profile.id)
+            )
+        if birth_profile_consent is not None:
+            await self.session.execute(
+                delete(BirthProfileConsent).where(BirthProfileConsent.user_id == user_id)
             )
 
         await self.session.execute(
