@@ -46,4 +46,8 @@ pytest \
   tests/test_love_oracle_reading.py::test_mind_reading_and_guaranteed_reunion_are_rejected_before_persistence \
   tests/test_mystical_psychologist_reading.py::test_postgres_reflection_is_validated_and_idempotent \
   tests/test_mystical_psychologist_reading.py::test_diagnosis_and_dependency_are_rejected_before_persistence \
+  tests/test_birth_profile_postgres.py::test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest \
+  tests/test_birth_profile_postgres.py::test_revoke_consent_purges_ciphertext_and_blocks_reuse \
+  tests/test_birth_profile_postgres.py::test_birth_profile_never_crosses_user_boundary \
+  tests/test_birth_profile_postgres.py::test_account_deletion_cascades_profile_consent_and_ciphertext \
   "$@"
