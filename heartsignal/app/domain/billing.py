@@ -20,6 +20,7 @@ class BillingOffer:
     purchase_mode: PurchaseMode
     title: str
     receipt_label: str
+    active_order_codes: tuple[str, ...]
     credits: int
     market: BillingMarket
     provider: PaymentProviderName
@@ -77,6 +78,7 @@ class BillingCatalog:
             ),
             title=product.title,
             receipt_label=product.receipt_label,
+            active_order_codes=self._products.active_order_codes(product.code),
             credits=product.credits,
             market=market,
             provider=provider,
