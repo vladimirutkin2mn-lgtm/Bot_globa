@@ -122,6 +122,8 @@ class SubscriptionCheckoutService:
                     commercial_snapshot={
                         "product_code": offer.product_code.value,
                         "product_version": offer.product_version,
+                        "title": offer.title,
+                        "receipt_label": offer.receipt_label,
                         "credits": offer.credits,
                         "amount_minor": offer.amount_minor,
                         "currency": offer.currency,
@@ -162,6 +164,7 @@ class SubscriptionCheckoutService:
                     if offer.provider is PaymentProviderName.YOOKASSA
                     else None
                 ),
+                receipt_label=offer.receipt_label,
             )
             order_id = order.id
             token = order.checkout_token
