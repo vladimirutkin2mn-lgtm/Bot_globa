@@ -45,6 +45,21 @@ def _profile(place: str = "Amsterdam private marker") -> BirthProfileInput:
         birth_time=time(8, 35),
         birth_place=place,
         timezone="Europe/Amsterdam",
+        latitude=52.367573,
+        longitude=4.904139,
+        utc_offset_minutes=120,
+    )
+
+
+def _london_profile(place: str) -> BirthProfileInput:
+    return BirthProfileInput(
+        birth_date=date(1991, 4, 17),
+        birth_time=None,
+        birth_place=place,
+        timezone="Europe/London",
+        latitude=51.5074,
+        longitude=-0.1278,
+        utc_offset_minutes=60,
     )
 
 
@@ -74,10 +89,16 @@ async def test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest(
         private = await session.get(BirthProfilePrivateContent, profile.id)
     assert private is not None and private.payload_ciphertext is not None
     ciphertext = private.payload_ciphertext
-    assert b"1991-04-17" not in ciphertext
-    assert b"08:35" not in ciphertext
-    assert b"Amsterdam private marker" not in ciphertext
-    assert b"Europe/Amsterdam" not in ciphertext
+    for marker in (
+        b"1991-04-17",
+        b"08:35",
+        b"Amsterdam private marker",
+        b"Europe/Amsterdam",
+        b"52.367573",
+        b"4.904139",
+        b"120",
+    ):
+        assert marker not in ciphertext
     assert cipher.decrypt_json(ContentPurpose.BIRTH_PROFILE, ciphertext) == (
         value.encrypted_payload()
     )
@@ -93,12 +114,7 @@ async def test_save_updates_one_profile_row_and_replaces_ciphertext(
     service = BirthProfileService(payment_db, cipher)
     await service.grant_consent(user.id)
     first = await service.save(user.id, _profile("First private place"))
-    second_value = BirthProfileInput(
-        birth_date=date(1991, 4, 17),
-        birth_time=None,
-        birth_place="Corrected private place",
-        timezone="Europe/London",
-    )
+    second_value = _london_profile("Corrected private place")
     second = await service.save(user.id, second_value)
     loaded = await service.load(user.id)
 
@@ -129,12 +145,7 @@ async def test_concurrent_saves_serialize_to_one_profile_row(
     )
     await service.grant_consent(user.id)
     first = _profile("Concurrent private place A")
-    second = BirthProfileInput(
-        birth_date=date(1991, 4, 17),
-        birth_time=None,
-        birth_place="Concurrent private place B",
-        timezone="Europe/London",
-    )
+    second = _london_profile("Concurrent private place B")
 
     saved = await asyncio.gather(
         service.save(user.id, first),
