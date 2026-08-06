@@ -72,7 +72,7 @@ async def test_sync_repairs_managed_records_and_preserves_unknown_personas(
         count = await session.scalar(select(func.count()).select_from(Persona))
     assert tarot is not None
     assert tarot.display_name == "Таролог"
-    assert tarot.prompt_version == "tarot-reader-v1"
+    assert tarot.prompt_version == "tarot-reader-v2"
     assert tarot.enabled is True
     assert experimental is not None
     assert experimental.enabled is False
