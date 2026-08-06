@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -28,6 +29,14 @@ _MEMORY_KINDS = (
 )
 _MEMORY_CLAIM_BASES = ("user_stated", "model_inferred")
 _MEMORY_SOURCE_TYPES = ("user_explicit", "reading_derived", "profile_imported")
+_MEMORY_EXTRACTION_JOB_STATUSES = (
+    "pending",
+    "claimed",
+    "completed",
+    "skipped_no_consent",
+    "skipped_source_unavailable",
+    "failed",
+)
 
 
 class OracleMemoryConsent(Base):
@@ -158,3 +167,64 @@ class OracleMemoryPrivateContent(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     item: Mapped[OracleMemoryItem] = relationship(back_populates="private_content")
+
+
+class ReadingMemoryExtractionJob(Base):
+    """Lease-based background extraction trigger containing no private reading text."""
+
+    __tablename__ = "reading_memory_extraction_jobs"
+    __table_args__ = (
+        UniqueConstraint(
+            "reading_id",
+            "extraction_version",
+            name="uq_reading_memory_extraction_job_version",
+        ),
+        CheckConstraint(
+            "status IN ("
+            + ",".join(f"'{value}'" for value in _MEMORY_EXTRACTION_JOB_STATUSES)
+            + ")",
+            name="ck_reading_memory_extraction_jobs_status",
+        ),
+        CheckConstraint(
+            "attempt_count >= 0",
+            name="ck_reading_memory_extraction_jobs_attempt_count",
+        ),
+        CheckConstraint(
+            "(status = 'pending' AND claim_id IS NULL AND claimed_by IS NULL "
+            "AND claimed_at IS NULL AND lease_until IS NULL AND completed_at IS NULL) OR "
+            "(status = 'claimed' AND claim_id IS NOT NULL AND claimed_by IS NOT NULL "
+            "AND claimed_at IS NOT NULL AND lease_until IS NOT NULL AND completed_at IS NULL) OR "
+            "(status IN ('completed','skipped_no_consent','skipped_source_unavailable','failed') "
+            "AND claim_id IS NULL AND lease_until IS NULL AND completed_at IS NOT NULL)",
+            name="ck_reading_memory_extraction_jobs_state",
+        ),
+        Index(
+            "ix_reading_memory_extraction_jobs_due",
+            "status",
+            "available_at",
+            "lease_until",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    reading_id: Mapped[UUID] = mapped_column(
+        ForeignKey("readings.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    extraction_version: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), default="pending", server_default="pending")
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    claim_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    claimed_by: Mapped[str | None] = mapped_column(String(255))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
