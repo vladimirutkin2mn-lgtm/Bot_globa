@@ -217,10 +217,7 @@ class PreviewEntitlementService:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
             if user is None:
                 return PreviewOutcome.USER_NOT_FOUND
-            if (
-                user.free_preview_reading_id != reading_id
-                or user.free_preview_status != "reserved"
-            ):
+            if user.free_preview_reading_id != reading_id or user.free_preview_status != "reserved":
                 return PreviewOutcome.UNAVAILABLE
             self._make_available(user)
             return PreviewOutcome.RELEASED

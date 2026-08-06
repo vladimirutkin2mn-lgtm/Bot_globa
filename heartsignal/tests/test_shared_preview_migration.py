@@ -77,7 +77,9 @@ def test_shared_preview_migration_round_trip_when_unlinked() -> None:
             == 1
         )
         subprocess.run(("alembic", "downgrade", _PARENT), check=True, env=environment)
-        assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
+        assert (
+            asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
+        )
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))

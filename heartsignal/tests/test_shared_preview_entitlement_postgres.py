@@ -1,11 +1,13 @@
 """PostgreSQL coverage for the one shared free preview entitlement."""
 
 import asyncio
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Analysis, User
+from app.db.reading_models import Reading
 from app.domain.reading import ReadingDraftRequest
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import (
@@ -28,9 +30,9 @@ async def _setup(
         session.add(user)
         await session.flush()
         analysis = Analysis(
-  user_id=user.id,
-  status="draft",
-  intake_step="complete",
+            user_id=user.id,
+            status="draft",
+            intake_step="complete",
         )
         session.add(analysis)
         await session.flush()
@@ -43,16 +45,16 @@ async def _setup(
     return user, analysis, readings, entitlements
 
 
-async def _draft(readings: ReadingService, user_id: object):
+async def _draft(readings: ReadingService, user_id: UUID) -> Reading:
     return await readings.create_draft(
         user_id,
         ReadingDraftRequest(
-  persona_code="tarot_reader",
-  topic="decision",
-  question="What deserves attention?",
-  engine_version="tarot-symbolic-v1",
-  prompt_version="tarot-reader-v1",
-  schema_version="reading-result-v1",
+            persona_code="tarot_reader",
+            topic="decision",
+            question="What deserves attention?",
+            engine_version="tarot-symbolic-v1",
+            prompt_version="tarot-reader-v1",
+            schema_version="reading-result-v1",
         ),
     )
 
@@ -64,8 +66,7 @@ async def test_reading_preview_consumes_shared_entitlement_and_blocks_analysis(
     reading = await _draft(readings, user.id)
 
     assert (
-        await entitlements.reserve_reading_preview(user.id, reading.id)
-        is PreviewOutcome.RESERVED
+        await entitlements.reserve_reading_preview(user.id, reading.id) is PreviewOutcome.RESERVED
     )
     await readings.start_generation(reading.id, user.id)
     await readings.complete_preview(reading.id, user.id, {"title": "Preview"}, [])
@@ -106,8 +107,7 @@ async def test_failed_reading_releases_and_retry_can_reserve(
     user, _, readings, entitlements = await _setup(payment_db)
     reading = await _draft(readings, user.id)
     assert (
-        await entitlements.reserve_reading_preview(user.id, reading.id)
-        is PreviewOutcome.RESERVED
+        await entitlements.reserve_reading_preview(user.id, reading.id) is PreviewOutcome.RESERVED
     )
     await readings.start_generation(reading.id, user.id)
     await readings.fail_generation(reading.id, user.id, "provider_timeout")
@@ -118,8 +118,7 @@ async def test_failed_reading_releases_and_retry_can_reserve(
     state = await entitlements.get_preview_state(user.id)
     assert state is not None and state.status == "available"
     assert (
-        await entitlements.reserve_reading_preview(user.id, reading.id)
-        is PreviewOutcome.RESERVED
+        await entitlements.reserve_reading_preview(user.id, reading.id) is PreviewOutcome.RESERVED
     )
 
 
@@ -128,10 +127,7 @@ async def test_second_ready_reading_is_locked_after_preview_consumed(
 ) -> None:
     user, _, readings, entitlements = await _setup(payment_db)
     first = await _draft(readings, user.id)
-    assert (
-        await entitlements.reserve_reading_preview(user.id, first.id)
-        is PreviewOutcome.RESERVED
-    )
+    assert await entitlements.reserve_reading_preview(user.id, first.id) is PreviewOutcome.RESERVED
     await readings.start_generation(first.id, user.id)
     await readings.complete_preview(first.id, user.id, {"title": "First"}, [])
     assert (
@@ -141,8 +137,7 @@ async def test_second_ready_reading_is_locked_after_preview_consumed(
 
     second = await _draft(readings, user.id)
     assert (
-        await entitlements.reserve_reading_preview(user.id, second.id)
-        is PreviewOutcome.UNAVAILABLE
+        await entitlements.reserve_reading_preview(user.id, second.id) is PreviewOutcome.UNAVAILABLE
     )
     await readings.start_generation(second.id, user.id)
     await readings.complete_preview(second.id, user.id, {"title": "Second"}, [])
@@ -158,8 +153,7 @@ async def test_deleting_reserved_reading_releases_entitlement(
     user, _, readings, entitlements = await _setup(payment_db)
     reading = await _draft(readings, user.id)
     assert (
-        await entitlements.reserve_reading_preview(user.id, reading.id)
-        is PreviewOutcome.RESERVED
+        await entitlements.reserve_reading_preview(user.id, reading.id) is PreviewOutcome.RESERVED
     )
     await readings.delete_owned(reading.id, user.id)
     state = await entitlements.get_preview_state(user.id)

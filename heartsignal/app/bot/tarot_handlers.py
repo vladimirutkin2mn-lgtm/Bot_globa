@@ -429,11 +429,7 @@ async def _deliver(
         if outcome.visibility is ReadingPreviewVisibility.FULL:
             rendered = full_renderer.render(outcome)
             for index, chunk in enumerate(rendered.chunks):
-                markup = (
-                    tarot_full_result_keyboard()
-                    if index == len(rendered.chunks) - 1
-                    else None
-                )
+                markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
                 await message.answer(chunk, reply_markup=markup)
             return
         if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
