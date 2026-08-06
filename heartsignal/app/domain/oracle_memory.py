@@ -76,10 +76,7 @@ class MemoryCreateRequest(StrictMemoryModel):
 
     @model_validator(mode="after")
     def validate_provenance(self) -> Self:
-        if (
-            self.source_type is MemorySourceType.READING_DERIVED
-            and self.source_reading_id is None
-        ):
+        if self.source_type is MemorySourceType.READING_DERIVED and self.source_reading_id is None:
             raise ValueError("reading-derived memory requires source_reading_id")
         if (
             self.source_type is not MemorySourceType.READING_DERIVED
