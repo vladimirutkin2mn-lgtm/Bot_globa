@@ -87,7 +87,7 @@ def memory_item_keyboard(item_id: UUID, page: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="Исправить",
-                    callback_data=f"memory:edit:{item_id}:{page}",
+                    callback_data=f"memory:edit_item:{item_id}:{page}",
                 )
             ],
             [
@@ -104,7 +104,7 @@ def memory_item_keyboard(item_id: UUID, page: int) -> InlineKeyboardMarkup:
 def memory_edit_cancel_keyboard(page: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Отмена", callback_data=f"memory:edit:cancel:{page}")]
+            [InlineKeyboardButton(text="Отмена", callback_data=f"memory:edit_cancel:{page}")]
         ]
     )
 
