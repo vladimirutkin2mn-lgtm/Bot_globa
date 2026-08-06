@@ -69,14 +69,27 @@ class YooKassaSubscriptionGateway:
             )
             if order is None:
                 raise PermanentProviderError("subscription_order_missing")
+            orders = list(
+                (
+                    await session.scalars(
+                        select(PaymentOrder)
+                        .where(PaymentOrder.subscription_id == subscription.id)
+                        .order_by(PaymentOrder.created_at.desc())
+                    )
+                ).all()
+            )
+            if all(candidate.id != order.id for candidate in orders):
+                orders.insert(0, order)
             current_period_end = subscription.current_period_end.astimezone(UTC)
             provider_payment_id = order.provider_payment_id
             snapshot = dict(order.commercial_snapshot)
-            receipt_label_value = snapshot.get("receipt_label")
-            receipt_label = (
-                receipt_label_value.strip()
-                if isinstance(receipt_label_value, str) and receipt_label_value.strip()
-                else None
+            receipt_label = next(
+                (
+                    label
+                    for candidate in orders
+                    if (label := _receipt_label(candidate.commercial_snapshot)) is not None
+                ),
+                None,
             )
             renewal = RenewSubscription(
                 user_id=subscription.user_id,
@@ -136,3 +149,10 @@ class YooKassaSubscriptionGateway:
                 cancel_at_period_end=cancel_at_period_end,
                 canceled_at=None,
             )
+
+
+def _receipt_label(snapshot: object) -> str | None:
+    if not isinstance(snapshot, dict):
+        return None
+    value = snapshot.get("receipt_label")
+    return value.strip() if isinstance(value, str) and value.strip() else None
