@@ -1,4 +1,4 @@
-"""PostgreSQL integration for deterministic symbols persisted on Reading replay."""
+"""PostgreSQL integration for deterministic symbols persisted on Reading retry."""
 
 import pytest
 from sqlalchemy import select
@@ -15,7 +15,7 @@ from app.services.symbolic_engine import TarotSymbolicEngine
 pytestmark = pytest.mark.postgres
 
 
-async def test_worker_replay_persists_the_same_tarot_symbols(
+async def test_worker_retry_persists_the_same_tarot_symbols(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     await PersonaRegistryService(payment_db).sync_mvp_personas()
@@ -44,21 +44,16 @@ async def test_worker_replay_persists_the_same_tarot_symbols(
     first_draw = engine.draw(reading.id, "three_card_v1")
 
     await reading_service.start_generation(reading.id, user_id)
-    await reading_service.complete_preview(
-        reading.id,
-        user_id,
-        {"title": "Preview"},
-        [item.to_reading_symbol() for item in first_draw],
-    )
+    await reading_service.fail_generation(reading.id, user_id, "provider_timeout")
 
-    replay_draw = engine.draw(reading.id, "three_card_v1")
-    assert replay_draw == first_draw
+    retry_draw = engine.draw(reading.id, "three_card_v1")
+    assert retry_draw == first_draw
     await reading_service.start_generation(reading.id, user_id)
     await reading_service.complete_preview(
         reading.id,
         user_id,
-        {"title": "Replay preview"},
-        [item.to_reading_symbol() for item in replay_draw],
+        {"title": "Retry preview"},
+        [item.to_reading_symbol() for item in retry_draw],
     )
 
     async with payment_db() as session:
