@@ -52,6 +52,7 @@ class ProductCatalog:
 
     def __init__(self, settings: Settings) -> None:
         reading_cost = settings.analysis_price_credits
+        single_amount = settings.product_analysis_single_price_minor
         subscription_title = (
             "Месячная подписка с автопродлением"
             if settings.subscriptions_enabled
@@ -64,7 +65,7 @@ class ProductCatalog:
                 "Один полный разбор",
                 "Полный персональный разбор",
                 reading_cost,
-                settings.product_reading_single_price_minor,
+                single_amount,
                 settings.payment_currency,
             ),
             ProductCode.READING_PACK_5: Product(
@@ -73,7 +74,7 @@ class ProductCatalog:
                 "Пять полных разборов",
                 "Пакет из пяти персональных разборов",
                 reading_cost * 5,
-                settings.product_reading_pack_5_price_minor,
+                settings.product_analysis_pack_5_price_minor,
                 settings.payment_currency,
             ),
             ProductCode.ASTROLOGY_NATAL: Product(
@@ -81,8 +82,8 @@ class ProductCatalog:
                 PRODUCT_CATALOG_VERSION,
                 "Персональный натальный профиль",
                 "Персональный натальный профиль",
-                settings.product_astrology_natal_credits,
-                settings.product_astrology_natal_price_minor,
+                reading_cost,
+                single_amount,
                 settings.payment_currency,
             ),
             ProductCode.ASTROLOGY_FORECAST: Product(
@@ -90,8 +91,8 @@ class ProductCatalog:
                 PRODUCT_CATALOG_VERSION,
                 "Персональный прогноз на неделю или месяц",
                 "Персональный астрологический прогноз",
-                settings.product_astrology_forecast_credits,
-                settings.product_astrology_forecast_price_minor,
+                reading_cost,
+                single_amount,
                 settings.payment_currency,
             ),
             ProductCode.SUBSCRIPTION_MONTHLY: Product(
@@ -130,12 +131,15 @@ class ProductCatalog:
         return tuple(self._products.values())
 
     def historical_label(self, product_code: str, product_version: int) -> str | None:
-        """Resolve labels for old receipts/history without making retired SKU sellable."""
+        """Resolve old order labels without making retired SKU sellable."""
 
         current = self.get(product_code)
-        if current is not None and current.code.value == product_code:
-            if current.version == product_version:
-                return current.title
+        if (
+            current is not None
+            and current.code.value == product_code
+            and current.version == product_version
+        ):
+            return current.title
         return _LEGACY_LABELS.get((product_code, product_version))
 
 
