@@ -19,6 +19,8 @@ pytest \
   tests/test_shared_preview_entitlement_postgres.py::test_analysis_and_reading_reservations_are_mutually_exclusive \
   tests/test_oracle_memory_postgres.py::test_memory_requires_explicit_consent_and_encrypts_value_at_rest \
   tests/test_oracle_memory_postgres.py::test_revoking_consent_purges_all_values_and_blocks_new_memory \
-  tests/test_oracle_memory_postgres.py::test_reading_derived_memory_requires_owned_matching_provenance \
+  tests/test_oracle_memory_postgres.py::test_reading_derived_memory_requires_owned_completed_matching_provenance \
   tests/test_oracle_memory_postgres.py::test_account_deletion_physically_removes_memory_and_consent \
+  tests/test_reading_memory_extraction_postgres.py::test_extraction_requires_consent_preserves_topics_and_is_idempotent \
+  tests/test_reading_memory_extraction_postgres.py::test_consent_is_rechecked_after_external_extraction \
   "$@"
