@@ -31,6 +31,21 @@ from app.services.sensitive_content import (
 pytestmark = pytest.mark.postgres
 
 
+class CountingCipher:
+    def __init__(self, key: str) -> None:
+        self._inner = AESGCMSensitiveContentCipher(key)
+        self.encrypt_calls = 0
+        self.decrypt_calls = 0
+
+    def encrypt_json(self, purpose: ContentPurpose, value: object) -> bytes:
+        self.encrypt_calls += 1
+        return self._inner.encrypt_json(purpose, value)
+
+    def decrypt_json(self, purpose: ContentPurpose, value: bytes) -> object:
+        self.decrypt_calls += 1
+        return self._inner.decrypt_json(purpose, value)
+
+
 async def _user(sessions: async_sessionmaker[AsyncSession], telegram_id: int) -> User:
     async with sessions.begin() as session:
         user = User(telegram_user_id=telegram_id, first_name="Birth Profile")
@@ -67,17 +82,20 @@ async def test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 896001)
-    cipher = AESGCMSensitiveContentCipher("birth-profile-at-rest-key")
+    cipher = CountingCipher("birth-profile-at-rest-key")
     service = BirthProfileService(payment_db, cipher)
     value = _profile()
 
     with pytest.raises(BirthProfileConsentRequiredError):
         await service.save(user.id, value)
+    assert cipher.encrypt_calls == 0
 
     consent = await service.grant_consent(user.id)
     saved = await service.save(user.id, value)
     loaded = await service.load(user.id)
 
+    assert cipher.encrypt_calls == 1
+    assert cipher.decrypt_calls == 1
     assert consent.status is BirthProfileConsentStatus.GRANTED
     assert saved.profile == value
     assert loaded is not None and loaded.profile == value
@@ -189,6 +207,41 @@ async def test_revoke_consent_purges_ciphertext_and_blocks_reuse(
     assert private is not None and private.payload_ciphertext is None
     assert private.payload_format_version is None
     assert private.content_deleted_at is not None
+
+
+async def test_load_and_revoke_serialize_without_post_revoke_ciphertext(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 896009)
+    service = BirthProfileService(
+        payment_db,
+        AESGCMSensitiveContentCipher("birth-profile-load-revoke-key"),
+    )
+
+    for attempt in range(10):
+        value = _profile(f"Load revoke private place {attempt}")
+        await service.grant_consent(user.id)
+        await service.save(user.id, value)
+        load_result, revoke_result = await asyncio.gather(
+            service.load(user.id),
+            service.revoke_consent(user.id),
+            return_exceptions=True,
+        )
+
+        if isinstance(load_result, BaseException):
+            assert isinstance(load_result, BirthProfileConsentRequiredError)
+        else:
+            assert load_result is not None and load_result.profile == value
+        assert not isinstance(revoke_result, BaseException)
+        assert revoke_result.status is BirthProfileConsentStatus.REVOKED
+        async with payment_db() as session:
+            profile = await session.scalar(
+                select(BirthProfile).where(BirthProfile.user_id == user.id)
+            )
+            assert profile is not None
+            private = await session.get(BirthProfilePrivateContent, profile.id)
+        assert profile.status == BirthProfileStatus.DELETED.value
+        assert private is not None and private.payload_ciphertext is None
 
 
 async def test_user_can_delete_profile_without_revoking_future_consent(
