@@ -1,9 +1,10 @@
 """PostgreSQL invariants for catalog-v2 checkout migration."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
@@ -34,6 +35,17 @@ class RecordingGateway:
         raise AssertionError(checkout_id)
 
 
+def _configured(settings: Settings) -> Settings:
+    return settings.model_copy(
+        update={
+            "billing_enabled": True,
+            "yookassa_enabled": True,
+            "yookassa_receipts_required": False,
+            "checkout_creation_lease_seconds": 1,
+        }
+    )
+
+
 async def test_legacy_callback_creates_only_current_sku_and_immutable_label_snapshot(
     payment_db: async_sessionmaker[AsyncSession],
     settings: Settings,
@@ -44,13 +56,7 @@ async def test_legacy_callback_creates_only_current_sku_and_immutable_label_snap
         await session.flush()
         user_id = user.id
 
-    configured = settings.model_copy(
-        update={
-            "billing_enabled": True,
-            "yookassa_enabled": True,
-            "yookassa_receipts_required": False,
-        }
-    )
+    configured = _configured(settings)
     gateway = RecordingGateway()
     service = CheckoutService(
         payment_db,
@@ -78,3 +84,77 @@ async def test_legacy_callback_creates_only_current_sku_and_immutable_label_snap
     assert len(gateway.requests) == 1
     assert gateway.requests[0].product_code == "reading_single"
     assert gateway.requests[0].receipt_label == "Полный персональный разбор"
+
+
+async def test_current_callback_replays_unfinished_v1_order_without_catalog_repricing(
+    payment_db: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
+    async with payment_db.begin() as session:
+        user = User(telegram_user_id=uuid4().int % 10**12, first_name="Legacy Pending")
+        session.add(user)
+        await session.flush()
+        order = PaymentOrder(
+            user_id=user.id,
+            provider="yookassa",
+            product_code="analysis_single",
+            product_version=1,
+            status="creating",
+            credits=7,
+            amount_minor=12_345,
+            currency="RUB",
+            market="RU",
+            mode="one_time",
+            idempotency_key=f"checkout:create:{uuid4()}:v1",
+            checkout_creation_started_at=datetime.now(UTC) - timedelta(minutes=5),
+            commercial_snapshot={
+                "product_code": "analysis_single",
+                "product_version": 1,
+                "title": "Legacy frozen title",
+                "receipt_label": "Legacy frozen receipt label",
+                "credits": 7,
+                "amount_minor": 12_345,
+                "currency": "RUB",
+                "provider": "yookassa",
+                "market": "RU",
+                "price_reference": "catalog:analysis_single:rub:v1",
+                "billing_period": None,
+            },
+        )
+        session.add(order)
+        await session.flush()
+        user_id, order_id = user.id, order.id
+
+    configured = _configured(settings)
+    gateway = RecordingGateway()
+    service = CheckoutService(
+        payment_db,
+        configured,
+        BillingCatalog(configured),
+        {PaymentProviderName.YOOKASSA: gateway},
+    )
+
+    result = await service.create_one_time_checkout(
+        user_id,
+        "reading_single",
+        "RU",
+        "RUB",
+    )
+
+    async with payment_db() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(PaymentOrder).where(PaymentOrder.user_id == user_id)
+        )
+        stored = await session.get(PaymentOrder, order_id)
+    assert result.order_id == order_id
+    assert count == 1
+    assert stored is not None and stored.status == "pending"
+    assert stored.product_code == "analysis_single"
+    assert stored.product_version == 1
+    assert len(gateway.requests) == 1
+    request = gateway.requests[0]
+    assert request.product_code == "analysis_single"
+    assert request.product_version == 1
+    assert request.amount_minor == 12_345
+    assert request.price_reference == "catalog:analysis_single:rub:v1"
+    assert request.receipt_label == "Legacy frozen receipt label"
