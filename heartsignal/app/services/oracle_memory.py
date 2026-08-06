@@ -250,9 +250,12 @@ class OracleMemoryService:
         if row is None:
             raise MemoryProvenanceError("owned source reading is unavailable")
         _, persona = row
-        if requested_persona_code is not None and requested_persona_code != persona.code:
+        persona_code = persona.code
+        if not isinstance(persona_code, str):
+            raise MemoryProvenanceError("source persona code is invalid")
+        if requested_persona_code is not None and requested_persona_code != persona_code:
             raise MemoryProvenanceError("source persona does not match reading provenance")
-        return persona.code
+        return persona_code
 
     async def _purge_items(
         self,
