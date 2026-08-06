@@ -1,7 +1,5 @@
 """Fixed safety regression gate shared by all planned oracle personas."""
 
-# ruff: noqa: RUF001
-
 import json
 from pathlib import Path
 from typing import TypedDict, cast
