@@ -84,9 +84,7 @@ def downgrade() -> None:
         )
     ).scalar_one()
     if incompatible_rows:
-        raise RuntimeError(
-            "downgrade refused: oracle memory extraction metadata would be lost"
-        )
+        raise RuntimeError("downgrade refused: oracle memory extraction metadata would be lost")
 
     op.drop_index(
         "ix_oracle_memory_items_extraction_lookup",
