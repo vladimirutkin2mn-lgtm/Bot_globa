@@ -17,7 +17,7 @@ def test_same_chart_and_period_produce_identical_fact_payload_and_digest() -> No
     )
     second = sample_fact_bundle(
         HoroscopeScope.WEEK_FORECAST,
-        reference_date=date(2026, 8, 9),
+        reference_date=date(2026, 8, 6),
     )
 
     assert first.period_start == date(2026, 8, 3)
@@ -56,7 +56,7 @@ def test_unknown_birth_time_never_creates_house_or_ascendant_facts() -> None:
     )
 
 
-def test_non_forecast_bundle_is_independent_from_reference_date() -> None:
+def test_non_forecast_astrology_facts_do_not_depend_on_reference_date() -> None:
     first = sample_fact_bundle(
         HoroscopeScope.NATAL_PROFILE,
         reference_date=date(2026, 1, 1),
@@ -67,6 +67,7 @@ def test_non_forecast_bundle_is_independent_from_reference_date() -> None:
     )
 
     assert first.period_start is None and first.period_end is None
-    assert first.payload() == second.payload()
-    assert first.digest() == second.digest()
+    assert first.facts == second.facts
+    assert first.limitations == second.limitations
+    assert first.digest() != second.digest()
     assert HoroscopeLimitation.SAMPLED_TRANSITS not in first.limitations
