@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
-_HEAD = "20260806_19"
+_HEAD = "20260806_20"
 _PARENT = "20260805_16"
 
 
