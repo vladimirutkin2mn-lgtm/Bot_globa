@@ -216,9 +216,7 @@ class ReadingMemoryExtractionService:
                 and consent.status == MemoryConsentStatus.GRANTED.value
                 and consent.consent_version == self._consent_version
             ):
-                raise MemoryConsentRequiredError(
-                    "explicit oracle memory consent is required"
-                )
+                raise MemoryConsentRequiredError("explicit oracle memory consent is required")
 
             row = (
                 await session.execute(
@@ -241,9 +239,7 @@ class ReadingMemoryExtractionService:
                 )
             ).one_or_none()
             if row is None:
-                raise MemoryProvenanceError(
-                    "owned completed source reading is unavailable"
-                )
+                raise MemoryProvenanceError("owned completed source reading is unavailable")
 
             reading, persona, private = row
             if (
@@ -277,9 +273,7 @@ class ReadingMemoryExtractionService:
                 or not isinstance(result, dict)
                 or not isinstance(persona.code, str)
             ):
-                raise MemorySourceUnavailableError(
-                    "completed reading private source is invalid"
-                )
+                raise MemorySourceUnavailableError("completed reading private source is invalid")
             return CompletedReadingMemorySnapshot(
                 reading_id=reading.id,
                 persona_code=persona.code,
