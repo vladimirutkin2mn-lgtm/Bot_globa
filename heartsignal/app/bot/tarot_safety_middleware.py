@@ -55,7 +55,12 @@ class TarotSafetyHandoffMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         await state_context.clear()
-        locale = event.from_user.language_code if event.from_user is not None else None
+        if isinstance(event, CallbackQuery):
+            locale = event.from_user.language_code
+        elif isinstance(event, Message):
+            locale = event.from_user.language_code if event.from_user is not None else None
+        else:
+            locale = None
         handoff = self._handoffs.build(safety.action, safety.categories, locale=locale)
         logger.info(
             "oracle_crisis_handoff action=%s categories=%s locale=%s",
