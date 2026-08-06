@@ -57,7 +57,7 @@ _RULES: tuple[_SafetyRule, ...] = (
         ReadingOutputSafetyCategory.VIOLENCE_OR_STALKING,
         _patterns(
             r"\b(?:stalk|track|follow) (?:him|her|them) "
-            r"without (?:consent|their knowledge)\b",
+            r"without (?:consent|his knowledge|her knowledge|their knowledge)\b",
             r"\b(?:hurt|attack|kill) (?:him|her|them)\b",
             r"\b(?:выследи|преследуй|следи за) (?:ним|ней|ними) "
             r"(?:тайно|без согласия|без ведома)\b",
@@ -80,7 +80,7 @@ _RULES: tuple[_SafetyRule, ...] = (
     _SafetyRule(
         ReadingOutputSafetyCategory.LEGAL_DIRECTION,
         _patterns(
-            r"\byou will (?:win|lose) (?:the )?(?:case|trial|lawsuit)\b",
+            r"\byou will (?:win|lose) (?:the )?(?:case|court case|trial|lawsuit)\b",
             r"\btell the (?:judge|court) (?:that|to)\b",
             r"\bhide from (?:the )?police\b",
             r"\b(?:вы|ты) "
