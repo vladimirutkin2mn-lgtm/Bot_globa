@@ -72,6 +72,12 @@ class YooKassaSubscriptionGateway:
             current_period_end = subscription.current_period_end.astimezone(UTC)
             provider_payment_id = order.provider_payment_id
             snapshot = dict(order.commercial_snapshot)
+            receipt_label_value = snapshot.get("receipt_label")
+            receipt_label = (
+                receipt_label_value.strip()
+                if isinstance(receipt_label_value, str) and receipt_label_value.strip()
+                else None
+            )
             renewal = RenewSubscription(
                 user_id=subscription.user_id,
                 subscription_id=subscription.id,
@@ -92,6 +98,7 @@ class YooKassaSubscriptionGateway:
                 ),
                 encrypted_payment_method=subscription.encrypted_payment_method,
                 receipt_contact=self._settings.yookassa_receipt_email or None,
+                receipt_label=receipt_label,
             )
         if current_period_end > datetime.now(UTC):
             if not provider_payment_id:
