@@ -110,32 +110,20 @@ def _stripe_coordinates(
     product_code: ProductCode,
     currency: str,
 ) -> tuple[str, int | None]:
+    """Reuse approved price coordinates until product-specific pricing is configured."""
+
     suffix = currency.lower()
-    if product_code is ProductCode.READING_SINGLE:
-        return (
-            getattr(settings, f"stripe_price_reading_single_{suffix}")
-            or getattr(settings, f"stripe_price_analysis_single_{suffix}"),
-            getattr(settings, f"stripe_amount_reading_single_{suffix}_minor")
-            or getattr(settings, f"stripe_amount_analysis_single_{suffix}_minor"),
-        )
     if product_code is ProductCode.READING_PACK_5:
         return (
-            getattr(settings, f"stripe_price_reading_pack_5_{suffix}")
-            or getattr(settings, f"stripe_price_analysis_pack_5_{suffix}"),
-            getattr(settings, f"stripe_amount_reading_pack_5_{suffix}_minor")
-            or getattr(settings, f"stripe_amount_analysis_pack_5_{suffix}_minor"),
+            getattr(settings, f"stripe_price_analysis_pack_5_{suffix}"),
+            getattr(settings, f"stripe_amount_analysis_pack_5_{suffix}_minor"),
         )
-    if product_code is ProductCode.ASTROLOGY_NATAL:
+    if product_code is ProductCode.SUBSCRIPTION_MONTHLY:
         return (
-            getattr(settings, f"stripe_price_astrology_natal_{suffix}"),
-            getattr(settings, f"stripe_amount_astrology_natal_{suffix}_minor"),
-        )
-    if product_code is ProductCode.ASTROLOGY_FORECAST:
-        return (
-            getattr(settings, f"stripe_price_astrology_forecast_{suffix}"),
-            getattr(settings, f"stripe_amount_astrology_forecast_{suffix}_minor"),
+            getattr(settings, f"stripe_price_subscription_monthly_{suffix}"),
+            getattr(settings, f"stripe_amount_subscription_monthly_{suffix}_minor"),
         )
     return (
-        getattr(settings, f"stripe_price_subscription_monthly_{suffix}"),
-        getattr(settings, f"stripe_amount_subscription_monthly_{suffix}_minor"),
+        getattr(settings, f"stripe_price_analysis_single_{suffix}"),
+        getattr(settings, f"stripe_amount_analysis_single_{suffix}_minor"),
     )
