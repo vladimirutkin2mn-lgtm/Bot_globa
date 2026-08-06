@@ -53,7 +53,7 @@ class MemoryKind(StrEnum):
 
     USER_PREFERENCE = "user_preference"
     PERSONAL_GOAL = "personal_goal"
-    RELATIONSHIP_CONTEXT = "relationship_context"
+    RELATIONSHIP_NOTES = "relationship_notes"
     RECURRING_THEME = "recurring_theme"
     BIRTH_PROFILE = "birth_profile"
     ORACLE_PREFERENCE = "oracle_preference"
