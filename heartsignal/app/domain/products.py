@@ -28,6 +28,10 @@ _LEGACY_ALIASES = {
     LegacyProductCode.ANALYSIS_SINGLE.value: ProductCode.READING_SINGLE,
     LegacyProductCode.ANALYSIS_PACK_5.value: ProductCode.READING_PACK_5,
 }
+_CURRENT_LEGACY_CODES = {
+    ProductCode.READING_SINGLE: (LegacyProductCode.ANALYSIS_SINGLE.value,),
+    ProductCode.READING_PACK_5: (LegacyProductCode.ANALYSIS_PACK_5.value,),
+}
 _LEGACY_LABELS = {
     (LegacyProductCode.ANALYSIS_SINGLE.value, 1): "Один полный разбор",
     (LegacyProductCode.ANALYSIS_PACK_5.value, 1): "Пять полных разборов",
@@ -119,6 +123,16 @@ class ProductCatalog:
             return ProductCode(value)
         except ValueError as exc:
             raise LookupError("unknown product") from exc
+
+    @classmethod
+    def active_order_codes(
+        cls,
+        code: str | ProductCode | LegacyProductCode,
+    ) -> tuple[str, ...]:
+        """Find an unfinished pre-migration order before creating a current SKU order."""
+
+        canonical = cls.canonical_code(code)
+        return (canonical.value, *_CURRENT_LEGACY_CODES.get(canonical, ()))
 
     def get(self, code: str | ProductCode | LegacyProductCode) -> Product | None:
         try:
