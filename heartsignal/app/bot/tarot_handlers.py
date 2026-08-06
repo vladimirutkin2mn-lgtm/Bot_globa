@@ -429,14 +429,16 @@ async def _deliver(
     status = outcome.generation.status
     if status is ReadingGenerationStatus.COMPLETED and outcome.generation.result is not None:
         if outcome.visibility is ReadingPreviewVisibility.FULL:
-            rendered = full_renderer.render(outcome)
-            for index, chunk in enumerate(preview_rendered.chunks):
-                markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
+            full_rendered = full_renderer.render(outcome)
+            for index, chunk in enumerate(full_rendered.chunks):
+                markup = (
+                    tarot_full_result_keyboard() if index == len(full_rendered.chunks) - 1 else None
+                )
                 await message.answer(chunk, reply_markup=markup)
             return
         if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
             preview_rendered = renderer.render(outcome)
-            for index, chunk in enumerate(rendered.chunks):
+            for index, chunk in enumerate(preview_rendered.chunks):
                 markup = (
                     tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
                     if index == len(preview_rendered.chunks) - 1
