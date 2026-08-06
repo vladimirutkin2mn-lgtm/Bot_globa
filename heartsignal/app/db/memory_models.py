@@ -18,6 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 _MEMORY_KINDS = (
+    "user_statement",
     "user_preference",
     "personal_goal",
     "relationship_notes",
@@ -25,6 +26,7 @@ _MEMORY_KINDS = (
     "birth_profile",
     "oracle_preference",
 )
+_MEMORY_CLAIM_BASES = ("user_stated", "model_inferred")
 _MEMORY_SOURCE_TYPES = ("user_explicit", "reading_derived", "profile_imported")
 
 
@@ -58,7 +60,7 @@ class OracleMemoryConsent(Base):
 
 
 class OracleMemoryItem(Base):
-    """Non-secret metadata for one allow-listed memory fact."""
+    """Non-secret metadata for one consented memory item."""
 
     __tablename__ = "oracle_memory_items"
     __table_args__ = (
@@ -75,8 +77,20 @@ class OracleMemoryItem(Base):
             name="ck_oracle_memory_items_confidence",
         ),
         CheckConstraint(
+            "claim_basis IN ("
+            + ",".join(f"'{value}'" for value in _MEMORY_CLAIM_BASES)
+            + ")",
+            name="ck_oracle_memory_items_claim_basis",
+        ),
+        CheckConstraint(
             "source_type IN (" + ",".join(f"'{value}'" for value in _MEMORY_SOURCE_TYPES) + ")",
             name="ck_oracle_memory_items_source_type",
+        ),
+        CheckConstraint(
+            "(source_type = 'reading_derived' AND candidate_key IS NOT NULL) OR "
+            "(source_type <> 'reading_derived' AND source_reading_id IS NULL "
+            "AND candidate_key IS NULL)",
+            name="ck_oracle_memory_items_provenance",
         ),
         CheckConstraint(
             "(status = 'active' AND deleted_at IS NULL) OR "
@@ -84,6 +98,14 @@ class OracleMemoryItem(Base):
             name="ck_oracle_memory_items_state",
         ),
         Index("ix_oracle_memory_items_user_status_created", "user_id", "status", "created_at"),
+        Index(
+            "ix_oracle_memory_items_extraction_lookup",
+            "user_id",
+            "source_reading_id",
+            "extraction_version",
+            "candidate_key",
+            "status",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -91,12 +113,16 @@ class OracleMemoryItem(Base):
     kind: Mapped[str] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
     confidence_milli: Mapped[int] = mapped_column(Integer)
+    claim_basis: Mapped[str] = mapped_column(
+        String(24), default="user_stated", server_default="user_stated"
+    )
     source_type: Mapped[str] = mapped_column(String(32))
     source_reading_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("readings.id", ondelete="SET NULL"), nullable=True, index=True
     )
     source_persona_code: Mapped[str | None] = mapped_column(String(64))
     extraction_version: Mapped[str] = mapped_column(String(64))
+    candidate_key: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
