@@ -158,6 +158,7 @@ def create_dispatcher(
             llm,
             max_repair_attempts=settings.llm_max_repair_attempts,
             memory_retriever=OracleReadingMemoryRetriever(oracle_memory),
+            analytics=oracle_analytics,
         ),
         entitlements=preview_entitlements,
     )
@@ -181,6 +182,7 @@ def create_dispatcher(
             llm,
             horoscope_facts,
             max_repair_attempts=settings.llm_max_repair_attempts,
+            analytics=oracle_analytics,
         ),
         entitlements=preview_entitlements,
     )
