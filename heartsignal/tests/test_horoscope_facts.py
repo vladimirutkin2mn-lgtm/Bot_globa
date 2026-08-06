@@ -2,7 +2,10 @@
 
 from datetime import date
 
+import pytest
+
 from app.domain.horoscope import (
+    HoroscopeFact,
     HoroscopeFactKind,
     HoroscopeLimitation,
     HoroscopeScope,
@@ -77,3 +80,50 @@ def test_non_forecast_astrology_facts_do_not_depend_on_reference_date() -> None:
     assert first.limitations == second.limitations
     assert first.digest() != second.digest()
     assert HoroscopeLimitation.SAMPLED_TRANSITS not in first.limitations
+
+
+def test_fact_contract_rejects_raw_birth_fields_before_prompt_construction() -> None:
+    details: dict[str, object] = {
+        "body": "sun",
+        "longitude_millidegrees": 11_000,
+        "sign": "aries",
+        "sign_degree_millidegrees": 11_000,
+        "retrograde": False,
+        "birth_date": "1991-04-17",
+        "latitude": 52.367573,
+    }
+
+    with pytest.raises(ValueError, match="detail fields"):
+        HoroscopeFact(
+            fact_id="natal:planet:sun",
+            kind=HoroscopeFactKind.NATAL_PLANET,
+            details=details,
+        )
+
+
+def test_fact_contract_rejects_inconsistent_identity_and_angles() -> None:
+    with pytest.raises(ValueError, match="does not match details"):
+        HoroscopeFact(
+            fact_id="natal:planet:moon",
+            kind=HoroscopeFactKind.NATAL_PLANET,
+            details={
+                "body": "sun",
+                "longitude_millidegrees": 11_000,
+                "sign": "aries",
+                "sign_degree_millidegrees": 11_000,
+                "retrograde": False,
+            },
+        )
+
+    with pytest.raises(ValueError, match="orb does not match separation"):
+        HoroscopeFact(
+            fact_id="natal:aspect:moon:sun:trine",
+            kind=HoroscopeFactKind.NATAL_ASPECT,
+            details={
+                "first_body": "moon",
+                "second_body": "sun",
+                "kind": "trine",
+                "separation_millidegrees": 120_000,
+                "orb_millidegrees": 1_000,
+            },
+        )
