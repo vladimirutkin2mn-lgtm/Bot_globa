@@ -112,7 +112,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     connection = op.get_bind()
-    event_rows = connection.execute(sa.text("SELECT count(*) FROM oracle_memory_events")).scalar_one()
+    event_rows = connection.execute(
+        sa.text("SELECT count(*) FROM oracle_memory_events")
+    ).scalar_one()
     lifecycle_rows = connection.execute(
         sa.text(
             "SELECT count(*) FROM oracle_memory_items "
