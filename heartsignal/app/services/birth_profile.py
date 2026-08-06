@@ -1,7 +1,8 @@
 """Transactional explicit-consent service for encrypted birth profiles."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import cast
+from typing import TypeVar, cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -24,6 +25,8 @@ from app.domain.birth_profile import (
     BirthProfileView,
 )
 from app.services.sensitive_content import ContentPurpose, SensitiveContentCipher
+
+T = TypeVar("T")
 
 
 class BirthProfileConsentRequiredError(PermissionError):
@@ -147,37 +150,24 @@ class BirthProfileService:
 
     async def load(self, user_id: UUID) -> BirthProfileView | None:
         async with self._sessions.begin() as session:
-            await self._required_active_user(session, user_id, for_update=True)
-            consent = await session.get(BirthProfileConsent, user_id, with_for_update=True)
-            if not self._permits_profile(consent):
-                raise BirthProfileConsentRequiredError(
-                    "explicit birth profile consent is required"
-                )
-            row = (
-                await session.execute(
-                    select(BirthProfile, BirthProfilePrivateContent)
-                    .join(
-                        BirthProfilePrivateContent,
-                        BirthProfilePrivateContent.birth_profile_id == BirthProfile.id,
-                    )
-                    .where(
-                        BirthProfile.user_id == user_id,
-                        BirthProfile.status == BirthProfileStatus.ACTIVE.value,
-                        BirthProfilePrivateContent.payload_ciphertext.is_not(None),
-                    )
-                    .with_for_update()
-                )
-            ).one_or_none()
-            if row is None:
+            loaded = await self._authorized_profile_locked(session, user_id)
+            if loaded is None:
                 return None
-            profile, private = row
-            assert private.payload_ciphertext is not None
-            payload = self._cipher.decrypt_json(
-                ContentPurpose.BIRTH_PROFILE,
-                private.payload_ciphertext,
-            )
-            value = BirthProfileInput.from_encrypted_payload(payload)
+            profile, value = loaded
             return self._profile_view(profile, value)
+
+    async def use_profile(
+        self,
+        user_id: UUID,
+        operation: Callable[[BirthProfileInput], T],
+    ) -> T | None:
+        """Run a synchronous pure operation before the consent lock is released."""
+        async with self._sessions.begin() as session:
+            loaded = await self._authorized_profile_locked(session, user_id)
+            if loaded is None:
+                return None
+            _, value = loaded
+            return operation(value)
 
     async def delete_profile(self, user_id: UUID) -> bool:
         now = datetime.now(UTC)
@@ -189,6 +179,43 @@ class BirthProfileService:
             await self._purge_profile(session, profile, now)
             await session.flush()
             return True
+
+    async def _authorized_profile_locked(
+        self,
+        session: AsyncSession,
+        user_id: UUID,
+    ) -> tuple[BirthProfile, BirthProfileInput] | None:
+        await self._required_active_user(session, user_id, for_update=True)
+        consent = await session.get(BirthProfileConsent, user_id, with_for_update=True)
+        if not self._permits_profile(consent):
+            raise BirthProfileConsentRequiredError(
+                "explicit birth profile consent is required"
+            )
+        row = (
+            await session.execute(
+                select(BirthProfile, BirthProfilePrivateContent)
+                .join(
+                    BirthProfilePrivateContent,
+                    BirthProfilePrivateContent.birth_profile_id == BirthProfile.id,
+                )
+                .where(
+                    BirthProfile.user_id == user_id,
+                    BirthProfile.status == BirthProfileStatus.ACTIVE.value,
+                    BirthProfilePrivateContent.payload_ciphertext.is_not(None),
+                )
+                .with_for_update()
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        profile, private = row
+        assert private.payload_ciphertext is not None
+        payload = self._cipher.decrypt_json(
+            ContentPurpose.BIRTH_PROFILE,
+            private.payload_ciphertext,
+        )
+        value = BirthProfileInput.from_encrypted_payload(payload)
+        return profile, value
 
     async def _purge_profile(
         self,
