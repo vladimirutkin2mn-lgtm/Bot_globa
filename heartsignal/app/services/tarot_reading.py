@@ -46,7 +46,9 @@ class TarotPreviewEntitlement(Protocol):
     async def reserve_reading_preview(self, user_id: UUID, reading_id: UUID) -> PreviewOutcome: ...
 
     async def resolve_reading_visibility(
-        self, user_id: UUID, reading_id: UUID
+        self,
+        user_id: UUID,
+        reading_id: UUID,
     ) -> ReadingPreviewVisibility: ...
 
 
@@ -103,17 +105,17 @@ class TarotReadingUseCase:
     ) -> TarotPreviewOutcome:
         self._validate_topic(request.topic)
         reading = await self._readings.create_draft(
-  user_id,
-  ReadingDraftRequest(
-      persona_code=self._persona.code,
-      topic=request.topic,
-      question=request.question,
-      context=request.context,
-      engine_version=self._engine.version,
-      prompt_version=self._persona.prompt_version,
-      schema_version=self._persona.schema_version,
-      cost_units=0,
-  ),
+            user_id,
+            ReadingDraftRequest(
+                persona_code=self._persona.code,
+                topic=request.topic,
+                question=request.question,
+                context=request.context,
+                engine_version=self._engine.version,
+                prompt_version=self._persona.prompt_version,
+                schema_version=self._persona.schema_version,
+                cost_units=0,
+            ),
         )
         return await self.generate_existing_preview(reading.id, user_id)
 
@@ -125,55 +127,55 @@ class TarotReadingUseCase:
         await self._reserve_if_possible(user_id, reading_id)
         cards = self._engine.draw(reading_id, self.preview_spread_code)
         generation = await self._generation.generate_preview(
-  reading_id,
-  user_id,
-  self._symbol_contexts(cards),
+            reading_id,
+            user_id,
+            self._symbol_contexts(cards),
         )
         visibility = (
-  ReadingPreviewVisibility.PREVIEW
-  if self._entitlements is None
-  else await self._entitlements.resolve_reading_visibility(user_id, reading_id)
+            ReadingPreviewVisibility.PREVIEW
+            if self._entitlements is None
+            else await self._entitlements.resolve_reading_visibility(user_id, reading_id)
         )
         return TarotPreviewOutcome(
-  reading_id=reading_id,
-  spread_code=self.preview_spread_code,
-  cards=cards,
-  generation=generation,
-  visibility=visibility,
+            reading_id=reading_id,
+            spread_code=self.preview_spread_code,
+            cards=cards,
+            generation=generation,
+            visibility=visibility,
         )
 
     async def _reserve_if_possible(self, user_id: UUID, reading_id: UUID) -> None:
         if self._entitlements is None:
-  return
+            return
         outcome = await self._entitlements.reserve_reading_preview(user_id, reading_id)
         if outcome in {PreviewOutcome.USER_NOT_FOUND, PreviewOutcome.READING_NOT_FOUND}:
-  raise LookupError("reading preview entitlement owner is unavailable")
+            raise LookupError("reading preview entitlement owner is unavailable")
         if outcome is PreviewOutcome.RELEASED_AFTER_FAILURE:
-  await self._entitlements.reserve_reading_preview(user_id, reading_id)
+            await self._entitlements.reserve_reading_preview(user_id, reading_id)
 
     def _required_persona(self) -> PersonaDefinition:
         persona = persona_definition(self.persona_code)
         if persona is None:
-  raise TarotConfigurationError("tarot persona is missing")
+            raise TarotConfigurationError("tarot persona is missing")
         if persona.engine is not PersonaEngine.SYMBOLIC:
-  raise TarotConfigurationError("tarot persona must use a symbolic engine")
+            raise TarotConfigurationError("tarot persona must use a symbolic engine")
         if persona.schema_version != "reading-result-v1":
-  raise TarotConfigurationError("tarot result schema is incompatible")
+            raise TarotConfigurationError("tarot result schema is incompatible")
         return persona
 
     def _validate_topic(self, topic: str) -> None:
         if topic not in self._persona.supported_topics:
-  raise UnsupportedTarotTopicError("unsupported tarot topic")
+            raise UnsupportedTarotTopicError("unsupported tarot topic")
 
     @staticmethod
     def _symbol_contexts(
         cards: tuple[SelectedTarotCard, ...],
     ) -> tuple[ReadingSymbolContext, ...]:
         return tuple(
-  ReadingSymbolContext(
-      symbol=card.to_reading_symbol(),
-      display_name=card.card.name_ru,
-      interpretation_theme=card.interpretation_theme,
-  )
-  for card in cards
+            ReadingSymbolContext(
+                symbol=card.to_reading_symbol(),
+                display_name=card.card.name_ru,
+                interpretation_theme=card.interpretation_theme,
+            )
+            for card in cards
         )
