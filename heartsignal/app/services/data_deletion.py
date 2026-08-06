@@ -30,6 +30,8 @@ from app.db.models import (
     Subscription,
     User,
 )
+from app.db.reading_models import Reading, ReadingPrivateContent, ReadingSymbol
+from app.domain.reading import ReadingAccess, ReadingStatus
 from app.providers.analytics import AnalyticsClient
 
 logger = logging.getLogger(__name__)
@@ -90,9 +92,9 @@ class DataDeletionService:
             return DataDeletionOutcome.ALREADY_DELETED
         # Canonical privacy/billing mutation lock order:
         # User -> PaymentOrder -> BillingJob -> ProviderWebhookEvent -> Analysis ->
-        # AnalysisPrivateContent -> OracleMemoryConsent -> OracleMemoryItem ->
-        # OracleMemoryPrivateContent -> BirthProfileConsent -> BirthProfile ->
-        # BirthProfilePrivateContent.
+        # AnalysisPrivateContent -> Reading -> ReadingPrivateContent -> ReadingSymbol ->
+        # OracleMemoryConsent -> OracleMemoryItem -> OracleMemoryPrivateContent ->
+        # BirthProfileConsent -> BirthProfile -> BirthProfilePrivateContent.
         discovered_orders = list(
             (
                 await self.session.execute(
@@ -173,6 +175,8 @@ class DataDeletionService:
                 row.source_deleted_at = row.result_deleted_at = now
         for analysis in analyses:
             self._clear_analysis(analysis, now)
+
+        await self._purge_readings(user_id, now)
 
         memory_consent = await self.session.get(
             OracleMemoryConsent,
@@ -386,6 +390,49 @@ class DataDeletionService:
         await self.session.commit()
         await self._track("all_data_deleted", {"user_id": str(user_id)})
         return DataDeletionOutcome.DELETED
+
+    async def _purge_readings(self, user_id: UUID, now: datetime) -> None:
+        readings = list(
+            (
+                await self.session.scalars(
+                    select(Reading)
+                    .where(Reading.user_id == user_id)
+                    .order_by(Reading.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        reading_ids = [reading.id for reading in readings]
+        if reading_ids:
+            private_rows = list(
+                (
+                    await self.session.scalars(
+                        select(ReadingPrivateContent)
+                        .where(ReadingPrivateContent.reading_id.in_(reading_ids))
+                        .order_by(ReadingPrivateContent.reading_id)
+                        .with_for_update()
+                    )
+                ).all()
+            )
+            for private in private_rows:
+                private.question_ciphertext = None
+                private.context_ciphertext = None
+                private.result_ciphertext = None
+                private.question_format_version = None
+                private.context_format_version = None
+                private.result_format_version = None
+                private.content_delete_after = None
+                private.content_deleted_at = now
+            await self.session.execute(
+                delete(ReadingSymbol).where(ReadingSymbol.reading_id.in_(reading_ids))
+            )
+        for reading in readings:
+            reading.status = ReadingStatus.DELETED.value
+            reading.access_level = ReadingAccess.NONE.value
+            reading.generation_started_at = None
+            reading.generated_at = None
+            reading.failure_code = None
+            reading.deleted_at = now
 
     async def _track(self, event: str, properties: dict[str, str]) -> None:
         """Deletion is authoritative after commit; analytics is best-effort and identity-free."""
