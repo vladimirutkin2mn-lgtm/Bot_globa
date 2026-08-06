@@ -43,6 +43,7 @@ _ASPECTS: tuple[tuple[NatalAspectKind, int, int], ...] = (
     (NatalAspectKind.OPPOSITION, 180_000, 8_000),
 )
 _SIGNS = tuple(ZodiacSign)
+_MAX_TRANSIT_ASPECTS_PER_SAMPLE = 24
 
 
 class NatalChartProvider(Protocol):
@@ -50,7 +51,7 @@ class NatalChartProvider(Protocol):
 
 
 class HoroscopeFactService:
-    """Build an immutable fact bundle without exposing raw birth-profile fields."""
+    """Build an immutable bounded fact bundle without exposing raw birth-profile fields."""
 
     def __init__(self, charts: NatalChartProvider) -> None:
         self._charts = charts
@@ -88,10 +89,11 @@ class HoroscopeFactService:
             limitations.append(HoroscopeLimitation.BIRTH_TIME_UNKNOWN)
         if sample_dates:
             limitations.append(HoroscopeLimitation.SAMPLED_TRANSITS)
+        anchor_date = period_start or reference_date
         return HoroscopeFactBundle(
             facts_version=HOROSCOPE_FACTS_VERSION,
             scope=scope,
-            calculated_at_utc=datetime.combine(reference_date, time(12), tzinfo=UTC),
+            calculated_at_utc=datetime.combine(anchor_date, time(12), tzinfo=UTC),
             period_start=period_start,
             period_end=period_end,
             natal_schema_version=chart.schema_version,
@@ -184,9 +186,10 @@ class HoroscopeFactService:
                         details={"sample_date": sample_date.isoformat(), **details},
                     )
                 )
+            sample_aspects: list[HoroscopeFact] = []
             for transit_body, transit in transit_positions.items():
                 for natal_body, natal in natal_positions.items():
-                    facts.extend(
+                    sample_aspects.extend(
                         self._cross_aspect_facts(
                             sample_date,
                             transit_body,
@@ -195,7 +198,20 @@ class HoroscopeFactService:
                             natal.longitude_millidegrees,
                         )
                     )
+            facts.extend(
+                sorted(
+                    sample_aspects,
+                    key=lambda fact: (self._fact_orb(fact), fact.fact_id),
+                )[:_MAX_TRANSIT_ASPECTS_PER_SAMPLE]
+            )
         return tuple(facts)
+
+    @staticmethod
+    def _fact_orb(fact: HoroscopeFact) -> int:
+        value = fact.details.get("orb_millidegrees")
+        if not isinstance(value, int):
+            raise TypeError("transit aspect orb must be an integer millidegree value")
+        return value
 
     @staticmethod
     def _astro_time(sample_date: date) -> Any:
