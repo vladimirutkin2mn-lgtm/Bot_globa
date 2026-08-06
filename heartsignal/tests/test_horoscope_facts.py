@@ -17,7 +17,7 @@ def test_same_chart_and_period_produce_identical_fact_payload_and_digest() -> No
     )
     second = sample_fact_bundle(
         HoroscopeScope.WEEK_FORECAST,
-        reference_date=date(2026, 8, 6),
+        reference_date=date(2026, 8, 9),
     )
 
     assert first.period_start == date(2026, 8, 3)
@@ -26,7 +26,13 @@ def test_same_chart_and_period_produce_identical_fact_payload_and_digest() -> No
     assert first.digest() == second.digest()
     assert HoroscopeLimitation.SAMPLED_TRANSITS in first.limitations
     assert any(fact.kind is HoroscopeFactKind.TRANSIT_PLANET for fact in first.facts)
-    assert any(fact.kind is HoroscopeFactKind.TRANSIT_NATAL_ASPECT for fact in first.facts)
+    transit_aspects = [
+        fact
+        for fact in first.facts
+        if fact.kind is HoroscopeFactKind.TRANSIT_NATAL_ASPECT
+    ]
+    assert transit_aspects
+    assert len(transit_aspects) <= 3 * 24
 
 
 def test_month_forecast_uses_calendar_month_and_three_fixed_samples() -> None:
