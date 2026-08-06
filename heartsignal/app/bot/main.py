@@ -42,6 +42,7 @@ from app.services.natal_chart import (
     ConsentedNatalChartService,
 )
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
+from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.reading_generation import ReadingGenerationService
@@ -86,6 +87,7 @@ def create_dispatcher(
     product_catalog = ProductCatalog(settings)
     billing_catalog = BillingCatalog(settings)
     analytics = create_analytics_client(sessions, resolved_observability)
+    oracle_analytics = OracleProductAnalytics(analytics)
     reporter = (
         LoggingErrorReporter()
         if resolved_observability.error_reporting_backend == "logging"
@@ -131,6 +133,7 @@ def create_dispatcher(
     dispatcher["owns_database_engine"] = engine is None
     dispatcher["llm_client"] = llm
     dispatcher["analytics"] = analytics
+    dispatcher["oracle_analytics"] = oracle_analytics
     dispatcher["error_reporter"] = reporter
     dispatcher["persona_registry"] = PersonaRegistryService(sessions)
     dispatcher["tarot_history"] = ReadingHistoryService(sessions)
@@ -140,6 +143,7 @@ def create_dispatcher(
         cipher,
         settings.raw_content_retention_days,
         preview_entitlements=preview_entitlements,
+        analytics=oracle_analytics,
     )
     oracle_memory = QualityManagedOracleMemoryService(sessions, cipher)
     reading_store = SqlAlchemyReadingGenerationStore(
