@@ -24,6 +24,7 @@ pytest \
   tests/test_oracle_memory_controls_postgres.py::test_correction_replaces_item_and_purges_previous_ciphertext \
   tests/test_oracle_memory_controls_postgres.py::test_correction_never_crosses_user_boundary \
   tests/test_oracle_memory_controls_postgres.py::test_clear_all_purges_values_but_keeps_consent_active \
+  tests/test_oracle_memory_quality_postgres.py::test_concurrent_exact_writes_return_one_active_item \
   tests/test_oracle_memory_quality_postgres.py::test_quality_service_reconciles_legacy_duplicates_and_purges_loser_ciphertext \
   tests/test_oracle_memory_quality_postgres.py::test_user_stated_exact_value_supersedes_equal_model_inference \
   tests/test_oracle_memory_quality_postgres.py::test_quality_summary_counts_stale_and_corrected_items_without_values \
