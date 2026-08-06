@@ -3,7 +3,7 @@
 import math
 import unicodedata
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -157,9 +157,7 @@ class BirthProfileInput:
             raise ValueError("birth local time does not exist in the selected timezone")
         return valid
 
-    def _offset_delta(self):
-        from datetime import timedelta
-
+    def _offset_delta(self) -> timedelta:
         return timedelta(minutes=self.utc_offset_minutes)
 
 
