@@ -330,9 +330,11 @@ async def unlock_tarot(
             outcome.generation.status is ReadingGenerationStatus.COMPLETED
             and outcome.generation.result is not None
         ):
-            rendered = full_renderer.render(outcome)
-            for index, chunk in enumerate(rendered.chunks):
-                markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
+            full_rendered = full_renderer.render(outcome)
+            for index, chunk in enumerate(full_rendered.chunks):
+                markup = (
+                    tarot_full_result_keyboard() if index == len(full_rendered.chunks) - 1 else None
+                )
                 await callback.message.answer(chunk, reply_markup=markup)
             return
     await callback.message.answer(UNLOCK_FAILED, reply_markup=tarot_result_keyboard())
@@ -428,16 +430,16 @@ async def _deliver(
     if status is ReadingGenerationStatus.COMPLETED and outcome.generation.result is not None:
         if outcome.visibility is ReadingPreviewVisibility.FULL:
             rendered = full_renderer.render(outcome)
-            for index, chunk in enumerate(rendered.chunks):
+            for index, chunk in enumerate(preview_rendered.chunks):
                 markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
                 await message.answer(chunk, reply_markup=markup)
             return
         if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
-            rendered = renderer.render(outcome)
+            preview_rendered = renderer.render(outcome)
             for index, chunk in enumerate(rendered.chunks):
                 markup = (
                     tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
-                    if index == len(rendered.chunks) - 1
+                    if index == len(preview_rendered.chunks) - 1
                     else None
                 )
                 await message.answer(chunk, reply_markup=markup)

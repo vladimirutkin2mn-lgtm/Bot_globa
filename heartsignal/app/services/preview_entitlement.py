@@ -41,7 +41,7 @@ class ReadingPreviewVisibility(StrEnum):
 class PreviewState:
     status: str
     analysis_id: UUID | None
-    reading_id: UUID | None
+    reading_id: UUID | None = None
 
 
 class PreviewEntitlementService:
