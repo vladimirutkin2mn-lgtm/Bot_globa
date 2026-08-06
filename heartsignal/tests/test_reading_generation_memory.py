@@ -66,7 +66,7 @@ class RecordingStore:
         failure_code: str,
     ) -> ReadingGenerationFinalizeStatus:
         self.failed.append(failure_code)
-        return ReadingGenerationFinalizeStatus.FAILED
+        return ReadingGenerationFinalizeStatus.COMPLETED
 
 
 class RecordingLLM:
@@ -76,26 +76,31 @@ class RecordingLLM:
     async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         payload = {
-            "schema_version": "reading-result-v1",
             "title": "A reflective title",
-            "summary": "The symbol suggests a pause before choosing.",
-            "interpretations": [
+            "opening": "The symbol suggests a pause before choosing.",
+            "symbols": [
                 {
                     "symbol_id": "major-00-fool",
                     "position": "situation",
                     "orientation": "upright",
-                    "display_name": "The Fool",
                     "interpretation": "A new route is possible, with uncertainty.",
                 }
             ],
-            "synthesis": "Treat this as one perspective, not a guaranteed outcome.",
-            "reflection_prompts": ["What evidence supports the change?"],
-            "practical_next_step": "Write down one reversible experiment.",
+            "patterns": ["A new direction may benefit from a reversible first step."],
+            "possible_scenarios": [
+                {
+                    "scenario": "A small experiment clarifies whether the new route fits.",
+                    "conditions": ["Keep the first step reversible."],
+                }
+            ],
+            "reflection_questions": ["What evidence supports the change?"],
+            "practical_step": "Write down one reversible experiment.",
             "uncertainty_note": "This reading cannot predict the future.",
             "share_card": {
                 "headline": "A possible new route",
-                "body": "Pause, observe, and choose one low-risk experiment.",
+                "short_text": "Pause, observe, and choose one low-risk experiment.",
             },
+            "safety": {"high_risk_detected": False, "categories": []},
         }
         return LLMCompletion(
             payload=json.dumps(payload),
