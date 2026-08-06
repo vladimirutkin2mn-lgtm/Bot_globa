@@ -178,8 +178,7 @@ async def test_capacity_retires_only_model_inferred_memory(
         event = await session.scalar(
             select(OracleMemoryEvent).where(
                 OracleMemoryEvent.memory_item_id == inferred.id,
-                OracleMemoryEvent.event_type
-                == MemoryLifecycleEventType.CAPACITY_RETIRED.value,
+                OracleMemoryEvent.event_type == MemoryLifecycleEventType.CAPACITY_RETIRED.value,
             )
         )
     assert retired is not None and retired.status == MemoryItemStatus.DELETED.value
