@@ -24,6 +24,7 @@ from app.prompts.reading import (
     ReadingPromptSet,
     load_reading_prompts,
 )
+from app.providers.analytics import OracleProductEvent
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMClient,
@@ -34,6 +35,10 @@ from app.providers.llm.base import (
     LLMTimeoutError,
     LLMTransientError,
     LLMUnexpectedError,
+)
+from app.services.oracle_product_analytics import (
+    OracleAnalyticsValue,
+    OracleProductAnalytics,
 )
 from app.services.reading_result_validator import InvalidReadingResult, ReadingResultValidator
 
@@ -94,6 +99,7 @@ class ReadingGenerationService:
         prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
         validator: ReadingResultValidator | None = None,
         memory_retriever: ReadingMemoryRetriever | None = None,
+        analytics: OracleProductAnalytics | None = None,
     ) -> None:
         if max_repair_attempts not in {0, 1}:
             raise ValueError("reading generation allows at most one repair attempt")
@@ -103,6 +109,7 @@ class ReadingGenerationService:
         self._prompt_loader = prompt_loader
         self._validator = validator or ReadingResultValidator()
         self._memory_retriever = memory_retriever
+        self._analytics = analytics
 
     async def generate_preview(
         self,
@@ -195,6 +202,38 @@ class ReadingGenerationService:
                 len(memory_context),
                 attempts,
             )
+            await self._track(
+                user_id,
+                OracleProductEvent.READING_PREVIEW_READY,
+                {
+                    "reading_id": reading_id,
+                    "persona_code": context.persona_code,
+                    "topic_code": context.topic,
+                    "engine_version": context.engine_version,
+                    "prompt_version": context.prompt_version,
+                    "schema_version": context.schema_version,
+                    "attempt_count": attempts,
+                    "repair_used": attempts > 1,
+                    "memory_count": len(memory_context),
+                },
+            )
+            if memory_context:
+                await self._track(
+                    user_id,
+                    OracleProductEvent.MEMORY_CONTEXT_USED,
+                    {
+                        "reading_id": reading_id,
+                        "selected_count": len(memory_context),
+                        "user_stated_count": sum(
+                            item.claim_basis.value == "user_stated"
+                            for item in memory_context
+                        ),
+                        "model_inferred_count": sum(
+                            item.claim_basis.value == "model_inferred"
+                            for item in memory_context
+                        ),
+                    },
+                )
             return ReadingGenerationResult(
                 ReadingGenerationStatus.COMPLETED,
                 result=validated.result,
@@ -436,3 +475,16 @@ class ReadingGenerationService:
             provider=completion.provider,
             model=completion.model,
         )
+
+    async def _track(
+        self,
+        user_id: UUID,
+        event: OracleProductEvent,
+        properties: dict[str, OracleAnalyticsValue | None],
+    ) -> None:
+        if self._analytics is None:
+            return
+        try:
+            await self._analytics.track(user_id, event, properties)
+        except Exception:
+            logger.warning("oracle_analytics_failed event=%s", event.value)
