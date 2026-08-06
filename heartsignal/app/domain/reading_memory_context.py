@@ -1,8 +1,9 @@
 """Provider-neutral contracts for bounded memory context in new readings."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from app.domain.oracle_memory import MemoryClaimBasis, MemoryKind, MemorySourceType
@@ -36,6 +37,17 @@ class ReadingMemoryContextItem:
             "confidence_milli": self.confidence_milli,
             "occurred_on": occurred_at.date().isoformat(),
         }
+
+
+@runtime_checkable
+class MemoryPromptUsageRecorder(Protocol):
+    """Record selected item identifiers without receiving memory plaintext."""
+
+    async def record_prompt_use(
+        self,
+        user_id: UUID,
+        memory_item_ids: Sequence[UUID],
+    ) -> int: ...
 
 
 class ReadingMemoryRetriever(Protocol):
