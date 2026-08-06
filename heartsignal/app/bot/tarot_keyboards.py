@@ -41,6 +41,15 @@ def tarot_context_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def tarot_handoff_keyboard() -> InlineKeyboardMarkup:
+    """Do not invite another mystical action from an active safety handoff."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Главное меню", callback_data="tarot:menu")],
+        ]
+    )
+
+
 def tarot_result_keyboard(
     reading_id: UUID | None = None,
     price_credits: int | None = None,
