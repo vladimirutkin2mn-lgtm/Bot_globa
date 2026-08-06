@@ -3,7 +3,16 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, LargeBinary, String, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -43,6 +52,7 @@ class BirthProfile(Base):
 
     __tablename__ = "birth_profiles"
     __table_args__ = (
+        UniqueConstraint("user_id", name="uq_birth_profiles_user_id"),
         CheckConstraint(
             "status IN ('active','deleted')",
             name="ck_birth_profiles_status",
@@ -55,9 +65,7 @@ class BirthProfile(Base):
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
     profile_version: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
