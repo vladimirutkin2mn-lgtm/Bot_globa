@@ -99,3 +99,10 @@ def deserialize_horoscope(
     except (ValidationError, TypeError, ValueError) as exc:
         raise InvalidStoredHoroscope("invalid stored Horoscope envelope") from exc
     return envelope.result, facts
+
+
+def horoscope_memory_source(payload: dict[str, object]) -> dict[str, object]:
+    """Return narrative only so memory extraction never receives calculated chart facts."""
+
+    result, _ = deserialize_horoscope(payload)
+    return result.model_dump(mode="json")
