@@ -187,7 +187,9 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
                     return duplicate
 
             if not await self._ensure_capacity(session, user_id, request.claim_basis):
-                raise MemoryCapacityError("oracle memory capacity is reserved for user-stated items")
+                raise MemoryCapacityError(
+                    "oracle memory capacity is reserved for user-stated items"
+                )
             item = await self._create_item(
                 session,
                 user_id,
@@ -629,11 +631,7 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
             return True
 
         candidates = sorted(
-            (
-                item
-                for item in items
-                if item.claim_basis == MemoryClaimBasis.MODEL_INFERRED.value
-            ),
+            (item for item in items if item.claim_basis == MemoryClaimBasis.MODEL_INFERRED.value),
             key=self._retention_key,
         )
         retired: list[OracleMemoryItem] = []
@@ -696,11 +694,7 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
             item.claim_basis == MemoryClaimBasis.MODEL_INFERRED.value for item in items
         )
         candidates = sorted(
-            (
-                item
-                for item in items
-                if item.claim_basis == MemoryClaimBasis.MODEL_INFERRED.value
-            ),
+            (item for item in items if item.claim_basis == MemoryClaimBasis.MODEL_INFERRED.value),
             key=self._retention_key,
         )
         retired: list[OracleMemoryItem] = []
