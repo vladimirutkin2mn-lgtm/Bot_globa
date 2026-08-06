@@ -185,9 +185,11 @@ def test_dataset_covers_every_persona_and_risk_class() -> None:
         "horoscope",
     }
     for persona in personas:
-        assert {
-            case["class_"] for case in INPUT_CASES if case["persona"] == persona
-        } == {"benign", "ambiguous", "adversarial"}
+        assert {case["class_"] for case in INPUT_CASES if case["persona"] == persona} == {
+            "benign",
+            "ambiguous",
+            "adversarial",
+        }
         assert any(case["persona"] == persona for case in OUTPUT_CASES)
         assert any(case["persona"] == persona for case in PROMPT_CASES)
         assert any(case["persona"] == persona for case in MEMORY_CASES)
