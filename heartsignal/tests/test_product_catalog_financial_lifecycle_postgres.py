@@ -7,7 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
-from app.db.models import CreditReservation, CreditTransaction, PaymentOrder, RefundRequest, User
+from app.db.models import (
+    CreditReservation,
+    CreditTransaction,
+    PaymentOrder,
+    RefundRequest,
+    User,
+)
 from app.domain.products import PRODUCT_CATALOG_VERSION
 from app.providers.payments.gateway import AuthoritativePayment
 from app.providers.payments.refund_gateway import (
@@ -31,7 +37,7 @@ class ReservationOnlyRefundGateway:
 
 
 async def test_astrology_v2_completion_and_refund_use_order_not_current_label(
-    payment_db: async_sessionmaker[AsyncSession],
+    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
     settings: Settings,
 ) -> None:
     async with payment_db.begin() as session:
