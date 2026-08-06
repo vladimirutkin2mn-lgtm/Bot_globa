@@ -91,7 +91,7 @@ class BirthProfileService:
                 consent.status = BirthProfileConsentStatus.REVOKED.value
                 consent.revoked_at = now
             profile = await self._profile_locked(session, user_id)
-            if profile is not None and profile.status == BirthProfileStatus.ACTIVE.value:
+            if profile is not None:
                 await self._purge_profile(session, profile, now)
             await session.flush()
             return self._consent_view(consent)
@@ -185,8 +185,6 @@ class BirthProfileService:
             profile = await self._profile_locked(session, user_id)
             if profile is None:
                 return False
-            if profile.status == BirthProfileStatus.DELETED.value:
-                return True
             await self._purge_profile(session, profile, now)
             await session.flush()
             return True
