@@ -103,10 +103,11 @@ async def grant_memory(
         return
     await oracle_memory.grant_consent(user.id)
     await state.clear()
+    items = await oracle_memory.list_active(user.id)
     await callback.message.answer(
         "Память включена. Бот сможет сохранять полезный контекст из готовых раскладов. "
         "Каждую запись можно посмотреть, исправить или удалить.",
-        reply_markup=memory_enabled_keyboard(False),
+        reply_markup=memory_enabled_keyboard(bool(items)),
     )
 
 
@@ -185,24 +186,25 @@ async def begin_memory_correction(
 
 
 @router.callback_query(F.data.startswith("memory:edit_cancel:"))
-async def cancel_memory_correction(callback: CallbackQuery, state: FSMContext) -> None:
+async def cancel_memory_correction(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    oracle_memory: OracleMemoryService,
+) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
     page = _parse_page(callback.data, "memory:edit_cancel:")
-    await state.clear()
-    if isinstance(callback.message, Message):
-        await callback.message.answer(
-            "Исправление отменено.",
-            reply_markup=memory_enabled_keyboard(True),
-        )
-        await callback.message.answer(
-            "Откройте список памяти, чтобы продолжить.",
-            reply_markup=memory_list_keyboard(
-                (),
-                page=page,
-                has_previous=False,
-                has_next=False,
-            ),
-        )
+    await callback.message.answer("Исправление отменено.")
+    await _show_list(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        oracle_memory,
+        page,
+    )
 
 
 @router.message(MemoryStates.waiting_for_correction)
@@ -233,10 +235,15 @@ async def save_memory_correction(
     try:
         replacement_id = await oracle_memory.correct_item(user.id, item_id, value)
     except MemoryConsentRequiredError:
-        replacement_id = None
+        await state.clear()
+        await message.answer(
+            "Память уже отключена. Исправление не сохранено.",
+            reply_markup=memory_disabled_keyboard(),
+        )
+        return
     await state.clear()
     if replacement_id is None:
-        await message.answer(_STALE, reply_markup=memory_disabled_keyboard())
+        await message.answer(_STALE, reply_markup=memory_enabled_keyboard(True))
         return
     await message.answer(
         "Запись исправлена. Новая версия отмечена как сообщённая вами напрямую.",
@@ -410,6 +417,13 @@ async def _show_list(
     user = await onboarding.current_user(telegram_user_id)
     if user is None:
         await message.answer(_NOT_ONBOARDED)
+        return
+    consent = await oracle_memory.consent_state(user.id)
+    if consent is None or not consent.permits_memory:
+        await message.answer(
+            "Память выключена.",
+            reply_markup=memory_disabled_keyboard(),
+        )
         return
     items = list(reversed(await oracle_memory.list_active(user.id)))
     if not items:
