@@ -44,6 +44,18 @@ def test_legacy_callbacks_resolve_to_current_skus_without_reusing_old_version(
     assert legacy_pack.version == PRODUCT_CATALOG_VERSION
 
 
+def test_active_order_lookup_includes_current_and_pre_migration_coordinates() -> None:
+    assert ProductCatalog.active_order_codes("reading_single") == (
+        "reading_single",
+        "analysis_single",
+    )
+    assert ProductCatalog.active_order_codes("analysis_pack_5") == (
+        "reading_pack_5",
+        "analysis_pack_5",
+    )
+    assert ProductCatalog.active_order_codes("astrology_natal") == ("astrology_natal",)
+
+
 def test_historical_labels_are_available_without_reselling_legacy_skus(
     settings: Settings,
 ) -> None:
