@@ -1,7 +1,5 @@
 """User-facing oracle-memory provenance and Telegram callback invariants."""
 
-# ruff: noqa: RUF001
-
 from datetime import UTC, datetime
 from uuid import uuid4
 
