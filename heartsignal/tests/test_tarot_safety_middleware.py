@@ -17,7 +17,7 @@ PRIVATE_MARKER = "private-question-must-not-leak"
 
 
 class FakeState:
-    def __init__(self, state: str, data: dict[str, Any] | None = None) -> None:
+    def __init__(self, state: str | None, data: dict[str, Any] | None = None) -> None:
         self.state = state
         self.data = data or {}
         self.cleared = False
@@ -30,7 +30,7 @@ class FakeState:
 
     async def clear(self) -> None:
         self.cleared = True
-        self.state = ""
+        self.state = None
         self.data.clear()
 
 
@@ -68,6 +68,7 @@ async def test_unsafe_question_stops_before_downstream_handler() -> None:
     downstream.assert_not_awaited()
     assert state.cleared
     answer.assert_awaited_once()
+    assert answer.await_args is not None
     text = answer.await_args.args[0]
     keyboard = answer.await_args.kwargs["reply_markup"]
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
@@ -93,6 +94,7 @@ async def test_unsafe_optional_context_stops_safe_question() -> None:
 
     downstream.assert_not_awaited()
     assert state.cleared
+    assert answer.await_args is not None
     text = answer.await_args.args[0]
     assert "профильной помощи" in text
     assert "Медицинская помощь" in text
@@ -128,6 +130,7 @@ async def test_skip_context_checks_stored_question_and_answers_callback() -> Non
     callback_answer.assert_awaited_once_with()
     message_answer.assert_awaited_once()
     assert state.cleared
+    assert message_answer.await_args is not None
     text = message_answer.await_args.args[0]
     assert "не могу продолжить" in text
     assert "новый расклад" not in text.casefold()
