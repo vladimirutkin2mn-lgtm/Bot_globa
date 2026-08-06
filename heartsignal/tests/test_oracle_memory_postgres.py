@@ -54,7 +54,7 @@ async def test_memory_requires_explicit_consent_and_encrypts_value_at_rest(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 930001)
-    secret = "Мне важно сначала выслушать, а потом предлагать решение"
+    secret = "I prefer to be heard before receiving a solution"
     service = OracleMemoryService(
         payment_db,
         AESGCMSensitiveContentCipher("oracle-memory-postgres-key"),
@@ -91,10 +91,10 @@ async def test_revoking_consent_purges_all_values_and_blocks_new_memory(
         AESGCMSensitiveContentCipher("oracle-memory-revoke-key"),
     )
     await service.grant_consent(user.id)
-    await service.remember(user.id, _explicit("Предпочитаю короткие ответы"))
+    await service.remember(user.id, _explicit("I prefer concise answers"))
     await service.remember(
         user.id,
-        _explicit("Хочу яснее обозначать границы", kind=MemoryKind.PERSONAL_GOAL),
+        _explicit("I want to express boundaries clearly", kind=MemoryKind.PERSONAL_GOAL),
     )
 
     revoked = await service.revoke_consent(user.id)
@@ -126,7 +126,7 @@ async def test_revoking_consent_purges_all_values_and_blocks_new_memory(
     repeated = await service.revoke_consent(user.id)
     assert repeated.revoked_at == revoked.revoked_at
     with pytest.raises(MemoryConsentRequiredError):
-        await service.remember(user.id, _explicit("Не должно сохраниться"))
+        await service.remember(user.id, _explicit("This must not be stored"))
 
 
 async def test_reading_derived_memory_requires_owned_matching_provenance(
@@ -137,7 +137,7 @@ async def test_reading_derived_memory_requires_owned_matching_provenance(
         stranger = User(telegram_user_id=930004, first_name="Stranger")
         persona = Persona(
             code="tarot_reader",
-            display_name="Таролог",
+            display_name="Tarot Reader",
             prompt_version="tarot-v1",
             schema_version="reading-result-v1",
         )
@@ -177,7 +177,7 @@ async def test_reading_derived_memory_requires_owned_matching_provenance(
     def derived(reading_id: UUID, persona_code: str | None = None) -> MemoryCreateRequest:
         return MemoryCreateRequest(
             kind=MemoryKind.RECURRING_THEME,
-            value="Выбор между предсказуемостью и переменами",
+            value="Choosing between predictability and change",
             confidence_milli=700,
             source_type=MemorySourceType.READING_DERIVED,
             source_reading_id=reading_id,
@@ -204,7 +204,7 @@ async def test_account_deletion_physically_removes_memory_and_consent(
         AESGCMSensitiveContentCipher("oracle-memory-account-delete-key"),
     )
     await service.grant_consent(user.id)
-    await service.remember(user.id, _explicit("Удалить вместе с аккаунтом"))
+    await service.remember(user.id, _explicit("Delete this with the account"))
 
     async with payment_db() as session:
         outcome = await DataDeletionService(session, NoOpAnalyticsClient()).delete_account(user.id)
