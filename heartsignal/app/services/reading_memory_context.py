@@ -1,14 +1,21 @@
 """Deterministic, topic-neutral retrieval of consented memory for new readings."""
 
+import asyncio
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
 from app.domain.oracle_memory import MemoryClaimBasis, MemoryItemView, MemoryKind
-from app.domain.reading_memory_context import ReadingMemoryContextItem
+from app.domain.reading_memory_context import (
+    MemoryPromptUsageRecorder,
+    ReadingMemoryContextItem,
+)
 from app.services.oracle_memory import OracleMemoryService
 from app.services.oracle_memory_quality import memory_staleness_penalty
+
+logger = logging.getLogger(__name__)
 
 _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 _STOP_WORDS = {
@@ -161,6 +168,7 @@ class OracleReadingMemoryRetriever:
         )
 
         selected: list[ReadingMemoryContextItem] = []
+        selected_ids: list[UUID] = []
         used_characters = 0
         for candidate in ranked:
             if len(selected) >= self._max_items:
@@ -181,8 +189,23 @@ class OracleReadingMemoryRetriever:
                     source_reading_created_at=candidate.item.source_reading_created_at,
                 )
             )
+            selected_ids.append(candidate.item.id)
             used_characters += len(value)
+        await self._record_usage(user_id, selected_ids)
         return tuple(selected)
+
+    async def _record_usage(self, user_id: UUID, item_ids: list[UUID]) -> None:
+        if not item_ids or not isinstance(self._memory, MemoryPromptUsageRecorder):
+            return
+        try:
+            await self._memory.record_prompt_use(user_id, item_ids)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning(
+                "reading_memory_usage_record_failed selected_count=%s",
+                len(item_ids),
+            )
 
     @staticmethod
     def _tokens(value: str) -> set[str]:
