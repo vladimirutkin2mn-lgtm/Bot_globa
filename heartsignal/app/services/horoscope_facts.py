@@ -2,7 +2,6 @@
 
 import calendar
 from datetime import UTC, date, datetime, time, timedelta
-from itertools import combinations
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -89,15 +88,10 @@ class HoroscopeFactService:
             limitations.append(HoroscopeLimitation.BIRTH_TIME_UNKNOWN)
         if sample_dates:
             limitations.append(HoroscopeLimitation.SAMPLED_TRANSITS)
-        calculated_at = (
-            chart.calculation_utc
-            if period_start is None
-            else datetime.combine(period_start, time(12), tzinfo=UTC)
-        )
         return HoroscopeFactBundle(
             facts_version=HOROSCOPE_FACTS_VERSION,
             scope=scope,
-            calculated_at_utc=calculated_at,
+            calculated_at_utc=datetime.combine(reference_date, time(12), tzinfo=UTC),
             period_start=period_start,
             period_end=period_end,
             natal_schema_version=chart.schema_version,
@@ -177,15 +171,7 @@ class HoroscopeFactService:
         facts: list[HoroscopeFact] = []
         natal_positions = {position.body: position for position in chart.planets}
         for sample_date in sample_dates:
-            utc = datetime.combine(sample_date, time(12), tzinfo=UTC)
-            astro_time = astronomy.Time.Make(
-                utc.year,
-                utc.month,
-                utc.day,
-                utc.hour,
-                utc.minute,
-                float(utc.second),
-            )
+            astro_time = self._astro_time(sample_date)
             transit_positions = {
                 body: self._position(body, engine_body, astro_time)
                 for body, engine_body in _TRANSIT_BODIES
@@ -198,36 +184,29 @@ class HoroscopeFactService:
                         details={"sample_date": sample_date.isoformat(), **details},
                     )
                 )
-            for transit_body, natal_body in combinations(tuple(NatalBody), 2):
-                facts.extend(
-                    self._cross_aspect_facts(
-                        sample_date,
-                        transit_body,
-                        transit_positions[transit_body]["longitude_millidegrees"],
-                        natal_body,
-                        natal_positions[natal_body].longitude_millidegrees,
+            for transit_body, transit in transit_positions.items():
+                for natal_body, natal in natal_positions.items():
+                    facts.extend(
+                        self._cross_aspect_facts(
+                            sample_date,
+                            transit_body,
+                            transit["longitude_millidegrees"],
+                            natal_body,
+                            natal.longitude_millidegrees,
+                        )
                     )
-                )
-                facts.extend(
-                    self._cross_aspect_facts(
-                        sample_date,
-                        natal_body,
-                        transit_positions[natal_body]["longitude_millidegrees"],
-                        transit_body,
-                        natal_positions[transit_body].longitude_millidegrees,
-                    )
-                )
-            for body in NatalBody:
-                facts.extend(
-                    self._cross_aspect_facts(
-                        sample_date,
-                        body,
-                        transit_positions[body]["longitude_millidegrees"],
-                        body,
-                        natal_positions[body].longitude_millidegrees,
-                    )
-                )
         return tuple(facts)
+
+    @staticmethod
+    def _astro_time(sample_date: date) -> Any:
+        return astronomy.Time.Make(
+            sample_date.year,
+            sample_date.month,
+            sample_date.day,
+            12,
+            0,
+            0.0,
+        )
 
     def _position(self, body: NatalBody, engine_body: Any, astro_time: Any) -> dict[str, object]:
         longitude = self._longitude(engine_body, astro_time)
@@ -274,13 +253,12 @@ class HoroscopeFactService:
         orb = abs(separation - exact_angle)
         if orb > maximum_orb:
             return ()
-        fact_id = (
-            f"transit:{sample_date.isoformat()}:{transit_body.value}:"
-            f"natal:{natal_body.value}:{kind.value}"
-        )
         return (
             HoroscopeFact(
-                fact_id=fact_id,
+                fact_id=(
+                    f"transit:{sample_date.isoformat()}:{transit_body.value}:"
+                    f"natal:{natal_body.value}:{kind.value}"
+                ),
                 kind=HoroscopeFactKind.TRANSIT_NATAL_ASPECT,
                 details={
                     "sample_date": sample_date.isoformat(),
