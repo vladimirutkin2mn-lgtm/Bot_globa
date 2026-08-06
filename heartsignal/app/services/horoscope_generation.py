@@ -36,6 +36,11 @@ from app.services.horoscope_result_validator import (
     HoroscopeResultValidator,
     InvalidHoroscopeResult,
 )
+from app.services.horoscope_storage import (
+    InvalidStoredHoroscope,
+    deserialize_horoscope,
+    serialize_horoscope,
+)
 from app.services.natal_chart import BirthProfileUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -194,7 +199,7 @@ class HoroscopeGenerationService:
             finalized = await self._store.complete_preview(
                 reading_id,
                 user_id,
-                validated.result.model_dump(mode="json"),
+                serialize_horoscope(validated.result, facts),
                 (),
             )
             if finalized is not ReadingGenerationFinalizeStatus.COMPLETED:
@@ -315,12 +320,17 @@ class HoroscopeGenerationService:
         if claim.ready is None or claim.ready.symbols:
             return HoroscopeGenerationResult(HoroscopeGenerationStatus.CORRUPTED_RESULT)
         try:
-            validated = self._validator.validate_stored(claim.ready.payload)
-        except InvalidHoroscopeResult:
+            stored_result, facts = deserialize_horoscope(claim.ready.payload)
+            validated = self._validator.validate(
+                json.dumps(stored_result.model_dump(mode="json"), ensure_ascii=False),
+                facts,
+            )
+        except (InvalidStoredHoroscope, InvalidHoroscopeResult):
             return HoroscopeGenerationResult(HoroscopeGenerationStatus.CORRUPTED_RESULT)
         return HoroscopeGenerationResult(
             HoroscopeGenerationStatus.COMPLETED,
             result=validated.result,
+            facts=facts,
             idempotent=True,
         )
 
