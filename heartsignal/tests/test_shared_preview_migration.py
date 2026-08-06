@@ -19,7 +19,7 @@ async def _execute(url: str, schema: str, statement: str) -> None:
     engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
     try:
         async with engine.begin() as connection:
-  await connection.execute(text(statement))
+            await connection.execute(text(statement))
     finally:
         await engine.dispose()
 
@@ -28,7 +28,7 @@ async def _scalar(url: str, schema: str, statement: str) -> object | None:
     engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
     try:
         async with engine.connect() as connection:
-  return cast(object | None, await connection.scalar(text(statement)))
+            return cast(object | None, await connection.scalar(text(statement)))
     finally:
         await engine.dispose()
 
@@ -65,16 +65,16 @@ def test_shared_preview_migration_round_trip_when_unlinked() -> None:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
         assert (
-  asyncio.run(
-      _scalar(
-          url,
-          schema,
-          "SELECT count(*) FROM information_schema.columns "
-          "WHERE table_schema=current_schema() AND table_name='users' "
-          "AND column_name='free_preview_reading_id'",
-      )
-  )
-  == 1
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT count(*) FROM information_schema.columns "
+                    "WHERE table_schema=current_schema() AND table_name='users' "
+                    "AND column_name='free_preview_reading_id'",
+                )
+            )
+            == 1
         )
         subprocess.run(("alembic", "downgrade", _PARENT), check=True, env=environment)
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
@@ -91,45 +91,45 @@ def test_shared_preview_migration_refuses_linked_reading_downgrade() -> None:
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         asyncio.run(
-  _execute(
-      url,
-      schema,
-      "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) "
-      f"VALUES ('{user_id}',{uuid4().int % 10**12},'Preview Migration','active')",
-  )
+            _execute(
+                url,
+                schema,
+                "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) "
+                f"VALUES ('{user_id}',{uuid4().int % 10**12},'Preview Migration','active')",
+            )
         )
         asyncio.run(
-  _execute(
-      url,
-      schema,
-      "INSERT INTO personas (id,code,display_name,prompt_version,schema_version,enabled) "
-      f"VALUES ('{persona_id}','preview_tarot','Tarot','tarot-v1','result-v1',true)",
-  )
+            _execute(
+                url,
+                schema,
+                "INSERT INTO personas (id,code,display_name,prompt_version,schema_version,enabled) "
+                f"VALUES ('{persona_id}','preview_tarot','Tarot','tarot-v1','result-v1',true)",
+            )
         )
         asyncio.run(
-  _execute(
-      url,
-      schema,
-      "INSERT INTO readings "
-      "(id,user_id,persona_id,topic,status,access_level,cost_units,engine_version,"
-      "prompt_version,schema_version) "
-      f"VALUES ('{reading_id}','{user_id}','{persona_id}','decision','draft','none',0,"
-      "'reading-v1','tarot-v1','result-v1')",
-  )
+            _execute(
+                url,
+                schema,
+                "INSERT INTO readings "
+                "(id,user_id,persona_id,topic,status,access_level,cost_units,engine_version,"
+                "prompt_version,schema_version) "
+                f"VALUES ('{reading_id}','{user_id}','{persona_id}','decision','draft','none',0,"
+                "'reading-v1','tarot-v1','result-v1')",
+            )
         )
         asyncio.run(
-  _execute(
-      url,
-      schema,
-      "UPDATE users SET free_preview_status='reserved', "
-      f"free_preview_reading_id='{reading_id}' WHERE id='{user_id}'",
-  )
+            _execute(
+                url,
+                schema,
+                "UPDATE users SET free_preview_status='reserved', "
+                f"free_preview_reading_id='{reading_id}' WHERE id='{user_id}'",
+            )
         )
         failed = subprocess.run(
-  ("alembic", "downgrade", _PARENT),
-  env=environment,
-  capture_output=True,
-  text=True,
+            ("alembic", "downgrade", _PARENT),
+            env=environment,
+            capture_output=True,
+            text=True,
         )
         assert failed.returncode != 0
         assert "downgrade refused" in failed.stderr
