@@ -1,6 +1,7 @@
 """PostgreSQL privacy invariants for Reading data during account deletion."""
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 import pytest
@@ -89,14 +90,13 @@ async def _delete_account(
     sessions: async_sessionmaker[AsyncSession],
     user_id: UUID,
     *,
-    after_lock: object | None = None,
+    after_lock: Callable[[], Awaitable[None]] | None = None,
 ) -> DataDeletionOutcome:
     async with sessions() as session:
-        callback = after_lock if callable(after_lock) else None
         return await DataDeletionService(
             session,
             NoOpAnalyticsClient(),
-            _after_user_lock_for_test=callback,
+            _after_user_lock_for_test=after_lock,
         ).delete_account(user_id)
 
 
@@ -166,7 +166,7 @@ async def test_draft_creation_waits_for_deletion_and_cannot_leave_private_data(
         ReadingService(payment_db, cipher).create_draft(
             user.id,
             ReadingDraftRequest(
-                persona_code=f"reading_privacy_{897102}",
+                persona_code="reading_privacy_897102",
                 topic="decision",
                 question="PRIVATE-RACE-QUESTION",
                 context=None,
