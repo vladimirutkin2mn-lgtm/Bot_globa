@@ -6,6 +6,7 @@ from app.bot.keyboards import main_menu_keyboard
 from app.bot.tarot_keyboards import (
     tarot_context_keyboard,
     tarot_history_keyboard,
+    tarot_insufficient_keyboard,
     tarot_result_keyboard,
     tarot_retry_keyboard,
     tarot_topics_keyboard,
@@ -95,7 +96,8 @@ def test_tarot_callbacks_contain_only_codes_or_reading_id() -> None:
         main_menu_keyboard(),
         tarot_topics_keyboard(),
         tarot_context_keyboard(),
-        tarot_result_keyboard(),
+        tarot_result_keyboard(reading_id, 2),
+        tarot_insufficient_keyboard(reading_id),
         tarot_retry_keyboard(reading_id),
         tarot_history_keyboard(
             ((reading_id, "Выбор · 05.08.2026"),),
@@ -116,6 +118,7 @@ def test_tarot_callbacks_contain_only_codes_or_reading_id() -> None:
     assert "menu:tarot" in callbacks
     assert "tarot:history" in callbacks
     assert f"tarot:retry:{reading_id}" in callbacks
+    assert f"tarot:unlock:{reading_id}" in callbacks
     assert f"tarot:history:open:{reading_id}" in callbacks
     assert "tarot:history:page:0" in callbacks
     assert "tarot:history:page:2" in callbacks

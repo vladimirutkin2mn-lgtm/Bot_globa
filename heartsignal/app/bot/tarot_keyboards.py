@@ -41,10 +41,44 @@ def tarot_context_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def tarot_result_keyboard() -> InlineKeyboardMarkup:
+def tarot_result_keyboard(
+    reading_id: UUID | None = None,
+    price_credits: int | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if reading_id is not None and price_credits is not None:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"Открыть полный расклад за {price_credits} кр.",
+                    callback_data=f"tarot:unlock:{reading_id}",
+                )
+            ]
+        )
+    rows.extend(
+        [
+            [InlineKeyboardButton(text="Новый расклад", callback_data="tarot:new")],
+            [InlineKeyboardButton(text="Мои расклады", callback_data="tarot:history")],
+            [InlineKeyboardButton(text="Главное меню", callback_data="tarot:menu")],
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def tarot_full_result_keyboard() -> InlineKeyboardMarkup:
+    return tarot_result_keyboard()
+
+
+def tarot_insufficient_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Новый расклад", callback_data="tarot:new")],
+            [InlineKeyboardButton(text="Купить кредиты", callback_data="menu:balance")],
+            [
+                InlineKeyboardButton(
+                    text="Проверить баланс и открыть",
+                    callback_data=f"tarot:unlock:{reading_id}",
+                )
+            ],
             [InlineKeyboardButton(text="Мои расклады", callback_data="tarot:history")],
             [InlineKeyboardButton(text="Главное меню", callback_data="tarot:menu")],
         ]

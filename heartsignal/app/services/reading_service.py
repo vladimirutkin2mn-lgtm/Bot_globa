@@ -61,19 +61,31 @@ class ReadingService:
         user_id: UUID,
         result: dict[str, object],
         symbols: list[ReadingSymbolInput],
+        cost_units: int,
+        transaction_id: UUID,
+    ) -> Reading:
+        await self.complete_preview(reading_id, user_id, result, symbols)
+        return await self.promote_full_access(
+            reading_id,
+            user_id,
+            cost_units,
+            transaction_id,
+        )
+
+    async def promote_full_access(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+        cost_units: int,
+        transaction_id: UUID,
     ) -> Reading:
         async with self._sessions.begin() as session:
-            return await self._repository(session).complete_generation(
+            return await self._repository(session).promote_full_access(
                 reading_id,
                 user_id,
-                result,
-                symbols,
-                full=True,
+                cost_units,
+                transaction_id,
             )
-
-    async def promote_full_access(self, reading_id: UUID, user_id: UUID) -> Reading:
-        async with self._sessions.begin() as session:
-            return await self._repository(session).promote_full_access(reading_id, user_id)
 
     async def fail_generation(self, reading_id: UUID, user_id: UUID, failure_code: str) -> Reading:
         async with self._sessions.begin() as session:

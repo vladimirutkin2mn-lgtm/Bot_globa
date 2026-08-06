@@ -52,6 +52,16 @@ class Reading(Base):
         ),
         CheckConstraint("cost_units >= 0", name="ck_readings_cost_units"),
         CheckConstraint(
+            "(status = 'full_ready' AND access_level = 'full' AND cost_units > 0 "
+            "AND full_access_transaction_id IS NOT NULL) OR "
+            "(status = 'deleted' AND access_level = 'none' AND "
+            "((cost_units = 0 AND full_access_transaction_id IS NULL) OR "
+            "(cost_units > 0 AND full_access_transaction_id IS NOT NULL))) OR "
+            "(status NOT IN ('full_ready','deleted') AND cost_units = 0 "
+            "AND full_access_transaction_id IS NULL)",
+            name="ck_readings_paid_access",
+        ),
+        CheckConstraint(
             "(status IN ('draft','generating','failed','deleted') AND access_level = 'none') OR "
             "(status = 'preview_ready' AND access_level = 'preview') OR "
             "(status = 'full_ready' AND access_level = 'full')",
@@ -80,6 +90,15 @@ class Reading(Base):
     status: Mapped[str] = mapped_column(String(24), default="draft", server_default="draft")
     access_level: Mapped[str] = mapped_column(String(16), default="none", server_default="none")
     cost_units: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    full_access_transaction_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "credit_transactions.id",
+            ondelete="RESTRICT",
+            use_alter=True,
+            name="fk_readings_full_transaction",
+        ),
+        nullable=True,
+    )
     engine_version: Mapped[str] = mapped_column(String(64))
     prompt_version: Mapped[str] = mapped_column(String(64))
     schema_version: Mapped[str] = mapped_column(String(64))
