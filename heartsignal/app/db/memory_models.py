@@ -20,7 +20,7 @@ from app.db.base import Base
 _MEMORY_KINDS = (
     "user_preference",
     "personal_goal",
-    "relationship_context",
+    "relationship_notes",
     "recurring_theme",
     "birth_profile",
     "oracle_preference",
