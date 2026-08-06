@@ -15,7 +15,7 @@ from app.services.sensitive_content import AESGCMSensitiveContentCipher
 
 def test_exact_identity_normalizes_unicode_case_and_whitespace() -> None:
     cipher = AESGCMSensitiveContentCipher("ora-306-quality-unit-key")
-    left = "  Ｆｉｎａｎｃｉａｌ\tStress  after Bankruptcy  "
+    left = "  \uff26\uff49\uff4e\uff41\uff4e\uff43\uff49\uff41\uff4c\tStress  after Bankruptcy  "
     right = "financial stress after bankruptcy"
 
     assert normalize_memory_value(left) == right
