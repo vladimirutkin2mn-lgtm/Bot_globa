@@ -31,6 +31,7 @@ class RecordingStore:
             topic="decision",
             question="Should I change direction?",
             context="I am considering a career decision",
+            engine_version="symbolic-v1",
             prompt_version=prompt_version,
             schema_version="reading-result-v1",
         )
