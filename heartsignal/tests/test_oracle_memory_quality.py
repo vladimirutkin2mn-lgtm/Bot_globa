@@ -33,11 +33,14 @@ def test_staleness_penalizes_but_never_expires_stable_birth_profile() -> None:
     old_birth_profile = now - timedelta(days=3650)
 
     assert memory_is_stale(MemoryKind.RELATIONSHIP_NOTES, old_relationship, now=now)
-    assert memory_staleness_penalty(
-        MemoryKind.RELATIONSHIP_NOTES,
-        old_relationship,
-        now=now,
-    ) > 0
+    assert (
+        memory_staleness_penalty(
+            MemoryKind.RELATIONSHIP_NOTES,
+            old_relationship,
+            now=now,
+        )
+        > 0
+    )
     assert not memory_is_stale(MemoryKind.BIRTH_PROFILE, old_birth_profile, now=now)
     assert (
         memory_staleness_penalty(
