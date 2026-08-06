@@ -17,9 +17,7 @@ def test_benign_question_is_allowed() -> None:
 
 
 def test_certainty_request_is_allowed_only_with_limits() -> None:
-    result = OracleInputSafetyClassifier().classify(
-        "Назови точную дату, когда именно он вернётся"
-    )
+    result = OracleInputSafetyClassifier().classify("Назови точную дату, когда именно он вернётся")
 
     assert result.action is OracleSafetyAction.ALLOW_WITH_LIMITS
     assert result.categories == (OracleRiskCategory.CERTAINTY_REQUEST,)
@@ -35,9 +33,7 @@ def test_self_harm_requires_handoff() -> None:
 
 
 def test_violence_or_stalking_is_blocked() -> None:
-    result = OracleInputSafetyClassifier().classify(
-        "Сделай расклад и скажи, как выследить бывшую"
-    )
+    result = OracleInputSafetyClassifier().classify("Сделай расклад и скажи, как выследить бывшую")
 
     assert result.action is OracleSafetyAction.BLOCK
     assert OracleRiskCategory.VIOLENCE_OR_STALKING in result.categories
