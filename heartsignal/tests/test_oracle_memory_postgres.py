@@ -1,6 +1,6 @@
 """PostgreSQL invariants for explicit-consent encrypted oracle memory."""
 
-from datetime import UTC, datetime
+from uuid import UUID
 
 import pytest
 from sqlalchemy import func, select
@@ -174,13 +174,13 @@ async def test_reading_derived_memory_requires_owned_matching_provenance(
     )
     await service.grant_consent(owner.id)
 
-    def derived(reading_id: object, persona_code: str | None = None) -> MemoryCreateRequest:
+    def derived(reading_id: UUID, persona_code: str | None = None) -> MemoryCreateRequest:
         return MemoryCreateRequest(
             kind=MemoryKind.RECURRING_THEME,
             value="Выбор между предсказуемостью и переменами",
             confidence_milli=700,
             source_type=MemorySourceType.READING_DERIVED,
-            source_reading_id=reading_id,  # type: ignore[arg-type]
+            source_reading_id=reading_id,
             source_persona_code=persona_code,
             extraction_version="extractor-v1",
         )
@@ -213,26 +213,24 @@ async def test_account_deletion_physically_removes_memory_and_consent(
     async with payment_db() as session:
         assert (
             await session.scalar(
-                select(func.count()).select_from(OracleMemoryConsent).where(
-                    OracleMemoryConsent.user_id == user.id
-                )
+                select(func.count())
+                .select_from(OracleMemoryConsent)
+                .where(OracleMemoryConsent.user_id == user.id)
             )
             == 0
         )
         assert (
             await session.scalar(
-                select(func.count()).select_from(OracleMemoryItem).where(
-                    OracleMemoryItem.user_id == user.id
-                )
+                select(func.count())
+                .select_from(OracleMemoryItem)
+                .where(OracleMemoryItem.user_id == user.id)
             )
             == 0
         )
-        assert await session.scalar(select(func.count()).select_from(OracleMemoryPrivateContent)) == 0
+        assert (
+            await session.scalar(select(func.count()).select_from(OracleMemoryPrivateContent)) == 0
+        )
         persisted_user = await session.get(User, user.id)
         assert persisted_user is not None
         assert persisted_user.privacy_status == "deleted"
         assert persisted_user.deleted_at is not None
-
-
-def test_memory_models_use_timezone_aware_timestamps() -> None:
-    assert datetime.now(UTC).tzinfo is not None
