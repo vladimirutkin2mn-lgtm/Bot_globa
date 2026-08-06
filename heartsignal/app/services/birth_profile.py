@@ -97,10 +97,6 @@ class BirthProfileService:
             return self._consent_view(consent)
 
     async def save(self, user_id: UUID, value: BirthProfileInput) -> BirthProfileView:
-        ciphertext = self._cipher.encrypt_json(
-            ContentPurpose.BIRTH_PROFILE,
-            value.encrypted_payload(),
-        )
         now = datetime.now(UTC)
         async with self._sessions.begin() as session:
             await self._required_active_user(session, user_id, for_update=True)
@@ -109,6 +105,10 @@ class BirthProfileService:
                 raise BirthProfileConsentRequiredError(
                     "explicit birth profile consent is required"
                 )
+            ciphertext = self._cipher.encrypt_json(
+                ContentPurpose.BIRTH_PROFILE,
+                value.encrypted_payload(),
+            )
             profile = await self._profile_locked(session, user_id)
             if profile is None:
                 profile = BirthProfile(
@@ -146,9 +146,9 @@ class BirthProfileService:
             return self._profile_view(profile, value)
 
     async def load(self, user_id: UUID) -> BirthProfileView | None:
-        async with self._sessions() as session:
-            await self._required_active_user(session, user_id)
-            consent = await session.get(BirthProfileConsent, user_id)
+        async with self._sessions.begin() as session:
+            await self._required_active_user(session, user_id, for_update=True)
+            consent = await session.get(BirthProfileConsent, user_id, with_for_update=True)
             if not self._permits_profile(consent):
                 raise BirthProfileConsentRequiredError(
                     "explicit birth profile consent is required"
@@ -165,6 +165,7 @@ class BirthProfileService:
                         BirthProfile.status == BirthProfileStatus.ACTIVE.value,
                         BirthProfilePrivateContent.payload_ciphertext.is_not(None),
                     )
+                    .with_for_update()
                 )
             ).one_or_none()
             if row is None:
