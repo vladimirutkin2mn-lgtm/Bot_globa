@@ -63,8 +63,10 @@ class OracleCrisisHandoffService:
             for resource in handoff.resources
         ]
         resources = "\n".join(resource_lines)
-        return f"{handoff.title}\n\n{handoff.body}\n\n{resources}" if resources else (
-            f"{handoff.title}\n\n{handoff.body}"
+        return (
+            f"{handoff.title}\n\n{handoff.body}\n\n{resources}"
+            if resources
+            else (f"{handoff.title}\n\n{handoff.body}")
         )
 
     def _self_harm(
