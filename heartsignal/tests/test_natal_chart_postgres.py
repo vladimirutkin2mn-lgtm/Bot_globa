@@ -8,10 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.db.models import User
 from app.domain.birth_profile import BirthProfileInput
 from app.domain.natal_chart import NatalTimePrecision
-from app.services.birth_profile import (
-    BirthProfileConsentRequiredError,
-    BirthProfileService,
-)
+from app.services.birth_profile import BirthProfileService
 from app.services.natal_chart import (
     AstronomyEngineNatalChartCalculator,
     BirthProfileUnavailableError,
@@ -39,7 +36,7 @@ async def test_chart_calculation_requires_active_consented_profile(
         AstronomyEngineNatalChartCalculator(),
     )
 
-    with pytest.raises(BirthProfileConsentRequiredError):
+    with pytest.raises(BirthProfileUnavailableError):
         await charts.calculate_for_user(user.id)
 
     await profiles.grant_consent(user.id)
@@ -65,5 +62,5 @@ async def test_chart_calculation_requires_active_consented_profile(
     assert len(result.houses) == 12
 
     await profiles.revoke_consent(user.id)
-    with pytest.raises(BirthProfileConsentRequiredError):
+    with pytest.raises(BirthProfileUnavailableError):
         await charts.calculate_for_user(user.id)
