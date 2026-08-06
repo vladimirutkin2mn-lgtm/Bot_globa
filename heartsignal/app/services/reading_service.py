@@ -10,7 +10,10 @@ from app.db.reading_models import Reading
 from app.domain.reading import ReadingDraftRequest, ReadingSymbolInput
 from app.providers.analytics import OracleProductEvent
 from app.repositories.readings import ReadingSource, SqlAlchemyReadingRepository
-from app.services.oracle_product_analytics import OracleProductAnalytics
+from app.services.oracle_product_analytics import (
+    OracleAnalyticsValue,
+    OracleProductAnalytics,
+)
 from app.services.sensitive_content import SensitiveContentCipher
 
 logger = logging.getLogger(__name__)
@@ -153,7 +156,7 @@ class ReadingService:
         self,
         user_id: UUID,
         event: OracleProductEvent,
-        properties: dict[str, object],
+        properties: dict[str, OracleAnalyticsValue | None],
     ) -> None:
         if self._analytics is None:
             return
