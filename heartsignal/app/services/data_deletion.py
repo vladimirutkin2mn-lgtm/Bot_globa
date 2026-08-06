@@ -300,7 +300,9 @@ class DataDeletionService:
         user.age_confirmed_at = user.consent_version = user.consent_accepted_at = None
         user.onboarding_completed = False
         user.free_preview_status = "available"
-        user.free_preview_analysis_id = user.free_preview_used_at = None
+        user.free_preview_analysis_id = None
+        user.free_preview_reading_id = None
+        user.free_preview_used_at = None
         user.privacy_status, user.deleted_at = "deleted", now
         await self.session.commit()
         await self._track("all_data_deleted", {"user_id": str(user_id)})

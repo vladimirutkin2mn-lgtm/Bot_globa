@@ -31,14 +31,16 @@ class User(Base):
 
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint(
-            "(free_preview_status = 'available' AND free_preview_analysis_id IS NULL "
-            "AND free_preview_used_at IS NULL) OR "
-            "(free_preview_status = 'reserved' AND free_preview_analysis_id IS NOT NULL "
-            "AND free_preview_used_at IS NULL) OR "
-            "(free_preview_status = 'consumed' AND free_preview_used_at IS NOT NULL)",
-            name="ck_users_free_preview",
-        ),
+                CheckConstraint(
+        "(free_preview_status = 'available' AND free_preview_analysis_id IS NULL "
+        "AND free_preview_reading_id IS NULL AND free_preview_used_at IS NULL) OR "
+        "(free_preview_status = 'reserved' AND "
+        "((free_preview_analysis_id IS NOT NULL AND free_preview_reading_id IS NULL) OR "
+        "(free_preview_analysis_id IS NULL AND free_preview_reading_id IS NOT NULL)) "
+        "AND free_preview_used_at IS NULL) OR "
+        "(free_preview_status = 'consumed' AND free_preview_used_at IS NOT NULL)",
+        name="ck_users_free_preview",
+    ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -69,6 +71,15 @@ class User(Base):
             ondelete="SET NULL",
             use_alter=True,
             name="fk_users_preview_analysis",
+        ),
+        nullable=True,
+    )
+    free_preview_reading_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey(
+            "readings.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_users_preview_reading",
         ),
         nullable=True,
     )
