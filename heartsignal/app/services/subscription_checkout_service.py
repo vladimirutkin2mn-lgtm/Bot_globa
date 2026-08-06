@@ -65,8 +65,6 @@ class SubscriptionCheckoutService:
             raise SubscriptionCheckoutRejected("not a subscription offer")
         if offer.provider not in self._gateways:
             raise SubscriptionCheckoutRejected("subscription provider unavailable")
-        if offer.price_reference.startswith("unconfigured:"):
-            raise SubscriptionCheckoutRejected("subscription price unavailable")
         if (
             offer.provider is PaymentProviderName.YOOKASSA
             and self._settings.yookassa_receipts_required
@@ -85,12 +83,14 @@ class SubscriptionCheckoutService:
                 .where(
                     PaymentOrder.user_id == user_id,
                     PaymentOrder.provider == offer.provider.value,
-                    PaymentOrder.product_code == offer.product_code.value,
+                    PaymentOrder.product_code.in_(offer.active_order_codes),
                     PaymentOrder.market == offer.market.value,
                     PaymentOrder.currency == offer.currency,
                     PaymentOrder.mode == "subscription_initial",
                     PaymentOrder.status.in_(("creating", "pending")),
                 )
+                .order_by(PaymentOrder.created_at.desc())
+                .limit(1)
                 .with_for_update()
             )
             if order and order.status == "pending" and order.checkout_url:
@@ -107,6 +107,8 @@ class SubscriptionCheckoutService:
                     order.id, order.checkout_token, order.checkout_url, order.status
                 )
             if order is None:
+                if offer.price_reference.startswith("unconfigured:"):
+                    raise SubscriptionCheckoutRejected("subscription price unavailable")
                 order = PaymentOrder(
                     user_id=user_id,
                     provider=offer.provider.value,
@@ -137,6 +139,16 @@ class SubscriptionCheckoutService:
                 session.add(order)
                 await session.flush()
                 order.idempotency_key = f"subscription:checkout:{order.id}:v1"
+                price_reference = offer.price_reference
+                consent_version = self._settings.billing_consent_version
+                receipt_label: str | None = offer.receipt_label
+            else:
+                snapshot = dict(order.commercial_snapshot)
+                price_reference = _snapshot_text(snapshot, "price_reference")
+                consent_version = _snapshot_text(snapshot, "consent_version")
+                receipt_label = _optional_snapshot_text(snapshot, "receipt_label")
+                if price_reference.startswith("unconfigured:"):
+                    raise SubscriptionCheckoutRejected("stored subscription price unavailable")
             order.checkout_creation_attempt_id = attempt
             order.checkout_creation_started_at = now
             request = CreateSubscriptionCheckout(
@@ -147,9 +159,9 @@ class SubscriptionCheckoutService:
                 amount_minor=order.amount_minor,
                 currency=order.currency,
                 credits=order.credits,
-                price_reference=offer.price_reference,
+                price_reference=price_reference,
                 market=order.market,
-                consent_version=self._settings.billing_consent_version,
+                consent_version=consent_version,
                 idempotency_key=order.idempotency_key or "",
                 success_url=(
                     f"{self._settings.payment_public_base_url}/payments/return/"
@@ -164,7 +176,7 @@ class SubscriptionCheckoutService:
                     if offer.provider is PaymentProviderName.YOOKASSA
                     else None
                 ),
-                receipt_label=offer.receipt_label,
+                receipt_label=receipt_label,
             )
             order_id = order.id
             token = order.checkout_token
@@ -256,3 +268,15 @@ class SubscriptionCheckoutService:
                     idempotency_key=f"subscription_checkout_failed:{order.id}",
                 )
             )
+
+
+def _snapshot_text(snapshot: dict[str, object], key: str) -> str:
+    value = snapshot.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise SubscriptionCheckoutRejected("stored commercial snapshot unavailable")
+    return value.strip()
+
+
+def _optional_snapshot_text(snapshot: dict[str, object], key: str) -> str | None:
+    value = snapshot.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None
