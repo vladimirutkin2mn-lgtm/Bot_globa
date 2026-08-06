@@ -135,9 +135,7 @@ def test_nested_scenario_condition_is_checked() -> None:
         _validate(payload)
 
     assert captured.value.code == "unsafe_output"
-    assert (
-        "output.possible_scenarios.0.conditions.0:dependency" in captured.value.issues
-    )
+    assert "output.possible_scenarios.0.conditions.0:dependency" in captured.value.issues
 
 
 def test_share_card_fear_based_upsell_is_checked() -> None:
