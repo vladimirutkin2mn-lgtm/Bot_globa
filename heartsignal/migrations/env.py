@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.db.analytics import AnalyticsEvent  # noqa: F401
 from app.db.base import Base
 from app.db.fsm_models import TelegramFSMState  # noqa: F401
+from app.db.memory_models import OracleMemoryItem  # noqa: F401
 from app.db.models import User  # noqa: F401
 from app.db.reading_models import Reading  # noqa: F401
 from app.db.release_gates import ReleaseGateAttestation  # noqa: F401

@@ -1,4 +1,4 @@
-"""PostgreSQL migration safety for the independent Reading domain."""
+"""Migration coverage for explicit-consent encrypted oracle memory."""
 
 import asyncio
 import os
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
 _HEAD = "20260806_20"
-_PARENT = "20260805_16"
+_PARENT = "20260806_19"
 
 
 async def _execute(url: str, schema: str, statement: str) -> None:
@@ -46,26 +46,41 @@ def _environment(url: str, schema: str) -> dict[str, str]:
         "DATABASE_URL": url,
         "MIGRATION_SCHEMA": schema,
         "TELEGRAM_BOT_TOKEN": "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "CONTENT_ENCRYPTION_KEY": "reading-migration-test-key-material",
+        "CONTENT_ENCRYPTION_KEY": "oracle-memory-migration-key-material",
         "APP_ENV": "test",
     }
 
 
 def _schema(url: str) -> str:
-    schema = f"reading_{uuid4().hex}"
+    schema = f"oracle_memory_{uuid4().hex}"
     asyncio.run(_execute(url, "public", f'CREATE SCHEMA "{schema}"'))
     return schema
 
 
-def test_reading_migration_round_trip_when_empty() -> None:
+def test_oracle_memory_migration_round_trip_when_empty() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
-        assert asyncio.run(_scalar(url, schema, "SELECT count(*) FROM personas")) == 0
-        assert asyncio.run(_scalar(url, schema, "SELECT count(*) FROM readings")) == 0
+        for table_name in (
+            "oracle_memory_consents",
+            "oracle_memory_items",
+            "oracle_memory_private_content",
+        ):
+            assert (
+                asyncio.run(
+                    _scalar(
+                        url,
+                        schema,
+                        "SELECT count(*) FROM information_schema.tables "
+                        "WHERE table_schema=current_schema() "
+                        f"AND table_name='{table_name}'",
+                    )
+                )
+                == 1
+            )
         subprocess.run(("alembic", "downgrade", _PARENT), check=True, env=environment)
         assert (
             asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
@@ -75,11 +90,11 @@ def test_reading_migration_round_trip_when_empty() -> None:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
 
 
-def test_reading_migration_refuses_downgrade_with_live_state() -> None:
+def test_oracle_memory_migration_refuses_data_losing_downgrade() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
-    user_id, persona_id, reading_id = uuid4(), uuid4(), uuid4()
+    user_id = uuid4()
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         asyncio.run(
@@ -87,27 +102,16 @@ def test_reading_migration_refuses_downgrade_with_live_state() -> None:
                 url,
                 schema,
                 "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) "
-                f"VALUES ('{user_id}',{uuid4().int % 10**12},'Migration','active')",
+                f"VALUES ('{user_id}',{uuid4().int % 10**12},'Memory Migration','active')",
             )
         )
         asyncio.run(
             _execute(
                 url,
                 schema,
-                "INSERT INTO personas "
-                "(id,code,display_name,prompt_version,schema_version,enabled) "
-                f"VALUES ('{persona_id}','tarot_reader','Tarot','tarot-v1','result-v1',true)",
-            )
-        )
-        asyncio.run(
-            _execute(
-                url,
-                schema,
-                "INSERT INTO readings "
-                "(id,user_id,persona_id,topic,status,access_level,cost_units,engine_version,"
-                "prompt_version,schema_version) "
-                f"VALUES ('{reading_id}','{user_id}','{persona_id}','decision','draft','none',"
-                "0,'reading-v1','tarot-v1','result-v1')",
+                "INSERT INTO oracle_memory_consents "
+                "(user_id,status,consent_version,accepted_at) "
+                f"VALUES ('{user_id}','granted','oracle-memory-v1',now())",
             )
         )
         failed = subprocess.run(
@@ -119,6 +123,5 @@ def test_reading_migration_refuses_downgrade_with_live_state() -> None:
         assert failed.returncode != 0
         assert "downgrade refused" in failed.stderr
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
-        assert asyncio.run(_scalar(url, schema, "SELECT count(*) FROM readings")) == 1
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))

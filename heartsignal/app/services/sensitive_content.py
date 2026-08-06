@@ -20,6 +20,7 @@ class ContentPurpose(StrEnum):
     READING_QUESTION = "reading-question"
     READING_CONTEXT = "reading-context"
     READING_RESULT = "reading-result"
+    ORACLE_MEMORY_VALUE = "oracle-memory-value"
     TELEGRAM_UPDATE = "telegram-update"
     TELEGRAM_FSM_DATA = "telegram-fsm-data"
     PAYMENT_METHOD = "payment-method"
