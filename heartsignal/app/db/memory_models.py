@@ -75,9 +75,7 @@ class OracleMemoryItem(Base):
             name="ck_oracle_memory_items_confidence",
         ),
         CheckConstraint(
-            "source_type IN ("
-            + ",".join(f"'{value}'" for value in _MEMORY_SOURCE_TYPES)
-            + ")",
+            "source_type IN (" + ",".join(f"'{value}'" for value in _MEMORY_SOURCE_TYPES) + ")",
             name="ck_oracle_memory_items_source_type",
         ),
         CheckConstraint(
