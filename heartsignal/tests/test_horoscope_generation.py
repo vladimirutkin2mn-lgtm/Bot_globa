@@ -17,6 +17,7 @@ from app.services.horoscope_generation import (
     HoroscopeGenerationService,
     HoroscopeGenerationStatus,
 )
+from app.services.horoscope_storage import serialize_horoscope
 from app.services.natal_chart import BirthProfileUnavailableError
 from tests.horoscope_helpers import sample_fact_bundle, valid_horoscope_payload
 
@@ -124,7 +125,7 @@ async def test_generation_sends_only_calculated_facts_and_persists_empty_symbols
 
     assert outcome.status is HoroscopeGenerationStatus.COMPLETED
     assert outcome.result is not None and outcome.facts == bundle
-    assert store.completed_payload == outcome.result.model_dump(mode="json")
+    assert store.completed_payload == serialize_horoscope(outcome.result, bundle)
     assert store.completed_symbols == ()
     assert facts.calls == [(user_id, HoroscopeScope.NATAL_PROFILE)]
     assert len(llm.requests) == 1
@@ -179,14 +180,20 @@ async def test_generation_fails_after_second_fact_integrity_violation() -> None:
     assert store.failure_code == "horoscope_invalid_semantics"
 
 
-async def test_ready_replay_skips_fact_calculation_and_llm() -> None:
+async def test_ready_replay_restores_facts_and_skips_calculation_and_llm() -> None:
     reading_id, user_id = uuid4(), uuid4()
     bundle = sample_fact_bundle()
     payload = valid_horoscope_payload(bundle)
+    from app.domain.horoscope import AstrologyReadingResult
+
+    result = AstrologyReadingResult.model_validate(payload)
     store = RecordingStore(
         ReadingGenerationClaim(
             ReadingGenerationClaimStatus.READY,
-            ready=StoredReadingResult(payload=payload, symbols=()),
+            ready=StoredReadingResult(
+                payload=serialize_horoscope(result, bundle),
+                symbols=(),
+            ),
         )
     )
     facts = RecordingFacts(None)
@@ -198,8 +205,35 @@ async def test_ready_replay_skips_fact_calculation_and_llm() -> None:
     )
 
     assert outcome.status is HoroscopeGenerationStatus.COMPLETED
-    assert outcome.idempotent and outcome.result is not None
+    assert outcome.idempotent and outcome.result == result
+    assert outcome.facts == bundle
     assert facts.calls == [] and llm.requests == []
+
+
+async def test_ready_replay_rejects_tampered_fact_bundle() -> None:
+    reading_id, user_id = uuid4(), uuid4()
+    bundle = sample_fact_bundle()
+    from app.domain.horoscope import AstrologyReadingResult
+
+    result = AstrologyReadingResult.model_validate(valid_horoscope_payload(bundle))
+    envelope = serialize_horoscope(result, bundle)
+    facts_payload = envelope["facts"]
+    assert isinstance(facts_payload, dict)
+    facts_payload["natal_engine_version"] = "tampered-engine"
+    store = RecordingStore(
+        ReadingGenerationClaim(
+            ReadingGenerationClaimStatus.READY,
+            ready=StoredReadingResult(payload=envelope, symbols=()),
+        )
+    )
+
+    outcome = await HoroscopeGenerationService(
+        store,
+        SequenceLLM([]),
+        RecordingFacts(None),
+    ).generate_preview(reading_id, user_id)
+
+    assert outcome.status is HoroscopeGenerationStatus.CORRUPTED_RESULT
 
 
 async def test_missing_or_revoked_birth_profile_fails_before_llm() -> None:
