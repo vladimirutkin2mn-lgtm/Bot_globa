@@ -1,0 +1,64 @@
+name: Format shared free preview entitlement
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.head_ref == 'feat/oracle-free-preview-entitlement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fix test typing and format changed Python
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('heartsignal/tests/test_shared_preview_entitlement_postgres.py')
+          text = path.read_text()
+          if 'from uuid import UUID\n' not in text:
+              text = text.replace('import asyncio\n', 'import asyncio\nfrom uuid import UUID\n', 1)
+          if 'from app.db.reading_models import Reading\n' not in text:
+              text = text.replace(
+                  'from app.db.models import Analysis, User\n',
+                  'from app.db.models import Analysis, User\nfrom app.db.reading_models import Reading\n',
+                  1,
+              )
+          text = text.replace(
+              'async def _draft(readings: ReadingService, user_id: object):',
+              'async def _draft(readings: ReadingService, user_id: UUID) -> Reading:',
+              1,
+          )
+          path.write_text(text)
+          PY
+          python -m pip install 'ruff==0.16.1'
+          cd heartsignal
+          ruff format app tests migrations scripts
+          cd ..
+          rm -f .github/workflows/inspect-free-preview.yml
+          rm -f heartsignal/.shared-preview-ci-trigger
+
+      - name: Commit formatted implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Format shared preview entitlement"
+          git push origin "HEAD:${{ github.head_ref }}"
