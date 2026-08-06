@@ -14,6 +14,7 @@ pytest \
   tests/test_product_catalog_checkout_postgres.py::test_current_callback_replays_unfinished_v1_order_without_catalog_repricing \
   tests/test_product_catalog_financial_lifecycle_postgres.py::test_astrology_v2_completion_and_refund_use_order_not_current_label \
   tests/test_subscription_checkout_postgres.py::test_current_subscription_replays_unfinished_v1_snapshot_without_repricing \
+  tests/test_yookassa_subscription_label_replay_postgres.py::test_later_renewal_uses_latest_terms_and_initial_receipt_label \
   tests/test_followup_service_postgres.py::test_concurrent_requests_make_one_llm_call_and_consume_once \
   tests/test_followup_service_postgres.py::test_technical_failure_releases_entitlement_for_retry \
   tests/test_followup_service_postgres.py::test_soft_delete_purges_encrypted_followup_history \
