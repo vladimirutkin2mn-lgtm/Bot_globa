@@ -49,14 +49,22 @@ class MemoryItemStatus(StrEnum):
 
 
 class MemoryKind(StrEnum):
-    """Closed allow-list; high-stakes diagnoses and directives are intentionally absent."""
+    """Neutral memory categories; topic alone never makes a candidate ineligible."""
 
+    USER_STATEMENT = "user_statement"
     USER_PREFERENCE = "user_preference"
     PERSONAL_GOAL = "personal_goal"
     RELATIONSHIP_NOTES = "relationship_notes"
     RECURRING_THEME = "recurring_theme"
     BIRTH_PROFILE = "birth_profile"
     ORACLE_PREFERENCE = "oracle_preference"
+
+
+class MemoryClaimBasis(StrEnum):
+    """Epistemic label: memory is data, not a verified diagnosis or directive."""
+
+    USER_STATED = "user_stated"
+    MODEL_INFERRED = "model_inferred"
 
 
 class MemorySourceType(StrEnum):
@@ -69,20 +77,24 @@ class MemoryCreateRequest(StrictMemoryModel):
     kind: MemoryKind
     value: MemoryValue
     confidence_milli: int = Field(ge=1, le=1000)
+    claim_basis: MemoryClaimBasis = MemoryClaimBasis.USER_STATED
     source_type: MemorySourceType
     source_reading_id: UUID | None = None
     source_persona_code: PersonaCode | None = None
     extraction_version: VersionCode
+    candidate_key: VersionCode | None = None
 
     @model_validator(mode="after")
     def validate_provenance(self) -> Self:
-        if self.source_type is MemorySourceType.READING_DERIVED and self.source_reading_id is None:
+        reading_derived = self.source_type is MemorySourceType.READING_DERIVED
+        if reading_derived and self.source_reading_id is None:
             raise ValueError("reading-derived memory requires source_reading_id")
-        if (
-            self.source_type is not MemorySourceType.READING_DERIVED
-            and self.source_reading_id is not None
-        ):
+        if reading_derived and self.candidate_key is None:
+            raise ValueError("reading-derived memory requires candidate_key")
+        if not reading_derived and self.source_reading_id is not None:
             raise ValueError("source_reading_id is only valid for reading-derived memory")
+        if not reading_derived and self.candidate_key is not None:
+            raise ValueError("candidate_key is only valid for reading-derived memory")
         return self
 
 
@@ -107,8 +119,10 @@ class MemoryItemView:
     kind: MemoryKind
     value: str
     confidence_milli: int
+    claim_basis: MemoryClaimBasis
     source_type: MemorySourceType
     source_reading_id: UUID | None
     source_persona_code: str | None
     extraction_version: str
+    candidate_key: str | None
     created_at: datetime
