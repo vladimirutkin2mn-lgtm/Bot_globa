@@ -1,4 +1,5 @@
 """Deterministic input-risk classification before oracle prompts reach an LLM."""
+# ruff: noqa: RUF001
 
 import re
 from dataclasses import dataclass
