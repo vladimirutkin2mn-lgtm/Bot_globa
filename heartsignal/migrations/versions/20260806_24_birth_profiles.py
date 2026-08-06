@@ -80,7 +80,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", name="uq_birth_profiles_user_id"),
     )
-    op.create_index("ix_birth_profiles_user_id", "birth_profiles", ["user_id"], unique=True)
     op.create_table(
         "birth_profile_private_content",
         sa.Column("birth_profile_id", sa.Uuid(), nullable=False),
@@ -127,6 +126,5 @@ def downgrade() -> None:
     if row_count:
         raise RuntimeError("downgrade refused: encrypted birth profile state would be lost")
     op.drop_table("birth_profile_private_content")
-    op.drop_index("ix_birth_profiles_user_id", table_name="birth_profiles")
     op.drop_table("birth_profiles")
     op.drop_table("birth_profile_consents")
