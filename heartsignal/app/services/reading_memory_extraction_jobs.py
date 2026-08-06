@@ -1,4 +1,4 @@
-"""Durable enqueueing and lease-based processing for reading memory extraction."""
+"""Lease-based processing for durable reading memory extraction jobs."""
 
 import asyncio
 import logging
@@ -9,14 +9,10 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 from sqlalchemy import or_, select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.memory_models import ReadingMemoryExtractionJob
-from app.domain.memory_extraction import (
-    CURRENT_MEMORY_EXTRACTION_VERSION,
-    MemoryExtractionOutcome,
-)
+from app.domain.memory_extraction import MemoryExtractionOutcome
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMInvalidRequestError,
@@ -57,59 +53,6 @@ class CompletedReadingExtractor(Protocol):
         reading_id: UUID,
         user_id: UUID,
     ) -> MemoryExtractionOutcome: ...
-
-
-async def enqueue_reading_memory_extraction(
-    session: AsyncSession,
-    reading_id: UUID,
-    user_id: UUID,
-    *,
-    extraction_version: str = CURRENT_MEMORY_EXTRACTION_VERSION,
-    reactivate_no_consent: bool = False,
-) -> None:
-    """Insert one versioned trigger, optionally reopening a prior no-consent skip."""
-
-    now = datetime.now(UTC)
-    values = {
-        "id": uuid4(),
-        "reading_id": reading_id,
-        "user_id": user_id,
-        "extraction_version": extraction_version,
-        "status": ReadingMemoryExtractionJobStatus.PENDING.value,
-        "attempt_count": 0,
-        "available_at": now,
-    }
-    statement = insert(ReadingMemoryExtractionJob).values(**values)
-    if reactivate_no_consent:
-        statement = statement.on_conflict_do_update(
-            index_elements=(
-                ReadingMemoryExtractionJob.reading_id,
-                ReadingMemoryExtractionJob.extraction_version,
-            ),
-            set_={
-                "status": ReadingMemoryExtractionJobStatus.PENDING.value,
-                "attempt_count": 0,
-                "available_at": now,
-                "claim_id": None,
-                "claimed_by": None,
-                "claimed_at": None,
-                "lease_until": None,
-                "last_error_code": None,
-                "completed_at": None,
-            },
-            where=(
-                ReadingMemoryExtractionJob.status
-                == ReadingMemoryExtractionJobStatus.SKIPPED_NO_CONSENT.value
-            ),
-        )
-    else:
-        statement = statement.on_conflict_do_nothing(
-            index_elements=(
-                ReadingMemoryExtractionJob.reading_id,
-                ReadingMemoryExtractionJob.extraction_version,
-            )
-        )
-    await session.execute(statement)
 
 
 class ReadingMemoryExtractionJobWorker:
