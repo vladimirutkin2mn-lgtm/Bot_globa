@@ -13,6 +13,9 @@ pytest \
   tests/test_followup_service_postgres.py::test_soft_delete_purges_encrypted_followup_history \
   tests/test_account_deletion_postgres.py::test_payment_completion_and_account_deletion_race_25_times \
   tests/test_account_deletion_postgres.py::test_complete_account_tombstone_preserves_immutable_ledger \
+  tests/test_reading_account_deletion_postgres.py::test_account_tombstone_purges_all_reading_ciphertext_and_symbols \
+  tests/test_reading_account_deletion_postgres.py::test_draft_creation_waits_for_deletion_and_cannot_leave_private_data \
+  tests/test_reading_account_deletion_postgres.py::test_generation_claim_waits_for_deletion_and_never_decrypts_source \
   tests/test_monetized_reading_postgres.py::test_paid_reading_unlock_is_exactly_once_under_concurrency \
   tests/test_monetized_reading_postgres.py::test_technical_failure_refunds_reading_spend_exactly_once \
   tests/test_shared_preview_entitlement_postgres.py::test_reading_preview_consumes_shared_entitlement_and_blocks_analysis \
