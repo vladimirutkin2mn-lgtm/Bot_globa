@@ -56,7 +56,7 @@ def memory_list_keyboard(
         [
             InlineKeyboardButton(
                 text=f"{ordinal} · Изменить или удалить",
-                callback_data=f"memory:open:{item_id}",
+                callback_data=f"memory:open:{item_id}:{page}",
             )
         ]
         for item_id, ordinal in items
@@ -118,7 +118,12 @@ def memory_delete_confirmation_keyboard(item_id: UUID, page: int) -> InlineKeybo
                     callback_data=f"memory:delete:confirm:{item_id}:{page}",
                 )
             ],
-            [InlineKeyboardButton(text="Отмена", callback_data=f"memory:open:{item_id}")],
+            [
+                InlineKeyboardButton(
+                    text="Отмена",
+                    callback_data=f"memory:open:{item_id}:{page}",
+                )
+            ],
         ]
     )
 
