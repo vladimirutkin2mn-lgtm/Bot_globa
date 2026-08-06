@@ -2,7 +2,7 @@
 """Deterministic safety checks for user-visible oracle output."""
 
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -197,8 +197,13 @@ class ReadingOutputSafetyValidator:
     max_issues = 20
 
     def validate(self, result: ReadingResult) -> None:
+        self.validate_texts(self._visible_texts(result))
+
+    def validate_texts(self, values: Iterable[tuple[str, str]]) -> None:
+        """Validate arbitrary user-visible fields with the same production rules."""
+
         issues: list[str] = []
-        for path, value in self._visible_texts(result):
+        for path, value in values:
             normalized = self._normalize(value)
             for rule in _RULES:
                 if any(pattern.search(normalized) for pattern in rule.patterns):
