@@ -80,7 +80,9 @@ class GoldenLoveOracleLLM:
                 },
                 {
                     "scenario": "Continued distance becomes information about availability.",
-                    "conditions": ["Respect an unanswered message and return attention to yourself."],
+                    "conditions": [
+                        "Respect an unanswered message and return attention to yourself."
+                    ],
                 },
             ],
             "reflection_questions": [
