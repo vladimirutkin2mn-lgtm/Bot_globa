@@ -1,11 +1,13 @@
 """Application use case for calculated, fact-bound Horoscope previews."""
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Protocol
 from uuid import UUID
 
 from app.db.reading_models import Reading
 from app.domain.horoscope import HoroscopeScope
+from app.domain.horoscope_topic import HoroscopeTopic
 from app.domain.oracle_safety import (
     OracleInputSafetyClassifier,
     OracleInputSafetyResult,
@@ -70,6 +72,7 @@ class HoroscopePreviewRequest:
     topic: HoroscopeScope
     question: str
     context: str | None = None
+    reference_date: date | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,11 +128,15 @@ class HoroscopeReadingUseCase:
         safety = self.classify_input(request.question, request.context)
         if not safety.may_reach_persona_prompt:
             raise UnsafeHoroscopeInputError(safety.action, safety.categories)
+        persisted_topic = HoroscopeTopic.for_request(
+            request.topic,
+            request.reference_date,
+        )
         reading = await self._readings.create_draft(
             user_id,
             ReadingDraftRequest(
                 persona_code=self._persona.code,
-                topic=request.topic.value,
+                topic=persisted_topic.storage_value(),
                 question=request.question,
                 context=request.context,
                 engine_version=self._persona.engine_version,
