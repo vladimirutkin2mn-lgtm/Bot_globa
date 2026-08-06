@@ -3,9 +3,8 @@
 import json
 from uuid import UUID, uuid4
 
-import pytest
-
 from app.domain.horoscope import HoroscopeFactBundle, HoroscopeScope
+from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
     ReadingGenerationClaimStatus,
@@ -26,7 +25,7 @@ class RecordingStore:
     def __init__(self, claim: ReadingGenerationClaim) -> None:
         self.claim = claim
         self.completed_payload: dict[str, object] | None = None
-        self.completed_symbols: tuple[object, ...] | None = None
+        self.completed_symbols: tuple[ReadingSymbolInput, ...] | None = None
         self.failure_code: str | None = None
 
     async def claim_preview(self, reading_id: UUID, user_id: UUID) -> ReadingGenerationClaim:
@@ -37,7 +36,7 @@ class RecordingStore:
         reading_id: UUID,
         user_id: UUID,
         result: dict[str, object],
-        symbols: tuple[object, ...],
+        symbols: tuple[ReadingSymbolInput, ...],
     ) -> ReadingGenerationFinalizeStatus:
         self.completed_payload = result
         self.completed_symbols = symbols
@@ -156,7 +155,8 @@ async def test_generation_repairs_one_invalid_fact_claim_without_exposing_payloa
     assert outcome.attempt_count == 2 and outcome.repair_used
     assert len(llm.requests) == 2 and llm.requests[1].repair
     assert "overview:raw_astrology_claim" in llm.requests[1].user_prompt
-    assert "Sun in Aries" not in llm.requests[1].user_prompt.split("CORRECTION_INSTRUCTION:", 1)[1]
+    correction = llm.requests[1].user_prompt.split("CORRECTION_INSTRUCTION:", 1)[1]
+    assert "Sun in Aries" not in correction
 
 
 async def test_generation_fails_after_second_fact_integrity_violation() -> None:
