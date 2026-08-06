@@ -112,18 +112,36 @@ def _stripe_coordinates(
 ) -> tuple[str, int | None]:
     """Reuse approved price coordinates until product-specific pricing is configured."""
 
-    suffix = currency.lower()
+    if currency == "EUR":
+        single = (
+            settings.stripe_price_analysis_single_eur,
+            settings.stripe_amount_analysis_single_eur_minor,
+        )
+        pack = (
+            settings.stripe_price_analysis_pack_5_eur,
+            settings.stripe_amount_analysis_pack_5_eur_minor,
+        )
+        subscription = (
+            settings.stripe_price_subscription_monthly_eur,
+            settings.stripe_amount_subscription_monthly_eur_minor,
+        )
+    elif currency == "USD":
+        single = (
+            settings.stripe_price_analysis_single_usd,
+            settings.stripe_amount_analysis_single_usd_minor,
+        )
+        pack = (
+            settings.stripe_price_analysis_pack_5_usd,
+            settings.stripe_amount_analysis_pack_5_usd_minor,
+        )
+        subscription = (
+            settings.stripe_price_subscription_monthly_usd,
+            settings.stripe_amount_subscription_monthly_usd_minor,
+        )
+    else:
+        raise ValueError("Stripe catalog supports only EUR or USD")
     if product_code is ProductCode.READING_PACK_5:
-        return (
-            getattr(settings, f"stripe_price_analysis_pack_5_{suffix}"),
-            getattr(settings, f"stripe_amount_analysis_pack_5_{suffix}_minor"),
-        )
+        return pack
     if product_code is ProductCode.SUBSCRIPTION_MONTHLY:
-        return (
-            getattr(settings, f"stripe_price_subscription_monthly_{suffix}"),
-            getattr(settings, f"stripe_amount_subscription_monthly_{suffix}_minor"),
-        )
-    return (
-        getattr(settings, f"stripe_price_analysis_single_{suffix}"),
-        getattr(settings, f"stripe_amount_analysis_single_{suffix}_minor"),
-    )
+        return subscription
+    return single
