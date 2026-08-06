@@ -24,6 +24,7 @@ from app.services.horoscope_reading import (
     HoroscopeReadingUseCase,
 )
 from app.services.horoscope_renderer import HoroscopeRenderer
+from app.services.horoscope_storage import deserialize_horoscope
 from app.services.natal_chart import (
     AstronomyEngineNatalChartCalculator,
     ConsentedNatalChartService,
@@ -250,19 +251,23 @@ async def test_postgres_horoscope_is_fact_bound_rendered_and_idempotent(
     ):
         assert private_marker not in prompt
 
-    assert first.generation.result is not None
-    assert first.generation.facts is not None
+    assert first.generation.result is not None and first.generation.facts is not None
+    assert replay.generation.result is not None and replay.generation.facts is not None
+    assert replay.generation.facts == first.generation.facts
     rendered = HoroscopeRenderer().render(
-        first.generation.result,
-        first.generation.facts,
+        replay.generation.result,
+        replay.generation.facts,
     )
     assert "Асцендент" in rendered.text
     assert "°" in rendered.text
     assert "Amsterdam private birth marker" not in rendered.text
 
-    stored_result = await readings.load_result(first.reading_id, user.id)
-    assert stored_result is not None
-    assert stored_result["facts_digest"] == first.generation.facts.digest()
+    stored_envelope = await readings.load_result(first.reading_id, user.id)
+    assert stored_envelope is not None
+    stored_result, stored_facts = deserialize_horoscope(stored_envelope)
+    assert stored_result == first.generation.result
+    assert stored_facts == first.generation.facts
+    assert stored_result.facts_digest == stored_facts.digest()
     async with payment_db() as session:
         reading = await session.get(Reading, first.reading_id)
         assert reading is not None
