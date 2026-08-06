@@ -28,4 +28,8 @@ pytest \
   tests/test_reading_memory_extraction_postgres.py::test_consent_is_rechecked_after_external_extraction \
   tests/test_reading_memory_extraction_jobs_postgres.py::test_ready_transition_enqueues_one_job_and_terminal_job_is_not_replayed \
   tests/test_reading_memory_extraction_jobs_postgres.py::test_no_consent_skips_before_extractor_and_full_transition_reactivates \
+  tests/test_reading_memory_context_postgres.py::test_retrieval_requires_consent_and_never_crosses_user_boundary \
+  tests/test_reading_generation_memory.py::test_v2_serializes_memory_as_separate_untrusted_json_data \
+  tests/test_reading_generation_memory.py::test_frozen_v1_reading_never_retrieves_or_serializes_memory \
+  tests/test_reading_generation_memory.py::test_memory_retrieval_failure_does_not_block_reading_generation \
   "$@"
