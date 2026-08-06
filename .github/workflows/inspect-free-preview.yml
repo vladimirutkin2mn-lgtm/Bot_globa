@@ -28,59 +28,45 @@ jobs:
 
           preview = Path('heartsignal/app/services/preview_entitlement.py')
           text = preview.read_text()
-          old = '''class PreviewState:
-              status: str
-              analysis_id: UUID | None
-              reading_id: UUID | None'''
-          new = '''class PreviewState:
-              status: str
-              analysis_id: UUID | None
-              reading_id: UUID | None = None'''
+          old = '    reading_id: UUID | None\n'
+          new = '    reading_id: UUID | None = None\n'
           if text.count(old) != 1:
-              raise SystemExit('PreviewState anchor missing')
+              raise SystemExit(f'PreviewState field count={text.count(old)}')
           preview.write_text(text.replace(old, new, 1))
 
           handlers = Path('heartsignal/app/bot/tarot_handlers.py')
           text = handlers.read_text()
-          old = '''        if outcome.visibility is ReadingPreviewVisibility.FULL:
-              rendered = full_renderer.render(outcome)
-              for index, chunk in enumerate(rendered.chunks):
-                  markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
-                  await message.answer(chunk, reply_markup=markup)
-              return
-          if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
-              rendered = renderer.render(outcome)
-              for index, chunk in enumerate(rendered.chunks):
-                  markup = (
-                      tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
-                      if index == len(rendered.chunks) - 1
-                      else None
-                  )
-                  await message.answer(chunk, reply_markup=markup)
-              return'''
-          new = '''        if outcome.visibility is ReadingPreviewVisibility.FULL:
-              full_rendered = full_renderer.render(outcome)
-              for index, chunk in enumerate(full_rendered.chunks):
-                  markup = (
-                      tarot_full_result_keyboard()
-                      if index == len(full_rendered.chunks) - 1
-                      else None
-                  )
-                  await message.answer(chunk, reply_markup=markup)
-              return
-          if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
-              preview_rendered = renderer.render(outcome)
-              for index, chunk in enumerate(preview_rendered.chunks):
-                  markup = (
-                      tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
-                      if index == len(preview_rendered.chunks) - 1
-                      else None
-                  )
-                  await message.answer(chunk, reply_markup=markup)
-              return'''
-          if text.count(old) != 1:
-              raise SystemExit('tarot renderer anchor missing')
-          handlers.write_text(text.replace(old, new, 1))
+          replacements = (
+              (
+                  '            rendered = full_renderer.render(outcome)\n',
+                  '            full_rendered = full_renderer.render(outcome)\n',
+              ),
+              (
+                  '            for index, chunk in enumerate(rendered.chunks):\n',
+                  '            for index, chunk in enumerate(full_rendered.chunks):\n',
+              ),
+              (
+                  '                markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None\n',
+                  '                markup = tarot_full_result_keyboard() if index == len(full_rendered.chunks) - 1 else None\n',
+              ),
+              (
+                  '            rendered = renderer.render(outcome)\n',
+                  '            preview_rendered = renderer.render(outcome)\n',
+              ),
+              (
+                  '            for index, chunk in enumerate(rendered.chunks):\n',
+                  '            for index, chunk in enumerate(preview_rendered.chunks):\n',
+              ),
+              (
+                  '                    if index == len(rendered.chunks) - 1\n',
+                  '                    if index == len(preview_rendered.chunks) - 1\n',
+              ),
+          )
+          for old, new in replacements:
+              if text.count(old) < 1:
+                  raise SystemExit(f'tarot renderer anchor missing: {old!r}')
+              text = text.replace(old, new, 1)
+          handlers.write_text(text)
           PY
           python -m pip install 'ruff==0.16.1'
           cd heartsignal
