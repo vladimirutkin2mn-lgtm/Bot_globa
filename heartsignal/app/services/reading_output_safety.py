@@ -39,7 +39,7 @@ _RULES: tuple[_SafetyRule, ...] = (
         _patterns(
             r"\b(?:stalk|track|follow) (?:him|her|them) without (?:consent|their knowledge)\b",
             r"\b(?:hurt|attack|kill) (?:him|her|them)\b",
-            r"\b(?:выследи|преследуй|следи за) (?:ним|ней|ними) (?:тайно|без согласия|без ведома)\b",
+            r"\b(?:выследи|преследуй|следи за) (?:ним|ней|ними) (?:тайно|без согласия|без ведома)\b",  # noqa: E501
             r"\b(?:причини вред|напади на|убей) (?:его|ее|их)\b",
         ),
     ),
@@ -82,27 +82,27 @@ _RULES: tuple[_SafetyRule, ...] = (
         SafetyCategory.GUARANTEED_FUTURE,
         _patterns(
             r"\b(?:will definitely|will certainly|is guaranteed to)\b",
-            r"\b(?:will happen|will return|will come back) on (?:\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b",
+            r"\b(?:will happen|will return|will come back) on (?:\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b",  # noqa: E501
             r"\b(?:он|она|они|это)?\s*(?:точно|гарантированно|обязательно)\s+(?:вернется|произойдет|случится|будет)\b",
-            r"\b(?:вернется|произойдет|случится) (?:\d{1,2} \w+|в (?:понедельник|вторник|среду|четверг|пятницу|субботу|воскресенье))\b",
+            r"\b(?:вернется|произойдет|случится) (?:\d{1,2} \w+|в (?:понедельник|вторник|среду|четверг|пятницу|субботу|воскресенье))\b",  # noqa: E501
         ),
     ),
     _SafetyRule(
         SafetyCategory.THIRD_PARTY_MIND_READING,
         _patterns(
             r"\b(?:i know|the cards know) (?:exactly )?what (?:he|she|they) (?:thinks?|feels?)\b",
-            r"\b(?:he|she|they) (?:secretly|definitely|certainly) (?:thinks?|feels?|loves?|wants?)\b",
-            r"\b(?:я|карты) (?:точно )?зна(?:ю|ют),? что (?:он|она|они) (?:думает|думают|чувствует|чувствуют)\b",
-            r"\b(?:он|она|они) (?:тайно|точно|определенно) (?:думает|думают|чувствует|чувствуют|любит|любят|хочет|хотят)\b",
+            r"\b(?:he|she|they) (?:secretly|definitely|certainly) (?:thinks?|feels?|loves?|wants?)\b",  # noqa: E501
+            r"\b(?:я|карты) (?:точно )?зна(?:ю|ют),? что (?:он|она|они) (?:думает|думают|чувствует|чувствуют)\b",  # noqa: E501
+            r"\b(?:он|она|они) (?:тайно|точно|определенно) (?:думает|думают|чувствует|чувствуют|любит|любят|хочет|хотят)\b",  # noqa: E501
         ),
     ),
     _SafetyRule(
         SafetyCategory.FEAR_BASED_UPSELL,
         _patterns(
             r"\b(?:curse|cursed|dark energy)\b.{0,120}\b(?:pay|buy|purchase)\b",
-            r"\b(?:pay|buy|purchase)\b.{0,120}\b(?:or something bad|before it is too late|remove the curse)\b",
+            r"\b(?:pay|buy|purchase)\b.{0,120}\b(?:or something bad|before it is too late|remove the curse)\b",  # noqa: E501
             r"\b(?:порча|проклятие|темная энергия)\b.{0,120}\b(?:оплати|купите|купи|закажи)\b",
-            r"\b(?:оплати|купите|купи|закажи)\b.{0,120}\b(?:иначе случится беда|пока не поздно|снять порчу)\b",
+            r"\b(?:оплати|купите|купи|закажи)\b.{0,120}\b(?:иначе случится беда|пока не поздно|снять порчу)\b",  # noqa: E501
         ),
     ),
     _SafetyRule(
