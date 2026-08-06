@@ -9,7 +9,12 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
-from app.domain.horoscope import AstrologyReadingResult, HoroscopeFactBundle, HoroscopeScope
+from app.domain.horoscope import (
+    AstrologyReadingResult,
+    HoroscopeFactBundle,
+    HoroscopeLimitation,
+    HoroscopeScope,
+)
 from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
@@ -21,6 +26,7 @@ from app.prompts.horoscope import (
     HoroscopePromptSet,
     load_horoscope_prompts,
 )
+from app.providers.analytics import OracleProductEvent
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMClient,
@@ -42,6 +48,10 @@ from app.services.horoscope_storage import (
     serialize_horoscope,
 )
 from app.services.natal_chart import BirthProfileUnavailableError
+from app.services.oracle_product_analytics import (
+    OracleAnalyticsValue,
+    OracleProductAnalytics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +119,7 @@ class HoroscopeGenerationService:
         max_repair_attempts: int = 1,
         prompt_loader: Callable[[str], HoroscopePromptSet] = load_horoscope_prompts,
         validator: HoroscopeResultValidator | None = None,
+        analytics: OracleProductAnalytics | None = None,
     ) -> None:
         if max_repair_attempts not in {0, 1}:
             raise ValueError("Horoscope generation allows at most one repair attempt")
@@ -118,6 +129,7 @@ class HoroscopeGenerationService:
         self._max_repairs = max_repair_attempts
         self._prompt_loader = prompt_loader
         self._validator = validator or HoroscopeResultValidator()
+        self._analytics = analytics
 
     async def generate_preview(
         self,
@@ -214,6 +226,37 @@ class HoroscopeGenerationService:
                 facts.facts_version,
                 len(facts.facts),
                 attempts,
+            )
+            time_precision = (
+                "date_only"
+                if HoroscopeLimitation.BIRTH_TIME_UNKNOWN in facts.limitations
+                else "exact"
+            )
+            await self._track(
+                user_id,
+                OracleProductEvent.ASTROLOGY_CALCULATION_COMPLETED,
+                {
+                    "scope_code": facts.scope,
+                    "chart_schema_version": facts.natal_schema_version,
+                    "engine_version": facts.natal_engine_version,
+                    "time_precision": time_precision,
+                    "house_system": "equal-house-v1" if time_precision == "exact" else None,
+                },
+            )
+            await self._track(
+                user_id,
+                OracleProductEvent.READING_PREVIEW_READY,
+                {
+                    "reading_id": reading_id,
+                    "persona_code": context.persona_code,
+                    "topic_code": context.topic,
+                    "engine_version": context.engine_version,
+                    "prompt_version": context.prompt_version,
+                    "schema_version": context.schema_version,
+                    "attempt_count": attempts,
+                    "repair_used": attempts > 1,
+                    "memory_count": 0,
+                },
             )
             return HoroscopeGenerationResult(
                 HoroscopeGenerationStatus.COMPLETED,
@@ -428,3 +471,16 @@ class HoroscopeGenerationService:
             provider=completion.provider,
             model=completion.model,
         )
+
+    async def _track(
+        self,
+        user_id: UUID,
+        event: OracleProductEvent,
+        properties: dict[str, OracleAnalyticsValue | None],
+    ) -> None:
+        if self._analytics is None:
+            return
+        try:
+            await self._analytics.track(user_id, event, properties)
+        except Exception:
+            logger.warning("oracle_analytics_failed event=%s", event.value)
