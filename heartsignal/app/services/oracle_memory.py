@@ -189,9 +189,7 @@ class OracleMemoryService:
                     request.source_persona_code is not None
                     and request.source_persona_code != persona_code
                 ):
-                    raise MemoryProvenanceError(
-                        "source persona does not match reading provenance"
-                    )
+                    raise MemoryProvenanceError("source persona does not match reading provenance")
 
             versions = {request.extraction_version for request in unique.values()}
             candidate_keys = {
@@ -206,8 +204,7 @@ class OracleMemoryService:
                         .where(
                             OracleMemoryItem.user_id == user_id,
                             OracleMemoryItem.source_reading_id == reading_id,
-                            OracleMemoryItem.source_type
-                            == MemorySourceType.READING_DERIVED.value,
+                            OracleMemoryItem.source_type == MemorySourceType.READING_DERIVED.value,
                             OracleMemoryItem.status == MemoryItemStatus.ACTIVE.value,
                             OracleMemoryItem.extraction_version.in_(versions),
                             OracleMemoryItem.candidate_key.in_(candidate_keys),
