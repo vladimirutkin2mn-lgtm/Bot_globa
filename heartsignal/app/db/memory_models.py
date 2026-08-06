@@ -211,9 +211,7 @@ class ReadingMemoryExtractionJob(Base):
     reading_id: Mapped[UUID] = mapped_column(
         ForeignKey("readings.id", ondelete="CASCADE"), index=True
     )
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     extraction_version: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), default="pending", server_default="pending")
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
