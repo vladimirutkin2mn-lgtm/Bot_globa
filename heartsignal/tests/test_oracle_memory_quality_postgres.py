@@ -1,5 +1,6 @@
 """PostgreSQL invariants for exact memory deduplication and quality metrics."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -45,6 +46,30 @@ def _request(
         source_type=source,
         extraction_version=version,
     )
+
+
+async def test_concurrent_exact_writes_return_one_active_item(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 980000)
+    cipher = AESGCMSensitiveContentCipher("ora-306-concurrent-dedup-key")
+    service = QualityManagedOracleMemoryService(payment_db, cipher)
+    await service.grant_consent(user.id)
+
+    first, second = await asyncio.gather(
+        service.remember(
+            user.id,
+            _request("My lawyer discussed bankruptcy during financial stress"),
+        ),
+        service.remember(
+            user.id,
+            _request("  MY lawyer discussed bankruptcy during financial stress  "),
+        ),
+    )
+
+    assert first.id == second.id
+    active = await service.list_active(user.id)
+    assert [item.id for item in active] == [first.id]
 
 
 async def test_quality_service_reconciles_legacy_duplicates_and_purges_loser_ciphertext(
