@@ -1,14 +1,15 @@
 """Deterministic natal chart facts calculated from normalized encrypted inputs."""
 
-import math
 from itertools import combinations
-from typing import Any
+from typing import Any, Protocol
+from uuid import UUID
 
 import astronomy
 
 from app.domain.birth_profile import (
     CURRENT_BIRTH_PROFILE_NORMALIZATION_VERSION,
     BirthProfileInput,
+    BirthProfileView,
 )
 from app.domain.natal_chart import (
     NATAL_CHART_ENGINE_VERSION,
@@ -50,6 +51,36 @@ class NatalChartCalculationError(RuntimeError):
     """Safe calculation failure without birth data in the error message."""
 
 
+class BirthProfileUnavailableError(LookupError):
+    """No authorized active BirthProfile is available for calculation."""
+
+
+class BirthProfileLoader(Protocol):
+    async def load(self, user_id: UUID) -> BirthProfileView | None: ...
+
+
+class NatalChartCalculator(Protocol):
+    def calculate(self, profile: BirthProfileInput) -> NatalChartResult: ...
+
+
+class ConsentedNatalChartService:
+    """Load an authorized encrypted profile before invoking the pure calculator."""
+
+    def __init__(
+        self,
+        profiles: BirthProfileLoader,
+        calculator: NatalChartCalculator,
+    ) -> None:
+        self._profiles = profiles
+        self._calculator = calculator
+
+    async def calculate_for_user(self, user_id: UUID) -> NatalChartResult:
+        profile = await self._profiles.load(user_id)
+        if profile is None:
+            raise BirthProfileUnavailableError("active birth profile is required")
+        return self._calculator.calculate(profile.profile)
+
+
 class AstronomyEngineNatalChartCalculator:
     """Calculate tropical geocentric positions and deterministic equal houses."""
 
@@ -73,8 +104,11 @@ class AstronomyEngineNatalChartCalculator:
             houses = tuple(
                 NatalHouse(
                     number=number,
-                    cusp_longitude_millidegrees=(ascendant + (number - 1) * 30_000) % 360_000,
-                    sign=self._sign((ascendant + (number - 1) * 30_000) % 360_000),
+                    cusp_longitude_millidegrees=(ascendant + (number - 1) * 30_000)
+                    % 360_000,
+                    sign=self._sign(
+                        (ascendant + (number - 1) * 30_000) % 360_000
+                    ),
                 )
                 for number in range(1, 13)
             )
@@ -141,7 +175,10 @@ class AstronomyEngineNatalChartCalculator:
             orb = abs(separation - exact_angle)
             if orb > maximum_orb:
                 continue
-            first_body, second_body = sorted((first.body, second.body), key=lambda body: body.value)
+            first_body, second_body = sorted(
+                (first.body, second.body),
+                key=lambda body: body.value,
+            )
             found.append(
                 NatalAspect(
                     first_body=first_body,
@@ -179,7 +216,10 @@ class AstronomyEngineNatalChartCalculator:
                 astro_time,
             )
             horizontal = astronomy.RotateVector(rotation, ecliptic)
-            sphere = astronomy.HorizonFromVector(horizontal, astronomy.Refraction.Airless)
+            sphere = astronomy.HorizonFromVector(
+                horizontal,
+                astronomy.Refraction.Airless,
+            )
             return float(sphere.lat), float(sphere.lon)
 
         roots: list[float] = []
@@ -204,16 +244,23 @@ class AstronomyEngineNatalChartCalculator:
             previous_altitude = current_altitude
         unique_roots: list[float] = []
         for root in roots:
-            if all(self._angular_distance(root, existing) > 0.01 for existing in unique_roots):
+            if all(
+                self._angular_distance(root, existing) > 0.01
+                for existing in unique_roots
+            ):
                 unique_roots.append(root)
         if not unique_roots:
-            raise NatalChartCalculationError("unable to calculate the eastern ecliptic horizon")
+            raise NatalChartCalculationError(
+                "unable to calculate the eastern ecliptic horizon"
+            )
         ascendant = min(
             unique_roots,
             key=lambda root: self._angular_distance(horizon(root)[1], 90.0),
         )
         if self._angular_distance(horizon(ascendant)[1], 90.0) > 90.0:
-            raise NatalChartCalculationError("unable to identify the eastern ecliptic horizon")
+            raise NatalChartCalculationError(
+                "unable to identify the eastern ecliptic horizon"
+            )
         return self._millidegrees(ascendant)
 
     @staticmethod
