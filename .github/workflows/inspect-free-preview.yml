@@ -1,0 +1,99 @@
+name: Fix shared preview typing
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'feat/oracle-free-preview-entitlement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Fix strict typing compatibility
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          preview = Path('heartsignal/app/services/preview_entitlement.py')
+          text = preview.read_text()
+          old = '''class PreviewState:
+              status: str
+              analysis_id: UUID | None
+              reading_id: UUID | None'''
+          new = '''class PreviewState:
+              status: str
+              analysis_id: UUID | None
+              reading_id: UUID | None = None'''
+          if text.count(old) != 1:
+              raise SystemExit('PreviewState anchor missing')
+          preview.write_text(text.replace(old, new, 1))
+
+          handlers = Path('heartsignal/app/bot/tarot_handlers.py')
+          text = handlers.read_text()
+          old = '''        if outcome.visibility is ReadingPreviewVisibility.FULL:
+              rendered = full_renderer.render(outcome)
+              for index, chunk in enumerate(rendered.chunks):
+                  markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
+                  await message.answer(chunk, reply_markup=markup)
+              return
+          if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
+              rendered = renderer.render(outcome)
+              for index, chunk in enumerate(rendered.chunks):
+                  markup = (
+                      tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
+                      if index == len(rendered.chunks) - 1
+                      else None
+                  )
+                  await message.answer(chunk, reply_markup=markup)
+              return'''
+          new = '''        if outcome.visibility is ReadingPreviewVisibility.FULL:
+              full_rendered = full_renderer.render(outcome)
+              for index, chunk in enumerate(full_rendered.chunks):
+                  markup = (
+                      tarot_full_result_keyboard()
+                      if index == len(full_rendered.chunks) - 1
+                      else None
+                  )
+                  await message.answer(chunk, reply_markup=markup)
+              return
+          if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
+              preview_rendered = renderer.render(outcome)
+              for index, chunk in enumerate(preview_rendered.chunks):
+                  markup = (
+                      tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
+                      if index == len(preview_rendered.chunks) - 1
+                      else None
+                  )
+                  await message.answer(chunk, reply_markup=markup)
+              return'''
+          if text.count(old) != 1:
+              raise SystemExit('tarot renderer anchor missing')
+          handlers.write_text(text.replace(old, new, 1))
+          PY
+          python -m pip install 'ruff==0.16.1'
+          cd heartsignal
+          ruff format app/bot/tarot_handlers.py app/services/preview_entitlement.py
+          cd ..
+          rm -f .github/workflows/inspect-free-preview.yml
+          rm -f heartsignal/.shared-preview-ci-trigger
+
+      - name: Commit strict typing fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix shared preview strict typing"
+          git push origin "HEAD:${{ github.head_ref }}"
