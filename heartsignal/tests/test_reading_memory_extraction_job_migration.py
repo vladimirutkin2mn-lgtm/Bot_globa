@@ -140,9 +140,7 @@ def test_memory_extraction_job_migration_refuses_live_job_downgrade() -> None:
         assert "downgrade refused" in failed.stderr
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
         assert (
-            asyncio.run(
-                _scalar(url, schema, "SELECT count(*) FROM reading_memory_extraction_jobs")
-            )
+            asyncio.run(_scalar(url, schema, "SELECT count(*) FROM reading_memory_extraction_jobs"))
             == 1
         )
     finally:
