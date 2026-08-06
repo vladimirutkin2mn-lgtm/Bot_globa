@@ -58,6 +58,7 @@ class StripeGateway:
                         "client_reference_id": request.order_id,
                         "metadata": {
                             "order_id": request.order_id,
+                            "product_code": request.product_code,
                             "product_version": str(request.product_version),
                         },
                     },
@@ -181,18 +182,42 @@ class StripeGateway:
         return self._state_fact(subscription)
 
     async def fetch_subscription(self, subscription_id: str) -> SubscriptionProviderFact:
-        return await self.fetch_subscription_event("subscription_reconciliation", subscription_id)
+        subscription = await self._retrieve_subscription(subscription_id)
+        invoice = _value(subscription, "latest_invoice")
+        if invoice:
+            return self._invoice_fact(invoice, subscription, "subscription_reconciliation")
+        return self._state_fact(subscription)
 
     async def cancel_subscription(self, subscription_id: str) -> SubscriptionStateFact:
-        subscription = await self._update_subscription(
-            subscription_id, {"cancel_at_period_end": True}
-        )
+        try:
+            subscription = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._client.subscriptions.update,
+                    subscription_id,
+                    {"cancel_at_period_end": True},
+                ),
+                self._timeout,
+            )
+        except (TimeoutError, self._stripe.APIConnectionError) as exc:
+            raise UnknownProviderOutcome from exc
+        except self._stripe.StripeError as exc:
+            raise PermanentProviderError(type(exc).__name__) from exc
         return self._state_fact(subscription)
 
     async def resume_subscription(self, subscription_id: str) -> SubscriptionStateFact:
-        subscription = await self._update_subscription(
-            subscription_id, {"cancel_at_period_end": False}
-        )
+        try:
+            subscription = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._client.subscriptions.update,
+                    subscription_id,
+                    {"cancel_at_period_end": False},
+                ),
+                self._timeout,
+            )
+        except (TimeoutError, self._stripe.APIConnectionError) as exc:
+            raise UnknownProviderOutcome from exc
+        except self._stripe.StripeError as exc:
+            raise PermanentProviderError(type(exc).__name__) from exc
         return self._state_fact(subscription)
 
     async def _retrieve_checkout_subscription(self, checkout_id: str) -> object:
@@ -201,7 +226,7 @@ class StripeGateway:
                 asyncio.to_thread(
                     self._client.checkout.sessions.retrieve,
                     checkout_id,
-                    params={"expand": ["subscription.latest_invoice.payment_intent"]},
+                    params={"expand": ["subscription", "subscription.latest_invoice"]},
                 ),
                 self._timeout,
             )
@@ -216,7 +241,7 @@ class StripeGateway:
                 asyncio.to_thread(
                     self._client.invoices.retrieve,
                     invoice_id,
-                    params={"expand": ["subscription", "payment_intent"]},
+                    params={"expand": ["subscription", "subscription.latest_invoice"]},
                 ),
                 self._timeout,
             )
@@ -231,7 +256,7 @@ class StripeGateway:
                 asyncio.to_thread(
                     self._client.subscriptions.retrieve,
                     subscription_id,
-                    params={"expand": ["latest_invoice.payment_intent"]},
+                    params={"expand": ["latest_invoice"]},
                 ),
                 self._timeout,
             )
@@ -244,165 +269,138 @@ class StripeGateway:
         if isinstance(value, str):
             return await self._retrieve_subscription(value)
         if value is None:
-            raise PermanentProviderError("missing_subscription")
+            raise ProviderStateMismatch("subscription missing")
         return value
 
-    async def _update_subscription(self, subscription_id: str, params: dict[str, object]) -> object:
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    self._client.subscriptions.update,
-                    subscription_id,
-                    params,
-                ),
-                self._timeout,
-            )
-        except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
-        except self._stripe.StripeError as exc:
-            raise PermanentProviderError(type(exc).__name__) from exc
-
     def _invoice_fact(
-        self, invoice: object, subscription: object, event_type: str
+        self,
+        invoice: object,
+        subscription: object,
+        event_type: str,
     ) -> SubscriptionProviderFact:
         metadata = _metadata(subscription)
-        user_id = _uuid_metadata(metadata, "user_id")
-        initial_order_id = _uuid_metadata(metadata, "order_id")
-        subscription_id = _required_text(_value(subscription, "id"), "subscription_id")
-        invoice_id = _required_text(_value(invoice, "id"), "invoice_id")
-        period_start = _required_datetime(
-            _value(invoice, "period_start") or _value(subscription, "current_period_start"),
-            "period_start",
-        )
-        period_end = _required_datetime(
-            _value(invoice, "period_end") or _value(subscription, "current_period_end"),
-            "period_end",
-        )
-        amount_minor = _int_metadata(metadata, "amount_minor")
-        currency = _text_metadata(metadata, "currency").upper()
-        actual_amount = int(_value(invoice, "amount_paid") or _value(invoice, "amount_due") or 0)
+        product_code = _required(metadata, "product_code")
+        product_version = _int(metadata, "product_version")
+        currency = _required(metadata, "currency").upper()
+        amount_minor = _int(metadata, "amount_minor")
+        credits = _int(metadata, "credits")
+        price_reference = _required(metadata, "price_reference")
+        consent_version = _required(metadata, "consent_version")
+        provider_subscription_id = _required_value(subscription, "id")
+        provider_invoice_id = _required_value(invoice, "id")
+        provider_payment_id = str(_value(invoice, "payment_intent") or provider_invoice_id)
         actual_currency = str(_value(invoice, "currency") or "").upper()
-        if actual_amount != amount_minor or actual_currency != currency:
+        actual_amount = int(_value(invoice, "amount_paid") or 0)
+        period_start, period_end = _invoice_period(invoice)
+        if actual_currency != currency or actual_amount != amount_minor:
             raise ProviderStateMismatch("subscription commercial mismatch")
         status = str(_value(invoice, "status") or "")
-        paid = status == "paid" or event_type == "invoice.paid"
-        if paid:
-            transitions = _value(invoice, "status_transitions")
-            paid_at = _required_datetime(
-                _value(transitions, "paid_at") or _value(invoice, "created"), "paid_at"
-            )
-            payment = _value(invoice, "payment_intent")
-            payment_id = _required_text(
-                _value(payment, "id") if payment is not None else invoice_id,
-                "payment_id",
-            )
-            customer = _value(subscription, "customer") or _value(invoice, "customer")
-            return PaidSubscriptionFact(
-                user_id=user_id,
-                initial_order_id=initial_order_id,
+        paid = bool(_value(invoice, "paid")) or status == "paid"
+        if not paid or event_type in {"invoice.payment_failed", "invoice.payment_action_required"}:
+            return PastDueSubscriptionFact(
                 provider="stripe",
-                provider_customer_id=_required_text(
-                    _value(customer, "id") if not isinstance(customer, str) else customer,
-                    "customer_id",
-                ),
-                provider_subscription_id=subscription_id,
-                provider_invoice_id=invoice_id,
-                provider_payment_id=payment_id,
-                product_code=_text_metadata(metadata, "product_code"),
-                product_version=_int_metadata(metadata, "product_version"),
-                market=_text_metadata(metadata, "market"),
+                provider_subscription_id=provider_subscription_id,
+                provider_invoice_id=provider_invoice_id,
+                product_code=product_code,
+                product_version=product_version,
                 currency=currency,
                 amount_minor=amount_minor,
-                credits=_int_metadata(metadata, "credits"),
-                price_reference=_text_metadata(metadata, "price_reference"),
+                credits=credits,
                 period_start=period_start,
                 period_end=period_end,
-                paid_at=paid_at,
-                consent_version=_text_metadata(metadata, "consent_version"),
-                live_mode=bool(_value(invoice, "livemode")),
             )
-        return PastDueSubscriptionFact(
+        user_id = UUID(_required(metadata, "user_id"))
+        initial_order_id = UUID(metadata["order_id"]) if metadata.get("order_id") else None
+        paid_at = datetime.fromtimestamp(
+            int(_value(invoice, "status_transitions", "paid_at") or int(datetime.now(UTC).timestamp())),
+            UTC,
+        )
+        return PaidSubscriptionFact(
+            user_id=user_id,
+            initial_order_id=initial_order_id,
             provider="stripe",
-            provider_subscription_id=subscription_id,
-            provider_invoice_id=invoice_id,
-            product_code=_text_metadata(metadata, "product_code"),
-            product_version=_int_metadata(metadata, "product_version"),
+            provider_customer_id=str(_value(subscription, "customer") or ""),
+            provider_subscription_id=provider_subscription_id,
+            provider_invoice_id=provider_invoice_id,
+            provider_payment_id=provider_payment_id,
+            product_code=product_code,
+            product_version=product_version,
+            market=_required(metadata, "market"),
             currency=currency,
             amount_minor=amount_minor,
-            credits=_int_metadata(metadata, "credits"),
+            credits=credits,
+            price_reference=price_reference,
             period_start=period_start,
             period_end=period_end,
+            paid_at=paid_at,
+            consent_version=consent_version,
+            live_mode=bool(_value(invoice, "livemode")),
         )
 
     def _state_fact(self, subscription: object) -> SubscriptionStateFact:
         metadata = _metadata(subscription)
         return SubscriptionStateFact(
-            user_id=_uuid_metadata(metadata, "user_id"),
+            user_id=UUID(_required(metadata, "user_id")),
             provider="stripe",
-            provider_subscription_id=_required_text(_value(subscription, "id"), "subscription_id"),
+            provider_subscription_id=_required_value(subscription, "id"),
             status=str(_value(subscription, "status") or "unknown"),
-            current_period_start=_optional_datetime(_value(subscription, "current_period_start")),
-            current_period_end=_optional_datetime(_value(subscription, "current_period_end")),
+            current_period_start=_timestamp(_value(subscription, "current_period_start")),
+            current_period_end=_timestamp(_value(subscription, "current_period_end")),
             cancel_at_period_end=bool(_value(subscription, "cancel_at_period_end")),
-            canceled_at=_optional_datetime(_value(subscription, "canceled_at")),
+            canceled_at=_timestamp(_value(subscription, "canceled_at")),
         )
 
 
-def _value(value: object, name: str) -> Any:
-    if isinstance(value, Mapping):
-        return value.get(name)
-    return getattr(value, name, None)
+def _value(source: object, *path: str) -> Any:
+    current = source
+    for part in path:
+        if isinstance(current, Mapping):
+            current = current.get(part)
+        else:
+            current = getattr(current, part, None)
+    return current
 
 
-def _metadata(value: object) -> dict[str, object]:
-    raw = _value(value, "metadata")
-    if isinstance(raw, Mapping):
-        return {str(key): item for key, item in raw.items()}
-    raise ProviderStateMismatch("subscription metadata missing")
+def _metadata(source: object) -> dict[str, str]:
+    value = _value(source, "metadata")
+    return {str(key): str(item) for key, item in dict(value or {}).items()}
 
 
-def _text_metadata(metadata: Mapping[str, object], name: str) -> str:
-    return _required_text(metadata.get(name), name)
-
-
-def _int_metadata(metadata: Mapping[str, object], name: str) -> int:
-    try:
-        value = int(_required_text(metadata.get(name), name))
-    except ValueError as exc:
-        raise ProviderStateMismatch(f"invalid {name}") from exc
-    if value <= 0:
-        raise ProviderStateMismatch(f"invalid {name}")
+def _required(metadata: dict[str, str], key: str) -> str:
+    value = metadata.get(key, "")
+    if not value:
+        raise ProviderStateMismatch(f"missing subscription metadata: {key}")
     return value
 
 
-def _uuid_metadata(metadata: Mapping[str, object], name: str) -> UUID:
+def _required_value(source: object, key: str) -> str:
+    value = str(_value(source, key) or "")
+    if not value:
+        raise ProviderStateMismatch(f"missing provider field: {key}")
+    return value
+
+
+def _int(metadata: dict[str, str], key: str) -> int:
     try:
-        return UUID(_required_text(metadata.get(name), name))
+        value = int(_required(metadata, key))
     except ValueError as exc:
-        raise ProviderStateMismatch(f"invalid {name}") from exc
+        raise ProviderStateMismatch(f"invalid subscription metadata: {key}") from exc
+    if value < 1:
+        raise ProviderStateMismatch(f"invalid subscription metadata: {key}")
+    return value
 
 
-def _required_text(value: object, name: str) -> str:
-    text = str(value or "").strip()
-    if not text:
-        raise ProviderStateMismatch(f"missing {name}")
-    return text
+def _timestamp(value: object) -> datetime | None:
+    return datetime.fromtimestamp(int(value), UTC) if value else None
 
 
-def _required_datetime(value: object, name: str) -> datetime:
-    result = _optional_datetime(value)
-    if result is None:
-        raise ProviderStateMismatch(f"missing {name}")
-    return result
-
-
-def _optional_datetime(value: object) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, UTC)
-    raise ProviderStateMismatch("invalid provider timestamp")
+def _invoice_period(invoice: object) -> tuple[datetime, datetime]:
+    lines = _value(invoice, "lines", "data") or []
+    if not lines:
+        raise ProviderStateMismatch("subscription invoice period missing")
+    period = _value(lines[0], "period")
+    start = _timestamp(_value(period, "start"))
+    end = _timestamp(_value(period, "end"))
+    if start is None or end is None or end <= start:
+        raise ProviderStateMismatch("subscription invoice period invalid")
+    return start, end
