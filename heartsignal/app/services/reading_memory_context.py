@@ -123,7 +123,7 @@ class OracleReadingMemoryRetriever:
         if not active:
             return ()
         newest = sorted(active, key=lambda item: (item.created_at, item.id), reverse=True)
-        query_tokens = self._tokens(" ".join(filter(None, (topic, question, context))))
+        query_tokens = self._tokens(" ".join((topic, question, context or "")))
         topic_weights = _TOPIC_KIND_WEIGHTS.get(topic, {})
         ranked: list[_RankedMemory] = []
         for item in newest[: self._max_candidates]:
