@@ -4,8 +4,27 @@
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
+from enum import StrEnum
 
-from app.domain.reading_result import ReadingResult, SafetyCategory
+from app.domain.reading_result import ReadingResult
+
+
+class ReadingOutputSafetyCategory(StrEnum):
+    """Internal categories independent from the model-declared safety field."""
+
+    SELF_HARM = "self_harm"
+    VIOLENCE_OR_STALKING = "violence_or_stalking"
+    MEDICAL_CLAIM = "medical_claim"
+    LEGAL_DIRECTION = "legal_direction"
+    FINANCIAL_OR_GAMBLING = "financial_or_gambling"
+    GUARANTEED_FUTURE = "guaranteed_future"
+    EXACT_DATE_PREDICTION = "exact_date_prediction"
+    THIRD_PARTY_MIND_READING = "third_party_mind_reading"
+    INFIDELITY_OR_CRIME_CLAIM = "infidelity_or_crime_claim"
+    DEATH_CLAIM = "death_claim"
+    CURSE_CLAIM = "curse_claim"
+    FEAR_BASED_UPSELL = "fear_based_upsell"
+    DEPENDENCY = "dependency"
 
 
 class ReadingOutputSafetyError(ValueError):
@@ -18,7 +37,7 @@ class ReadingOutputSafetyError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class _SafetyRule:
-    category: SafetyCategory
+    category: ReadingOutputSafetyCategory
     patterns: tuple[re.Pattern[str], ...]
 
 
@@ -28,45 +47,50 @@ def _patterns(*values: str) -> tuple[re.Pattern[str], ...]:
 
 _RULES: tuple[_SafetyRule, ...] = (
     _SafetyRule(
-        SafetyCategory.SELF_HARM,
+        ReadingOutputSafetyCategory.SELF_HARM,
         _patterns(
             r"\b(?:kill yourself|end your life|you should die)\b",
             r"\b(?:убей себя|покончи с собой|тебе лучше умереть)\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.VIOLENCE_OR_STALKING,
+        ReadingOutputSafetyCategory.VIOLENCE_OR_STALKING,
         _patterns(
-            r"\b(?:stalk|track|follow) (?:him|her|them) without (?:consent|their knowledge)\b",
+            r"\b(?:stalk|track|follow) (?:him|her|them) "
+            r"without (?:consent|their knowledge)\b",
             r"\b(?:hurt|attack|kill) (?:him|her|them)\b",
-            r"\b(?:выследи|преследуй|следи за) (?:ним|ней|ними) (?:тайно|без согласия|без ведома)\b",  # noqa: E501
+            r"\b(?:выследи|преследуй|следи за) (?:ним|ней|ними) "
+            r"(?:тайно|без согласия|без ведома)\b",
             r"\b(?:причини вред|напади на|убей) (?:его|ее|их)\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.MEDICAL,
+        ReadingOutputSafetyCategory.MEDICAL_CLAIM,
         _patterns(
-            r"\byou (?:have|are diagnosed with) (?:cancer|a tumor|bipolar disorder|depression)\b",
+            r"\byou (?:have|are diagnosed with) "
+            r"(?:cancer|a tumor|bipolar disorder|depression)\b",
             r"\byou are pregnant\b",
             r"\bstop taking (?:your )?(?:medication|medicine|pills)\b",
-            r"\bу (?:вас|тебя) (?:рак|опухоль|биполярное расстройство|депрессия)\b",
+            r"\bу (?:вас|тебя) "
+            r"(?:рак|опухоль|биполярное расстройство|депрессия)\b",
             r"\b(?:вы|ты) беременн(?:ы|а)\b",
             r"\bперестан(?:ьте|ь) принимать (?:лекарство|таблетки)\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.LEGAL,
+        ReadingOutputSafetyCategory.LEGAL_DIRECTION,
         _patterns(
             r"\byou will (?:win|lose) (?:the )?(?:case|trial|lawsuit)\b",
             r"\btell the (?:judge|court) (?:that|to)\b",
             r"\bhide from (?:the )?police\b",
-            r"\b(?:вы|ты) (?:выиграете|выиграешь|проиграете|проиграешь) суд\b",
+            r"\b(?:вы|ты) "
+            r"(?:выиграете|выиграешь|проиграете|проиграешь) суд\b",
             r"\bскаж(?:ите|и) (?:судье|в суде),? (?:что|чтобы)\b",
             r"\bскрой(?:тесь|ся) от полиции\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.FINANCIAL_OR_GAMBLING,
+        ReadingOutputSafetyCategory.FINANCIAL_OR_GAMBLING,
         _patterns(
             r"\binvest all (?:your|the) money\b",
             r"\btake out (?:a|the) loan\b",
@@ -79,39 +103,89 @@ _RULES: tuple[_SafetyRule, ...] = (
         ),
     ),
     _SafetyRule(
-        SafetyCategory.GUARANTEED_FUTURE,
+        ReadingOutputSafetyCategory.GUARANTEED_FUTURE,
         _patterns(
             r"\b(?:will definitely|will certainly|is guaranteed to)\b",
-            r"\b(?:will happen|will return|will come back) on (?:\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)\b",  # noqa: E501
-            r"\b(?:он|она|они|это)?\s*(?:точно|гарантированно|обязательно)\s+(?:вернется|произойдет|случится|будет)\b",
-            r"\b(?:вернется|произойдет|случится) (?:\d{1,2} \w+|в (?:понедельник|вторник|среду|четверг|пятницу|субботу|воскресенье))\b",  # noqa: E501
+            r"\b(?:this|it|he|she|they) will "
+            r"(?:happen|return|come back|marry|win)\b",
+            r"\b(?:он|она|они|это)?\s*"
+            r"(?:точно|гарантированно|обязательно)\s+"
+            r"(?:вернется|произойдет|случится|будет)\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.THIRD_PARTY_MIND_READING,
+        ReadingOutputSafetyCategory.EXACT_DATE_PREDICTION,
         _patterns(
-            r"\b(?:i know|the cards know) (?:exactly )?what (?:he|she|they) (?:thinks?|feels?)\b",
-            r"\b(?:he|she|they) (?:secretly|definitely|certainly) (?:thinks?|feels?|loves?|wants?)\b",  # noqa: E501
-            r"\b(?:я|карты) (?:точно )?зна(?:ю|ют),? что (?:он|она|они) (?:думает|думают|чувствует|чувствуют)\b",  # noqa: E501
-            r"\b(?:он|она|они) (?:тайно|точно|определенно) (?:думает|думают|чувствует|чувствуют|любит|любят|хочет|хотят)\b",  # noqa: E501
+            r"\b(?:will happen|will return|will come back) on "
+            r"(?:\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+            r"january|february|march|april|may|june|july|august|september|october|"
+            r"november|december)\b",
+            r"\b(?:вернется|произойдет|случится) "
+            r"(?:\d{1,2} \w+|в (?:понедельник|вторник|среду|четверг|пятницу|"
+            r"субботу|воскресенье))\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.FEAR_BASED_UPSELL,
+        ReadingOutputSafetyCategory.THIRD_PARTY_MIND_READING,
+        _patterns(
+            r"\b(?:i know|the cards know) (?:exactly )?what "
+            r"(?:he|she|they) (?:thinks?|feels?)\b",
+            r"\b(?:he|she|they) (?:secretly|definitely|certainly) "
+            r"(?:thinks?|feels?|loves?|wants?)\b",
+            r"\b(?:я|карты) (?:точно )?зна(?:ю|ют),? что "
+            r"(?:он|она|они) (?:думает|думают|чувствует|чувствуют)\b",
+            r"\b(?:он|она|они) (?:тайно|точно|определенно) "
+            r"(?:думает|думают|чувствует|чувствуют|любит|любят|хочет|хотят)\b",
+        ),
+    ),
+    _SafetyRule(
+        ReadingOutputSafetyCategory.INFIDELITY_OR_CRIME_CLAIM,
+        _patterns(
+            r"\b(?:he|she|they) (?:is|are) cheating on you\b",
+            r"\b(?:he|she|they) committed (?:a crime|fraud|the theft)\b",
+            r"\b(?:он|она) (?:изменяет|изменила|изменил) (?:вам|тебе)\b",
+            r"\b(?:он|она|они) совершил(?:а|и)? "
+            r"(?:преступление|мошенничество|кражу)\b",
+        ),
+    ),
+    _SafetyRule(
+        ReadingOutputSafetyCategory.DEATH_CLAIM,
+        _patterns(
+            r"\b(?:you|he|she|they) will die\b",
+            r"\b(?:ты|вы|он|она|они) (?:умрешь|умрете|умрет|умрут)\b",
+        ),
+    ),
+    _SafetyRule(
+        ReadingOutputSafetyCategory.CURSE_CLAIM,
+        _patterns(
+            r"\b(?:you are|he is|she is|they are) cursed\b",
+            r"\bthere is (?:a curse|dark energy) on you\b",
+            r"\bна (?:вас|тебе|нем|ней) (?:порча|проклятие)\b",
+            r"\b(?:вас|тебя|его|ее) прокляли\b",
+        ),
+    ),
+    _SafetyRule(
+        ReadingOutputSafetyCategory.FEAR_BASED_UPSELL,
         _patterns(
             r"\b(?:curse|cursed|dark energy)\b.{0,120}\b(?:pay|buy|purchase)\b",
-            r"\b(?:pay|buy|purchase)\b.{0,120}\b(?:or something bad|before it is too late|remove the curse)\b",  # noqa: E501
-            r"\b(?:порча|проклятие|темная энергия)\b.{0,120}\b(?:оплати|купите|купи|закажи)\b",
-            r"\b(?:оплати|купите|купи|закажи)\b.{0,120}\b(?:иначе случится беда|пока не поздно|снять порчу)\b",  # noqa: E501
+            r"\b(?:pay|buy|purchase)\b.{0,120}\b"
+            r"(?:or something bad|before it is too late|remove the curse)\b",
+            r"\b(?:порча|проклятие|темная энергия)\b.{0,120}\b"
+            r"(?:оплати|купите|купи|закажи)\b",
+            r"\b(?:оплати|купите|купи|закажи)\b.{0,120}\b"
+            r"(?:иначе случится беда|пока не поздно|снять порчу)\b",
         ),
     ),
     _SafetyRule(
-        SafetyCategory.DEPENDENCY,
+        ReadingOutputSafetyCategory.DEPENDENCY,
         _patterns(
             r"\b(?:ask|consult) (?:the cards|me) every day\b",
-            r"\bdo not (?:decide|act|make decisions) without (?:a|another|the) reading\b",
-            r"\b(?:спрашивай|спрашивайте|проверяй|проверяйте) (?:карты|расклад) каждый день\b",
-            r"\bне принимай(?:те)? решени(?:е|я) без (?:нового |еще одного )?расклада\b",
+            r"\bdo not (?:decide|act|make decisions) "
+            r"without (?:a|another|the) reading\b",
+            r"\b(?:спрашивай|спрашивайте|проверяй|проверяйте) "
+            r"(?:карты|расклад) каждый день\b",
+            r"\bне принимай(?:те)? решени(?:е|я) "
+            r"без (?:нового |еще одного )?расклада\b",
         ),
     ),
 )
