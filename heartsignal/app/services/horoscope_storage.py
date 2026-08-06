@@ -1,5 +1,6 @@
 """Versioned encrypted envelope for replayable Horoscope results and facts."""
 
+import json
 from datetime import date, datetime
 from typing import Literal, cast
 
@@ -66,7 +67,9 @@ def deserialize_horoscope(
     """Strictly restore the immutable result and fact bundle from ciphertext plaintext."""
 
     try:
-        envelope = StoredHoroscopeEnvelope.model_validate(payload)
+        envelope = StoredHoroscopeEnvelope.model_validate_json(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        )
         facts = HoroscopeFactBundle(
             facts_version=envelope.facts.facts_version,
             scope=envelope.facts.scope,
