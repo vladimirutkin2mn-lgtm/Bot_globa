@@ -49,6 +49,7 @@ pytest \
   tests/test_birth_profile_postgres.py::test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest \
   tests/test_birth_profile_postgres.py::test_concurrent_saves_serialize_to_one_profile_row \
   tests/test_birth_profile_postgres.py::test_revoke_consent_purges_ciphertext_and_blocks_reuse \
+  tests/test_birth_profile_postgres.py::test_load_and_revoke_serialize_without_post_revoke_ciphertext \
   tests/test_birth_profile_postgres.py::test_birth_profile_never_crosses_user_boundary \
   tests/test_birth_profile_postgres.py::test_account_deletion_cascades_profile_consent_and_ciphertext \
   tests/test_natal_chart.py::test_same_normalized_input_produces_identical_versioned_payload \
