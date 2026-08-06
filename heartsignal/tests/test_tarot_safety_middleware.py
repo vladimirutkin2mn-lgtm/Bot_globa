@@ -1,5 +1,7 @@
 """Telegram middleware coverage for pre-persistence crisis handoffs."""
 
+# ruff: noqa: RUF001
+
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
