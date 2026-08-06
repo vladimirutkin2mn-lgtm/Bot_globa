@@ -8,6 +8,8 @@ pytest \
   tests/test_credits_repository_postgres.py::test_different_spends_never_make_balance_negative \
   tests/test_credits_repository_postgres.py::test_cross_user_spend_never_exposes_or_refunds_owner_transaction \
   tests/test_credits_repository_postgres.py::test_public_unlock_and_refund_are_mutually_exclusive \
+  tests/test_product_catalog_checkout_postgres.py::test_legacy_callback_creates_only_current_sku_and_immutable_label_snapshot \
+  tests/test_product_catalog_financial_lifecycle_postgres.py::test_astrology_v2_completion_and_refund_use_order_not_current_label \
   tests/test_followup_service_postgres.py::test_concurrent_requests_make_one_llm_call_and_consume_once \
   tests/test_followup_service_postgres.py::test_technical_failure_releases_entitlement_for_retry \
   tests/test_followup_service_postgres.py::test_soft_delete_purges_encrypted_followup_history \
