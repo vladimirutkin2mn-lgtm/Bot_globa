@@ -78,6 +78,9 @@ jobs:
       - name: Verify protected platform invariants
         run: bash scripts/run_platform_invariants.sh --junitxml=platform-invariants-report.xml
 
+      - name: Verify oracle safety regression gate
+        run: bash scripts/run_oracle_safety_gate.sh --junitxml=oracle-safety-report.xml
+
       - name: Reset test database before full suite
         run: python scripts/reset_test_database.py
 
@@ -91,6 +94,7 @@ jobs:
           name: heartsignal-test-reports
           path: |
             heartsignal/platform-invariants-report.xml
+            heartsignal/oracle-safety-report.xml
             heartsignal/pytest-report.xml
           if-no-files-found: warn
           retention-days: 7
