@@ -15,6 +15,7 @@ from app.db.memory_models import (
 )
 from app.domain.memory_quality import MemoryQualitySummary
 from app.domain.oracle_memory import (
+    CURRENT_MEMORY_CONSENT_VERSION,
     MemoryClaimBasis,
     MemoryCreateRequest,
     MemoryItemStatus,
@@ -44,12 +45,9 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
         sessions: async_sessionmaker[AsyncSession],
         cipher: FingerprintingSensitiveContentCipher,
         *,
-        consent_version: str | None = None,
+        consent_version: str = CURRENT_MEMORY_CONSENT_VERSION,
     ) -> None:
-        kwargs: dict[str, str] = {}
-        if consent_version is not None:
-            kwargs["consent_version"] = consent_version
-        super().__init__(sessions, cipher, **kwargs)
+        super().__init__(sessions, cipher, consent_version=consent_version)
         self._quality_cipher = cipher
 
     async def remember(self, user_id: UUID, request: MemoryCreateRequest) -> OracleMemoryItem:
@@ -248,7 +246,10 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
             )
             duplicate = fingerprints.get(fingerprint)
             await self._purge_items(session, [item], now)
-            if duplicate is not None and duplicate.claim_basis == MemoryClaimBasis.USER_STATED.value:
+            if (
+                duplicate is not None
+                and duplicate.claim_basis == MemoryClaimBasis.USER_STATED.value
+            ):
                 await session.flush()
                 return duplicate.id
             if duplicate is not None:
