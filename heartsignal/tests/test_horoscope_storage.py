@@ -8,6 +8,7 @@ from app.domain.horoscope import AstrologyReadingResult
 from app.services.horoscope_storage import (
     InvalidStoredHoroscope,
     deserialize_horoscope,
+    horoscope_memory_source,
     serialize_horoscope,
 )
 from tests.horoscope_helpers import sample_fact_bundle, valid_horoscope_payload
@@ -26,6 +27,22 @@ def test_horoscope_result_and_facts_round_trip_through_json_storage() -> None:
     assert restored_result == result
     assert restored_facts == facts
     assert restored_result.facts_digest == restored_facts.digest()
+
+
+def test_memory_source_contains_narrative_but_no_calculated_fact_bundle() -> None:
+    facts = sample_fact_bundle()
+    result = AstrologyReadingResult.model_validate_json(
+        json.dumps(valid_horoscope_payload(facts))
+    )
+
+    memory_source = horoscope_memory_source(serialize_horoscope(result, facts))
+
+    assert memory_source == result.model_dump(mode="json")
+    serialized = json.dumps(memory_source)
+    assert "envelope_version" not in serialized
+    assert '"facts"' not in serialized
+    assert "longitude_millidegrees" not in serialized
+    assert facts.facts[0].fact_id in serialized
 
 
 def test_horoscope_envelope_rejects_unknown_version_and_extra_fields() -> None:
