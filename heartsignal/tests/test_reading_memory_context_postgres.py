@@ -1,8 +1,7 @@
 """PostgreSQL consent and ownership boundaries for reading memory retrieval."""
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import User
 from app.domain.oracle_memory import (
