@@ -1,5 +1,6 @@
 """Deterministic natal chart facts calculated from normalized encrypted inputs."""
 
+from collections.abc import Callable
 from itertools import combinations
 from typing import Any, Protocol
 from uuid import UUID
@@ -9,7 +10,6 @@ import astronomy
 from app.domain.birth_profile import (
     CURRENT_BIRTH_PROFILE_NORMALIZATION_VERSION,
     BirthProfileInput,
-    BirthProfileView,
 )
 from app.domain.natal_chart import (
     NATAL_CHART_ENGINE_VERSION,
@@ -55,8 +55,12 @@ class BirthProfileUnavailableError(LookupError):
     """No authorized active BirthProfile is available for calculation."""
 
 
-class BirthProfileLoader(Protocol):
-    async def load(self, user_id: UUID) -> BirthProfileView | None: ...
+class BirthProfileOperationRunner(Protocol):
+    async def use_profile(
+        self,
+        user_id: UUID,
+        operation: Callable[[BirthProfileInput], NatalChartResult],
+    ) -> NatalChartResult | None: ...
 
 
 class NatalChartCalculator(Protocol):
@@ -64,21 +68,24 @@ class NatalChartCalculator(Protocol):
 
 
 class ConsentedNatalChartService:
-    """Load an authorized encrypted profile before invoking the pure calculator."""
+    """Calculate while the authorized encrypted profile remains user-locked."""
 
     def __init__(
         self,
-        profiles: BirthProfileLoader,
+        profiles: BirthProfileOperationRunner,
         calculator: NatalChartCalculator,
     ) -> None:
         self._profiles = profiles
         self._calculator = calculator
 
     async def calculate_for_user(self, user_id: UUID) -> NatalChartResult:
-        profile = await self._profiles.load(user_id)
-        if profile is None:
+        result = await self._profiles.use_profile(
+            user_id,
+            self._calculator.calculate,
+        )
+        if result is None:
             raise BirthProfileUnavailableError("active birth profile is required")
-        return self._calculator.calculate(profile.profile)
+        return result
 
 
 class AstronomyEngineNatalChartCalculator:
