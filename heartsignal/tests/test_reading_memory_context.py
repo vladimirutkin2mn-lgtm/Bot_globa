@@ -43,9 +43,7 @@ def _item(
         confidence_milli=confidence,
         claim_basis=claim_basis,
         source_type=(
-            MemorySourceType.READING_DERIVED
-            if reading_derived
-            else MemorySourceType.USER_EXPLICIT
+            MemorySourceType.READING_DERIVED if reading_derived else MemorySourceType.USER_EXPLICIT
         ),
         source_reading_id=uuid4() if reading_derived else None,
         source_reading_created_at=created_at if reading_derived else None,
@@ -151,9 +149,7 @@ async def test_retrieval_enforces_item_and_character_budgets() -> None:
 
 @pytest.mark.asyncio
 async def test_retrieval_returns_empty_when_consent_service_returns_no_memory() -> None:
-    retriever = OracleReadingMemoryRetriever(
-        cast(OracleMemoryService, FakeMemoryService([]))
-    )
+    retriever = OracleReadingMemoryRetriever(cast(OracleMemoryService, FakeMemoryService([])))
     assert (
         await retriever.retrieve(
             uuid4(),
