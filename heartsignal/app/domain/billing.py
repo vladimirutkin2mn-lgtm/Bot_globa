@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.config import Settings
-from app.domain.products import ProductCode
+from app.domain.products import Product, ProductCatalog, ProductCode
 from app.providers.payments.base import BillingMarket, PaymentProviderName
 
 
@@ -13,11 +13,13 @@ class PurchaseMode(StrEnum):
     SUBSCRIPTION = "subscription"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BillingOffer:
     product_code: ProductCode
     product_version: int
     purchase_mode: PurchaseMode
+    title: str
+    receipt_label: str
     credits: int
     market: BillingMarket
     provider: PaymentProviderName
@@ -28,85 +30,112 @@ class BillingOffer:
 
 
 class BillingCatalog:
-    """Catalog values, rather than request data, define commercial terms."""
+    """Build every commercial route from one current product definition set."""
 
     def __init__(self, settings: Settings) -> None:
-        cost = settings.analysis_price_credits
-        products = (
-            (ProductCode.ANALYSIS_SINGLE, cost, settings.product_analysis_single_price_minor),
-            (ProductCode.ANALYSIS_PACK_5, cost * 5, settings.product_analysis_pack_5_price_minor),
-            (
-                ProductCode.SUBSCRIPTION_MONTHLY,
-                settings.product_subscription_monthly_credits,
-                settings.product_subscription_monthly_price_minor,
-            ),
-        )
+        self._products = ProductCatalog(settings)
         self._offers: dict[tuple[ProductCode, BillingMarket, str], BillingOffer] = {}
-        for code, credits, rub_amount in products:
-            subscription = code is ProductCode.SUBSCRIPTION_MONTHLY
+        for product in self._products.all():
             self._add(
-                code,
-                credits,
+                product,
                 BillingMarket.RU,
                 PaymentProviderName.YOOKASSA,
                 "RUB",
-                rub_amount,
-                f"catalog:{code}:rub:v1",
-                subscription,
+                product.amount_minor,
+                f"catalog:{product.code.value}:rub:v{product.version}",
             )
             for currency in ("EUR", "USD"):
-                attr = f"stripe_price_{code.value}_{currency.lower()}"
-                reference = getattr(settings, attr)
-                # Price IDs are authoritative provider references. Empty references keep an
-                # offer visible to validation/routing while live flags remain disabled.
-                configured_amount = getattr(
-                    settings, f"stripe_amount_{code.value}_{currency.lower()}_minor", None
+                price_reference, amount_minor = _stripe_coordinates(
+                    settings,
+                    product.code,
+                    currency,
                 )
-                amount = configured_amount if configured_amount is not None else 1
                 self._add(
-                    code,
-                    credits,
+                    product,
                     BillingMarket.INTERNATIONAL,
                     PaymentProviderName.STRIPE,
                     currency,
-                    amount,
-                    reference or f"unconfigured:{code}:{currency}",
-                    subscription,
+                    amount_minor if amount_minor is not None else 1,
+                    price_reference
+                    or f"unconfigured:{product.code.value}:{currency.lower()}:v{product.version}",
                 )
 
     def _add(
         self,
-        code: ProductCode,
-        credits: int,
+        product: Product,
         market: BillingMarket,
         provider: PaymentProviderName,
         currency: str,
-        amount: int,
-        reference: str,
-        subscription: bool,
+        amount_minor: int,
+        price_reference: str,
     ) -> None:
-        self._offers[(code, market, currency)] = BillingOffer(
-            code,
-            1,
-            PurchaseMode.SUBSCRIPTION if subscription else PurchaseMode.ONE_TIME,
-            credits,
-            market,
-            provider,
-            currency,
-            amount,
-            reference,
-            "month" if subscription else None,
+        self._offers[(product.code, market, currency)] = BillingOffer(
+            product_code=product.code,
+            product_version=product.version,
+            purchase_mode=(
+                PurchaseMode.SUBSCRIPTION if product.recurring else PurchaseMode.ONE_TIME
+            ),
+            title=product.title,
+            receipt_label=product.receipt_label,
+            credits=product.credits,
+            market=market,
+            provider=provider,
+            currency=currency,
+            amount_minor=amount_minor,
+            price_reference=price_reference,
+            billing_interval="month" if product.recurring else None,
         )
 
     def resolve_product_offer(
-        self, product_code: str | ProductCode, market: BillingMarket | str, currency: str
+        self,
+        product_code: str | ProductCode,
+        market: BillingMarket | str,
+        currency: str,
     ) -> BillingOffer:
-        """Resolve only the exact server-owned market/currency route."""
+        """Resolve the exact route, canonicalizing retired client callback aliases."""
+
         try:
-            key = (ProductCode(product_code), BillingMarket(market), currency)
-        except ValueError as exc:
+            canonical = self._products.canonical_code(product_code)
+            key = (canonical, BillingMarket(market), currency)
+        except (LookupError, ValueError) as exc:
             raise LookupError("unknown billing offer") from exc
         try:
             return self._offers[key]
         except KeyError as exc:
             raise LookupError("unsupported market/currency combination") from exc
+
+
+def _stripe_coordinates(
+    settings: Settings,
+    product_code: ProductCode,
+    currency: str,
+) -> tuple[str, int | None]:
+    suffix = currency.lower()
+    if product_code is ProductCode.READING_SINGLE:
+        return (
+            getattr(settings, f"stripe_price_reading_single_{suffix}")
+            or getattr(settings, f"stripe_price_analysis_single_{suffix}"),
+            getattr(settings, f"stripe_amount_reading_single_{suffix}_minor")
+            or getattr(settings, f"stripe_amount_analysis_single_{suffix}_minor"),
+        )
+    if product_code is ProductCode.READING_PACK_5:
+        return (
+            getattr(settings, f"stripe_price_reading_pack_5_{suffix}")
+            or getattr(settings, f"stripe_price_analysis_pack_5_{suffix}"),
+            getattr(settings, f"stripe_amount_reading_pack_5_{suffix}_minor")
+            or getattr(settings, f"stripe_amount_analysis_pack_5_{suffix}_minor"),
+        )
+    if product_code is ProductCode.ASTROLOGY_NATAL:
+        return (
+            getattr(settings, f"stripe_price_astrology_natal_{suffix}"),
+            getattr(settings, f"stripe_amount_astrology_natal_{suffix}_minor"),
+        )
+    if product_code is ProductCode.ASTROLOGY_FORECAST:
+        return (
+            getattr(settings, f"stripe_price_astrology_forecast_{suffix}"),
+            getattr(settings, f"stripe_amount_astrology_forecast_{suffix}_minor"),
+        )
+    return (
+        getattr(settings, f"stripe_price_subscription_monthly_{suffix}"),
+        getattr(settings, f"stripe_amount_subscription_monthly_{suffix}_minor"),
+    )
