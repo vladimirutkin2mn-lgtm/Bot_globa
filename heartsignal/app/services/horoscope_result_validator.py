@@ -59,6 +59,11 @@ class HoroscopeResultValidator:
             validate_astrology_reading_semantics(result, expected_facts)
         except AstrologyReadingSemanticError as exc:
             raise InvalidHoroscopeResult("invalid_semantics", tuple(exc.issues)) from exc
+        if set(result.limitations) != set(expected_facts.limitations):
+            raise InvalidHoroscopeResult(
+                "invalid_semantics",
+                ("limitations:mismatch",),
+            )
         self._validate_safety(result)
         return HoroscopeResultValidation(result=result, schema_version=self.schema_version)
 
@@ -108,8 +113,9 @@ class HoroscopeResultValidator:
             )
         return (
             "Return one complete JSON object matching the supplied schema. Copy scope and "
-            "facts_digest exactly, use only supplied fact_id values, and include every supplied "
-            "limitation. Do not write planet names, zodiac signs, houses, ascendant labels or "
-            "degree values in narrative text. Do not add Markdown, commentary or extra fields."
+            "facts_digest exactly, use only supplied fact_id values, and include exactly the "
+            "supplied limitations. Do not write planet names, zodiac signs, houses, ascendant "
+            "labels or degree values in narrative text. Do not add Markdown, commentary or "
+            "extra fields."
             f"{safety_instruction}{suffix}"
         )
