@@ -14,7 +14,6 @@ from app.domain.memory_extraction import (
     CompletedReadingMemorySnapshot,
     MemoryExtractionOutcome,
     MemoryExtractionPayload,
-    MemoryExtractionStatus,
 )
 from app.domain.reading import (
     ReadingDraftRequest,
