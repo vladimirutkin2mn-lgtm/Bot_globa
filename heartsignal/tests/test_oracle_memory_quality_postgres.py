@@ -79,9 +79,7 @@ async def test_quality_service_reconciles_legacy_duplicates_and_purges_loser_cip
             for item_id in (first.id, second.id)
         ]
     deleted = [
-        (item, private)
-        for item, private in rows
-        if item is not None and item.status == "deleted"
+        (item, private) for item, private in rows if item is not None and item.status == "deleted"
     ]
     assert len(deleted) == 1
     deleted_item, deleted_private = deleted[0]
