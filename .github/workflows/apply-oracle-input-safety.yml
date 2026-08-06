@@ -1,24 +1,20 @@
 name: Apply oracle input safety integration
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
-    types:
-      - opened
-      - synchronize
+      - feat/oracle-input-safety
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.head_ref == 'feat/oracle-input-safety'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
 
       - name: Integrate safety gate before prompt construction
@@ -134,4 +130,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Integrate oracle input safety before LLM prompts"
-          git push origin "HEAD:${{ github.head_ref }}"
+          git push origin "HEAD:${{ github.ref_name }}"
