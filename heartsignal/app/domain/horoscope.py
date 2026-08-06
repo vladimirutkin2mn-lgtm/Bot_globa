@@ -10,6 +10,12 @@ from typing import Annotated
 
 from pydantic import Field, StringConstraints
 
+from app.domain.natal_chart import (
+    NATAL_CHART_HOUSE_SYSTEM,
+    NatalAspectKind,
+    NatalBody,
+    ZodiacSign,
+)
 from app.domain.reading_result import (
     ReadingSafetyAssessment,
     ReadingScenario,
@@ -62,6 +68,18 @@ class HoroscopeLimitation(StrEnum):
     NO_CERTAIN_PREDICTION = "no_certain_prediction"
 
 
+_BODY_VALUES = frozenset(value.value for value in NatalBody)
+_SIGN_VALUES = tuple(value.value for value in ZodiacSign)
+_ASPECT_VALUES = frozenset(value.value for value in NatalAspectKind)
+_ASPECT_ANGLES = {
+    NatalAspectKind.CONJUNCTION.value: (0_000, 8_000),
+    NatalAspectKind.SEXTILE.value: (60_000, 4_000),
+    NatalAspectKind.SQUARE.value: (90_000, 6_000),
+    NatalAspectKind.TRINE.value: (120_000, 6_000),
+    NatalAspectKind.OPPOSITION.value: (180_000, 8_000),
+}
+
+
 @dataclass(frozen=True, slots=True)
 class HoroscopeFact:
     fact_id: str
@@ -71,8 +89,20 @@ class HoroscopeFact:
     def __post_init__(self) -> None:
         if re.fullmatch(r"[a-z0-9:._-]{1,160}", self.fact_id) is None:
             raise ValueError("invalid horoscope fact id")
-        if not self.details:
-            raise ValueError("horoscope fact details cannot be empty")
+        if self.kind is HoroscopeFactKind.NATAL_PLANET:
+            self._validate_planet(transit=False)
+        elif self.kind is HoroscopeFactKind.TRANSIT_PLANET:
+            self._validate_planet(transit=True)
+        elif self.kind is HoroscopeFactKind.NATAL_ASPECT:
+            self._validate_natal_aspect()
+        elif self.kind is HoroscopeFactKind.NATAL_HOUSE:
+            self._validate_house()
+        elif self.kind is HoroscopeFactKind.NATAL_ASCENDANT:
+            self._validate_ascendant()
+        elif self.kind is HoroscopeFactKind.TRANSIT_NATAL_ASPECT:
+            self._validate_transit_aspect()
+        else:
+            raise ValueError("unsupported horoscope fact kind")
 
     def payload(self) -> dict[str, object]:
         return {
@@ -80,6 +110,148 @@ class HoroscopeFact:
             "kind": self.kind.value,
             "details": self.details,
         }
+
+    def _validate_planet(self, *, transit: bool) -> None:
+        expected = {
+            "body",
+            "longitude_millidegrees",
+            "sign",
+            "sign_degree_millidegrees",
+            "retrograde",
+        }
+        if transit:
+            expected.add("sample_date")
+        self._require_exact_keys(expected)
+        body = self._require_member("body", _BODY_VALUES)
+        longitude = self._require_int("longitude_millidegrees", 0, 359_999)
+        sign = self._require_member("sign", frozenset(_SIGN_VALUES))
+        sign_degree = self._require_int("sign_degree_millidegrees", 0, 29_999)
+        self._require_bool("retrograde")
+        if sign != _SIGN_VALUES[longitude // 30_000] or sign_degree != longitude % 30_000:
+            raise ValueError("horoscope planet sign fields do not match longitude")
+        if transit:
+            sample_date = self._require_date("sample_date")
+            expected_id = f"transit:{sample_date}:planet:{body}"
+        else:
+            expected_id = f"natal:planet:{body}"
+        self._require_fact_id(expected_id)
+
+    def _validate_natal_aspect(self) -> None:
+        self._require_exact_keys(
+            {
+                "first_body",
+                "second_body",
+                "kind",
+                "separation_millidegrees",
+                "orb_millidegrees",
+            }
+        )
+        first = self._require_member("first_body", _BODY_VALUES)
+        second = self._require_member("second_body", _BODY_VALUES)
+        kind = self._require_member("kind", _ASPECT_VALUES)
+        if first >= second:
+            raise ValueError("horoscope natal aspect bodies must use lexical ordering")
+        self._validate_aspect_angles(kind)
+        self._require_fact_id(f"natal:aspect:{first}:{second}:{kind}")
+
+    def _validate_house(self) -> None:
+        self._require_exact_keys({"number", "cusp_longitude_millidegrees", "sign"})
+        number = self._require_int("number", 1, 12)
+        longitude = self._require_int("cusp_longitude_millidegrees", 0, 359_999)
+        sign = self._require_member("sign", frozenset(_SIGN_VALUES))
+        if sign != _SIGN_VALUES[longitude // 30_000]:
+            raise ValueError("horoscope house sign does not match cusp longitude")
+        self._require_fact_id(f"natal:house:{number}")
+
+    def _validate_ascendant(self) -> None:
+        self._require_exact_keys(
+            {
+                "longitude_millidegrees",
+                "sign",
+                "sign_degree_millidegrees",
+                "house_system",
+            }
+        )
+        longitude = self._require_int("longitude_millidegrees", 0, 359_999)
+        sign = self._require_member("sign", frozenset(_SIGN_VALUES))
+        sign_degree = self._require_int("sign_degree_millidegrees", 0, 29_999)
+        house_system = self._require_text("house_system")
+        if house_system != NATAL_CHART_HOUSE_SYSTEM:
+            raise ValueError("unsupported horoscope house system")
+        if sign != _SIGN_VALUES[longitude // 30_000] or sign_degree != longitude % 30_000:
+            raise ValueError("horoscope ascendant sign fields do not match longitude")
+        self._require_fact_id("natal:ascendant")
+
+    def _validate_transit_aspect(self) -> None:
+        self._require_exact_keys(
+            {
+                "sample_date",
+                "transit_body",
+                "natal_body",
+                "kind",
+                "separation_millidegrees",
+                "orb_millidegrees",
+            }
+        )
+        sample_date = self._require_date("sample_date")
+        transit_body = self._require_member("transit_body", _BODY_VALUES)
+        natal_body = self._require_member("natal_body", _BODY_VALUES)
+        kind = self._require_member("kind", _ASPECT_VALUES)
+        self._validate_aspect_angles(kind)
+        self._require_fact_id(
+            f"transit:{sample_date}:{transit_body}:natal:{natal_body}:{kind}"
+        )
+
+    def _validate_aspect_angles(self, kind: str) -> None:
+        separation = self._require_int("separation_millidegrees", 0, 180_000)
+        orb = self._require_int("orb_millidegrees", 0, 8_000)
+        exact_angle, maximum_orb = _ASPECT_ANGLES[kind]
+        if orb > maximum_orb or abs(separation - exact_angle) != orb:
+            raise ValueError("horoscope aspect orb does not match separation")
+
+    def _require_exact_keys(self, expected: set[str]) -> None:
+        if set(self.details) != expected:
+            raise ValueError("invalid horoscope fact detail fields")
+
+    def _require_fact_id(self, expected: str) -> None:
+        if self.fact_id != expected:
+            raise ValueError("horoscope fact id does not match details")
+
+    def _require_text(self, key: str) -> str:
+        value = self.details.get(key)
+        if not isinstance(value, str) or not value:
+            raise ValueError("invalid horoscope fact text field")
+        return value
+
+    def _require_member(self, key: str, allowed: frozenset[str]) -> str:
+        value = self._require_text(key)
+        if value not in allowed:
+            raise ValueError("unsupported horoscope fact enum value")
+        return value
+
+    def _require_int(self, key: str, minimum: int, maximum: int) -> int:
+        value = self.details.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("invalid horoscope fact integer field")
+        if not minimum <= value <= maximum:
+            raise ValueError("horoscope fact integer field is out of range")
+        return value
+
+    def _require_bool(self, key: str) -> bool:
+        value = self.details.get(key)
+        if not isinstance(value, bool):
+            raise ValueError("invalid horoscope fact boolean field")
+        return value
+
+    def _require_date(self, key: str) -> str:
+        value = self._require_text(key)
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("invalid horoscope fact date field") from exc
+        if parsed.isoformat() != value:
+            raise ValueError("horoscope fact date must use ISO format")
+        return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +279,8 @@ class HoroscopeFactBundle:
         elif self.period_start is not None or self.period_end is not None:
             raise ValueError("non-forecast fact bundle cannot contain a period")
         fact_ids = [fact.fact_id for fact in self.facts]
+        if not fact_ids:
+            raise ValueError("horoscope fact bundle cannot be empty")
         if len(fact_ids) != len(set(fact_ids)):
             raise ValueError("horoscope fact ids must be unique")
         if len(self.limitations) != len(set(self.limitations)):
@@ -115,6 +289,23 @@ class HoroscopeFactBundle:
             raise ValueError("horoscope facts must disclose entertainment-only use")
         if HoroscopeLimitation.NO_CERTAIN_PREDICTION not in self.limitations:
             raise ValueError("horoscope facts must prohibit certain prediction")
+        has_houses = any(
+            fact.kind in {HoroscopeFactKind.NATAL_HOUSE, HoroscopeFactKind.NATAL_ASCENDANT}
+            for fact in self.facts
+        )
+        if HoroscopeLimitation.BIRTH_TIME_UNKNOWN in self.limitations and has_houses:
+            raise ValueError("unknown birth time cannot contain house or ascendant facts")
+        has_transits = any(
+            fact.kind in {
+                HoroscopeFactKind.TRANSIT_PLANET,
+                HoroscopeFactKind.TRANSIT_NATAL_ASPECT,
+            }
+            for fact in self.facts
+        )
+        if has_transits != (HoroscopeLimitation.SAMPLED_TRANSITS in self.limitations):
+            raise ValueError("sampled transit limitation must match transit facts")
+        if has_transits != (self.period_start is not None):
+            raise ValueError("transit facts require a forecast period")
 
     @property
     def fact_ids(self) -> frozenset[str]:
