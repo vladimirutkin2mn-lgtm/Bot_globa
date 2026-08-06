@@ -97,6 +97,8 @@ class CheckoutService:
             raise CheckoutRejected("unsupported offer") from exc
         if offer.purchase_mode is not PurchaseMode.ONE_TIME:
             raise CheckoutRejected("subscriptions unavailable")
+        if offer.price_reference.startswith("unconfigured:"):
+            raise CheckoutRejected("product price unavailable")
         enabled = (
             self._settings.yookassa_enabled
             if offer.provider is PaymentProviderName.YOOKASSA
@@ -162,6 +164,8 @@ class CheckoutService:
                     commercial_snapshot={
                         "product_code": offer.product_code.value,
                         "product_version": offer.product_version,
+                        "title": offer.title,
+                        "receipt_label": offer.receipt_label,
                         "credits": offer.credits,
                         "amount_minor": offer.amount_minor,
                         "currency": offer.currency,
@@ -188,6 +192,7 @@ class CheckoutService:
                 f"{self._settings.payment_public_base_url}/payments/return/{order.checkout_token}",
                 f"{self._settings.payment_public_base_url}/payments/return/{order.checkout_token}",
                 receipt_contact,
+                receipt_label=offer.receipt_label,
             )
             order_id, token = order.id, order.checkout_token
         try:
