@@ -17,6 +17,7 @@ from app.domain.reading import (
     ReadingSymbolInput,
     ensure_reading_transition,
 )
+from app.repositories.reading_memory_extraction_jobs import enqueue_reading_memory_extraction
 from app.services.sensitive_content import ContentPurpose, SensitiveContentCipher
 
 
@@ -210,6 +211,11 @@ class SqlAlchemyReadingRepository:
         reading.access_level = ReadingAccess.PREVIEW.value
         reading.generated_at = datetime.now(UTC)
         reading.failure_code = None
+        await enqueue_reading_memory_extraction(
+            self._session,
+            reading.id,
+            reading.user_id,
+        )
         await self._session.flush()
         return reading
 
@@ -260,6 +266,12 @@ class SqlAlchemyReadingRepository:
         reading.access_level = ReadingAccess.FULL.value
         reading.cost_units = cost_units
         reading.full_access_transaction_id = transaction_id
+        await enqueue_reading_memory_extraction(
+            self._session,
+            reading.id,
+            reading.user_id,
+            reactivate_no_consent=True,
+        )
         await self._session.flush()
         return reading
 
