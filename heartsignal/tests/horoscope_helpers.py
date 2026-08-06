@@ -1,7 +1,6 @@
 """Shared deterministic fixtures for Horoscope unit and integration tests."""
 
 from datetime import UTC, date, datetime
-from typing import NoReturn
 from uuid import UUID
 
 from app.domain.horoscope import HoroscopeFactBundle, HoroscopeScope
@@ -22,7 +21,7 @@ _SIGNS = tuple(ZodiacSign)
 
 
 class UnusedNatalChartProvider:
-    async def calculate_for_user(self, user_id: UUID) -> NoReturn:
+    async def calculate_for_user(self, user_id: UUID) -> NatalChartResult:
         raise AssertionError(f"unexpected chart lookup for {user_id}")
 
 
