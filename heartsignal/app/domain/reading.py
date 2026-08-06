@@ -59,9 +59,7 @@ _ALLOWED_TRANSITIONS: dict[ReadingStatus, frozenset[ReadingStatus]] = {
             ReadingStatus.DELETED,
         }
     ),
-    ReadingStatus.PREVIEW_READY: frozenset(
-        {ReadingStatus.FULL_READY, ReadingStatus.DELETED}
-    ),
+    ReadingStatus.PREVIEW_READY: frozenset({ReadingStatus.FULL_READY, ReadingStatus.DELETED}),
     ReadingStatus.FULL_READY: frozenset({ReadingStatus.DELETED}),
     ReadingStatus.FAILED: frozenset({ReadingStatus.GENERATING, ReadingStatus.DELETED}),
     ReadingStatus.DELETED: frozenset(),
