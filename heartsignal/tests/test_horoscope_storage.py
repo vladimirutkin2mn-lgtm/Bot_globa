@@ -29,7 +29,7 @@ def test_horoscope_result_and_facts_round_trip_through_json_storage() -> None:
     assert restored_result.facts_digest == restored_facts.digest()
 
 
-def test_memory_source_contains_narrative_but_no_calculated_fact_bundle() -> None:
+def test_memory_source_contains_narrative_but_no_calculated_fact_metadata() -> None:
     facts = sample_fact_bundle()
     result = AstrologyReadingResult.model_validate_json(
         json.dumps(valid_horoscope_payload(facts))
@@ -37,12 +37,17 @@ def test_memory_source_contains_narrative_but_no_calculated_fact_bundle() -> Non
 
     memory_source = horoscope_memory_source(serialize_horoscope(result, facts))
 
-    assert memory_source == result.model_dump(mode="json")
     serialized = json.dumps(memory_source)
+    assert memory_source["overview"] == result.overview
+    assert memory_source["interpretations"] == [
+        item.text for item in result.interpretations
+    ]
     assert "envelope_version" not in serialized
     assert '"facts"' not in serialized
+    assert "facts_digest" not in serialized
     assert "longitude_millidegrees" not in serialized
-    assert facts.facts[0].fact_id in serialized
+    assert "natal:" not in serialized
+    assert "transit:" not in serialized
 
 
 def test_horoscope_envelope_rejects_unknown_version_and_extra_fields() -> None:
