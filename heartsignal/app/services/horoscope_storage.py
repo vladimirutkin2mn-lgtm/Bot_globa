@@ -102,7 +102,23 @@ def deserialize_horoscope(
 
 
 def horoscope_memory_source(payload: dict[str, object]) -> dict[str, object]:
-    """Return narrative only so memory extraction never receives calculated chart facts."""
+    """Return narrative only, excluding chart facts, references, digests and share metadata."""
 
     result, _ = deserialize_horoscope(payload)
-    return result.model_dump(mode="json")
+    return {
+        "scope": result.scope.value,
+        "title": result.title,
+        "overview": result.overview,
+        "interpretations": [item.text for item in result.interpretations],
+        "themes": list(result.themes),
+        "possible_scenarios": [
+            {
+                "scenario": scenario.scenario,
+                "conditions": list(scenario.conditions),
+            }
+            for scenario in result.possible_scenarios
+        ],
+        "reflection_questions": list(result.reflection_questions),
+        "practical_step": result.practical_step,
+        "uncertainty_note": result.uncertainty_note,
+    }
