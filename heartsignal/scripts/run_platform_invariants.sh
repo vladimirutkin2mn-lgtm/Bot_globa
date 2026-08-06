@@ -23,4 +23,6 @@ pytest \
   tests/test_oracle_memory_postgres.py::test_account_deletion_physically_removes_memory_and_consent \
   tests/test_reading_memory_extraction_postgres.py::test_extraction_requires_consent_preserves_topics_and_is_idempotent \
   tests/test_reading_memory_extraction_postgres.py::test_consent_is_rechecked_after_external_extraction \
+  tests/test_reading_memory_extraction_jobs_postgres.py::test_ready_transition_enqueues_one_job_and_terminal_job_is_not_replayed \
+  tests/test_reading_memory_extraction_jobs_postgres.py::test_no_consent_skips_before_extractor_and_full_transition_reactivates \
   "$@"
