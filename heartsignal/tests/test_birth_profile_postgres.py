@@ -18,10 +18,12 @@ from app.domain.birth_profile import (
     BirthProfileInput,
     BirthProfileStatus,
 )
+from app.providers.analytics import NoOpAnalyticsClient
 from app.services.birth_profile import (
     BirthProfileConsentRequiredError,
     BirthProfileService,
 )
+from app.services.data_deletion import DataDeletionOutcome, DataDeletionService
 from app.services.sensitive_content import (
     AESGCMSensitiveContentCipher,
     ContentAuthenticationError,
@@ -114,7 +116,6 @@ async def test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest(
         b"Europe/Amsterdam",
         b"52.367573",
         b"4.904139",
-        b"120",
     ):
         assert marker not in ciphertext
     assert cipher.decrypt_json(ContentPurpose.BIRTH_PROFILE, ciphertext) == (
@@ -295,12 +296,17 @@ async def test_account_deletion_cascades_profile_consent_and_ciphertext(
     await service.grant_consent(user.id)
     await service.save(user.id, _profile())
 
-    async with payment_db.begin() as session:
-        stored = await session.get(User, user.id, with_for_update=True)
-        assert stored is not None
-        await session.delete(stored)
+    async with payment_db() as session:
+        outcome = await DataDeletionService(
+            session,
+            NoOpAnalyticsClient(),
+        ).delete_account(user.id)
+    assert outcome is DataDeletionOutcome.DELETED
 
     async with payment_db() as session:
+        stored_user = await session.get(User, user.id)
+        assert stored_user is not None
+        assert stored_user.privacy_status == "deleted"
         assert await session.get(BirthProfileConsent, user.id) is None
         assert (
             await session.scalar(
