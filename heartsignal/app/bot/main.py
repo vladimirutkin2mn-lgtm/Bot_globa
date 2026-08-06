@@ -15,6 +15,7 @@ from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
 from app.bot.tarot_handlers import router as tarot_router
+from app.bot.tarot_safety_middleware import TarotSafetyHandoffMiddleware
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
@@ -101,8 +102,11 @@ def create_dispatcher(
         RefundService(sessions, settings, refund_gateways),
     )
     rate_middleware = RateLimitMiddleware(FixedWindowRateLimiter())
+    tarot_safety_middleware = TarotSafetyHandoffMiddleware()
     dispatcher.message.outer_middleware(rate_middleware)
     dispatcher.callback_query.outer_middleware(rate_middleware)
+    dispatcher.message.outer_middleware(tarot_safety_middleware)
+    dispatcher.callback_query.outer_middleware(tarot_safety_middleware)
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
     dispatcher.include_router(followup_router)
