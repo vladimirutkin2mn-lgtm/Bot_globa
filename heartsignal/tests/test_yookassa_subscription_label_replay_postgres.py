@@ -16,7 +16,9 @@ from app.providers.payments.subscription_gateway import (
     SubscriptionStateFact,
 )
 from app.providers.payments.yookassa_gateway import YooKassaGateway
-from app.providers.payments.yookassa_subscription_gateway import YooKassaSubscriptionGateway
+from app.providers.payments.yookassa_subscription_gateway import (
+    YooKassaSubscriptionGateway,
+)
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
 from tests.payment_postgres_helpers import payment_db  # noqa: F401
@@ -173,7 +175,9 @@ async def test_later_renewal_uses_latest_terms_and_initial_receipt_label(
         assert "receipt_label" not in last_order.commercial_snapshot
 
     recording = RecordingYooKassaGateway()
-    configured = settings.model_copy(update={"yookassa_receipt_email": "receipt@example.com"})
+    configured = settings.model_copy(
+        update={"yookassa_receipt_email": "receipt@example.com"}
+    )
     gateway = YooKassaSubscriptionGateway(
         payment_db,
         configured,
