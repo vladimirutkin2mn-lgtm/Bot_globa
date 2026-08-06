@@ -24,6 +24,7 @@ from app.domain.natal_chart import (
     NatalTimePrecision,
     ZodiacSign,
 )
+from app.services.birth_profile import BirthProfileConsentRequiredError
 
 _SIGNS = tuple(ZodiacSign)
 _BODIES: tuple[tuple[NatalBody, Any], ...] = (
@@ -79,10 +80,13 @@ class ConsentedNatalChartService:
         self._calculator = calculator
 
     async def calculate_for_user(self, user_id: UUID) -> NatalChartResult:
-        result = await self._profiles.use_profile(
-            user_id,
-            self._calculator.calculate,
-        )
+        try:
+            result = await self._profiles.use_profile(
+                user_id,
+                self._calculator.calculate,
+            )
+        except BirthProfileConsentRequiredError as exc:
+            raise BirthProfileUnavailableError("active birth profile is required") from exc
         if result is None:
             raise BirthProfileUnavailableError("active birth profile is required")
         return result
