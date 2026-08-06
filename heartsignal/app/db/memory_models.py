@@ -77,9 +77,7 @@ class OracleMemoryItem(Base):
             name="ck_oracle_memory_items_confidence",
         ),
         CheckConstraint(
-            "claim_basis IN ("
-            + ",".join(f"'{value}'" for value in _MEMORY_CLAIM_BASES)
-            + ")",
+            "claim_basis IN (" + ",".join(f"'{value}'" for value in _MEMORY_CLAIM_BASES) + ")",
             name="ck_oracle_memory_items_claim_basis",
         ),
         CheckConstraint(
