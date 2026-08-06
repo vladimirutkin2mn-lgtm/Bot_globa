@@ -75,7 +75,7 @@ def upgrade() -> None:
         ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
-            "kind IN ('user_preference','personal_goal','relationship_context',"
+            "kind IN ('user_preference','personal_goal','relationship_notes',"
             "'recurring_theme','birth_profile','oracle_preference')",
             name="ck_oracle_memory_items_kind",
         ),
