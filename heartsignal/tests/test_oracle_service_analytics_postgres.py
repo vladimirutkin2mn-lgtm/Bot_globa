@@ -83,7 +83,7 @@ async def test_reading_and_birth_profile_emit_only_safe_metadata(
 
     _, token = set_correlation_id("birth-delete-transition")
     try:
-        assert await profiles.delete(user_id)
+        assert await profiles.delete_profile(user_id)
     finally:
         reset_correlation_id(token)
 
