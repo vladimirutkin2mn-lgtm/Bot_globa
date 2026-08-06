@@ -31,6 +31,7 @@ from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.monetized_reading import MonetizedReadingService
 from app.services.persona_registry import PersonaRegistryService
+from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.reading_generation import ReadingGenerationService
 from app.services.reading_history import ReadingHistoryService
 from app.services.reading_service import ReadingService
@@ -116,7 +117,13 @@ def create_dispatcher(
     dispatcher["error_reporter"] = reporter
     dispatcher["persona_registry"] = PersonaRegistryService(sessions)
     dispatcher["tarot_history"] = ReadingHistoryService(sessions)
-    reading_service = ReadingService(sessions, cipher, settings.raw_content_retention_days)
+    preview_entitlements = PreviewEntitlementService(sessions)
+    reading_service = ReadingService(
+        sessions,
+        cipher,
+        settings.raw_content_retention_days,
+        preview_entitlements=preview_entitlements,
+    )
     dispatcher["tarot_use_case"] = TarotReadingUseCase.from_services(
         reading_service,
         ReadingGenerationService(
@@ -128,6 +135,7 @@ def create_dispatcher(
             llm,
             max_repair_attempts=settings.llm_max_repair_attempts,
         ),
+        entitlements=preview_entitlements,
     )
     dispatcher["tarot_monetized"] = MonetizedReadingService(
         sessions,

@@ -26,6 +26,7 @@ from app.bot.tarot_keyboards import (
 from app.bot.tarot_renderer import TarotPreviewRenderer
 from app.services.monetized_reading import MonetizedReadingService, MonetizedReadingStatus
 from app.services.onboarding import OnboardingService
+from app.services.preview_entitlement import ReadingPreviewVisibility
 from app.services.reading_generation import ReadingGenerationStatus
 from app.services.reading_history import ReadingHistoryService
 from app.services.tarot_reading import (
@@ -62,6 +63,7 @@ HISTORY_EMPTY = "Готовых раскладов пока нет."
 UNLOCKING = "Проверяю баланс и открываю полный расклад…"
 INSUFFICIENT = "Для полного расклада нужно {price} кр. Доступный баланс: {balance} кр."
 UNLOCK_FAILED = "Не удалось открыть полный расклад. Списание отменено или возвращено."
+LOCKED = "Расклад готов. Бесплатный preview уже использован — откройте полный разбор за {price} кр."
 
 
 @router.message(Command("tarot"))
@@ -328,9 +330,11 @@ async def unlock_tarot(
             outcome.generation.status is ReadingGenerationStatus.COMPLETED
             and outcome.generation.result is not None
         ):
-            rendered = full_renderer.render(outcome)
-            for index, chunk in enumerate(rendered.chunks):
-                markup = tarot_full_result_keyboard() if index == len(rendered.chunks) - 1 else None
+            full_rendered = full_renderer.render(outcome)
+            for index, chunk in enumerate(full_rendered.chunks):
+                markup = (
+                    tarot_full_result_keyboard() if index == len(full_rendered.chunks) - 1 else None
+                )
                 await callback.message.answer(chunk, reply_markup=markup)
             return
     await callback.message.answer(UNLOCK_FAILED, reply_markup=tarot_result_keyboard())
@@ -424,14 +428,31 @@ async def _deliver(
     await state.clear()
     status = outcome.generation.status
     if status is ReadingGenerationStatus.COMPLETED and outcome.generation.result is not None:
-        rendered = renderer.render(outcome)
-        for index, chunk in enumerate(rendered.chunks):
-            markup = (
-                tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
-                if index == len(rendered.chunks) - 1
-                else None
-            )
-            await message.answer(chunk, reply_markup=markup)
+        if outcome.visibility is ReadingPreviewVisibility.FULL:
+            full_rendered = full_renderer.render(outcome)
+            for index, chunk in enumerate(full_rendered.chunks):
+                markup = (
+                    tarot_full_result_keyboard() if index == len(full_rendered.chunks) - 1 else None
+                )
+                await message.answer(chunk, reply_markup=markup)
+            return
+        if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
+            preview_rendered = renderer.render(outcome)
+            for index, chunk in enumerate(preview_rendered.chunks):
+                markup = (
+                    tarot_result_keyboard(outcome.reading_id, monetized.price_credits)
+                    if index == len(preview_rendered.chunks) - 1
+                    else None
+                )
+                await message.answer(chunk, reply_markup=markup)
+            return
+        await message.answer(
+            LOCKED.format(price=monetized.price_credits),
+            reply_markup=tarot_result_keyboard(
+                outcome.reading_id,
+                monetized.price_credits,
+            ),
+        )
         return
     if status is ReadingGenerationStatus.ALREADY_PROCESSING:
         await message.answer(

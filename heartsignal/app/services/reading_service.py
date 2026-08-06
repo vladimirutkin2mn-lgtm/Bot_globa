@@ -1,5 +1,6 @@
 """Transactional application service for the independent Reading domain."""
 
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -14,6 +15,10 @@ class PersonaUnavailableError(LookupError):
     """The requested persona does not exist or is disabled."""
 
 
+class ReadingPreviewReleaseService(Protocol):
+    async def release_reading_preview(self, user_id: UUID, reading_id: UUID) -> object: ...
+
+
 class ReadingService:
     """Expose Reading use cases without Telegram, billing or provider coupling."""
 
@@ -22,10 +27,12 @@ class ReadingService:
         sessions: async_sessionmaker[AsyncSession],
         cipher: SensitiveContentCipher,
         retention_days: int = 30,
+        preview_entitlements: ReadingPreviewReleaseService | None = None,
     ) -> None:
         self._sessions = sessions
         self._cipher = cipher
         self._retention_days = retention_days
+        self._preview_entitlements = preview_entitlements
 
     async def create_draft(self, user_id: UUID, request: ReadingDraftRequest) -> Reading:
         async with self._sessions.begin() as session:
@@ -87,15 +94,25 @@ class ReadingService:
                 transaction_id,
             )
 
-    async def fail_generation(self, reading_id: UUID, user_id: UUID, failure_code: str) -> Reading:
+    async def fail_generation(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+        failure_code: str,
+    ) -> Reading:
         async with self._sessions.begin() as session:
             return await self._repository(session).fail_generation(
-                reading_id, user_id, failure_code
+                reading_id,
+                user_id,
+                failure_code,
             )
 
     async def delete_owned(self, reading_id: UUID, user_id: UUID) -> Reading:
         async with self._sessions.begin() as session:
-            return await self._repository(session).delete_owned(reading_id, user_id)
+            reading = await self._repository(session).delete_owned(reading_id, user_id)
+        if self._preview_entitlements is not None:
+            await self._preview_entitlements.release_reading_preview(user_id, reading_id)
+        return reading
 
     async def load_source(self, reading_id: UUID, user_id: UUID) -> ReadingSource | None:
         async with self._sessions() as session:
