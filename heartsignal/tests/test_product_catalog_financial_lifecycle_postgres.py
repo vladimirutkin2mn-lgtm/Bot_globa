@@ -117,12 +117,11 @@ async def test_astrology_v2_completion_and_refund_use_order_not_current_label(
         request = await session.scalar(
             select(RefundRequest).where(RefundRequest.payment_order_id == order_id)
         )
+        assert request is not None
         reservation = await session.scalar(
             select(CreditReservation).where(
                 CreditReservation.refund_request_id == request.id
             )
-            if request is not None
-            else select(CreditReservation).where(False)
         )
 
     assert stored_order is not None and stored_order.status == "completed"
@@ -131,7 +130,6 @@ async def test_astrology_v2_completion_and_refund_use_order_not_current_label(
     assert purchase is not None
     assert purchase.product_code == "astrology_natal"
     assert purchase.amount == 1
-    assert request is not None
     assert request.amount_minor == stored_order.amount_minor
     assert request.currency == stored_order.currency
     assert reservation is not None and reservation.credit_units == stored_order.credits
