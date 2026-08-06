@@ -99,9 +99,10 @@ async def test_save_updates_one_profile_row_and_replaces_ciphertext(
         timezone="Europe/London",
     )
     second = await service.save(user.id, second_value)
+    loaded = await service.load(user.id)
 
     assert first.created_at == second.created_at
-    assert (await service.load(user.id)).profile == second_value  # type: ignore[union-attr]
+    assert loaded is not None and loaded.profile == second_value
     async with payment_db() as session:
         count = await session.scalar(
             select(func.count()).select_from(BirthProfile).where(BirthProfile.user_id == user.id)
@@ -212,4 +213,7 @@ async def test_account_deletion_cascades_profile_consent_and_ciphertext(
             )
             == 0
         )
-        assert await session.scalar(select(func.count()).select_from(BirthProfilePrivateContent)) == 0
+        private_count = await session.scalar(
+            select(func.count()).select_from(BirthProfilePrivateContent)
+        )
+        assert private_count == 0
