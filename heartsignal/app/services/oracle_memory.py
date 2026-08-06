@@ -100,22 +100,70 @@ class OracleMemoryService:
                 consent.status = MemoryConsentStatus.REVOKED.value
                 consent.revoked_at = now
 
-            items = list(
-                (
-                    await session.scalars(
-                        select(OracleMemoryItem)
-                        .where(
-                            OracleMemoryItem.user_id == user_id,
-                            OracleMemoryItem.status == MemoryItemStatus.ACTIVE.value,
-                        )
-                        .order_by(OracleMemoryItem.id)
-                        .with_for_update()
-                    )
-                ).all()
-            )
+            items = await self._active_items_locked(session, user_id)
             await self._purge_items(session, items, now)
             await session.flush()
             return self._view(consent)
+
+    async def clear_all(self, user_id: UUID) -> int:
+        """Delete all values while keeping consent active for future readings."""
+
+        now = datetime.now(UTC)
+        async with self._sessions.begin() as session:
+            await self._required_active_user(session, user_id, for_update=True)
+            consent = await session.get(OracleMemoryConsent, user_id, with_for_update=True)
+            if not self._permits_memory(consent):
+                raise MemoryConsentRequiredError("explicit oracle memory consent is required")
+            items = await self._active_items_locked(session, user_id)
+            await self._purge_items(session, items, now)
+            await session.flush()
+            return len(items)
+
+    async def correct_item(
+        self,
+        user_id: UUID,
+        memory_item_id: UUID,
+        value: str,
+    ) -> UUID | None:
+        """Replace one item with an explicit user-stated correction in one transaction."""
+
+        now = datetime.now(UTC)
+        async with self._sessions.begin() as session:
+            await self._required_active_user(session, user_id, for_update=True)
+            consent = await session.get(OracleMemoryConsent, user_id, with_for_update=True)
+            if not self._permits_memory(consent):
+                raise MemoryConsentRequiredError("explicit oracle memory consent is required")
+            item = cast(
+                OracleMemoryItem | None,
+                await session.scalar(
+                    select(OracleMemoryItem)
+                    .where(
+                        OracleMemoryItem.id == memory_item_id,
+                        OracleMemoryItem.user_id == user_id,
+                        OracleMemoryItem.status == MemoryItemStatus.ACTIVE.value,
+                    )
+                    .with_for_update()
+                ),
+            )
+            if item is None:
+                return None
+            request = MemoryCreateRequest(
+                kind=MemoryKind(item.kind),
+                value=value,
+                confidence_milli=1000,
+                claim_basis=MemoryClaimBasis.USER_STATED,
+                source_type=MemorySourceType.USER_EXPLICIT,
+                extraction_version="user-correction-v1",
+            )
+            await self._purge_items(session, [item], now)
+            replacement = await self._create_item(
+                session,
+                user_id,
+                request,
+                source_persona_code=None,
+            )
+            await session.flush()
+            return replacement.id
 
     async def remember(self, user_id: UUID, request: MemoryCreateRequest) -> OracleMemoryItem:
         async with self._sessions.begin() as session:
@@ -244,11 +292,16 @@ class OracleMemoryService:
             rows = list(
                 (
                     await session.execute(
-                        select(OracleMemoryItem, OracleMemoryPrivateContent)
+                        select(
+                            OracleMemoryItem,
+                            OracleMemoryPrivateContent,
+                            Reading.created_at,
+                        )
                         .join(
                             OracleMemoryPrivateContent,
                             OracleMemoryPrivateContent.memory_item_id == OracleMemoryItem.id,
                         )
+                        .outerjoin(Reading, Reading.id == OracleMemoryItem.source_reading_id)
                         .where(
                             OracleMemoryItem.user_id == user_id,
                             OracleMemoryItem.status == MemoryItemStatus.ACTIVE.value,
@@ -259,7 +312,7 @@ class OracleMemoryService:
                 ).all()
             )
             views: list[MemoryItemView] = []
-            for item, private in rows:
+            for item, private, source_reading_created_at in rows:
                 assert private.value_ciphertext is not None
                 value = self._cipher.decrypt_json(
                     ContentPurpose.ORACLE_MEMORY_VALUE,
@@ -276,6 +329,7 @@ class OracleMemoryService:
                         claim_basis=MemoryClaimBasis(item.claim_basis),
                         source_type=MemorySourceType(item.source_type),
                         source_reading_id=item.source_reading_id,
+                        source_reading_created_at=source_reading_created_at,
                         source_persona_code=item.source_persona_code,
                         extraction_version=item.extraction_version,
                         candidate_key=item.candidate_key,
@@ -400,6 +454,25 @@ class OracleMemoryService:
         if requested_persona_code is not None and requested_persona_code != persona_code:
             raise MemoryProvenanceError("source persona does not match reading provenance")
         return persona_code
+
+    async def _active_items_locked(
+        self,
+        session: AsyncSession,
+        user_id: UUID,
+    ) -> list[OracleMemoryItem]:
+        return list(
+            (
+                await session.scalars(
+                    select(OracleMemoryItem)
+                    .where(
+                        OracleMemoryItem.user_id == user_id,
+                        OracleMemoryItem.status == MemoryItemStatus.ACTIVE.value,
+                    )
+                    .order_by(OracleMemoryItem.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
 
     async def _purge_items(
         self,

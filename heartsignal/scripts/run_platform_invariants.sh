@@ -21,6 +21,9 @@ pytest \
   tests/test_oracle_memory_postgres.py::test_revoking_consent_purges_all_values_and_blocks_new_memory \
   tests/test_oracle_memory_postgres.py::test_reading_derived_memory_requires_owned_completed_matching_provenance \
   tests/test_oracle_memory_postgres.py::test_account_deletion_physically_removes_memory_and_consent \
+  tests/test_oracle_memory_controls_postgres.py::test_correction_replaces_item_and_purges_previous_ciphertext \
+  tests/test_oracle_memory_controls_postgres.py::test_correction_never_crosses_user_boundary \
+  tests/test_oracle_memory_controls_postgres.py::test_clear_all_purges_values_but_keeps_consent_active \
   tests/test_reading_memory_extraction_postgres.py::test_extraction_requires_consent_preserves_topics_and_is_idempotent \
   tests/test_reading_memory_extraction_postgres.py::test_consent_is_rechecked_after_external_extraction \
   tests/test_reading_memory_extraction_jobs_postgres.py::test_ready_transition_enqueues_one_job_and_terminal_job_is_not_replayed \

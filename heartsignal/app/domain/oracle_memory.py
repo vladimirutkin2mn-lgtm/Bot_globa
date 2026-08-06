@@ -122,6 +122,7 @@ class MemoryItemView:
     claim_basis: MemoryClaimBasis
     source_type: MemorySourceType
     source_reading_id: UUID | None
+    source_reading_created_at: datetime | None
     source_persona_code: str | None
     extraction_version: str
     candidate_key: str | None

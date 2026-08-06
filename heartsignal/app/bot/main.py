@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.bot.dependencies import OnboardingDependencyMiddleware
 from app.bot.followup_handlers import router as followup_router
 from app.bot.handlers import router
+from app.bot.memory_handlers import router as memory_router
 from app.bot.observability import TelegramObservabilityMiddleware
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
@@ -112,6 +113,7 @@ def create_dispatcher(
     dispatcher.include_router(followup_router)
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
+    dispatcher.include_router(memory_router)
     dispatcher.include_router(tarot_router)
     dispatcher.include_router(router)
     dispatcher["database_engine"] = resolved_engine
