@@ -1,6 +1,7 @@
 """Pure contract tests for encrypted BirthProfile payloads."""
 
 from datetime import UTC, date, time, timedelta
+from typing import cast
 
 import pytest
 
@@ -48,7 +49,12 @@ def test_birth_profile_rejects_invalid_private_fields(
     values.update(changes)
 
     with pytest.raises(ValueError, match=message):
-        BirthProfileInput(**values)  # type: ignore[arg-type]
+        BirthProfileInput(
+            birth_date=cast(date, values["birth_date"]),
+            birth_time=cast(time | None, values["birth_time"]),
+            birth_place=cast(str, values["birth_place"]),
+            timezone=cast(str, values["timezone"]),
+        )
 
 
 def test_birth_profile_rejects_malformed_decrypted_shape() -> None:
