@@ -23,6 +23,7 @@ from app.services.data_deletion import DataDeletionService
 from app.services.followup_service import FollowUpService
 from app.services.monetized_analysis import MonetizedAnalysisService
 from app.services.onboarding import OnboardingService
+from app.services.oracle_memory import OracleMemoryService
 from app.services.payment_service import PaymentService
 from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.refund_service import RefundService
@@ -75,6 +76,7 @@ class OnboardingDependencyMiddleware(BaseMiddleware):
             data["onboarding"] = OnboardingService(
                 SqlAlchemyUserRepository(session), self._analytics
             )
+            data["oracle_memory"] = OracleMemoryService(self._sessions, cipher)
             data["intake"] = ConversationIntakeService(
                 analyses,
                 ConversationParser(
