@@ -115,9 +115,7 @@ def downgrade() -> None:
         sa.text("SELECT count(*) FROM reading_memory_extraction_jobs")
     ).scalar_one()
     if rows:
-        raise RuntimeError(
-            "downgrade refused: reading memory extraction jobs would be lost"
-        )
+        raise RuntimeError("downgrade refused: reading memory extraction jobs would be lost")
     op.drop_index(
         "ix_reading_memory_extraction_jobs_due",
         table_name="reading_memory_extraction_jobs",
