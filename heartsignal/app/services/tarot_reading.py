@@ -7,6 +7,7 @@ from uuid import UUID
 from app.db.reading_models import Reading
 from app.domain.oracle_safety import (
     OracleInputSafetyClassifier,
+    OracleInputSafetyResult,
     OracleRiskCategory,
     OracleSafetyAction,
 )
@@ -119,13 +120,21 @@ class TarotReadingUseCase:
         """Production-friendly typed constructor without transport dependencies."""
         return cls(readings, generation, engine, entitlements, safety_classifier)
 
+    def classify_input(
+        self,
+        question: str,
+        context: str | None = None,
+    ) -> OracleInputSafetyResult:
+        """Classify before transport emits any mystical processing state."""
+        return self._safety.classify(question, context)
+
     async def create_preview(
         self,
         user_id: UUID,
         request: TarotPreviewRequest,
     ) -> TarotPreviewOutcome:
         self._validate_topic(request.topic)
-        safety = self._safety.classify(request.question, request.context)
+        safety = self.classify_input(request.question, request.context)
         if not safety.may_reach_persona_prompt:
             raise UnsafeTarotInputError(safety.action, safety.categories)
         reading = await self._readings.create_draft(
