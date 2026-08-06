@@ -1,7 +1,5 @@
 """Inline keyboards for explicit oracle-memory controls."""
 
-# ruff: noqa: RUF001
-
 from collections.abc import Sequence
 from uuid import UUID
 
