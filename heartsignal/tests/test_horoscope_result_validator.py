@@ -39,6 +39,20 @@ def test_validator_rejects_changed_digest_and_unknown_fact_reference() -> None:
     assert "interpretations.0.fact_ids:unknown" in error.value.issues
 
 
+def test_validator_requires_exact_application_limitations() -> None:
+    bundle = sample_fact_bundle()
+    payload = valid_horoscope_payload(bundle)
+    limitations = payload["limitations"]
+    assert isinstance(limitations, list)
+    limitations.append("birth_time_unknown")
+
+    with pytest.raises(InvalidHoroscopeResult) as error:
+        HoroscopeResultValidator().validate(json.dumps(payload), bundle)
+
+    assert error.value.code == "invalid_semantics"
+    assert error.value.issues == ("limitations:mismatch",)
+
+
 def test_validator_forbids_model_authored_chart_positions() -> None:
     bundle = sample_fact_bundle()
     payload = valid_horoscope_payload(bundle)
