@@ -98,11 +98,11 @@ async def _completed_reading(
                 reading_id=reading.id,
                 question_ciphertext=cipher.encrypt_json(
                     ContentPurpose.READING_QUESTION,
-                    "Как мне осмыслить происходящее?",
+                    "How should I reflect on what is happening?",
                 ),
                 context_ciphertext=cipher.encrypt_json(
                     ContentPurpose.READING_CONTEXT,
-                    "У меня есть медицинская история, юридический спор, долги и кризисные мысли.",
+                    "I have a medical history, a legal dispute, debt, and crisis thoughts.",
                 ),
                 result_ciphertext=cipher.encrypt_json(
                     ContentPurpose.READING_RESULT,
@@ -123,31 +123,31 @@ def _topic_neutral_payload() -> MemoryExtractionPayload:
         candidates=[
             MemoryExtractionCandidate(
                 kind=MemoryKind.USER_STATEMENT,
-                value="Пользователь сообщил о медицинской истории",
+                value="User reported a medical history",
                 confidence_milli=1000,
                 claim_basis=MemoryClaimBasis.USER_STATED,
             ),
             MemoryExtractionCandidate(
                 kind=MemoryKind.USER_STATEMENT,
-                value="Пользователь участвует в юридическом споре",
+                value="User is involved in a legal dispute",
                 confidence_milli=1000,
                 claim_basis=MemoryClaimBasis.USER_STATED,
             ),
             MemoryExtractionCandidate(
                 kind=MemoryKind.PERSONAL_GOAL,
-                value="Пользователь хочет выбраться из долгов",
+                value="User wants to get out of debt",
                 confidence_milli=950,
                 claim_basis=MemoryClaimBasis.USER_STATED,
             ),
             MemoryExtractionCandidate(
                 kind=MemoryKind.USER_STATEMENT,
-                value="Пользователь сообщил о кризисных мыслях",
+                value="User reported crisis thoughts",
                 confidence_milli=1000,
                 claim_basis=MemoryClaimBasis.USER_STATED,
             ),
             MemoryExtractionCandidate(
                 kind=MemoryKind.RECURRING_THEME,
-                value="В раскладе предположена повторяющаяся тема контроля",
+                value="The reading inferred a recurring theme of control",
                 confidence_milli=650,
                 claim_basis=MemoryClaimBasis.MODEL_INFERRED,
             ),
@@ -186,11 +186,11 @@ async def test_extraction_requires_consent_preserves_topics_and_is_idempotent(
     active = await memory.list_active(user.id)
     assert len(active) == 5
     assert {item.value for item in active} == {
-        "Пользователь сообщил о медицинской истории",
-        "Пользователь участвует в юридическом споре",
-        "Пользователь хочет выбраться из долгов",
-        "Пользователь сообщил о кризисных мыслях",
-        "В раскладе предположена повторяющаяся тема контроля",
+        "User reported a medical history",
+        "User is involved in a legal dispute",
+        "User wants to get out of debt",
+        "User reported crisis thoughts",
+        "The reading inferred a recurring theme of control",
     }
     inferred = [item for item in active if item.claim_basis is MemoryClaimBasis.MODEL_INFERRED]
     assert len(inferred) == 1
