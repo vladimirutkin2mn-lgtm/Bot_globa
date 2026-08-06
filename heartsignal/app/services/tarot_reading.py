@@ -5,6 +5,11 @@ from typing import Protocol
 from uuid import UUID
 
 from app.db.reading_models import Reading
+from app.domain.oracle_safety import (
+    OracleInputSafetyClassifier,
+    OracleRiskCategory,
+    OracleSafetyAction,
+)
 from app.domain.persona import PersonaDefinition, PersonaEngine, persona_definition
 from app.domain.reading import ReadingDraftRequest
 from app.domain.reading_generation import ReadingSymbolContext
@@ -23,6 +28,19 @@ class TarotConfigurationError(RuntimeError):
 
 class UnsupportedTarotTopicError(ValueError):
     """The requested topic is not enabled for the tarot MVP."""
+
+
+class UnsafeTarotInputError(ValueError):
+    """Safe refusal metadata without the private user payload."""
+
+    def __init__(
+        self,
+        action: OracleSafetyAction,
+        categories: tuple[OracleRiskCategory, ...],
+    ) -> None:
+        super().__init__(f"unsafe tarot input: {action.value}")
+        self.action = action
+        self.categories = categories
 
 
 class TarotDraftService(Protocol):
@@ -64,10 +82,12 @@ class TarotReadingUseCase:
         readings: TarotDraftService,
         generation: TarotGenerationService,
         engine: TarotSymbolicEngine | None = None,
+        safety_classifier: OracleInputSafetyClassifier | None = None,
     ) -> None:
         self._readings = readings
         self._generation = generation
         self._engine = engine or TarotSymbolicEngine()
+        self._safety = safety_classifier or OracleInputSafetyClassifier()
         self._persona = self._required_persona()
 
     @classmethod
@@ -76,10 +96,11 @@ class TarotReadingUseCase:
         readings: ReadingService,
         generation: ReadingGenerationService,
         engine: TarotSymbolicEngine | None = None,
+        safety_classifier: OracleInputSafetyClassifier | None = None,
     ) -> "TarotReadingUseCase":
         """Production-friendly typed constructor without transport dependencies."""
 
-        return cls(readings, generation, engine)
+        return cls(readings, generation, engine, safety_classifier)
 
     async def create_preview(
         self,
@@ -87,6 +108,9 @@ class TarotReadingUseCase:
         request: TarotPreviewRequest,
     ) -> TarotPreviewOutcome:
         self._validate_topic(request.topic)
+        safety = self._safety.classify(request.question, request.context)
+        if not safety.may_reach_persona_prompt:
+            raise UnsafeTarotInputError(safety.action, safety.categories)
         reading = await self._readings.create_draft(
             user_id,
             ReadingDraftRequest(
