@@ -1,5 +1,6 @@
 """PostgreSQL invariants for explicit-consent encrypted birth profiles."""
 
+import asyncio
 from datetime import date, time
 
 import pytest
@@ -116,6 +117,38 @@ async def test_save_updates_one_profile_row_and_replaces_ciphertext(
     assert private is not None and private.payload_ciphertext is not None
     assert b"First private place" not in private.payload_ciphertext
     assert b"Corrected private place" not in private.payload_ciphertext
+
+
+async def test_concurrent_saves_serialize_to_one_profile_row(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 896008)
+    service = BirthProfileService(
+        payment_db,
+        AESGCMSensitiveContentCipher("birth-profile-concurrent-key"),
+    )
+    await service.grant_consent(user.id)
+    first = _profile("Concurrent private place A")
+    second = BirthProfileInput(
+        birth_date=date(1991, 4, 17),
+        birth_time=None,
+        birth_place="Concurrent private place B",
+        timezone="Europe/London",
+    )
+
+    saved = await asyncio.gather(
+        service.save(user.id, first),
+        service.save(user.id, second),
+    )
+    loaded = await service.load(user.id)
+
+    assert loaded is not None and loaded.profile in {first, second}
+    assert {item.profile for item in saved} == {first, second}
+    async with payment_db() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(BirthProfile).where(BirthProfile.user_id == user.id)
+        )
+    assert count == 1
 
 
 async def test_revoke_consent_purges_ciphertext_and_blocks_reuse(
