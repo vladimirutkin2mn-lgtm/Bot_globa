@@ -1,0 +1,27 @@
+name: Inspect free preview entitlement
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: github.head_ref == 'feat/oracle-free-preview-entitlement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate entitlement implementation
+        shell: bash
+        working-directory: heartsignal
+        run: |
+          echo '=== free_preview references ==='
+          grep -RIn --exclude-dir=.git --exclude='*.xml' 'free_preview' app tests migrations scripts || true
+          echo '=== entitlement/access candidate files ==='
+          find app tests migrations scripts -type f | grep -Ei 'preview|entitle|access|billing|credit|generation|analysis' | sort
