@@ -33,9 +33,9 @@ def _snapshot() -> CompletedReadingMemorySnapshot:
         reading_id=uuid4(),
         persona_code="tarot_reader",
         topic="life",
-        question="Помоги осмыслить несколько сложных обстоятельств",
+        question="Help me reflect on several difficult circumstances",
         context=None,
-        result={"title": "Размышление"},
+        result={"title": "Reflection"},
     )
 
 
@@ -45,31 +45,31 @@ async def test_llm_extractor_does_not_filter_high_stakes_topics() -> None:
             "candidates": [
                 {
                     "kind": "user_statement",
-                    "value": "Пользователь сообщил о медицинском диагнозе",
+                    "value": "User reported a medical diagnosis",
                     "confidence_milli": 1000,
                     "claim_basis": "user_stated",
                 },
                 {
                     "kind": "user_statement",
-                    "value": "Пользователь участвует в юридическом споре",
+                    "value": "User is involved in a legal dispute",
                     "confidence_milli": 1000,
                     "claim_basis": "user_stated",
                 },
                 {
                     "kind": "personal_goal",
-                    "value": "Пользователь хочет выбраться из долгов",
+                    "value": "User wants to get out of debt",
                     "confidence_milli": 950,
                     "claim_basis": "user_stated",
                 },
                 {
                     "kind": "user_statement",
-                    "value": "Пользователь сообщил о кризисных мыслях",
+                    "value": "User reported crisis thoughts",
                     "confidence_milli": 1000,
                     "claim_basis": "user_stated",
                 },
                 {
                     "kind": "recurring_theme",
-                    "value": "В раскладе предположена повторяющаяся тема контроля",
+                    "value": "The reading inferred a recurring theme of control",
                     "confidence_milli": 650,
                     "claim_basis": "model_inferred",
                 },
