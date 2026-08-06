@@ -74,7 +74,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         required_inputs=(PersonaInput.QUESTION,),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT,),
         engine_version="symbolic-v1",
-        prompt_version="tarot-reader-v1",
+        prompt_version="tarot-reader-v2",
         schema_version="reading-result-v1",
     ),
     PersonaDefinition(
