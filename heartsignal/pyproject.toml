@@ -20,6 +20,7 @@ dependencies = [
   "httpx>=0.28,<1",
   "stripe>=12,<15",
   "sqlalchemy[asyncio]>=2.0.41,<3",
+  "tzdata==2026.3",
   "uvicorn[standard]>=0.34,<1",
 ]
 
