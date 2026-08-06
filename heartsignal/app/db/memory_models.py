@@ -195,9 +195,7 @@ class OracleMemoryEvent(Base):
     __tablename__ = "oracle_memory_events"
     __table_args__ = (
         CheckConstraint(
-            "event_type IN ("
-            + ",".join(f"'{value}'" for value in _MEMORY_EVENT_TYPES)
-            + ")",
+            "event_type IN (" + ",".join(f"'{value}'" for value in _MEMORY_EVENT_TYPES) + ")",
             name="ck_oracle_memory_events_type",
         ),
         Index(
