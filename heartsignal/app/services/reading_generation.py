@@ -17,6 +17,7 @@ from app.domain.reading_generation import (
     ReadingGenerationFinalizeStatus,
     ReadingSymbolContext,
 )
+from app.domain.reading_memory_context import ReadingMemoryContextItem, ReadingMemoryRetriever
 from app.domain.reading_result import ReadingResult
 from app.prompts.reading import (
     ReadingPromptNotFoundError,
@@ -92,6 +93,7 @@ class ReadingGenerationService:
         max_repair_attempts: int = 1,
         prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
         validator: ReadingResultValidator | None = None,
+        memory_retriever: ReadingMemoryRetriever | None = None,
     ) -> None:
         if max_repair_attempts not in {0, 1}:
             raise ValueError("reading generation allows at most one repair attempt")
@@ -100,6 +102,7 @@ class ReadingGenerationService:
         self._max_repairs = max_repair_attempts
         self._prompt_loader = prompt_loader
         self._validator = validator or ReadingResultValidator()
+        self._memory_retriever = memory_retriever
 
     async def generate_preview(
         self,
@@ -132,7 +135,13 @@ class ReadingGenerationService:
                     last_completion,
                 )
             prompts = self._prompt_loader(context.prompt_version)
-            user_prompt = self._user_prompt(context, symbol_contexts, prompts)
+            memory_context = await self._retrieve_memory(context, prompts)
+            user_prompt = self._user_prompt(
+                context,
+                symbol_contexts,
+                prompts,
+                memory_context,
+            )
             request = LLMRequest(
                 system_prompt=prompts.system,
                 user_prompt=user_prompt,
@@ -178,11 +187,12 @@ class ReadingGenerationService:
                 return self._finalize_conflict(finalized, attempts, last_completion)
             logger.info(
                 "reading_generation_completed reading_id=%s provider=%s model=%s "
-                "prompt_version=%s attempt=%s",
+                "prompt_version=%s memory_count=%s attempt=%s",
                 reading_id,
                 last_completion.provider,
                 last_completion.model,
                 context.prompt_version,
+                len(memory_context),
                 attempts,
             )
             return ReadingGenerationResult(
@@ -273,6 +283,31 @@ class ReadingGenerationService:
                 last_completion,
             )
 
+    async def _retrieve_memory(
+        self,
+        context: ReadingGenerationContext,
+        prompts: ReadingPromptSet,
+    ) -> tuple[ReadingMemoryContextItem, ...]:
+        if not prompts.accepts_memory_context or self._memory_retriever is None:
+            return ()
+        try:
+            return await self._memory_retriever.retrieve(
+                context.user_id,
+                persona_code=context.persona_code,
+                topic=context.topic,
+                question=context.question,
+                context=context.context,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning(
+                "reading_memory_retrieval_failed reading_id=%s prompt_version=%s",
+                context.reading_id,
+                context.prompt_version,
+            )
+            return ()
+
     def _ready_result(self, claim: ReadingGenerationClaim) -> ReadingGenerationResult:
         if claim.ready is None:
             return ReadingGenerationResult(ReadingGenerationStatus.CORRUPTED_RESULT)
@@ -321,8 +356,9 @@ class ReadingGenerationService:
         context: ReadingGenerationContext,
         symbol_contexts: tuple[ReadingSymbolContext, ...],
         prompts: ReadingPromptSet,
+        memory_context: tuple[ReadingMemoryContextItem, ...] = (),
     ) -> str:
-        payload = {
+        payload: dict[str, object] = {
             "persona_code": context.persona_code,
             "topic": context.topic,
             "user_question": context.question,
@@ -339,6 +375,8 @@ class ReadingGenerationService:
                 for item in symbol_contexts
             ],
         }
+        if prompts.accepts_memory_context:
+            payload["memory_context"] = [item.prompt_payload() for item in memory_context]
         return (
             f"{prompts.request_instruction}\n\nINPUT_JSON:\n"
             f"{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
