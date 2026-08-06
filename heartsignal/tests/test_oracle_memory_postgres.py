@@ -1,5 +1,6 @@
 """PostgreSQL invariants for explicit-consent encrypted oracle memory."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -14,6 +15,7 @@ from app.db.memory_models import (
 from app.db.models import User
 from app.db.reading_models import Persona, Reading
 from app.domain.oracle_memory import (
+    MemoryClaimBasis,
     MemoryConsentStatus,
     MemoryCreateRequest,
     MemoryItemStatus,
@@ -80,6 +82,7 @@ async def test_memory_requires_explicit_consent_and_encrypts_value_at_rest(
     assert len(active) == 1
     assert active[0].value == secret
     assert active[0].kind is MemoryKind.PERSONAL_GOAL
+    assert active[0].claim_basis is MemoryClaimBasis.USER_STATED
 
 
 async def test_revoking_consent_purges_all_values_and_blocks_new_memory(
@@ -129,7 +132,7 @@ async def test_revoking_consent_purges_all_values_and_blocks_new_memory(
         await service.remember(user.id, _explicit("This must not be stored"))
 
 
-async def test_reading_derived_memory_requires_owned_matching_provenance(
+async def test_reading_derived_memory_requires_owned_completed_matching_provenance(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     async with payment_db.begin() as session:
@@ -179,20 +182,35 @@ async def test_reading_derived_memory_requires_owned_matching_provenance(
             kind=MemoryKind.RECURRING_THEME,
             value="Choosing between predictability and change",
             confidence_milli=700,
+            claim_basis=MemoryClaimBasis.MODEL_INFERRED,
             source_type=MemorySourceType.READING_DERIVED,
             source_reading_id=reading_id,
             source_persona_code=persona_code,
             extraction_version="extractor-v1",
+            candidate_key="candidate-1",
         )
 
     with pytest.raises(MemoryProvenanceError):
         await service.remember(owner.id, derived(foreign.id))
     with pytest.raises(MemoryProvenanceError):
+        await service.remember(owner.id, derived(owned.id))
+
+    async with payment_db.begin() as session:
+        completed = await session.get(Reading, owned.id, with_for_update=True)
+        assert completed is not None
+        completed.status = "preview_ready"
+        completed.access_level = "preview"
+        completed.generated_at = datetime.now(UTC)
+
+    with pytest.raises(MemoryProvenanceError):
         await service.remember(owner.id, derived(owned.id, "love_oracle"))
 
     item = await service.remember(owner.id, derived(owned.id))
+    repeated = await service.remember(owner.id, derived(owned.id))
+    assert item.id == repeated.id
     assert item.source_reading_id == owned.id
     assert item.source_persona_code == "tarot_reader"
+    assert item.claim_basis == MemoryClaimBasis.MODEL_INFERRED.value
 
 
 async def test_account_deletion_physically_removes_memory_and_consent(
