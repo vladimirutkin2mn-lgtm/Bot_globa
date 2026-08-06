@@ -32,10 +32,12 @@ from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.monetized_reading import MonetizedReadingService
+from app.services.oracle_memory import OracleMemoryService
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.reading_generation import ReadingGenerationService
 from app.services.reading_history import ReadingHistoryService
+from app.services.reading_memory_context import OracleReadingMemoryRetriever
 from app.services.reading_service import ReadingService
 from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
@@ -130,6 +132,7 @@ def create_dispatcher(
         settings.raw_content_retention_days,
         preview_entitlements=preview_entitlements,
     )
+    oracle_memory = OracleMemoryService(sessions, cipher)
     dispatcher["tarot_use_case"] = TarotReadingUseCase.from_services(
         reading_service,
         ReadingGenerationService(
@@ -140,6 +143,7 @@ def create_dispatcher(
             ),
             llm,
             max_repair_attempts=settings.llm_max_repair_attempts,
+            memory_retriever=OracleReadingMemoryRetriever(oracle_memory),
         ),
         entitlements=preview_entitlements,
     )
