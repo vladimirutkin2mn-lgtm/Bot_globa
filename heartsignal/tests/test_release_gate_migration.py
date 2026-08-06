@@ -12,7 +12,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
-_HEAD = "20260806_22"
+_HEAD = "20260806_23"
 _PARENT = "20260805_15"
 
 
