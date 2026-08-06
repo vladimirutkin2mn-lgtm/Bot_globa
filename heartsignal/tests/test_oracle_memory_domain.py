@@ -6,29 +6,32 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.oracle_memory import (
+    MemoryClaimBasis,
     MemoryCreateRequest,
     MemoryKind,
     MemorySourceType,
 )
 
 
-def test_memory_request_accepts_only_allow_listed_typed_values() -> None:
+def test_memory_request_accepts_typed_values_without_topic_censorship() -> None:
     request = MemoryCreateRequest(
-        kind=MemoryKind.PERSONAL_GOAL,
-        value="  Спокойнее обозначать свои границы  ",
-        confidence_milli=850,
+        kind=MemoryKind.USER_STATEMENT,
+        value="  Пользователь сообщил о хроническом заболевании  ",
+        confidence_milli=1000,
+        claim_basis=MemoryClaimBasis.USER_STATED,
         source_type=MemorySourceType.USER_EXPLICIT,
         extraction_version="manual-v1",
     )
 
-    assert request.value == "Спокойнее обозначать свои границы"
-    assert request.kind is MemoryKind.PERSONAL_GOAL
+    assert request.value == "Пользователь сообщил о хроническом заболевании"
+    assert request.kind is MemoryKind.USER_STATEMENT
+    assert request.claim_basis is MemoryClaimBasis.USER_STATED
 
 
 def test_memory_request_rejects_unknown_kind_and_out_of_range_confidence() -> None:
     with pytest.raises(ValidationError):
         MemoryCreateRequest(
-            kind="medical_diagnosis",  # type: ignore[arg-type]
+            kind="unknown_memory_kind",  # type: ignore[arg-type]
             value="private",
             confidence_milli=1001,
             source_type=MemorySourceType.USER_EXPLICIT,
@@ -36,13 +39,26 @@ def test_memory_request_rejects_unknown_kind_and_out_of_range_confidence() -> No
         )
 
 
-def test_reading_derived_memory_requires_reading_provenance() -> None:
+def test_reading_derived_memory_requires_reading_provenance_and_candidate_key() -> None:
     with pytest.raises(ValidationError):
         MemoryCreateRequest(
             kind=MemoryKind.RECURRING_THEME,
             value="Повторяющийся выбор между безопасностью и переменами",
             confidence_milli=700,
+            claim_basis=MemoryClaimBasis.MODEL_INFERRED,
             source_type=MemorySourceType.READING_DERIVED,
+            extraction_version="extractor-v1",
+        )
+
+    reading_id = uuid4()
+    with pytest.raises(ValidationError):
+        MemoryCreateRequest(
+            kind=MemoryKind.RECURRING_THEME,
+            value="Повторяющийся выбор между безопасностью и переменами",
+            confidence_milli=700,
+            claim_basis=MemoryClaimBasis.MODEL_INFERRED,
+            source_type=MemorySourceType.READING_DERIVED,
+            source_reading_id=reading_id,
             extraction_version="extractor-v1",
         )
 
@@ -50,15 +66,18 @@ def test_reading_derived_memory_requires_reading_provenance() -> None:
         kind=MemoryKind.RECURRING_THEME,
         value="Повторяющийся выбор между безопасностью и переменами",
         confidence_milli=700,
+        claim_basis=MemoryClaimBasis.MODEL_INFERRED,
         source_type=MemorySourceType.READING_DERIVED,
-        source_reading_id=uuid4(),
+        source_reading_id=reading_id,
         source_persona_code="tarot_reader",
         extraction_version="extractor-v1",
+        candidate_key="candidate-1",
     )
-    assert request.source_reading_id is not None
+    assert request.source_reading_id == reading_id
+    assert request.claim_basis is MemoryClaimBasis.MODEL_INFERRED
 
 
-def test_non_reading_memory_rejects_forged_reading_link() -> None:
+def test_non_reading_memory_rejects_forged_reading_link_or_candidate_key() -> None:
     with pytest.raises(ValidationError):
         MemoryCreateRequest(
             kind=MemoryKind.USER_PREFERENCE,
@@ -67,4 +86,14 @@ def test_non_reading_memory_rejects_forged_reading_link() -> None:
             source_type=MemorySourceType.USER_EXPLICIT,
             source_reading_id=uuid4(),
             extraction_version="manual-v1",
+        )
+
+    with pytest.raises(ValidationError):
+        MemoryCreateRequest(
+            kind=MemoryKind.USER_PREFERENCE,
+            value="Короткие ответы",
+            confidence_milli=1000,
+            source_type=MemorySourceType.USER_EXPLICIT,
+            extraction_version="manual-v1",
+            candidate_key="forged",
         )
