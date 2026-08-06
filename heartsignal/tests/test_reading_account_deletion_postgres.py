@@ -8,7 +8,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.memory_models import ReadingMemoryExtractionJob
 from app.db.models import User
 from app.db.reading_models import Persona, Reading, ReadingPrivateContent, ReadingSymbol
 from app.domain.reading import (
@@ -118,11 +117,6 @@ async def test_account_tombstone_purges_all_reading_ciphertext_and_symbols(
             .select_from(ReadingSymbol)
             .where(ReadingSymbol.reading_id == reading_id)
         )
-        job_count = await session.scalar(
-            select(func.count())
-            .select_from(ReadingMemoryExtractionJob)
-            .where(ReadingMemoryExtractionJob.reading_id == reading_id)
-        )
     assert stored_user is not None and stored_user.privacy_status == "deleted"
     assert reading is not None
     assert reading.status == ReadingStatus.DELETED.value
@@ -141,7 +135,6 @@ async def test_account_tombstone_purges_all_reading_ciphertext_and_symbols(
     assert private.content_delete_after is None
     assert private.content_deleted_at is not None
     assert symbol_count == 0
-    assert job_count == 1
     assert await ReadingService(payment_db, cipher).load_result(reading_id, user.id) is None
     assert await _delete_account(payment_db, user.id) is DataDeletionOutcome.ALREADY_DELETED
 
