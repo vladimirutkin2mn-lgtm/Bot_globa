@@ -68,11 +68,7 @@ async def test_unsafe_question_stops_before_downstream_handler() -> None:
     answer.assert_awaited_once()
     text = answer.await_args.args[0]
     keyboard = answer.await_args.kwargs["reply_markup"]
-    callbacks = [
-        button.callback_data
-        for row in keyboard.inline_keyboard
-        for button in row
-    ]
+    callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert "Сейчас важнее ваша безопасность" in text
     assert PRIVATE_MARKER not in text
     assert PROCESSING not in text
