@@ -1,5 +1,6 @@
 """Transactional explicit-consent service for encrypted birth profiles."""
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TypeVar, cast
@@ -24,8 +25,14 @@ from app.domain.birth_profile import (
     BirthProfileStatus,
     BirthProfileView,
 )
+from app.providers.analytics import OracleProductEvent
+from app.services.oracle_product_analytics import (
+    OracleAnalyticsValue,
+    OracleProductAnalytics,
+)
 from app.services.sensitive_content import ContentPurpose, SensitiveContentCipher
 
+logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
@@ -43,11 +50,13 @@ class BirthProfileService:
         *,
         consent_version: str = CURRENT_BIRTH_PROFILE_CONSENT_VERSION,
         profile_version: str = CURRENT_BIRTH_PROFILE_VERSION,
+        analytics: OracleProductAnalytics | None = None,
     ) -> None:
         self._sessions = sessions
         self._cipher = cipher
         self._consent_version = consent_version
         self._profile_version = profile_version
+        self._analytics = analytics
 
     async def consent_state(self, user_id: UUID) -> BirthProfileConsentView | None:
         async with self._sessions() as session:
@@ -74,10 +83,17 @@ class BirthProfileService:
                 consent.accepted_at = now
                 consent.revoked_at = None
             await session.flush()
-            return self._consent_view(consent)
+            view = self._consent_view(consent)
+        await self._track(
+            user_id,
+            OracleProductEvent.BIRTH_PROFILE_CONSENT_GRANTED,
+            {"consent_version": self._consent_version},
+        )
+        return view
 
     async def revoke_consent(self, user_id: UUID) -> BirthProfileConsentView:
         now = datetime.now(UTC)
+        deleted_version: str | None = None
         async with self._sessions.begin() as session:
             await self._required_active_user(session, user_id, for_update=True)
             consent = await session.get(BirthProfileConsent, user_id, with_for_update=True)
@@ -95,9 +111,22 @@ class BirthProfileService:
                 consent.revoked_at = now
             profile = await self._profile_locked(session, user_id)
             if profile is not None:
+                deleted_version = profile.profile_version
                 await self._purge_profile(session, profile, now)
             await session.flush()
-            return self._consent_view(consent)
+            view = self._consent_view(consent)
+        await self._track(
+            user_id,
+            OracleProductEvent.BIRTH_PROFILE_CONSENT_REVOKED,
+            {"consent_version": self._consent_version},
+        )
+        if deleted_version is not None:
+            await self._track(
+                user_id,
+                OracleProductEvent.BIRTH_PROFILE_DELETED,
+                {"profile_version": deleted_version},
+            )
+        return view
 
     async def save(self, user_id: UUID, value: BirthProfileInput) -> BirthProfileView:
         now = datetime.now(UTC)
@@ -145,7 +174,16 @@ class BirthProfileService:
                 private.content_deleted_at = None
                 profile.updated_at = now
             await session.flush()
-            return self._profile_view(profile, value)
+            view = self._profile_view(profile, value)
+        await self._track(
+            user_id,
+            OracleProductEvent.BIRTH_PROFILE_SAVED,
+            {
+                "profile_version": self._profile_version,
+                "time_precision": "exact" if value.time_known else "date_only",
+            },
+        )
+        return view
 
     async def load(self, user_id: UUID) -> BirthProfileView | None:
         async with self._sessions.begin() as session:
@@ -170,14 +208,21 @@ class BirthProfileService:
 
     async def delete_profile(self, user_id: UUID) -> bool:
         now = datetime.now(UTC)
+        deleted_version: str | None = None
         async with self._sessions.begin() as session:
             await self._required_active_user(session, user_id, for_update=True)
             profile = await self._profile_locked(session, user_id)
             if profile is None:
                 return False
+            deleted_version = profile.profile_version
             await self._purge_profile(session, profile, now)
             await session.flush()
-            return True
+        await self._track(
+            user_id,
+            OracleProductEvent.BIRTH_PROFILE_DELETED,
+            {"profile_version": deleted_version},
+        )
+        return True
 
     async def _authorized_profile_locked(
         self,
@@ -284,3 +329,16 @@ class BirthProfileService:
             created_at=profile.created_at,
             updated_at=profile.updated_at,
         )
+
+    async def _track(
+        self,
+        user_id: UUID,
+        event: OracleProductEvent,
+        properties: dict[str, OracleAnalyticsValue | None],
+    ) -> None:
+        if self._analytics is None:
+            return
+        try:
+            await self._analytics.track(user_id, event, properties)
+        except Exception:
+            logger.warning("oracle_analytics_failed event=%s", event.value)

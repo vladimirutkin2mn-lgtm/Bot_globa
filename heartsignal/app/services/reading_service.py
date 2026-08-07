@@ -1,5 +1,6 @@
 """Transactional application service for the independent Reading domain."""
 
+import logging
 from typing import Protocol
 from uuid import UUID
 
@@ -7,8 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.reading_models import Reading
 from app.domain.reading import ReadingDraftRequest, ReadingSymbolInput
+from app.providers.analytics import OracleProductEvent
 from app.repositories.readings import ReadingSource, SqlAlchemyReadingRepository
+from app.services.oracle_product_analytics import (
+    OracleAnalyticsValue,
+    OracleProductAnalytics,
+)
 from app.services.sensitive_content import SensitiveContentCipher
+
+logger = logging.getLogger(__name__)
 
 
 class PersonaUnavailableError(LookupError):
@@ -28,11 +36,13 @@ class ReadingService:
         cipher: SensitiveContentCipher,
         retention_days: int = 30,
         preview_entitlements: ReadingPreviewReleaseService | None = None,
+        analytics: OracleProductAnalytics | None = None,
     ) -> None:
         self._sessions = sessions
         self._cipher = cipher
         self._retention_days = retention_days
         self._preview_entitlements = preview_entitlements
+        self._analytics = analytics
 
     async def create_draft(self, user_id: UUID, request: ReadingDraftRequest) -> Reading:
         async with self._sessions.begin() as session:
@@ -40,7 +50,20 @@ class ReadingService:
             persona = await repository.enabled_persona(request.persona_code)
             if persona is None:
                 raise PersonaUnavailableError("reading persona is unavailable")
-            return await repository.create_draft(user_id, persona, request)
+            reading = await repository.create_draft(user_id, persona, request)
+        await self._track(
+            user_id,
+            OracleProductEvent.READING_STARTED,
+            {
+                "reading_id": reading.id,
+                "persona_code": request.persona_code,
+                "topic_code": request.topic,
+                "engine_version": request.engine_version,
+                "prompt_version": request.prompt_version,
+                "schema_version": request.schema_version,
+            },
+        )
+        return reading
 
     async def start_generation(self, reading_id: UUID, user_id: UUID) -> Reading:
         async with self._sessions.begin() as session:
@@ -128,3 +151,16 @@ class ReadingService:
             self._cipher,
             retention_days=self._retention_days,
         )
+
+    async def _track(
+        self,
+        user_id: UUID,
+        event: OracleProductEvent,
+        properties: dict[str, OracleAnalyticsValue | None],
+    ) -> None:
+        if self._analytics is None:
+            return
+        try:
+            await self._analytics.track(user_id, event, properties)
+        except Exception:
+            logger.warning("oracle_analytics_failed event=%s", event.value)
