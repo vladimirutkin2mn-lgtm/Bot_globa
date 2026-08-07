@@ -102,9 +102,7 @@ async def test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest(
     assert saved.profile == value
     assert loaded is not None and loaded.profile == value
     async with payment_db() as session:
-        profile = await session.scalar(
-            select(BirthProfile).where(BirthProfile.user_id == user.id)
-        )
+        profile = await session.scalar(select(BirthProfile).where(BirthProfile.user_id == user.id))
         assert profile is not None
         private = await session.get(BirthProfilePrivateContent, profile.id)
     assert private is not None and private.payload_ciphertext is not None
@@ -118,7 +116,9 @@ async def test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest(
         b"4.904139",
     ):
         assert marker not in ciphertext
-    assert cipher.decrypt_json(ContentPurpose.BIRTH_PROFILE, ciphertext) == value.encrypted_payload()
+    assert (
+        cipher.decrypt_json(ContentPurpose.BIRTH_PROFILE, ciphertext) == value.encrypted_payload()
+    )
     with pytest.raises(ContentAuthenticationError):
         cipher.decrypt_json(ContentPurpose.ORACLE_MEMORY_VALUE, ciphertext)
 
@@ -141,9 +141,7 @@ async def test_save_updates_one_profile_row_and_replaces_ciphertext(
         count = await session.scalar(
             select(func.count()).select_from(BirthProfile).where(BirthProfile.user_id == user.id)
         )
-        profile = await session.scalar(
-            select(BirthProfile).where(BirthProfile.user_id == user.id)
-        )
+        profile = await session.scalar(select(BirthProfile).where(BirthProfile.user_id == user.id))
         assert profile is not None
         private = await session.get(BirthProfilePrivateContent, profile.id)
     assert count == 1
@@ -196,9 +194,7 @@ async def test_revoke_consent_purges_ciphertext_and_blocks_reuse(
     with pytest.raises(BirthProfileConsentRequiredError):
         await service.load(user.id)
     async with payment_db() as session:
-        profile = await session.scalar(
-            select(BirthProfile).where(BirthProfile.user_id == user.id)
-        )
+        profile = await session.scalar(select(BirthProfile).where(BirthProfile.user_id == user.id))
         assert profile is not None
         private = await session.get(BirthProfilePrivateContent, profile.id)
     assert profile.status == BirthProfileStatus.DELETED.value
@@ -234,9 +230,7 @@ async def test_load_and_revoke_serialize_without_post_revoke_ciphertext(
         assert not isinstance(revoke_result, BaseException)
         assert revoke_result.status is BirthProfileConsentStatus.REVOKED
         async with payment_db() as session:
-            profile = await session.scalar(
-                select(BirthProfile).where(BirthProfile.user_id == user.id)
-            )
+            profile = await session.scalar(select(BirthProfile).where(BirthProfile.user_id == user.id))
             assert profile is not None
             private = await session.get(BirthProfilePrivateContent, profile.id)
         assert profile.status == BirthProfileStatus.DELETED.value
