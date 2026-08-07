@@ -96,14 +96,10 @@ class ValidLLM:
                             "symbol_id": "major-00-fool",
                             "position": "situation",
                             "orientation": "upright",
-                            "interpretation": (
-                                "A new route is possible, with uncertainty."
-                            ),
+                            "interpretation": ("A new route is possible, with uncertainty."),
                         }
                     ],
-                    "patterns": [
-                        "A choice may benefit from a reversible first step."
-                    ],
+                    "patterns": ["A choice may benefit from a reversible first step."],
                     "possible_scenarios": [
                         {
                             "scenario": "A small experiment clarifies the direction.",
@@ -115,9 +111,7 @@ class ValidLLM:
                     "uncertainty_note": "This reading cannot predict the future.",
                     "share_card": {
                         "headline": "A possible new route",
-                        "short_text": (
-                            "Pause, observe, and choose one low-risk experiment."
-                        ),
+                        "short_text": ("Pause, observe, and choose one low-risk experiment."),
                     },
                     "safety": {"high_risk_detected": False, "categories": []},
                 }

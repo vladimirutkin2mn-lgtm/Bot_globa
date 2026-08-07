@@ -196,16 +196,12 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     ),
     "analysis_feedback_submitted": frozenset({"analysis_id", "score"}),
     "analysis_history_opened": frozenset({"analysis_id"}),
-    "analysis_report_delivered": frozenset(
-        {"analysis_id", "source", "chunk_count_bucket"}
-    ),
+    "analysis_report_delivered": frozenset({"analysis_id", "source", "chunk_count_bucket"}),
     "reply_suggestions_requested": frozenset({"analysis_id"}),
     "followup_requested": frozenset({"analysis_id"}),
     "analysis_deleted": frozenset({"analysis_id"}),
     "all_data_deleted": frozenset({"user_id"}),
-    OracleProductEvent.PERSONA_SELECTED.value: _oracle_properties(
-        "persona_code", "topic_code"
-    ),
+    OracleProductEvent.PERSONA_SELECTED.value: _oracle_properties("persona_code", "topic_code"),
     OracleProductEvent.READING_STARTED.value: _oracle_properties(
         "reading_id",
         "persona_code",
@@ -246,12 +242,8 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
         "repair_used",
         "failure_code",
     ),
-    OracleProductEvent.BIRTH_PROFILE_CONSENT_GRANTED.value: _oracle_properties(
-        "consent_version"
-    ),
-    OracleProductEvent.BIRTH_PROFILE_CONSENT_REVOKED.value: _oracle_properties(
-        "consent_version"
-    ),
+    OracleProductEvent.BIRTH_PROFILE_CONSENT_GRANTED.value: _oracle_properties("consent_version"),
+    OracleProductEvent.BIRTH_PROFILE_CONSENT_REVOKED.value: _oracle_properties("consent_version"),
     OracleProductEvent.BIRTH_PROFILE_SAVED.value: _oracle_properties(
         "profile_version", "time_precision"
     ),
@@ -348,9 +340,7 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
     OracleProductEvent.BIRTH_PROFILE_SAVED.value: frozenset(
         {"event_version", "profile_version", "time_precision"}
     ),
-    OracleProductEvent.BIRTH_PROFILE_DELETED.value: frozenset(
-        {"event_version", "profile_version"}
-    ),
+    OracleProductEvent.BIRTH_PROFILE_DELETED.value: frozenset({"event_version", "profile_version"}),
     OracleProductEvent.ASTROLOGY_CALCULATION_COMPLETED.value: frozenset(
         {
             "event_version",
@@ -390,9 +380,7 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
             "source_type",
         }
     ),
-    OracleProductEvent.MEMORY_CLEARED.value: frozenset(
-        {"event_version", "deleted_count"}
-    ),
+    OracleProductEvent.MEMORY_CLEARED.value: frozenset({"event_version", "deleted_count"}),
     OracleProductEvent.MEMORY_CONTEXT_USED.value: frozenset(
         {"event_version", "reading_id", "selected_count"}
     ),
@@ -562,7 +550,10 @@ def validate_event_properties(event: str, properties: Mapping[str, str] | None) 
                 raise AnalyticsContractError from None
         elif _SAFE_VALUE.fullmatch(value) is None:
             raise AnalyticsContractError
-    if event in _ORACLE_REQUIRED and supplied.get("event_version") != PRODUCT_EVENT_TAXONOMY_VERSION:
+    if (
+        event in _ORACLE_REQUIRED
+        and supplied.get("event_version") != PRODUCT_EVENT_TAXONOMY_VERSION
+    ):
         raise AnalyticsContractError
     return supplied
 

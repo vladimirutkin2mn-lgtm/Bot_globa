@@ -90,9 +90,7 @@ async def test_reading_and_birth_profile_emit_only_safe_metadata(
     async with payment_db() as session:
         rows = list(
             (
-                await session.scalars(
-                    select(AnalyticsEvent).order_by(AnalyticsEvent.created_at)
-                )
+                await session.scalars(select(AnalyticsEvent).order_by(AnalyticsEvent.created_at))
             ).all()
         )
 

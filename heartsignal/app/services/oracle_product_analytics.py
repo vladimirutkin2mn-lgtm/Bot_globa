@@ -30,11 +30,7 @@ class OracleProductAnalytics:
             raise ValueError("event_version is managed by the oracle analytics facade")
         normalized = {
             "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
-            **{
-                key: self._value(value)
-                for key, value in properties.items()
-                if value is not None
-            },
+            **{key: self._value(value) for key, value in properties.items() if value is not None},
         }
         safe = validate_event_properties(event.value, normalized)
         await self._client.track(
@@ -48,11 +44,7 @@ class OracleProductAnalytics:
         """Encode a deterministic set of risk codes without free-form text."""
 
         normalized = sorted(
-            {
-                value.value if isinstance(value, StrEnum) else value
-                for value in values
-                if value
-            }
+            {value.value if isinstance(value, StrEnum) else value for value in values if value}
         )
         return "+".join(normalized) if normalized else "none"
 

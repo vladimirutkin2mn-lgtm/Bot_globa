@@ -128,7 +128,8 @@ def test_taxonomy_is_complete_stable_and_category_sets_are_deterministic() -> No
         event_taxonomy_version(event.value) == PRODUCT_EVENT_TAXONOMY_VERSION
         for event in OracleProductEvent
     )
-    assert OracleProductAnalytics.category_codes(
-        ["financial", "medical", "financial"]
-    ) == "financial+medical"
+    assert (
+        OracleProductAnalytics.category_codes(["financial", "medical", "financial"])
+        == "financial+medical"
+    )
     assert OracleProductAnalytics.category_codes([]) == "none"

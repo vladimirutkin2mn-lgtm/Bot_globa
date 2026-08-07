@@ -100,10 +100,7 @@ async def test_oracle_events_deduplicate_by_reading_memory_item_and_action(
         "persona_selected:persona-action-two",
     }
     assert all(row.subject_id == str(user_id) for row in rows)
-    assert all(
-        row.properties["event_version"] == PRODUCT_EVENT_TAXONOMY_VERSION
-        for row in rows
-    )
+    assert all(row.properties["event_version"] == PRODUCT_EVENT_TAXONOMY_VERSION for row in rows)
     serialized = str([row.properties for row in rows])
     assert "question" not in serialized
     assert "reading_text" not in serialized
