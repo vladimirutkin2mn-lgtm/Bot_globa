@@ -134,9 +134,7 @@ def test_deployed_prompt_schema_engine_and_model_versions_match_manifest() -> No
         llm_model=os.getenv("LLM_MODEL", defaults["llm_model"]),
     )
     expected = build_oracle_deployment_snapshot(
-        llm_provider=os.getenv(
-            "ORACLE_STAGING_EXPECTED_LLM_PROVIDER", defaults["llm_provider"]
-        ),
+        llm_provider=os.getenv("ORACLE_STAGING_EXPECTED_LLM_PROVIDER", defaults["llm_provider"]),
         llm_model=os.getenv("ORACLE_STAGING_EXPECTED_LLM_MODEL", defaults["llm_model"]),
     )
 
@@ -157,17 +155,10 @@ def test_deployment_snapshot_reports_model_drift_without_private_data() -> None:
 
 def test_structured_result_contracts_match_fixed_manifest() -> None:
     assert list(ReadingResult.model_fields) == DATASET["schemas"]["reading-result-v1"]
-    assert list(AsyncAstrologyResultFields.fields()) == DATASET["schemas"][
-        "astrology-reading-result-v1"
-    ]
-
-
-class AsyncAstrologyResultFields:
-    """Keep the schema assertion explicit while satisfying strict static typing."""
-
-    @staticmethod
-    def fields() -> tuple[str, ...]:
-        return tuple(AstrologyReadingResult.model_fields)
+    assert (
+        list(AstrologyReadingResult.model_fields)
+        == DATASET["schemas"]["astrology-reading-result-v1"]
+    )
 
 
 @pytest.mark.parametrize(
