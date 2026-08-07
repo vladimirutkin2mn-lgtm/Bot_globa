@@ -14,6 +14,10 @@ from app.services.oracle_product_analytics import (
     OracleAnalyticsValue,
     OracleProductAnalytics,
 )
+from app.services.oracle_release_controls import (
+    OracleReleaseControls,
+    OracleReleaseDecisionCode,
+)
 from app.services.sensitive_content import SensitiveContentCipher
 
 logger = logging.getLogger(__name__)
@@ -21,6 +25,14 @@ logger = logging.getLogger(__name__)
 
 class PersonaUnavailableError(LookupError):
     """The requested persona does not exist or is disabled."""
+
+
+class OracleReleaseUnavailableError(PersonaUnavailableError):
+    """A limited-release control denied a new Reading without exposing private input."""
+
+    def __init__(self, reason: OracleReleaseDecisionCode) -> None:
+        super().__init__("reading persona is unavailable")
+        self.reason = reason
 
 
 class ReadingPreviewReleaseService(Protocol):
@@ -37,15 +49,21 @@ class ReadingService:
         retention_days: int = 30,
         preview_entitlements: ReadingPreviewReleaseService | None = None,
         analytics: OracleProductAnalytics | None = None,
+        release_controls: OracleReleaseControls | None = None,
     ) -> None:
         self._sessions = sessions
         self._cipher = cipher
         self._retention_days = retention_days
         self._preview_entitlements = preview_entitlements
         self._analytics = analytics
+        self._release_controls = release_controls
 
     async def create_draft(self, user_id: UUID, request: ReadingDraftRequest) -> Reading:
         async with self._sessions.begin() as session:
+            if self._release_controls is not None:
+                decision = await self._release_controls.authorize_draft(session, user_id, request)
+                if not decision.allowed:
+                    raise OracleReleaseUnavailableError(decision.code)
             repository = self._repository(session)
             persona = await repository.enabled_persona(request.persona_code)
             if persona is None:
