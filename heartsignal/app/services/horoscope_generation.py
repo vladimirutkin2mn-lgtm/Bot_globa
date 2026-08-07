@@ -5,11 +5,13 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
 from app.domain.horoscope import AstrologyReadingResult, HoroscopeFactBundle, HoroscopeScope
+from app.domain.horoscope_topic import HoroscopeTopic
 from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
@@ -94,6 +96,8 @@ class HoroscopeFactsProvider(Protocol):
         self,
         user_id: UUID,
         scope: HoroscopeScope,
+        *,
+        reference_date: date | None = None,
     ) -> HoroscopeFactBundle: ...
 
 
@@ -163,9 +167,14 @@ class HoroscopeGenerationService:
                     attempts,
                     completion,
                 )
-            scope = HoroscopeScope(context.topic)
+            topic = HoroscopeTopic.parse(context.topic)
+            scope = topic.scope
             prompts = self._prompt_loader(context.prompt_version)
-            facts = await self._facts.calculate_for_user(user_id, scope)
+            facts = await self._facts.calculate_for_user(
+                user_id,
+                scope,
+                reference_date=topic.reference_date,
+            )
             user_prompt = self._user_prompt(context.question, context.context, facts, prompts)
             request = LLMRequest(
                 system_prompt=prompts.system,
