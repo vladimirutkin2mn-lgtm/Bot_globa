@@ -71,9 +71,7 @@ async def test_one_time_checkout_uses_server_price_and_canonical_sku_metadata() 
     assert sessions.created is not None
     params, options = sessions.created
     assert params["mode"] == "payment"
-    assert params["line_items"] == [
-        {"price": "price_approved_single_eur", "quantity": 1}
-    ]
+    assert params["line_items"] == [{"price": "price_approved_single_eur", "quantity": 1}]
     assert params["client_reference_id"] == request.order_id
     assert params["metadata"] == {
         "order_id": request.order_id,
