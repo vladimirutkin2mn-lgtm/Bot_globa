@@ -67,7 +67,7 @@ def test_exact_time_produces_ascendant_and_twelve_equal_houses() -> None:
     assert len(result.houses) == 12
     assert result.houses[0].number == 1
     assert result.houses[0].cusp_longitude_millidegrees == result.ascendant_longitude_millidegrees
-    for previous, current in zip(result.houses, result.houses[1:], strict=True):
+    for previous, current in zip(result.houses, result.houses[1:]):
         assert (
             current.cusp_longitude_millidegrees - previous.cusp_longitude_millidegrees
         ) % 360_000 == 30_000
