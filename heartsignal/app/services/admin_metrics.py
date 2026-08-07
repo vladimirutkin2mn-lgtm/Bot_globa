@@ -204,14 +204,12 @@ class AdminMetricsService:
                 )
             ).all()
             funnel = {event: int(count) for event, count in funnel_rows}
+            rejection_reason = AnalyticsEvent.properties["rejection_reason"].astext
             rejection_rows = (
                 await session.execute(
-                    select(
-                        AnalyticsEvent.properties["rejection_reason"].astext,
-                        func.count(),
-                    )
+                    select(rejection_reason, func.count())
                     .where(AnalyticsEvent.event_name.in_(_USER_VALIDATION_EVENTS))
-                    .group_by(AnalyticsEvent.properties["rejection_reason"].astext)
+                    .group_by(rejection_reason)
                 )
             ).all()
             analysis_failure_rows = (
