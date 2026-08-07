@@ -2,8 +2,7 @@
 set -euo pipefail
 
 # These tests freeze production-sensitive billing, privacy and consent behavior.
-# Persona vertical slices remain mandatory protected invariants before merge.
-# Refresh the protected gate after GitHub Actions scheduling recovered.
+# Reading ciphertext races, BirthProfile consent and calculation boundaries are mandatory.
 # Keep the list small and explicit so a green full suite cannot hide a broken invariant.
 pytest \
   tests/test_credits_repository_postgres.py::test_same_analysis_spend_and_refund_are_exactly_once \
@@ -15,6 +14,9 @@ pytest \
   tests/test_followup_service_postgres.py::test_soft_delete_purges_encrypted_followup_history \
   tests/test_account_deletion_postgres.py::test_payment_completion_and_account_deletion_race_25_times \
   tests/test_account_deletion_postgres.py::test_complete_account_tombstone_preserves_immutable_ledger \
+  tests/test_reading_account_deletion_postgres.py::test_account_tombstone_purges_all_reading_ciphertext_and_symbols \
+  tests/test_reading_account_deletion_postgres.py::test_draft_creation_waits_for_deletion_and_cannot_leave_private_data \
+  tests/test_reading_account_deletion_postgres.py::test_generation_claim_waits_for_deletion_and_never_decrypts_source \
   tests/test_monetized_reading_postgres.py::test_paid_reading_unlock_is_exactly_once_under_concurrency \
   tests/test_monetized_reading_postgres.py::test_technical_failure_refunds_reading_spend_exactly_once \
   tests/test_shared_preview_entitlement_postgres.py::test_reading_preview_consumes_shared_entitlement_and_blocks_analysis \
@@ -48,4 +50,13 @@ pytest \
   tests/test_love_oracle_reading.py::test_mind_reading_and_guaranteed_reunion_are_rejected_before_persistence \
   tests/test_mystical_psychologist_reading.py::test_postgres_reflection_is_validated_and_idempotent \
   tests/test_mystical_psychologist_reading.py::test_diagnosis_and_dependency_are_rejected_before_persistence \
+  tests/test_birth_profile_postgres.py::test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest \
+  tests/test_birth_profile_postgres.py::test_concurrent_saves_serialize_to_one_profile_row \
+  tests/test_birth_profile_postgres.py::test_revoke_consent_purges_ciphertext_and_blocks_reuse \
+  tests/test_birth_profile_postgres.py::test_load_and_revoke_serialize_without_post_revoke_ciphertext \
+  tests/test_birth_profile_postgres.py::test_birth_profile_never_crosses_user_boundary \
+  tests/test_birth_profile_postgres.py::test_account_deletion_cascades_profile_consent_and_ciphertext \
+  tests/test_natal_chart.py::test_same_normalized_input_produces_identical_versioned_payload \
+  tests/test_natal_chart.py::test_unknown_time_uses_local_noon_and_never_invents_houses \
+  tests/test_natal_chart_postgres.py::test_chart_calculation_requires_active_consented_profile \
   "$@"
