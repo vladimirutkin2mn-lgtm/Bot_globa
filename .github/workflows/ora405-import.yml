@@ -1,0 +1,71 @@
+name: ORA-405 clean import
+
+on:
+  push:
+    branches:
+      - agent/ora-405-product-catalog-retry
+    paths:
+      - .github/workflows/ora405-import.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Import ORA-405-only paths from legacy stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/ora-405-product-catalog
+          git checkout origin/agent/ora-405-product-catalog -- \
+            heartsignal/app/domain/billing.py \
+            heartsignal/app/domain/products.py \
+            heartsignal/app/providers/payments/gateway.py \
+            heartsignal/app/providers/payments/stripe_gateway.py \
+            heartsignal/app/providers/payments/subscription_gateway.py \
+            heartsignal/app/providers/payments/yookassa_gateway.py \
+            heartsignal/app/providers/payments/yookassa_subscription_gateway.py \
+            heartsignal/app/services/checkout_service.py \
+            heartsignal/app/services/payment_service.py \
+            heartsignal/app/services/subscription_checkout_service.py \
+            heartsignal/scripts/run_platform_invariants.sh \
+            heartsignal/tests/test_billing_catalog.py \
+            heartsignal/tests/test_product_catalog_checkout_postgres.py \
+            heartsignal/tests/test_product_catalog_financial_lifecycle_postgres.py \
+            heartsignal/tests/test_products.py \
+            heartsignal/tests/test_stripe_catalog_checkout.py \
+            heartsignal/tests/test_subscription_checkout_postgres.py \
+            heartsignal/tests/test_yookassa_catalog_labels.py \
+            heartsignal/tests/test_yookassa_subscription_gateway.py \
+            heartsignal/tests/test_yookassa_subscription_label_replay_postgres.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- \
+            heartsignal/app/domain/billing.py \
+            heartsignal/app/domain/products.py \
+            heartsignal/app/providers/payments/gateway.py \
+            heartsignal/app/providers/payments/stripe_gateway.py \
+            heartsignal/app/providers/payments/subscription_gateway.py \
+            heartsignal/app/providers/payments/yookassa_gateway.py \
+            heartsignal/app/providers/payments/yookassa_subscription_gateway.py \
+            heartsignal/app/services/checkout_service.py \
+            heartsignal/app/services/payment_service.py \
+            heartsignal/app/services/subscription_checkout_service.py \
+            heartsignal/scripts/run_platform_invariants.sh \
+            heartsignal/tests/test_billing_catalog.py \
+            heartsignal/tests/test_product_catalog_checkout_postgres.py \
+            heartsignal/tests/test_product_catalog_financial_lifecycle_postgres.py \
+            heartsignal/tests/test_products.py \
+            heartsignal/tests/test_stripe_catalog_checkout.py \
+            heartsignal/tests/test_subscription_checkout_postgres.py \
+            heartsignal/tests/test_yookassa_catalog_labels.py \
+            heartsignal/tests/test_yookassa_subscription_gateway.py \
+            heartsignal/tests/test_yookassa_subscription_label_replay_postgres.py
+          git commit -m 'ORA-405: rebuild product catalog v2 on clean stack'
+          git push origin HEAD:agent/ora-405-product-catalog-retry
