@@ -55,7 +55,9 @@ class SqlAlchemyReadingRepository:
         request: ReadingDraftRequest,
     ) -> Reading:
         user = await self._session.scalar(
-            select(User).where(User.id == user_id, User.privacy_status == "active")
+            select(User)
+            .where(User.id == user_id, User.privacy_status == "active")
+            .with_for_update(of=User)
         )
         if user is None:
             raise LookupError("active reading user not found")
@@ -292,12 +294,17 @@ class SqlAlchemyReadingRepository:
         private.question_ciphertext = None
         private.context_ciphertext = None
         private.result_ciphertext = None
+        private.question_format_version = None
+        private.context_format_version = None
+        private.result_format_version = None
+        private.content_delete_after = None
         private.content_deleted_at = datetime.now(UTC)
         await self._session.execute(
             delete(ReadingSymbol).where(ReadingSymbol.reading_id == reading.id)
         )
         reading.status = ReadingStatus.DELETED.value
         reading.access_level = ReadingAccess.NONE.value
+        reading.generation_started_at = None
         reading.generated_at = None
         reading.failure_code = None
         reading.deleted_at = datetime.now(UTC)
