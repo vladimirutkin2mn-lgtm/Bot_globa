@@ -1,6 +1,6 @@
 """YooKassa sandbox contract for catalog-v2 labels and immutable metadata."""
 
-from typing import cast
+from typing import ClassVar, cast
 
 import pytest
 
@@ -10,7 +10,7 @@ from app.providers.payments.yookassa_gateway import YooKassaGateway
 
 class FakeResponse:
     status_code = 200
-    headers = {"X-Request-Id": "request-label"}
+    headers: ClassVar[dict[str, str]] = {"X-Request-Id": "request-label"}
 
     def json(self) -> dict[str, object]:
         return {
