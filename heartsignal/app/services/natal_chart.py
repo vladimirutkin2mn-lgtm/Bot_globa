@@ -253,23 +253,16 @@ class AstronomyEngineNatalChartCalculator:
             previous_altitude = current_altitude
         unique_roots: list[float] = []
         for root in roots:
-            if all(
-                self._angular_distance(root, existing) > 0.01
-                for existing in unique_roots
-            ):
+            if all(self._angular_distance(root, existing) > 0.01 for existing in unique_roots):
                 unique_roots.append(root)
         if not unique_roots:
-            raise NatalChartCalculationError(
-                "unable to calculate the eastern ecliptic horizon"
-            )
+            raise NatalChartCalculationError("unable to calculate the eastern ecliptic horizon")
         ascendant = min(
             unique_roots,
             key=lambda root: self._angular_distance(horizon(root)[1], 90.0),
         )
         if self._angular_distance(horizon(ascendant)[1], 90.0) > 90.0:
-            raise NatalChartCalculationError(
-                "unable to identify the eastern ecliptic horizon"
-            )
+            raise NatalChartCalculationError("unable to identify the eastern ecliptic horizon")
         return self._millidegrees(ascendant)
 
     @staticmethod
