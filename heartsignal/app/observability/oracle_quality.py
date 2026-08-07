@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Final
 from uuid import uuid4
 
-from app.providers.analytics import AnalyticsClient
+from app.providers.analytics import AnalyticsClient, ORACLE_QUALITY_EVENT_VERSION
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMClient,
@@ -18,11 +18,11 @@ from app.providers.llm.base import (
     LLMTimeoutError,
     LLMTransientError,
     LLMUnexpectedError,
+    close_llm_client,
 )
 
 logger = logging.getLogger(__name__)
 
-ORACLE_QUALITY_EVENT_VERSION: Final = "oracle-quality-events-v1"
 LLM_ATTEMPT_EVENT: Final = "oracle_llm_attempt_observed"
 ASTROLOGY_EVENT: Final = "oracle_astrology_observed"
 GENERATION_EVENT: Final = "oracle_generation_observed"
@@ -75,7 +75,6 @@ class OracleQualityObserver:
         *,
         persona_code: str,
         prompt_version: str,
-        repair: bool,
     ) -> LLMCompletion:
         """Measure one actual provider call, including failed calls that still consume latency."""
 
@@ -92,14 +91,14 @@ class OracleQualityObserver:
                     "provider": self._default_provider,
                     "model": self._default_model,
                     "prompt_version": prompt_version,
-                    "attempt_kind": "repair" if repair else "primary",
+                    "attempt_kind": "repair" if request.repair else "primary",
                     "status_code": _llm_failure_code(error),
-                    "latency_ms": str(_elapsed_ms(started)),
+                    "latency_ms": str(elapsed_ms(started)),
                     "cost_known": "false",
                 },
             )
             raise
-        latency_ms = completion.latency_ms or _elapsed_ms(started)
+        latency_ms = completion.latency_ms or elapsed_ms(started)
         estimated_cost = self._cost_policy.estimate_microusd(completion)
         properties = {
             "observation_id": str(observation_id),
@@ -107,7 +106,7 @@ class OracleQualityObserver:
             "provider": completion.provider,
             "model": completion.model,
             "prompt_version": prompt_version,
-            "attempt_kind": "repair" if repair else "primary",
+            "attempt_kind": "repair" if request.repair else "primary",
             "status_code": "completed",
             "latency_ms": str(latency_ms),
             "cost_known": "true" if estimated_cost is not None else "false",
@@ -173,7 +172,30 @@ class OracleQualityObserver:
             logger.warning("oracle_quality_observability_failed event=%s", event)
 
 
-def _elapsed_ms(started_ns: int) -> int:
+class ObservedLLMClient:
+    """Observe only requests explicitly tagged with aggregate-safe oracle coordinates."""
+
+    def __init__(self, inner: LLMClient, observer: OracleQualityObserver) -> None:
+        self._inner = inner
+        self._observer = observer
+
+    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+        persona_code = request.telemetry_persona_code
+        prompt_version = request.telemetry_prompt_version
+        if persona_code is None or prompt_version is None:
+            return await self._inner.generate_analysis(request)
+        return await self._observer.generate(
+            self._inner,
+            request,
+            persona_code=persona_code,
+            prompt_version=prompt_version,
+        )
+
+    async def aclose(self) -> None:
+        await close_llm_client(self._inner)
+
+
+def elapsed_ms(started_ns: int) -> int:
     return max(0, round((time.perf_counter_ns() - started_ns) / 1_000_000))
 
 
