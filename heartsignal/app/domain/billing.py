@@ -51,6 +51,7 @@ class BillingCatalog:
                     product.code,
                     currency,
                 )
+                pricing_code = _stripe_pricing_code(product.code)
                 self._add(
                     product,
                     BillingMarket.INTERNATIONAL,
@@ -58,7 +59,7 @@ class BillingCatalog:
                     currency,
                     amount_minor if amount_minor is not None else 1,
                     price_reference
-                    or f"unconfigured:{product.code.value}:{currency.lower()}:v{product.version}",
+                    or f"unconfigured:{pricing_code.value}:{currency.lower()}:v{product.version}",
                 )
 
     def _add(
@@ -70,12 +71,11 @@ class BillingCatalog:
         amount_minor: int,
         price_reference: str,
     ) -> None:
+        is_subscription = product.code is ProductCode.SUBSCRIPTION_MONTHLY
         self._offers[(product.code, market, currency)] = BillingOffer(
             product_code=product.code,
             product_version=product.version,
-            purchase_mode=(
-                PurchaseMode.SUBSCRIPTION if product.recurring else PurchaseMode.ONE_TIME
-            ),
+            purchase_mode=(PurchaseMode.SUBSCRIPTION if is_subscription else PurchaseMode.ONE_TIME),
             title=product.title,
             receipt_label=product.receipt_label,
             active_order_codes=self._products.active_order_codes(product.code),
@@ -85,7 +85,7 @@ class BillingCatalog:
             currency=currency,
             amount_minor=amount_minor,
             price_reference=price_reference,
-            billing_interval="month" if product.recurring else None,
+            billing_interval="month" if is_subscription else None,
         )
 
     def resolve_product_offer(
@@ -105,6 +105,12 @@ class BillingCatalog:
             return self._offers[key]
         except KeyError as exc:
             raise LookupError("unsupported market/currency combination") from exc
+
+
+def _stripe_pricing_code(product_code: ProductCode) -> ProductCode:
+    if product_code in {ProductCode.ASTROLOGY_NATAL, ProductCode.ASTROLOGY_FORECAST}:
+        return ProductCode.READING_SINGLE
+    return product_code
 
 
 def _stripe_coordinates(
@@ -142,8 +148,9 @@ def _stripe_coordinates(
         )
     else:
         raise ValueError("Stripe catalog supports only EUR or USD")
-    if product_code is ProductCode.READING_PACK_5:
+    pricing_code = _stripe_pricing_code(product_code)
+    if pricing_code is ProductCode.READING_PACK_5:
         return pack
-    if product_code is ProductCode.SUBSCRIPTION_MONTHLY:
+    if pricing_code is ProductCode.SUBSCRIPTION_MONTHLY:
         return subscription
     return single
