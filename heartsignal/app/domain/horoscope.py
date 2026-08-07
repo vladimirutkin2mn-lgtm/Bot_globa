@@ -25,7 +25,9 @@ ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1400)]
 FactId = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=3, max_length=180, pattern=r"^[a-z0-9:_-]+$"),
+    StringConstraints(
+        strip_whitespace=True, min_length=3, max_length=180, pattern=r"^[a-z0-9:_-]+$"
+    ),
 ]
 Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
