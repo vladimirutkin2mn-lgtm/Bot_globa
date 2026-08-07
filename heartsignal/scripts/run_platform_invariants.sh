@@ -2,6 +2,8 @@
 set -euo pipefail
 
 # These tests freeze production-sensitive billing, privacy and consent behavior.
+# Persona vertical slices remain mandatory protected invariants before merge.
+# Refresh the protected gate after GitHub Actions scheduling recovered.
 # Keep the list small and explicit so a green full suite cannot hide a broken invariant.
 pytest \
   tests/test_credits_repository_postgres.py::test_same_analysis_spend_and_refund_are_exactly_once \
@@ -42,4 +44,6 @@ pytest \
   tests/test_reading_generation_memory.py::test_frozen_v1_reading_never_retrieves_or_serializes_memory \
   tests/test_reading_generation_memory.py::test_memory_retrieval_failure_does_not_block_reading_generation \
   tests/test_reading_memory_usage.py::test_usage_telemetry_failure_keeps_context_and_logs_no_value \
+  tests/test_love_oracle_reading.py::test_postgres_love_oracle_preview_is_validated_and_idempotent \
+  tests/test_love_oracle_reading.py::test_mind_reading_and_guaranteed_reunion_are_rejected_before_persistence \
   "$@"
