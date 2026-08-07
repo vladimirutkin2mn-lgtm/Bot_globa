@@ -118,9 +118,7 @@ async def test_birth_profile_requires_consent_and_encrypts_every_detail_at_rest(
         b"4.904139",
     ):
         assert marker not in ciphertext
-    assert cipher.decrypt_json(ContentPurpose.BIRTH_PROFILE, ciphertext) == (
-        value.encrypted_payload()
-    )
+    assert cipher.decrypt_json(ContentPurpose.BIRTH_PROFILE, ciphertext) == value.encrypted_payload()
     with pytest.raises(ContentAuthenticationError):
         cipher.decrypt_json(ContentPurpose.ORACLE_MEMORY_VALUE, ciphertext)
 
@@ -297,10 +295,7 @@ async def test_account_deletion_cascades_profile_consent_and_ciphertext(
     await service.save(user.id, _profile())
 
     async with payment_db() as session:
-        outcome = await DataDeletionService(
-            session,
-            NoOpAnalyticsClient(),
-        ).delete_account(user.id)
+        outcome = await DataDeletionService(session, NoOpAnalyticsClient()).delete_account(user.id)
     assert outcome is DataDeletionOutcome.DELETED
 
     async with payment_db() as session:
