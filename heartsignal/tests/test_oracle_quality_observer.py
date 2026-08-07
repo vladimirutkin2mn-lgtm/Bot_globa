@@ -40,6 +40,18 @@ class SuccessfulLLM:
         )
 
 
+class DifferentModelLLM:
+    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+        return LLMCompletion(
+            payload="{}",
+            provider="openai",
+            model="unexpected-model",
+            input_tokens=100,
+            output_tokens=50,
+            latency_ms=10,
+        )
+
+
 class TimeoutLLM:
     async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
         raise LLMTimeoutError("PRIVATE-PROVIDER-DETAIL")
@@ -105,6 +117,32 @@ async def test_observed_llm_records_tokens_latency_cost_and_repair_without_conte
         "private-participant",
     ):
         assert private_value not in serialized
+
+
+async def test_cost_is_unknown_when_runtime_model_does_not_match_configured_rates() -> None:
+    recording = RecordingAnalytics()
+    client = ObservedLLMClient(
+        DifferentModelLLM(),
+        OracleQualityObserver(
+            recording,
+            default_provider="openai",
+            default_model="quality-model",
+            cost_policy=LLMCostPolicy(
+                "quality-model",
+                input_usd_per_million_tokens=2.0,
+                output_usd_per_million_tokens=6.0,
+            ),
+        ),
+    )
+
+    completion = await client.generate_analysis(_request())
+
+    assert completion.model == "unexpected-model"
+    properties = recording.calls[0][2]
+    assert properties["cost_known"] == "false"
+    assert "estimated_cost_microusd" not in properties
+    assert properties["input_tokens"] == "100"
+    assert properties["output_tokens"] == "50"
 
 
 async def test_observed_llm_records_safe_failure_code_without_provider_error_text() -> None:
