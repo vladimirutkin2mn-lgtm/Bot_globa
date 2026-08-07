@@ -1,5 +1,6 @@
 name: ORA-602 lint fix
 
+# One-shot self-cleaning helper.
 on:
   push:
     branches:
