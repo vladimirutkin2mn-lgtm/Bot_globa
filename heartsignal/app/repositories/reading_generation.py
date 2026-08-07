@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.db.models import User
 from app.db.reading_models import Persona, ReadingSymbol
 from app.domain.reading import ReadingStatus, ReadingSymbolInput, SymbolOrientation
 from app.domain.reading_generation import (
@@ -34,6 +35,13 @@ class SqlAlchemyReadingGenerationStore:
 
     async def claim_preview(self, reading_id: UUID, user_id: UUID) -> ReadingGenerationClaim:
         async with self._sessions.begin() as session:
+            active_user = await session.scalar(
+                select(User)
+                .where(User.id == user_id, User.privacy_status == "active")
+                .with_for_update(of=User)
+            )
+            if active_user is None:
+                return ReadingGenerationClaim(ReadingGenerationClaimStatus.NOT_FOUND)
             repository = self._repository(session)
             reading = await repository.get_owned(
                 reading_id,
