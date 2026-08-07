@@ -127,11 +127,13 @@ class CheckoutService:
                 .where(
                     PaymentOrder.user_id == user_id,
                     PaymentOrder.provider == offer.provider.value,
-                    PaymentOrder.product_code == offer.product_code.value,
+                    PaymentOrder.product_code.in_(offer.active_order_codes),
                     PaymentOrder.market == offer.market.value,
                     PaymentOrder.currency == offer.currency,
                     PaymentOrder.status.in_(("creating", "pending")),
                 )
+                .order_by(PaymentOrder.created_at.desc())
+                .limit(1)
                 .with_for_update()
             )
             if order and order.status == "pending" and order.checkout_url:
@@ -148,6 +150,8 @@ class CheckoutService:
                     order.id, order.checkout_token, order.checkout_url, order.status
                 )
             if order is None:
+                if offer.price_reference.startswith("unconfigured:"):
+                    raise CheckoutRejected("product price unavailable")
                 order = PaymentOrder(
                     user_id=user_id,
                     provider=offer.provider.value,
@@ -162,6 +166,8 @@ class CheckoutService:
                     commercial_snapshot={
                         "product_code": offer.product_code.value,
                         "product_version": offer.product_version,
+                        "title": offer.title,
+                        "receipt_label": offer.receipt_label,
                         "credits": offer.credits,
                         "amount_minor": offer.amount_minor,
                         "currency": offer.currency,
@@ -174,6 +180,14 @@ class CheckoutService:
                 session.add(order)
                 await session.flush()
                 order.idempotency_key = f"checkout:create:{order.id}:v1"
+                price_reference = offer.price_reference
+                receipt_label: str | None = offer.receipt_label
+            else:
+                snapshot = dict(order.commercial_snapshot)
+                price_reference = _snapshot_text(snapshot, "price_reference")
+                receipt_label = _optional_snapshot_text(snapshot, "receipt_label")
+                if price_reference.startswith("unconfigured:"):
+                    raise CheckoutRejected("stored product price unavailable")
             order.checkout_creation_attempt_id, order.checkout_creation_started_at = attempt, now
             if receipt_contact:
                 order.encrypted_receipt_contact = self._cipher.encrypt(receipt_contact)
@@ -183,11 +197,12 @@ class CheckoutService:
                 order.product_version,
                 order.amount_minor,
                 order.currency,
-                offer.price_reference,
+                price_reference,
                 order.idempotency_key or "",
                 f"{self._settings.payment_public_base_url}/payments/return/{order.checkout_token}",
                 f"{self._settings.payment_public_base_url}/payments/return/{order.checkout_token}",
                 receipt_contact,
+                receipt_label=receipt_label,
             )
             order_id, token = order.id, order.checkout_token
         try:
@@ -280,3 +295,15 @@ class CheckoutService:
                     idempotency_key=f"payment_failed:{order.id}",
                 )
             )
+
+
+def _snapshot_text(snapshot: dict[str, object], key: str) -> str:
+    value = snapshot.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise CheckoutRejected("stored commercial snapshot unavailable")
+    return value.strip()
+
+
+def _optional_snapshot_text(snapshot: dict[str, object], key: str) -> str | None:
+    value = snapshot.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None

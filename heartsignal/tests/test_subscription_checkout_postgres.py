@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import Settings
 from app.db.models import BillingJob, PaymentOrder, User
 from app.domain.billing import BillingCatalog
+from app.domain.products import PRODUCT_CATALOG_VERSION
 from app.providers.payments.base import PaymentProviderName, UnknownProviderOutcome
 from app.providers.payments.subscription_gateway import (
     CreateSubscriptionCheckout,
@@ -71,6 +72,7 @@ def settings() -> Settings:
         stripe_price_subscription_monthly_eur="price_monthly_eur",
         stripe_amount_subscription_monthly_eur_minor=990,
         product_subscription_monthly_credits=30,
+        checkout_creation_lease_seconds=1,
     )
 
 
@@ -121,10 +123,83 @@ async def test_concurrent_subscription_checkout_has_one_provider_owner(
         order = await session.scalar(select(PaymentOrder))
         assert order is not None
         assert order.mode == "subscription_initial"
+        assert order.product_version == PRODUCT_CATALOG_VERSION
         assert order.amount_minor == 990
         assert order.credits == 30
         assert order.commercial_snapshot["consent_version"] == "billing-v1"
+        assert order.commercial_snapshot["receipt_label"] == (
+            "Месячная подписка персонального AI-оракула"
+        )
         assert await session.scalar(select(func.count()).select_from(PaymentOrder)) == 1
+
+
+@pytest.mark.asyncio
+async def test_current_subscription_replays_unfinished_v1_snapshot_without_repricing(
+    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+) -> None:
+    user_id = await create_user(payment_db)
+    async with payment_db.begin() as session:
+        order = PaymentOrder(
+            user_id=user_id,
+            provider="stripe",
+            product_code="subscription_monthly",
+            product_version=1,
+            status="creating",
+            credits=9,
+            amount_minor=777,
+            currency="EUR",
+            market="INTERNATIONAL",
+            mode="subscription_initial",
+            billing_period="month",
+            idempotency_key=f"subscription:checkout:{uuid4()}:v1",
+            checkout_creation_started_at=datetime.now(UTC) - timedelta(minutes=5),
+            commercial_snapshot={
+                "product_code": "subscription_monthly",
+                "product_version": 1,
+                "title": "Legacy subscription",
+                "receipt_label": "Legacy subscription receipt",
+                "credits": 9,
+                "amount_minor": 777,
+                "currency": "EUR",
+                "provider": "stripe",
+                "market": "INTERNATIONAL",
+                "price_reference": "price_legacy_monthly_eur",
+                "billing_period": "month",
+                "consent_version": "billing-v0",
+            },
+        )
+        session.add(order)
+        await session.flush()
+        order_id = order.id
+
+    gateway = FakeSubscriptionGateway()
+    configured = settings()
+    result = await SubscriptionCheckoutService(
+        payment_db,
+        configured,
+        BillingCatalog(configured),
+        {PaymentProviderName.STRIPE: gateway},
+    ).create_checkout(
+        user_id,
+        "subscription_monthly",
+        "INTERNATIONAL",
+        "EUR",
+    )
+
+    async with payment_db() as session:
+        count = await session.scalar(select(func.count()).select_from(PaymentOrder))
+        stored = await session.get(PaymentOrder, order_id)
+    assert result.order_id == order_id
+    assert count == 1
+    assert stored is not None and stored.status == "pending"
+    assert len(gateway.calls) == 1
+    request = gateway.calls[0]
+    assert request.product_version == 1
+    assert request.credits == 9
+    assert request.amount_minor == 777
+    assert request.price_reference == "price_legacy_monthly_eur"
+    assert request.consent_version == "billing-v0"
+    assert request.receipt_label == "Legacy subscription receipt"
 
 
 @pytest.mark.asyncio

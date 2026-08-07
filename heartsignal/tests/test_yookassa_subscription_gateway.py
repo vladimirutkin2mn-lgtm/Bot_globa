@@ -98,17 +98,18 @@ def checkout_request() -> CreateSubscriptionCheckout:
         user_id=uuid4(),
         order_id=uuid4(),
         product_code="subscription_monthly",
-        product_version=1,
+        product_version=2,
         amount_minor=99_000,
         currency="RUB",
         credits=30,
-        price_reference="catalog:subscription_monthly:rub:v1",
+        price_reference="catalog:subscription_monthly:rub:v2",
         market="RU",
         consent_version="billing-v1",
         idempotency_key="subscription:checkout:order:v1",
         success_url="https://pay.example/return",
         cancel_url="https://pay.example/return",
         receipt_contact="receipt@example.com",
+        receipt_label="Месячная подписка персонального AI-оракула",
     )
 
 
@@ -124,8 +125,15 @@ async def test_initial_checkout_saves_method_and_returns_only_encrypted_envelope
     fact = await value.fetch_subscription_event("invoice.paid", hosted.checkout_id)
 
     payload, headers = transport.posts[0]
+    metadata = cast(dict[str, str], payload["metadata"])
+    receipt = cast(dict[str, object], payload["receipt"])
+    items = cast(list[dict[str, object]], receipt["items"])
     assert payload["save_payment_method"] is True
     assert payload["capture"] is True
+    assert payload["description"] == request.receipt_label
+    assert items[0]["description"] == request.receipt_label
+    assert metadata["product_code"] == request.product_code
+    assert metadata["product_version"] == str(request.product_version)
     assert headers["Idempotence-Key"] == request.idempotency_key
     assert isinstance(fact, PaidSubscriptionFact)
     assert fact.provider_subscription_id == f"yookassa:{request.order_id}"
@@ -151,24 +159,28 @@ async def test_renewal_decrypts_method_only_inside_adapter_and_reuses_idempotenc
         subscription_id=uuid4(),
         provider_subscription_id="yookassa:subscription",
         product_code="subscription_monthly",
-        product_version=1,
+        product_version=2,
         amount_minor=99_000,
         currency="RUB",
         credits=30,
-        price_reference="catalog:subscription_monthly:rub:v1",
+        price_reference="catalog:subscription_monthly:rub:v2",
         market="RU",
         consent_version="billing-v1",
         period_start=period_start,
         period_end=next_month_boundary(period_start),
         idempotency_key="subscription:renewal:stable:payment:v1",
         encrypted_payment_method=encrypted,
+        receipt_label="Месячная подписка персонального AI-оракула",
     )
 
     fact = await value.renew_subscription(request)
 
     payload, headers = transport.posts[0]
+    metadata = cast(dict[str, str], payload["metadata"])
     assert payload["payment_method_id"] == "pm-secret-value"
     assert payload["capture"] is True
+    assert payload["description"] == request.receipt_label
+    assert metadata["product_code"] == request.product_code
     assert "confirmation" not in payload
     assert headers["Idempotence-Key"] == request.idempotency_key
     assert isinstance(fact, PaidSubscriptionFact)

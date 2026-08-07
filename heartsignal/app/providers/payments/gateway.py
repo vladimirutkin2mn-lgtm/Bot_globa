@@ -17,6 +17,7 @@ class CreateCheckout:
     success_url: str
     cancel_url: str
     receipt_contact: str | None = None
+    receipt_label: str | None = None
 
 
 @dataclass(frozen=True)
