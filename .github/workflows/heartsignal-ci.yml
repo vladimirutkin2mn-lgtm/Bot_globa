@@ -87,6 +87,9 @@ jobs:
           ORACLE_STAGING_EXPECTED_LLM_MODEL: stub
         run: bash scripts/run_oracle_staging_quality_gate.sh --junitxml=oracle-staging-quality-report.xml
 
+      - name: Verify oracle limited-release controls gate
+        run: bash scripts/run_oracle_release_controls_gate.sh --junitxml=oracle-release-controls-report.xml
+
       - name: Reset test database before oracle quality observability gate
         run: python scripts/reset_test_database.py
 
@@ -108,6 +111,7 @@ jobs:
             heartsignal/platform-invariants-report.xml
             heartsignal/oracle-safety-report.xml
             heartsignal/oracle-staging-quality-report.xml
+            heartsignal/oracle-release-controls-report.xml
             heartsignal/oracle-quality-report.xml
             heartsignal/pytest-report.xml
           if-no-files-found: warn
