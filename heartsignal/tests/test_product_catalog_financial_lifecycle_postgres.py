@@ -128,9 +128,7 @@ async def test_astrology_v2_completion_and_refund_use_order_not_current_label(
         )
         assert request is not None
         reservation = await session.scalar(
-            select(CreditReservation).where(
-                CreditReservation.refund_request_id == request.id
-            )
+            select(CreditReservation).where(CreditReservation.refund_request_id == request.id)
         )
 
     assert stored_order is not None and stored_order.status == "completed"
