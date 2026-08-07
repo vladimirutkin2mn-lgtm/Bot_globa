@@ -105,9 +105,7 @@ class BirthProfileService:
             await self._required_active_user(session, user_id, for_update=True)
             consent = await session.get(BirthProfileConsent, user_id, with_for_update=True)
             if not self._permits_profile(consent):
-                raise BirthProfileConsentRequiredError(
-                    "explicit birth profile consent is required"
-                )
+                raise BirthProfileConsentRequiredError("explicit birth profile consent is required")
             ciphertext = self._cipher.encrypt_json(
                 ContentPurpose.BIRTH_PROFILE,
                 value.encrypted_payload(),
@@ -188,9 +186,7 @@ class BirthProfileService:
         await self._required_active_user(session, user_id, for_update=True)
         consent = await session.get(BirthProfileConsent, user_id, with_for_update=True)
         if not self._permits_profile(consent):
-            raise BirthProfileConsentRequiredError(
-                "explicit birth profile consent is required"
-            )
+            raise BirthProfileConsentRequiredError("explicit birth profile consent is required")
         row = (
             await session.execute(
                 select(BirthProfile, BirthProfilePrivateContent)
