@@ -1,5 +1,6 @@
 name: ORA-602 formatter
 
+# Temporary one-shot formatter; remove after successful application.
 on:
   push:
     branches:
