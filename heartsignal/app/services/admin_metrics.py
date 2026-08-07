@@ -245,7 +245,7 @@ class AdminMetricsService:
 
         jobs = {status: int(count) for status, count in job_rows}
         outbox = {status: int(count) for status, count in outbox_rows}
-        technical_total = failed + jobs.get("manual_review", 0)
+        technical_total = failed
         return AdminMetrics(
             analyses_by_status=statuses,
             terminal_completed=completed,
