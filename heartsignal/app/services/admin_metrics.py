@@ -326,9 +326,7 @@ def _oracle_quality(
                 properties.get("engine_version", "unknown"),
                 properties.get("scope_code", "unknown"),
             )
-            astrology_bucket = astrology.setdefault(
-                astrology_key, _AstrologyAccumulator()
-            )
+            astrology_bucket = astrology.setdefault(astrology_key, _AstrologyAccumulator())
             astrology_bucket.count += 1
             astrology_bucket.failed += properties.get("status_code") != "completed"
             latency = _optional_int(properties.get("latency_ms"))
@@ -342,13 +340,9 @@ def _oracle_quality(
                 properties.get("persona_code", "unknown"),
                 properties.get("prompt_version", "unknown"),
             )
-            generation_bucket = generation.setdefault(
-                generation_key, _GenerationAccumulator()
-            )
+            generation_bucket = generation.setdefault(generation_key, _GenerationAccumulator())
             generation_bucket.count += 1
-            generation_bucket.attempts_total += _int(
-                properties.get("attempt_count")
-            )
+            generation_bucket.attempts_total += _int(properties.get("attempt_count"))
             if properties.get("status_code") == "completed":
                 generation_bucket.completed += 1
             else:
