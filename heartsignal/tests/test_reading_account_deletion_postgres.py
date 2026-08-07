@@ -228,9 +228,9 @@ async def test_generation_claim_waits_for_deletion_and_never_decrypts_source(
     assert claim.status is ReadingGenerationClaimStatus.NOT_FOUND
     assert claim.context is None
     async with payment_db() as session:
-        reading = await session.get(Reading, reading_id)
+        stored_reading = await session.get(Reading, reading_id)
         private = await session.get(ReadingPrivateContent, reading_id)
-    assert reading is not None and reading.status == ReadingStatus.DELETED.value
+    assert stored_reading is not None and stored_reading.status == ReadingStatus.DELETED.value
     assert private is not None
     assert private.question_ciphertext is None
     assert private.context_ciphertext is None
