@@ -1,0 +1,49 @@
+name: ORA-602 fix JSONB group-by
+
+on:
+  push:
+    branches:
+      - agent/ora-602-cost-quality-observability
+    paths:
+      - .github/workflows/ora602-fix-json-groupby.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ora-602-cost-quality-observability
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reuse one JSONB expression in SELECT and GROUP BY
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('heartsignal/app/services/admin_metrics.py')
+          text = path.read_text()
+          old = '''            rejection_rows = (\n                await session.execute(\n                    select(\n                        AnalyticsEvent.properties["rejection_reason"].astext,\n                        func.count(),\n                    )\n                    .where(AnalyticsEvent.event_name.in_(_USER_VALIDATION_EVENTS))\n                    .group_by(AnalyticsEvent.properties["rejection_reason"].astext)\n                )\n            ).all()\n'''
+          new = '''            rejection_reason = AnalyticsEvent.properties["rejection_reason"].astext\n            rejection_rows = (\n                await session.execute(\n                    select(rejection_reason, func.count())\n                    .where(AnalyticsEvent.event_name.in_(_USER_VALIDATION_EVENTS))\n                    .group_by(rejection_reason)\n                )\n            ).all()\n'''
+          if text.count(old) != 1:
+              raise SystemExit('expected rejection aggregation block exactly once')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cd heartsignal
+          pip install -e '.[dev]'
+          ruff format app/services/admin_metrics.py
+          ruff check app/services/admin_metrics.py
+          mypy app/services/admin_metrics.py
+          cd ..
+          git rm .github/workflows/ora602-fix-json-groupby.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add heartsignal/app/services/admin_metrics.py
+          git commit -m 'ORA-602: reuse JSONB expression in grouped admin query'
+          git push origin HEAD:agent/ora-602-cost-quality-observability
