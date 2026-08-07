@@ -23,7 +23,8 @@ _ASTROLOGER_V1 = HoroscopePromptSet(
         "Never add, remove, alter, recompute or correct a fact. Reference facts only by their "
         "exact fact_id values. Do not write planet names, zodiac signs, houses, ascendant names, "
         "degree values or other chart positions in any narrative field; the application renderer "
-        "will display exact labels from the referenced facts. Use multiple possible interpretations "
+        "will display exact labels from the referenced facts. Use multiple possible "
+        "interpretations "
         "and conditions rather than deterministic claims. Never guarantee events, dates, contact, "
         "love, wealth, illness, pregnancy, death, legal outcomes or gambling results. Never claim "
         "to know another person's private thoughts or fidelity. Do not diagnose or prescribe, and "
@@ -34,11 +35,14 @@ _ASTROLOGER_V1 = HoroscopePromptSet(
     request_instruction=(
         "Create a coherent Horoscope result for INPUT_JSON using only FACT_BUNDLE_JSON. Copy the "
         "scope and facts_digest exactly. Every interpretation must reference one to six existing "
-        "fact_id values. Do not quote or paraphrase raw chart coordinates in narrative text. Include "
+        "fact_id values. Do not quote or paraphrase raw chart coordinates in narrative text. "
+        "Include "
         "all limitations supplied by the application. For sampled forecasts, describe themes that "
         "may be useful during the supplied period, never events that will certainly happen. For an "
-        "unknown birth time, explicitly preserve the birth_time_unknown limitation and do not infer "
-        "houses or an ascendant. Keep the share card free of names, questions, private context, raw "
+        "unknown birth time, explicitly preserve the birth_time_unknown limitation and do not "
+        "infer "
+        "houses or an ascendant. Keep the share card free of names, questions, private context, "
+        "raw "
         "birth information and chart coordinates."
     ),
 )

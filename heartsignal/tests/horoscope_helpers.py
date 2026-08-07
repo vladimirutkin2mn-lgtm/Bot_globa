@@ -87,7 +87,9 @@ def valid_horoscope_payload(bundle: HoroscopeFactBundle) -> dict[str, object]:
         "interpretations": [
             {
                 "fact_ids": [primary_fact],
-                "text": "This pattern may be useful as a prompt to balance initiative with patience.",
+                "text": (
+                    "This pattern may be useful as a prompt to balance initiative with patience."
+                ),
             }
         ],
         "themes": ["Measured pacing may make the next choice easier to evaluate."],

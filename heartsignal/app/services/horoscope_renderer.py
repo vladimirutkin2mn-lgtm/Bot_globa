@@ -16,7 +16,7 @@ _BODY_LABELS = {
     "moon": "Луна",
     "mercury": "Меркурий",
     "venus": "Венера",
-    "mars": "Марс",
+    "mars": "Марс",  # noqa: RUF001
     "jupiter": "Юпитер",
     "saturn": "Сатурн",
     "uranus": "Уран",
@@ -55,7 +55,7 @@ _LIMITATION_LABELS = {
         "Прогноз использует расчётные снимки начала, середины и конца периода."
     ),
     HoroscopeLimitation.NO_CERTAIN_PREDICTION: (
-        "Астрологический текст описывает возможные темы, а не гарантированные события."
+        "Астрологический текст описывает возможные темы, а не гарантированные события."  # noqa: RUF001
     ),
 }
 
@@ -132,7 +132,7 @@ class HoroscopeRenderer:
             second = self._required_label(_BODY_LABELS, details, "second_body")
             aspect = self._required_label(_ASPECT_LABELS, details, "kind")
             orb = self._degree(details, "orb_millidegrees")
-            return f"{first} — {aspect} — {second}, орб {orb}"
+            return f"{first} — {aspect} — {second}, орб {orb}"  # noqa: RUF001
         if fact.kind is HoroscopeFactKind.NATAL_HOUSE:
             number = details.get("number")
             if not isinstance(number, int):
@@ -150,7 +150,7 @@ class HoroscopeRenderer:
             natal = self._required_label(_BODY_LABELS, details, "natal_body")
             aspect = self._required_label(_ASPECT_LABELS, details, "kind")
             orb = self._degree(details, "orb_millidegrees")
-            return f"{sample_date}: транзитный {transit} — {aspect} — натальный {natal}, орб {orb}"
+            return f"{sample_date}: транзитный {transit} — {aspect} — натальный {natal}, орб {orb}"  # noqa: RUF001
         raise HoroscopeRenderError("Unsupported Horoscope fact kind")
 
     @staticmethod

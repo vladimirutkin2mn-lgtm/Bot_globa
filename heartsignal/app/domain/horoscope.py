@@ -369,13 +369,13 @@ _RAW_ASTROLOGY_TERM = re.compile(
     r"\b(?:sun|moon|mercury|venus|mars|jupiter|saturn|uranus|neptune|pluto|"
     r"aries|taurus|gemini|cancer|leo|virgo|libra|scorpio|sagittarius|"
     r"capricorn|aquarius|pisces|ascendant|house\s*(?:[1-9]|1[0-2])|"
-    r"солнц[еа]|лун[аы]|меркури[йя]|венер[аы]|марс[а]?|юпитер[а]?|сатурн[а]?|"
-    r"уран[а]?|нептун[а]?|плутон[а]?|овен|телец|близнец(?:ы|ов)|рак|лев|дева|"
+    r"солнц[еа]|лун[аы]|меркури[йя]|венер[аы]|марс[а]?|юпитер[а]?|сатурн[а]?|"  # noqa: RUF001
+    r"уран[а]?|нептун[а]?|плутон[а]?|овен|телец|близнец(?:ы|ов)|рак|лев|дева|"  # noqa: RUF001
     r"весы|скорпион|стрелец|козерог|водолей|рыбы|асцендент|дом\s*(?:[1-9]|1[0-2]))\b",
     re.IGNORECASE,
 )
 _RAW_DEGREE_CLAIM = re.compile(
-    r"\b\d{1,3}(?:[.,]\d+)?\s*(?:°|degrees?|deg\.?|градус(?:а|ов)?)\b",
+    r"\b\d{1,3}(?:[.,]\d+)?\s*(?:°|degrees?|deg\.?|градус(?:а|ов)?)\b",  # noqa: RUF001
     re.IGNORECASE,
 )
 

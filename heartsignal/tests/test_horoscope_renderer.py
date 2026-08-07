@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app.domain.horoscope import AstrologyReadingResult
-from app.services.horoscope_renderer import HoroscopeRenderError, HoroscopeRenderer
+from app.services.horoscope_renderer import HoroscopeRenderer, HoroscopeRenderError
 from tests.horoscope_helpers import sample_fact_bundle, valid_horoscope_payload
 
 
