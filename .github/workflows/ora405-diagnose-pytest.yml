@@ -1,5 +1,6 @@
 name: ORA-405 pytest diagnostics
 
+# Temporary one-shot diagnostic workflow; remove after the failing test is identified.
 on:
   push:
     branches:
