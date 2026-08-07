@@ -1,0 +1,147 @@
+name: ORA-602 generation quality patch
+
+on:
+  push:
+    branches:
+      - agent/ora-602-cost-quality-observability
+    paths:
+      - .github/workflows/ora602-generation-quality.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add final generation observations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('heartsignal/app/services/reading_generation.py')
+          text = path.read_text()
+
+          def once(old: str, new: str) -> None:
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f'reading_generation: expected one match for {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          once(
+              'from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet\n'
+              'from app.providers.analytics import OracleProductEvent\n',
+              'from app.observability.oracle_quality import OracleQualityObserver\n'
+              'from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet\n'
+              'from app.providers.analytics import OracleProductEvent\n',
+          )
+          once(
+              '        analytics: OracleProductAnalytics | None = None,\n    ) -> None:',
+              '        analytics: OracleProductAnalytics | None = None,\n'
+              '        quality_observer: OracleQualityObserver | None = None,\n    ) -> None:',
+          )
+          once(
+              '        self._analytics = analytics\n',
+              '        self._analytics = analytics\n        self._quality_observer = quality_observer\n',
+          )
+          old_multiline = 'return await self._fail(\n                reading_id,\n                user_id,\n'
+          count = text.count(old_multiline)
+          if count < 1:
+              raise SystemExit('reading_generation: expected multiline _fail calls')
+          text = text.replace(
+              old_multiline,
+              'return await self._fail_observed(\n                context,\n',
+          )
+          text = text.replace(
+              'return await self._fail(reading_id, user_id, "llm_timeout", attempts, last_completion)',
+              'return await self._fail_observed(\n'
+              '                context, "llm_timeout", attempts, last_completion\n'
+              '            )',
+          )
+          text = text.replace(
+              'return await self._fail(\n                reading_id, user_id, "llm_rate_limited", attempts, last_completion\n            )',
+              'return await self._fail_observed(\n'
+              '                context, "llm_rate_limited", attempts, last_completion\n'
+              '            )',
+          )
+          once(
+              '            return ReadingGenerationResult(\n'
+              '                ReadingGenerationStatus.COMPLETED,\n'
+              '                result=validated.result,',
+              '            await self._observe_generation(\n'
+              '                context,\n'
+              '                status_code="completed",\n'
+              '                attempts=attempts,\n'
+              '            )\n'
+              '            return ReadingGenerationResult(\n'
+              '                ReadingGenerationStatus.COMPLETED,\n'
+              '                result=validated.result,',
+          )
+          once(
+              '    async def _fail(\n',
+              '    async def _fail_observed(\n'
+              '        self,\n'
+              '        context: ReadingGenerationContext,\n'
+              '        failure_code: str,\n'
+              '        attempts: int,\n'
+              '        completion: LLMCompletion | None,\n'
+              '    ) -> ReadingGenerationResult:\n'
+              '        result = await self._fail(\n'
+              '            context.reading_id,\n'
+              '            context.user_id,\n'
+              '            failure_code,\n'
+              '            attempts,\n'
+              '            completion,\n'
+              '        )\n'
+              '        if result.status is ReadingGenerationStatus.FAILED:\n'
+              '            await self._observe_generation(\n'
+              '                context,\n'
+              '                status_code="failed",\n'
+              '                attempts=attempts,\n'
+              '                failure_code=failure_code,\n'
+              '            )\n'
+              '        return result\n\n'
+              '    async def _observe_generation(\n'
+              '        self,\n'
+              '        context: ReadingGenerationContext,\n'
+              '        *,\n'
+              '        status_code: str,\n'
+              '        attempts: int,\n'
+              '        failure_code: str | None = None,\n'
+              '    ) -> None:\n'
+              '        if self._quality_observer is None:\n'
+              '            return\n'
+              '        await self._quality_observer.generation(\n'
+              '            persona_code=context.persona_code,\n'
+              '            prompt_version=context.prompt_version,\n'
+              '            status_code=status_code,\n'
+              '            attempt_count=attempts,\n'
+              '            repair_used=attempts > 1,\n'
+              '            failure_code=failure_code,\n'
+              '        )\n\n'
+              '    async def _fail(\n',
+          )
+          path.write_text(text)
+
+          main = Path('heartsignal/app/bot/main.py')
+          main_text = main.read_text()
+          old = '            memory_retriever=OracleReadingMemoryRetriever(oracle_memory),\n            analytics=oracle_analytics,\n        ),'
+          new = (
+              '            memory_retriever=OracleReadingMemoryRetriever(oracle_memory),\n'
+              '            analytics=oracle_analytics,\n'
+              '            quality_observer=quality_observer,\n'
+              '        ),'
+          )
+          if main_text.count(old) != 1:
+              raise SystemExit('main: expected one ReadingGenerationService construction')
+          main.write_text(main_text.replace(old, new, 1))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add heartsignal/app/services/reading_generation.py heartsignal/app/bot/main.py
+          git commit -m 'ORA-602: observe final reading generation quality'
+          git push origin HEAD:agent/ora-602-cost-quality-observability
