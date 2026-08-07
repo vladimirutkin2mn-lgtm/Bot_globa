@@ -201,6 +201,7 @@ def create_dispatcher(
             horoscope_facts,
             max_repair_attempts=settings.llm_max_repair_attempts,
             analytics=oracle_analytics,
+            quality_observer=quality_observer,
         ),
         entitlements=preview_entitlements,
     )
