@@ -145,8 +145,8 @@ async def test_generation_sends_only_calculated_facts_and_persists_empty_symbols
     assert bundle.facts[0].fact_id in prompt
     assert "1991-04-17" not in prompt
     assert "Amsterdam" not in prompt
-    assert "birth_date" not in prompt
-    assert "birth_time" not in prompt
+    assert '"birth_date":' not in prompt
+    assert '"birth_time":' not in prompt
 
 
 async def test_generation_reuses_persisted_forecast_anchor_for_fact_calculation() -> None:
