@@ -176,6 +176,7 @@ def create_dispatcher(
             max_repair_attempts=settings.llm_max_repair_attempts,
             memory_retriever=OracleReadingMemoryRetriever(oracle_memory),
             analytics=oracle_analytics,
+            quality_observer=quality_observer,
         ),
         entitlements=preview_entitlements,
     )
