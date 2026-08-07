@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,9 +17,15 @@ class ObservabilitySettings(BaseSettings):
     error_reporting_backend: Literal["noop", "logging"] = "logging"
     admin_metrics_enabled: bool = False
     admin_api_token: SecretStr = SecretStr("")
+    llm_input_cost_usd_per_million_tokens: float | None = Field(default=None, ge=0)
+    llm_output_cost_usd_per_million_tokens: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_admin_auth(self) -> "ObservabilitySettings":
+        if (self.llm_input_cost_usd_per_million_tokens is None) != (
+            self.llm_output_cost_usd_per_million_tokens is None
+        ):
+            raise ValueError("LLM input and output cost rates must be configured together")
         if not self.admin_metrics_enabled:
             return self
         token = self.admin_api_token.get_secret_value().strip()
