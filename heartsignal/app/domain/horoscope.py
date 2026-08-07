@@ -198,9 +198,7 @@ class HoroscopeFact:
         natal_body = self._require_member("natal_body", _BODY_VALUES)
         kind = self._require_member("kind", _ASPECT_VALUES)
         self._validate_aspect_angles(kind)
-        self._require_fact_id(
-            f"transit:{sample_date}:{transit_body}:natal:{natal_body}:{kind}"
-        )
+        self._require_fact_id(f"transit:{sample_date}:{transit_body}:natal:{natal_body}:{kind}")
 
     def _validate_aspect_angles(self, kind: str) -> None:
         separation = self._require_int("separation_millidegrees", 0, 180_000)
@@ -296,7 +294,8 @@ class HoroscopeFactBundle:
         if HoroscopeLimitation.BIRTH_TIME_UNKNOWN in self.limitations and has_houses:
             raise ValueError("unknown birth time cannot contain house or ascendant facts")
         has_transits = any(
-            fact.kind in {
+            fact.kind
+            in {
                 HoroscopeFactKind.TRANSIT_PLANET,
                 HoroscopeFactKind.TRANSIT_NATAL_ASPECT,
             }

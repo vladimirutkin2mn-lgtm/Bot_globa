@@ -187,9 +187,7 @@ async def test_generation_fails_after_second_fact_integrity_violation() -> None:
 async def test_ready_replay_restores_facts_and_skips_calculation_and_llm() -> None:
     reading_id, user_id = uuid4(), uuid4()
     bundle = sample_fact_bundle()
-    result = AstrologyReadingResult.model_validate_json(
-        json.dumps(valid_horoscope_payload(bundle))
-    )
+    result = AstrologyReadingResult.model_validate_json(json.dumps(valid_horoscope_payload(bundle)))
     store = RecordingStore(
         ReadingGenerationClaim(
             ReadingGenerationClaimStatus.READY,
@@ -216,9 +214,7 @@ async def test_ready_replay_restores_facts_and_skips_calculation_and_llm() -> No
 async def test_ready_replay_rejects_tampered_fact_bundle() -> None:
     reading_id, user_id = uuid4(), uuid4()
     bundle = sample_fact_bundle()
-    result = AstrologyReadingResult.model_validate_json(
-        json.dumps(valid_horoscope_payload(bundle))
-    )
+    result = AstrologyReadingResult.model_validate_json(json.dumps(valid_horoscope_payload(bundle)))
     envelope = serialize_horoscope(result, bundle)
     facts_payload = envelope["facts"]
     assert isinstance(facts_payload, dict)

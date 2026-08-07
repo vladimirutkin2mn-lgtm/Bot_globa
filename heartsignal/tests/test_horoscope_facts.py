@@ -30,9 +30,7 @@ def test_same_chart_and_period_produce_identical_fact_payload_and_digest() -> No
     assert HoroscopeLimitation.SAMPLED_TRANSITS in first.limitations
     assert any(fact.kind is HoroscopeFactKind.TRANSIT_PLANET for fact in first.facts)
     transit_aspects = [
-        fact
-        for fact in first.facts
-        if fact.kind is HoroscopeFactKind.TRANSIT_NATAL_ASPECT
+        fact for fact in first.facts if fact.kind is HoroscopeFactKind.TRANSIT_NATAL_ASPECT
     ]
     assert transit_aspects
     assert len(transit_aspects) <= 3 * 24
@@ -59,8 +57,7 @@ def test_unknown_birth_time_never_creates_house_or_ascendant_facts() -> None:
 
     assert HoroscopeLimitation.BIRTH_TIME_UNKNOWN in bundle.limitations
     assert all(
-        fact.kind
-        not in {HoroscopeFactKind.NATAL_HOUSE, HoroscopeFactKind.NATAL_ASCENDANT}
+        fact.kind not in {HoroscopeFactKind.NATAL_HOUSE, HoroscopeFactKind.NATAL_ASCENDANT}
         for fact in bundle.facts
     )
 

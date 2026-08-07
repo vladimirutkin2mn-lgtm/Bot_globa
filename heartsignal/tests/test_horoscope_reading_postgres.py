@@ -72,14 +72,10 @@ class GoldenHoroscopeLLM:
                     "scenario": (
                         "A reversible experiment may reveal which direction feels sustainable."
                     ),
-                    "conditions": [
-                        "Keep the first step small and observe the response."
-                    ],
+                    "conditions": ["Keep the first step small and observe the response."],
                 }
             ],
-            "reflection_questions": [
-                "What evidence would make the next step feel proportionate?"
-            ],
+            "reflection_questions": ["What evidence would make the next step feel proportionate?"],
             "practical_step": (
                 "Write down one reversible action and one boundary before deciding."
             ),
