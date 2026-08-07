@@ -42,27 +42,29 @@ async def test_facade_normalizes_only_versioned_structured_metadata() -> None:
 
     await analytics.track(
         user_id,
-        OracleProductEvent.READING_STARTED,
+        OracleProductEvent.READING_PREVIEW_READY,
         {
             "reading_id": reading_id,
             "persona_code": SampleCode.TAROT,
             "topic_code": SampleCode.DECISION,
-            "attempt_count": 0,
+            "attempt_count": 1,
             "repair_used": False,
+            "memory_count": 2,
         },
     )
 
     assert recording.calls == [
         (
             str(user_id),
-            "reading_started",
+            "reading_preview_ready",
             {
                 "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
                 "reading_id": str(reading_id),
                 "persona_code": "tarot_reader",
                 "topic_code": "decision",
-                "attempt_count": "0",
+                "attempt_count": "1",
                 "repair_used": "false",
+                "memory_count": "2",
             },
         )
     ]
