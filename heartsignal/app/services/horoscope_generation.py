@@ -194,6 +194,8 @@ class HoroscopeGenerationService:
                 schema=self._validator.json_schema(),
                 message_ids=(str(reading_id),),
                 participant_labels=(),
+                telemetry_persona_code=context.persona_code,
+                telemetry_prompt_version=context.prompt_version,
             )
             attempts += 1
             completion = await self._llm.generate_analysis(request)
@@ -214,6 +216,8 @@ class HoroscopeGenerationService:
                         message_ids=request.message_ids,
                         participant_labels=request.participant_labels,
                         repair=True,
+                        telemetry_persona_code=context.persona_code,
+                        telemetry_prompt_version=context.prompt_version,
                     )
                 )
                 validated = self._validator.validate(completion.payload, facts)

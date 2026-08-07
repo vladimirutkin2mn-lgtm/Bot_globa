@@ -23,6 +23,11 @@ from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
 from app.logging import configure_logging
 from app.observability.errors import LoggingErrorReporter, NoOpErrorReporter
+from app.observability.oracle_quality import (
+    LLMCostPolicy,
+    ObservedLLMClient,
+    OracleQualityObserver,
+)
 from app.observability.settings import ObservabilitySettings, get_observability_settings
 from app.providers.analytics_postgres import create_analytics_client
 from app.providers.llm.base import close_llm_client
@@ -82,12 +87,23 @@ def create_dispatcher(
         storage=PostgresFSMStorage(sessions, cipher),
         events_isolation=PostgresEventIsolation(resolved_engine),
     )
-    llm = create_llm_client(settings)
+    raw_llm = create_llm_client(settings)
     payments = create_payment_components(settings)
     product_catalog = ProductCatalog(settings)
     billing_catalog = BillingCatalog(settings)
     analytics = create_analytics_client(sessions, resolved_observability)
     oracle_analytics = OracleProductAnalytics(analytics)
+    quality_observer = OracleQualityObserver(
+        analytics,
+        default_provider=settings.llm_provider,
+        default_model=settings.llm_model,
+        cost_policy=LLMCostPolicy(
+            settings.llm_model,
+            resolved_observability.llm_input_cost_usd_per_million_tokens,
+            resolved_observability.llm_output_cost_usd_per_million_tokens,
+        ),
+    )
+    llm = ObservedLLMClient(raw_llm, quality_observer)
     reporter = (
         LoggingErrorReporter()
         if resolved_observability.error_reporting_backend == "logging"
@@ -134,6 +150,7 @@ def create_dispatcher(
     dispatcher["llm_client"] = llm
     dispatcher["analytics"] = analytics
     dispatcher["oracle_analytics"] = oracle_analytics
+    dispatcher["oracle_quality_observer"] = quality_observer
     dispatcher["error_reporter"] = reporter
     dispatcher["persona_registry"] = PersonaRegistryService(sessions)
     dispatcher["tarot_history"] = ReadingHistoryService(sessions)
