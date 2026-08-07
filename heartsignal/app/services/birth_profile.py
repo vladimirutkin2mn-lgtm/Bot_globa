@@ -240,9 +240,7 @@ class BirthProfileService:
         return cast(
             BirthProfile | None,
             await session.scalar(
-                select(BirthProfile)
-                .where(BirthProfile.user_id == user_id)
-                .with_for_update()
+                select(BirthProfile).where(BirthProfile.user_id == user_id).with_for_update()
             ),
         )
 
