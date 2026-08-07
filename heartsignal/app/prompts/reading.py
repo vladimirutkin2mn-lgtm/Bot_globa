@@ -86,7 +86,7 @@ _LOVE_ORACLE_V1 = ReadingPromptSet(
         "Create a coherent Love Oracle reading from INPUT_JSON. This prompt version uses no "
         "application symbols: selected_symbols must be empty and the result symbols array must "
         "also be empty. Address the selected relationship topic through patterns, conditional "
-        "scenarios, reflection questions and one practical step under the user's control. Do "
+        "scenarios, reflection questions and one practical step under the user's control; do "
         "not answer by inventing the other person's inner state. memory_context is optional "
         "historical context selected by the application; use only relevant entries and do not "
         "announce that memory exists. Keep the share card free of names, private context, "
