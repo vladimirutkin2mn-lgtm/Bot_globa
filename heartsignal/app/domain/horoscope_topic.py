@@ -5,6 +5,8 @@ from datetime import UTC, date, datetime, timedelta
 
 from app.domain.horoscope import HoroscopeScope
 
+_FORECAST_ANCHOR_SEPARATOR = "__"
+
 
 @dataclass(frozen=True, slots=True)
 class HoroscopeTopic:
@@ -36,16 +38,20 @@ class HoroscopeTopic:
 
     @classmethod
     def parse(cls, value: str) -> "HoroscopeTopic":
-        scope_value, separator, anchor_value = value.partition("@")
+        scope_value, separator, anchor_value = value.partition(_FORECAST_ANCHOR_SEPARATOR)
         try:
             scope = HoroscopeScope(scope_value)
         except ValueError as exc:
             raise ValueError("unsupported persisted Horoscope scope") from exc
         if scope in {HoroscopeScope.WEEK_FORECAST, HoroscopeScope.MONTH_FORECAST}:
-            if separator != "@" or not anchor_value or "@" in anchor_value:
+            if (
+                separator != _FORECAST_ANCHOR_SEPARATOR
+                or not anchor_value
+                or _FORECAST_ANCHOR_SEPARATOR in anchor_value
+            ):
                 raise ValueError("forecast Horoscope topic requires one anchor")
             try:
-                anchor = date.fromisoformat(anchor_value)
+                anchor = date.fromisoformat(anchor_value.replace("_", "-"))
             except ValueError as exc:
                 raise ValueError("invalid persisted Horoscope anchor") from exc
             return cls(scope, anchor)
@@ -56,4 +62,5 @@ class HoroscopeTopic:
     def storage_value(self) -> str:
         if self.reference_date is None:
             return self.scope.value
-        return f"{self.scope.value}@{self.reference_date.isoformat()}"
+        anchor = self.reference_date.isoformat().replace("-", "_")
+        return f"{self.scope.value}{_FORECAST_ANCHOR_SEPARATOR}{anchor}"
