@@ -11,26 +11,37 @@ from app.services.oracle_release_controls import (
     OracleReleaseDecisionCode,
 )
 
+_DEFAULT_USER_ID = UUID(int=1)
 
-def _controls(**overrides: object) -> OracleReleaseControls:
-    values: dict[str, object] = {
-        "enabled": True,
-        "rollout_percentage": 100,
-        "rollout_seed": "release-test-v1",
-        "disabled_personas": frozenset(),
-        "disabled_engines": frozenset(),
-        "generation_rate_limit": 0,
-        "generation_rate_window_seconds": 60,
-        "daily_spend_cap_microusd": 0,
-        "max_reserved_cost_microusd_per_reading": 0,
-    }
-    values.update(overrides)
-    return OracleReleaseControls(**values)  # type: ignore[arg-type]
+
+def _controls(
+    *,
+    enabled: bool = True,
+    rollout_percentage: int = 100,
+    rollout_seed: str = "release-test-v1",
+    disabled_personas: frozenset[str] = frozenset(),
+    disabled_engines: frozenset[str] = frozenset(),
+    generation_rate_limit: int = 0,
+    generation_rate_window_seconds: int = 60,
+    daily_spend_cap_microusd: int = 0,
+    max_reserved_cost_microusd_per_reading: int = 0,
+) -> OracleReleaseControls:
+    return OracleReleaseControls(
+        enabled=enabled,
+        rollout_percentage=rollout_percentage,
+        rollout_seed=rollout_seed,
+        disabled_personas=disabled_personas,
+        disabled_engines=disabled_engines,
+        generation_rate_limit=generation_rate_limit,
+        generation_rate_window_seconds=generation_rate_window_seconds,
+        daily_spend_cap_microusd=daily_spend_cap_microusd,
+        max_reserved_cost_microusd_per_reading=max_reserved_cost_microusd_per_reading,
+    )
 
 
 def _decision(
     controls: OracleReleaseControls,
-    user_id: UUID = UUID(int=1),
+    user_id: UUID = _DEFAULT_USER_ID,
     *,
     persona_code: str = "tarot_reader",
     engine_version: str = "symbolic-v1",
