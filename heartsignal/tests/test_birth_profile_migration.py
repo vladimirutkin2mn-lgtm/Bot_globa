@@ -1,4 +1,4 @@
-"""Migration safety for durable subscription billing periods."""
+"""Migration safety for explicit-consent encrypted birth profiles."""
 
 import asyncio
 import os
@@ -11,7 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
-_HEAD_REVISION = "20260806_24"
+_HEAD = "20260806_24"
+_PARENT = "20260806_23"
 
 
 async def _execute(url: str, schema: str, statement: str) -> None:
@@ -45,47 +46,55 @@ def _environment(url: str, schema: str) -> dict[str, str]:
         "DATABASE_URL": url,
         "MIGRATION_SCHEMA": schema,
         "TELEGRAM_BOT_TOKEN": "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "CONTENT_ENCRYPTION_KEY": "migration-test-key-material",
+        "CONTENT_ENCRYPTION_KEY": "birth-profile-migration-key",
         "APP_ENV": "test",
     }
 
 
 def _schema(url: str) -> str:
-    schema = f"subscription_period_{uuid4().hex}"
+    schema = f"birth_profile_{uuid4().hex}"
     asyncio.run(_execute(url, "public", f'CREATE SCHEMA "{schema}"'))
     return schema
 
 
-def test_subscription_period_migration_round_trip_when_empty() -> None:
+def test_birth_profile_migration_round_trip_when_empty() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
-        assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == (
-            _HEAD_REVISION
-        )
-        assert (
-            asyncio.run(
-                _scalar(url, schema, "SELECT to_regclass('subscription_periods') IS NOT NULL")
+        assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
+        for table_name in (
+            "birth_profile_consents",
+            "birth_profiles",
+            "birth_profile_private_content",
+        ):
+            assert (
+                asyncio.run(
+                    _scalar(
+                        url,
+                        schema,
+                        "SELECT count(*) FROM information_schema.tables "
+                        "WHERE table_schema=current_schema() "
+                        f"AND table_name='{table_name}'",
+                    )
+                )
+                == 1
             )
-            is True
-        )
-        subprocess.run(("alembic", "downgrade", "20260804_11"), check=True, env=environment)
+        subprocess.run(("alembic", "downgrade", _PARENT), check=True, env=environment)
         assert (
-            asyncio.run(_scalar(url, schema, "SELECT to_regclass('subscription_periods') IS NULL"))
-            is True
+            asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
         )
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
 
 
-def test_subscription_period_downgrade_refuses_financial_state() -> None:
+def test_birth_profile_migration_refuses_live_consent_downgrade() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
-    user_id, customer_id, subscription_id, period_id = (uuid4() for _ in range(4))
+    user_id = uuid4()
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         asyncio.run(
@@ -93,50 +102,27 @@ def test_subscription_period_downgrade_refuses_financial_state() -> None:
                 url,
                 schema,
                 "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) "
-                f"VALUES ('{user_id}',991001,'Subscriber','active')",
+                f"VALUES ('{user_id}',{uuid4().int % 10**12},'Birth Migration','active')",
             )
         )
         asyncio.run(
             _execute(
                 url,
                 schema,
-                "INSERT INTO billing_customers (id,user_id,provider,provider_customer_id) "
-                f"VALUES ('{customer_id}','{user_id}','stripe','cus-migration')",
-            )
-        )
-        asyncio.run(
-            _execute(
-                url,
-                schema,
-                "INSERT INTO subscriptions "
-                "(id,user_id,billing_customer_id,provider,provider_subscription_id,product_code,"
-                "product_version,status,consent_version,consented_at) VALUES "
-                f"('{subscription_id}','{user_id}','{customer_id}','stripe','sub-migration',"
-                "'subscription_monthly',1,'active','billing-v1',now())",
-            )
-        )
-        asyncio.run(
-            _execute(
-                url,
-                schema,
-                "INSERT INTO subscription_periods "
-                "(id,subscription_id,provider,period_key,status,period_start,period_end,credits,"
-                "amount_minor,currency,idempotency_key) VALUES "
-                f"('{period_id}','{subscription_id}','stripe','2026-08','pending',"
-                "'2026-08-01T00:00:00+00:00','2026-09-01T00:00:00+00:00',30,990,'EUR',"
-                "'subscription:period:migration')",
+                "INSERT INTO birth_profile_consents "
+                "(user_id,status,consent_version,accepted_at) "
+                f"VALUES ('{user_id}','granted','birth-profile-consent-v1',now())",
             )
         )
         failed = subprocess.run(
-            ("alembic", "downgrade", "20260804_11"),
+            ("alembic", "downgrade", _PARENT),
             env=environment,
             capture_output=True,
             text=True,
         )
         assert failed.returncode != 0
         assert "downgrade refused" in failed.stderr
-        assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == (
-            _HEAD_REVISION
-        )
+        assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
+        assert asyncio.run(_scalar(url, schema, "SELECT count(*) FROM birth_profile_consents")) == 1
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
