@@ -33,6 +33,7 @@ from app.providers.analytics_postgres import create_analytics_client
 from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
 from app.providers.payments.composition import create_payment_components
+from app.release_settings import OracleReleaseSettings, get_oracle_release_settings
 from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
 from app.services.birth_profile import BirthProfileService
 from app.services.checkout_service import CheckoutService
@@ -48,6 +49,7 @@ from app.services.natal_chart import (
 )
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.oracle_product_analytics import OracleProductAnalytics
+from app.services.oracle_release_controls import OracleReleaseControls
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.reading_generation import ReadingGenerationService
@@ -75,11 +77,14 @@ def create_dispatcher(
     settings: Settings,
     observability_settings: ObservabilitySettings | None = None,
     engine: AsyncEngine | None = None,
+    release_settings: OracleReleaseSettings | None = None,
 ) -> Dispatcher:
     """Create a dispatcher with durable FSM and explicit per-update dependencies."""
     resolved_observability = observability_settings or get_observability_settings()
+    resolved_release = release_settings or get_oracle_release_settings()
     resolved_engine = engine or create_engine(str(settings.database_url))
     sessions = create_session_factory(resolved_engine)
+    release_controls = OracleReleaseControls.from_settings(resolved_release)
     cipher = AESGCMSensitiveContentCipher(
         decode_configured_key(settings.content_encryption_key.get_secret_value())
     )
@@ -151,6 +156,7 @@ def create_dispatcher(
     dispatcher["analytics"] = analytics
     dispatcher["oracle_analytics"] = oracle_analytics
     dispatcher["oracle_quality_observer"] = quality_observer
+    dispatcher["oracle_release_controls"] = release_controls
     dispatcher["error_reporter"] = reporter
     dispatcher["persona_registry"] = PersonaRegistryService(sessions)
     dispatcher["tarot_history"] = ReadingHistoryService(sessions)
@@ -161,6 +167,7 @@ def create_dispatcher(
         settings.raw_content_retention_days,
         preview_entitlements=preview_entitlements,
         analytics=oracle_analytics,
+        release_controls=release_controls,
     )
     oracle_memory = QualityManagedOracleMemoryService(sessions, cipher)
     reading_store = SqlAlchemyReadingGenerationStore(
