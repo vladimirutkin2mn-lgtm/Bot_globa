@@ -94,7 +94,10 @@ def test_release_settings_normalize_kill_switch_lists() -> None:
     )
     controls = OracleReleaseControls.from_settings(settings)
 
-    assert _decision(controls, persona_code="love_oracle") is OracleReleaseDecisionCode.PERSONA_DISABLED
+    assert (
+        _decision(controls, persona_code="love_oracle")
+        is OracleReleaseDecisionCode.PERSONA_DISABLED
+    )
     assert (
         _decision(controls, engine_version="symbolic-v1")
         is OracleReleaseDecisionCode.ENGINE_DISABLED
