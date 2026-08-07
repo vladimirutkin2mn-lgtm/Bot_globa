@@ -111,6 +111,7 @@ class BirthProfileService:
                 value.encrypted_payload(),
             )
             profile = await self._profile_locked(session, user_id)
+            private: BirthProfilePrivateContent | None
             if profile is None:
                 profile = BirthProfile(
                     user_id=user_id,
