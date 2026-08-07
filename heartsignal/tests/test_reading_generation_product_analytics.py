@@ -140,7 +140,7 @@ class TwoMemories:
                 value="PRIVATE-USER-STATED-MEMORY",
                 confidence_milli=900,
                 created_at=now,
-                last_used_at=None,
+                source_reading_created_at=None,
             ),
             ReadingMemoryContextItem(
                 kind=MemoryKind.RECURRING_THEME,
@@ -149,7 +149,7 @@ class TwoMemories:
                 value="PRIVATE-MODEL-INFERRED-MEMORY",
                 confidence_milli=700,
                 created_at=now,
-                last_used_at=None,
+                source_reading_created_at=None,
             ),
         )
 
