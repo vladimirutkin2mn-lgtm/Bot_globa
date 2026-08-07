@@ -46,4 +46,6 @@ pytest \
   tests/test_reading_memory_usage.py::test_usage_telemetry_failure_keeps_context_and_logs_no_value \
   tests/test_love_oracle_reading.py::test_postgres_love_oracle_preview_is_validated_and_idempotent \
   tests/test_love_oracle_reading.py::test_mind_reading_and_guaranteed_reunion_are_rejected_before_persistence \
+  tests/test_mystical_psychologist_reading.py::test_postgres_reflection_is_validated_and_idempotent \
+  tests/test_mystical_psychologist_reading.py::test_diagnosis_and_dependency_are_rejected_before_persistence \
   "$@"

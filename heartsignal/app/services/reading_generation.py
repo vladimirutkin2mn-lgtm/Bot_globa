@@ -19,11 +19,8 @@ from app.domain.reading_generation import (
 )
 from app.domain.reading_memory_context import ReadingMemoryContextItem, ReadingMemoryRetriever
 from app.domain.reading_result import ReadingResult
-from app.prompts.reading import (
-    ReadingPromptNotFoundError,
-    ReadingPromptSet,
-    load_reading_prompts,
-)
+from app.prompts.oracle import load_oracle_reading_prompts
+from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMClient,
@@ -91,7 +88,7 @@ class ReadingGenerationService:
         llm: LLMClient,
         *,
         max_repair_attempts: int = 1,
-        prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
+        prompt_loader: Callable[[str], ReadingPromptSet] = load_oracle_reading_prompts,
         validator: ReadingResultValidator | None = None,
         memory_retriever: ReadingMemoryRetriever | None = None,
     ) -> None:
