@@ -11,9 +11,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Settings
 from app.db.reading_models import Reading
 from app.domain.reading import ReadingDraftRequest
+from app.release_settings import OracleReleaseSettings
 
 _ADMISSION_LOCK_KEY = 6_040_001
 
@@ -87,7 +87,7 @@ class OracleReleaseControls:
         self._max_reserved_cost_microusd_per_reading = max_reserved_cost_microusd_per_reading
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> OracleReleaseControls:
+    def from_settings(cls, settings: OracleReleaseSettings) -> OracleReleaseControls:
         return cls(
             enabled=settings.oracle_enabled,
             rollout_percentage=settings.oracle_rollout_percentage,
