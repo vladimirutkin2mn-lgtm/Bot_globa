@@ -1,4 +1,4 @@
-"""Versioned calculated fact bundles and strict Horoscope output contracts."""
+"""Versioned domain contracts for deterministic, fact-bound Horoscope readings."""
 
 import hashlib
 import json
@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.domain.natal_chart import (
     NATAL_CHART_HOUSE_SYSTEM,
@@ -16,32 +16,22 @@ from app.domain.natal_chart import (
     NatalBody,
     ZodiacSign,
 )
-from app.domain.reading_result import (
-    ReadingSafetyAssessment,
-    ReadingScenario,
-    ShareCardPayload,
-    ShortText,
-    StrictReadingResultModel,
-    Text,
-)
+from app.domain.reading_result import ReadingSafetyAssessment, ReadingScenario, ShareCardPayload
 
-HOROSCOPE_FACTS_VERSION = "horoscope-facts-v1"
 ASTROLOGY_READING_SCHEMA_VERSION = "astrology-reading-result-v1"
-HOROSCOPE_RENDERER_VERSION = "horoscope-renderer-v1"
+HOROSCOPE_FACTS_VERSION = "horoscope-facts-v1"
 
+ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1400)]
 FactId = Annotated[
     str,
-    StringConstraints(
-        strip_whitespace=True,
-        min_length=1,
-        max_length=160,
-        pattern=r"^[a-z0-9:._-]+$",
-    ),
+    StringConstraints(strip_whitespace=True, min_length=3, max_length=180, pattern=r"^[a-z0-9:_-]+$"),
 ]
-Digest = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, pattern=r"^[0-9a-f]{64}$"),
-]
+Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
+
+class StrictReadingResultModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 class HoroscopeScope(StrEnum):
@@ -50,6 +40,13 @@ class HoroscopeScope(StrEnum):
     MONTH_FORECAST = "month_forecast"
     DECISION = "decision"
     LOVE = "love"
+
+
+class HoroscopeLimitation(StrEnum):
+    ENTERTAINMENT_ONLY = "entertainment_only"
+    NO_CERTAIN_PREDICTION = "no_certain_prediction"
+    BIRTH_TIME_UNKNOWN = "birth_time_unknown"
+    SAMPLED_TRANSITS = "sampled_transits"
 
 
 class HoroscopeFactKind(StrEnum):
@@ -61,17 +58,10 @@ class HoroscopeFactKind(StrEnum):
     TRANSIT_NATAL_ASPECT = "transit_natal_aspect"
 
 
-class HoroscopeLimitation(StrEnum):
-    ENTERTAINMENT_ONLY = "entertainment_only"
-    BIRTH_TIME_UNKNOWN = "birth_time_unknown"
-    SAMPLED_TRANSITS = "sampled_transits"
-    NO_CERTAIN_PREDICTION = "no_certain_prediction"
-
-
-_BODY_VALUES = frozenset(value.value for value in NatalBody)
-_SIGN_VALUES = tuple(value.value for value in ZodiacSign)
-_ASPECT_VALUES = frozenset(value.value for value in NatalAspectKind)
-_ASPECT_ANGLES = {
+_BODY_VALUES = frozenset(body.value for body in NatalBody)
+_SIGN_VALUES = tuple(sign.value for sign in ZodiacSign)
+_ASPECT_VALUES = frozenset(kind.value for kind in NatalAspectKind)
+_ASPECT_ANGLES: dict[str, tuple[int, int]] = {
     NatalAspectKind.CONJUNCTION.value: (0_000, 8_000),
     NatalAspectKind.SEXTILE.value: (60_000, 4_000),
     NatalAspectKind.SQUARE.value: (90_000, 6_000),
@@ -80,29 +70,23 @@ _ASPECT_ANGLES = {
 }
 
 
-@dataclass(frozen=True, slots=True)
-class HoroscopeFact:
-    fact_id: str
+class HoroscopeFact(StrictReadingResultModel):
+    fact_id: FactId
     kind: HoroscopeFactKind
     details: dict[str, object]
 
-    def __post_init__(self) -> None:
-        if re.fullmatch(r"[a-z0-9:._-]{1,160}", self.fact_id) is None:
-            raise ValueError("invalid horoscope fact id")
-        if self.kind is HoroscopeFactKind.NATAL_PLANET:
-            self._validate_planet(transit=False)
-        elif self.kind is HoroscopeFactKind.TRANSIT_PLANET:
-            self._validate_planet(transit=True)
-        elif self.kind is HoroscopeFactKind.NATAL_ASPECT:
-            self._validate_natal_aspect()
-        elif self.kind is HoroscopeFactKind.NATAL_HOUSE:
-            self._validate_house()
-        elif self.kind is HoroscopeFactKind.NATAL_ASCENDANT:
-            self._validate_ascendant()
-        elif self.kind is HoroscopeFactKind.TRANSIT_NATAL_ASPECT:
-            self._validate_transit_aspect()
-        else:
-            raise ValueError("unsupported horoscope fact kind")
+    @model_validator(mode="after")
+    def validate_fact(self) -> "HoroscopeFact":
+        validators = {
+            HoroscopeFactKind.NATAL_PLANET: self._validate_natal_planet,
+            HoroscopeFactKind.NATAL_ASPECT: self._validate_natal_aspect,
+            HoroscopeFactKind.NATAL_HOUSE: self._validate_natal_house,
+            HoroscopeFactKind.NATAL_ASCENDANT: self._validate_natal_ascendant,
+            HoroscopeFactKind.TRANSIT_PLANET: self._validate_transit_planet,
+            HoroscopeFactKind.TRANSIT_NATAL_ASPECT: self._validate_transit_aspect,
+        }
+        validators[self.kind]()
+        return self
 
     def payload(self) -> dict[str, object]:
         return {
@@ -111,30 +95,24 @@ class HoroscopeFact:
             "details": self.details,
         }
 
-    def _validate_planet(self, *, transit: bool) -> None:
-        expected = {
-            "body",
-            "longitude_millidegrees",
-            "sign",
-            "sign_degree_millidegrees",
-            "retrograde",
-        }
-        if transit:
-            expected.add("sample_date")
-        self._require_exact_keys(expected)
+    def _validate_natal_planet(self) -> None:
+        self._require_exact_keys(
+            {
+                "body",
+                "longitude_millidegrees",
+                "sign",
+                "sign_degree_millidegrees",
+                "retrograde",
+            }
+        )
         body = self._require_member("body", _BODY_VALUES)
         longitude = self._require_int("longitude_millidegrees", 0, 359_999)
         sign = self._require_member("sign", frozenset(_SIGN_VALUES))
         sign_degree = self._require_int("sign_degree_millidegrees", 0, 29_999)
         self._require_bool("retrograde")
         if sign != _SIGN_VALUES[longitude // 30_000] or sign_degree != longitude % 30_000:
-            raise ValueError("horoscope planet sign fields do not match longitude")
-        if transit:
-            sample_date = self._require_date("sample_date")
-            expected_id = f"transit:{sample_date}:planet:{body}"
-        else:
-            expected_id = f"natal:planet:{body}"
-        self._require_fact_id(expected_id)
+            raise ValueError("horoscope natal sign fields do not match longitude")
+        self._require_fact_id(f"natal:planet:{body}")
 
     def _validate_natal_aspect(self) -> None:
         self._require_exact_keys(
@@ -146,16 +124,22 @@ class HoroscopeFact:
                 "orb_millidegrees",
             }
         )
-        first = self._require_member("first_body", _BODY_VALUES)
-        second = self._require_member("second_body", _BODY_VALUES)
+        first_body = self._require_member("first_body", _BODY_VALUES)
+        second_body = self._require_member("second_body", _BODY_VALUES)
         kind = self._require_member("kind", _ASPECT_VALUES)
-        if first >= second:
-            raise ValueError("horoscope natal aspect bodies must use lexical ordering")
+        if first_body >= second_body:
+            raise ValueError("horoscope natal aspect bodies must be canonically ordered")
         self._validate_aspect_angles(kind)
-        self._require_fact_id(f"natal:aspect:{first}:{second}:{kind}")
+        self._require_fact_id(f"natal:aspect:{first_body}:{second_body}:{kind}")
 
-    def _validate_house(self) -> None:
-        self._require_exact_keys({"number", "cusp_longitude_millidegrees", "sign"})
+    def _validate_natal_house(self) -> None:
+        self._require_exact_keys(
+            {
+                "number",
+                "cusp_longitude_millidegrees",
+                "sign",
+            }
+        )
         number = self._require_int("number", 1, 12)
         longitude = self._require_int("cusp_longitude_millidegrees", 0, 359_999)
         sign = self._require_member("sign", frozenset(_SIGN_VALUES))
@@ -163,7 +147,28 @@ class HoroscopeFact:
             raise ValueError("horoscope house sign does not match cusp longitude")
         self._require_fact_id(f"natal:house:{number}")
 
-    def _validate_ascendant(self) -> None:
+    def _validate_transit_planet(self) -> None:
+        self._require_exact_keys(
+            {
+                "sample_date",
+                "body",
+                "longitude_millidegrees",
+                "sign",
+                "sign_degree_millidegrees",
+                "retrograde",
+            }
+        )
+        sample_date = self._require_date("sample_date")
+        body = self._require_member("body", _BODY_VALUES)
+        longitude = self._require_int("longitude_millidegrees", 0, 359_999)
+        sign = self._require_member("sign", frozenset(_SIGN_VALUES))
+        sign_degree = self._require_int("sign_degree_millidegrees", 0, 29_999)
+        self._require_bool("retrograde")
+        if sign != _SIGN_VALUES[longitude // 30_000] or sign_degree != longitude % 30_000:
+            raise ValueError("horoscope transit sign fields do not match longitude")
+        self._require_fact_id(f"transit:{sample_date}:planet:{body}")
+
+    def _validate_natal_ascendant(self) -> None:
         self._require_exact_keys(
             {
                 "longitude_millidegrees",
@@ -375,7 +380,7 @@ _RAW_ASTROLOGY_TERM = re.compile(
     re.IGNORECASE,
 )
 _RAW_DEGREE_CLAIM = re.compile(
-    r"\b\d{1,3}(?:[.,]\d+)?\s*(?:°|degrees?|deg\.?|градус(?:а|ов)?)\b",  # noqa: RUF001
+    r"\b\d{1,3}(?:[.,]\d+)?\s*(?:°|degrees?|deg\.?|градус(?:а|ов)?)(?=$|[\s,.;:!?])",  # noqa: RUF001
     re.IGNORECASE,
 )
 
