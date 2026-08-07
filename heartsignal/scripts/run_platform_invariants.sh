@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # These tests freeze production-sensitive billing, privacy and consent behavior.
-# Reading ciphertext races, BirthProfile consent and calculation boundaries are mandatory.
 # Keep the list small and explicit so a green full suite cannot hide a broken invariant.
 pytest \
   tests/test_credits_repository_postgres.py::test_same_analysis_spend_and_refund_are_exactly_once \
@@ -59,4 +58,8 @@ pytest \
   tests/test_natal_chart.py::test_same_normalized_input_produces_identical_versioned_payload \
   tests/test_natal_chart.py::test_unknown_time_uses_local_noon_and_never_invents_houses \
   tests/test_natal_chart_postgres.py::test_chart_calculation_requires_active_consented_profile \
+  tests/test_horoscope_generation.py::test_ready_replay_restores_facts_and_skips_calculation_and_llm \
+  tests/test_horoscope_generation.py::test_ready_replay_rejects_tampered_fact_bundle \
+  tests/test_horoscope_reading_postgres.py::test_postgres_horoscope_is_fact_bound_rendered_and_idempotent \
+  tests/test_horoscope_reading_postgres.py::test_altered_chart_claim_is_rejected_before_persistence \
   "$@"

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.db.memory_models import OracleMemoryConsent
 from app.db.models import User
 from app.db.reading_models import Persona, Reading, ReadingPrivateContent
+from app.domain.horoscope import ASTROLOGY_READING_SCHEMA_VERSION
 from app.domain.memory_extraction import (
     CURRENT_MEMORY_EXTRACTION_VERSION,
     CompletedReadingMemorySnapshot,
@@ -26,6 +27,10 @@ from app.domain.oracle_memory import (
 )
 from app.domain.reading import ReadingStatus
 from app.providers.llm.base import LLMClient, LLMRequest
+from app.services.horoscope_storage import (
+    InvalidStoredHoroscope,
+    horoscope_memory_source,
+)
 from app.services.oracle_memory import (
     MemoryConsentRequiredError,
     MemoryProvenanceError,
@@ -276,6 +281,13 @@ class ReadingMemoryExtractionService:
                 or not isinstance(persona.code, str)
             ):
                 raise MemorySourceUnavailableError("completed reading private source is invalid")
+            if reading.schema_version == ASTROLOGY_READING_SCHEMA_VERSION:
+                try:
+                    result = horoscope_memory_source(result)
+                except InvalidStoredHoroscope as exc:
+                    raise MemorySourceUnavailableError(
+                        "completed astrology reading private source is invalid"
+                    ) from exc
             return CompletedReadingMemorySnapshot(
                 reading_id=reading.id,
                 persona_code=persona.code,
