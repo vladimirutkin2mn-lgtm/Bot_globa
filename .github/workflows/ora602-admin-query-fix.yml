@@ -1,5 +1,6 @@
 name: ORA-602 admin query fix
 
+# One-shot self-cleaning query fix.
 on:
   push:
     branches:
