@@ -88,9 +88,7 @@ class PaymentService:
                 .where(
                     PaymentOrder.user_id == user_id,
                     PaymentOrder.provider == self._provider_name,
-                    PaymentOrder.product_code.in_(
-                        self._catalog.active_order_codes(product.code)
-                    ),
+                    PaymentOrder.product_code.in_(self._catalog.active_order_codes(product.code)),
                     PaymentOrder.status.in_(("creating", "pending")),
                 )
                 .order_by(PaymentOrder.created_at.desc())
