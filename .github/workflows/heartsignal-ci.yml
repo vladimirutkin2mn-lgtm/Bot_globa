@@ -81,6 +81,12 @@ jobs:
       - name: Verify oracle safety regression gate
         run: bash scripts/run_oracle_safety_gate.sh --junitxml=oracle-safety-report.xml
 
+      - name: Reset test database before oracle quality observability gate
+        run: python scripts/reset_test_database.py
+
+      - name: Verify oracle cost and quality observability gate
+        run: bash scripts/run_oracle_quality_observability_gate.sh --junitxml=oracle-quality-report.xml
+
       - name: Reset test database before full suite
         run: python scripts/reset_test_database.py
 
@@ -95,6 +101,7 @@ jobs:
           path: |
             heartsignal/platform-invariants-report.xml
             heartsignal/oracle-safety-report.xml
+            heartsignal/oracle-quality-report.xml
             heartsignal/pytest-report.xml
           if-no-files-found: warn
           retention-days: 7
