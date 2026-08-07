@@ -151,9 +151,7 @@ async def test_draft_creation_waits_for_deletion_and_cannot_leave_private_data(
         locked.set()
         await release.wait()
 
-    deletion = asyncio.create_task(
-        _delete_account(payment_db, user.id, after_lock=after_lock)
-    )
+    deletion = asyncio.create_task(_delete_account(payment_db, user.id, after_lock=after_lock))
     await locked.wait()
     creation = asyncio.create_task(
         ReadingService(payment_db, cipher).create_draft(
@@ -213,9 +211,7 @@ async def test_generation_claim_waits_for_deletion_and_never_decrypts_source(
         locked.set()
         await release.wait()
 
-    deletion = asyncio.create_task(
-        _delete_account(payment_db, user.id, after_lock=after_lock)
-    )
+    deletion = asyncio.create_task(_delete_account(payment_db, user.id, after_lock=after_lock))
     await locked.wait()
     claim_task = asyncio.create_task(
         SqlAlchemyReadingGenerationStore(payment_db, cipher).claim_preview(
