@@ -134,7 +134,7 @@ async def create_claimed_job(
         claim_id = uuid4()
         job = BillingJob(
             job_type=job_type,
-            provider=provider,
+            provider="stripe",
             object_type=object_type,
             object_id=object_id,
             idempotency_key=f"job:{uuid4()}",
