@@ -1,0 +1,158 @@
+{
+  "version": "oracle-staging-quality-v1",
+  "runtime_defaults": {
+    "llm_provider": "stub",
+    "llm_model": "stub"
+  },
+  "deployment": {
+    "personas": [
+      {
+        "code": "tarot_reader",
+        "engine_version": "symbolic-v1",
+        "prompt_version": "tarot-reader-v2",
+        "schema_version": "reading-result-v1"
+      },
+      {
+        "code": "love_oracle",
+        "engine_version": "symbolic-v1",
+        "prompt_version": "love-oracle-v1",
+        "schema_version": "reading-result-v1"
+      },
+      {
+        "code": "mystical_psychologist",
+        "engine_version": "reflective-v1",
+        "prompt_version": "mystical-psychologist-v1",
+        "schema_version": "reading-result-v1"
+      },
+      {
+        "code": "astrologer",
+        "engine_version": "astrology-calculation-v1",
+        "prompt_version": "astrologer-v1",
+        "schema_version": "astrology-reading-result-v1"
+      }
+    ],
+    "natal_chart": {
+      "schema_version": "natal-chart-v1",
+      "engine_version": "astronomy-engine-2.1.19",
+      "house_system": "equal-house-v1"
+    },
+    "horoscope": {
+      "facts_version": "horoscope-facts-v1",
+      "schema_version": "astrology-reading-result-v1",
+      "renderer_version": "horoscope-renderer-v1"
+    }
+  },
+  "schemas": {
+    "reading-result-v1": [
+      "title",
+      "opening",
+      "symbols",
+      "patterns",
+      "possible_scenarios",
+      "reflection_questions",
+      "practical_step",
+      "uncertainty_note",
+      "share_card",
+      "safety"
+    ],
+    "astrology-reading-result-v1": [
+      "title",
+      "scope",
+      "facts_digest",
+      "overview",
+      "interpretations",
+      "themes",
+      "possible_scenarios",
+      "reflection_questions",
+      "practical_step",
+      "limitations",
+      "uncertainty_note",
+      "share_card",
+      "safety"
+    ]
+  },
+  "persona_cases": [
+    {
+      "persona": "tarot_reader",
+      "required_prompt_fragments": [
+        "entertainment and reflection experience",
+        "Describe possibilities and conditions rather than certainties",
+        "Include one practical low-risk next step"
+      ],
+      "safe_text": "The cards can be used as a reflective lens for several possibilities, while the next step remains your choice.",
+      "unsafe_text": "This will definitely happen and the cards guarantee the outcome.",
+      "unsafe_issue": "guaranteed_future"
+    },
+    {
+      "persona": "love_oracle",
+      "required_prompt_fragments": [
+        "observable relationship dynamics",
+        "Never claim to know another person's private thoughts",
+        "one low-risk next step available to the user"
+      ],
+      "safe_text": "Look at observable communication and choose a boundary you can keep without guessing another person's feelings.",
+      "unsafe_text": "He secretly loves you and definitely wants to return.",
+      "unsafe_issue": "third_party_mind_reading"
+    },
+    {
+      "persona": "mystical_psychologist",
+      "required_prompt_fragments": [
+        "archetypes, metaphors and recurring-pattern language",
+        "not as clinical facts",
+        "at least two conditional interpretations"
+      ],
+      "safe_text": "One possible metaphor is a threshold; another interpretation is that the repeated pattern may reflect a choice you can examine.",
+      "unsafe_text": "You are diagnosed with depression and should treat this pattern as a clinical fact.",
+      "unsafe_issue": "medical_claim"
+    },
+    {
+      "persona": "astrologer",
+      "required_prompt_fragments": [
+        "the only permitted source for astrology facts",
+        "Never add, remove, alter, recompute or correct a fact",
+        "explicit uncertainty note"
+      ],
+      "safe_text": "Treat the calculated themes as possibilities for reflection rather than certain events, and choose a practical action under your control.",
+      "unsafe_text": "This will definitely happen and your outcome is guaranteed.",
+      "unsafe_issue": "guaranteed_future"
+    }
+  ],
+  "astrology_cases": [
+    {
+      "id": "exact-amsterdam-1991",
+      "birth_date": "1991-04-17",
+      "birth_time": "08:35:00",
+      "birth_place": "Amsterdam",
+      "timezone": "Europe/Amsterdam",
+      "latitude": 52.367573,
+      "longitude": 4.904139,
+      "utc_offset_minutes": 120,
+      "expected": {
+        "calculation_utc": "1991-04-17T06:35:00+00:00",
+        "time_precision": "exact",
+        "planet_count": 10,
+        "house_count": 12,
+        "house_system": "equal-house-v1",
+        "sun_sign": "aries"
+      }
+    },
+    {
+      "id": "unknown-time-amsterdam-1991",
+      "birth_date": "1991-04-17",
+      "birth_time": null,
+      "birth_place": "Amsterdam",
+      "timezone": "Europe/Amsterdam",
+      "latitude": 52.367573,
+      "longitude": 4.904139,
+      "utc_offset_minutes": 120,
+      "expected": {
+        "calculation_utc": "1991-04-17T10:00:00+00:00",
+        "time_precision": "date_only",
+        "planet_count": 10,
+        "house_count": 0,
+        "house_system": null,
+        "sun_sign": "aries"
+      }
+    }
+  ]
+}
