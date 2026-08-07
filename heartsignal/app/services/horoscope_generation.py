@@ -318,9 +318,7 @@ class HoroscopeGenerationService:
                 completion,
             )
         except LLMTimeoutError:
-            return await self._fail_observed(
-                context, "llm_timeout", attempts, completion
-            )
+            return await self._fail_observed(context, "llm_timeout", attempts, completion)
         except LLMRateLimitError:
             return await self._fail_observed(
                 context,

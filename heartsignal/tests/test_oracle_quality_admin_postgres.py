@@ -203,9 +203,7 @@ async def test_admin_metrics_group_oracle_cost_quality_safety_and_billing_health
     metrics = await AdminMetricsService(payment_db).snapshot()
 
     tarot = next(
-        bucket
-        for bucket in metrics.oracle_quality.llm
-        if bucket.persona_code == "tarot_reader"
+        bucket for bucket in metrics.oracle_quality.llm if bucket.persona_code == "tarot_reader"
     )
     assert tarot.call_count == 2
     assert tarot.failed_call_count == 0
@@ -217,9 +215,7 @@ async def test_admin_metrics_group_oracle_cost_quality_safety_and_billing_health
     assert tarot.cost_known_call_count == 2
 
     love = next(
-        bucket
-        for bucket in metrics.oracle_quality.llm
-        if bucket.persona_code == "love_oracle"
+        bucket for bucket in metrics.oracle_quality.llm if bucket.persona_code == "love_oracle"
     )
     assert love.failed_call_count == 1
     assert love.cost_known_call_count == 0

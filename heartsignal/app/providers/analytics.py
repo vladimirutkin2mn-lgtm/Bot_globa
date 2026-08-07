@@ -322,17 +322,36 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
         "repair_used",
     ),
     "oracle_llm_attempt_observed": _quality_properties(
-        "observation_id", "persona_code", "provider", "model", "prompt_version",
-        "attempt_kind", "status_code", "latency_ms", "input_tokens",
-        "output_tokens", "estimated_cost_microusd", "cost_known",
+        "observation_id",
+        "persona_code",
+        "provider",
+        "model",
+        "prompt_version",
+        "attempt_kind",
+        "status_code",
+        "latency_ms",
+        "input_tokens",
+        "output_tokens",
+        "estimated_cost_microusd",
+        "cost_known",
     ),
     "oracle_astrology_observed": _quality_properties(
-        "observation_id", "persona_code", "scope_code", "engine_version",
-        "status_code", "latency_ms", "failure_code",
+        "observation_id",
+        "persona_code",
+        "scope_code",
+        "engine_version",
+        "status_code",
+        "latency_ms",
+        "failure_code",
     ),
     "oracle_generation_observed": _quality_properties(
-        "observation_id", "persona_code", "prompt_version", "status_code",
-        "attempt_count", "repair_used", "failure_code",
+        "observation_id",
+        "persona_code",
+        "prompt_version",
+        "status_code",
+        "attempt_count",
+        "repair_used",
+        "failure_code",
     ),
 }
 
@@ -441,18 +460,42 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
 }
 
 _QUALITY_REQUIRED: dict[str, frozenset[str]] = {
-    "oracle_llm_attempt_observed": frozenset({
-        "event_version", "observation_id", "persona_code", "provider", "model",
-        "prompt_version", "attempt_kind", "status_code", "latency_ms", "cost_known",
-    }),
-    "oracle_astrology_observed": frozenset({
-        "event_version", "observation_id", "persona_code", "scope_code",
-        "engine_version", "status_code", "latency_ms",
-    }),
-    "oracle_generation_observed": frozenset({
-        "event_version", "observation_id", "persona_code", "prompt_version",
-        "status_code", "attempt_count", "repair_used",
-    }),
+    "oracle_llm_attempt_observed": frozenset(
+        {
+            "event_version",
+            "observation_id",
+            "persona_code",
+            "provider",
+            "model",
+            "prompt_version",
+            "attempt_kind",
+            "status_code",
+            "latency_ms",
+            "cost_known",
+        }
+    ),
+    "oracle_astrology_observed": frozenset(
+        {
+            "event_version",
+            "observation_id",
+            "persona_code",
+            "scope_code",
+            "engine_version",
+            "status_code",
+            "latency_ms",
+        }
+    ),
+    "oracle_generation_observed": frozenset(
+        {
+            "event_version",
+            "observation_id",
+            "persona_code",
+            "prompt_version",
+            "status_code",
+            "attempt_count",
+            "repair_used",
+        }
+    ),
 }
 
 _EVENT_SCOPES: dict[str, EventScope] = {
@@ -595,7 +638,9 @@ def validate_event_properties(event: str, properties: Mapping[str, str] | None) 
     expected_version = (
         PRODUCT_EVENT_TAXONOMY_VERSION
         if event in _ORACLE_REQUIRED
-        else ORACLE_QUALITY_EVENT_VERSION if event in _QUALITY_REQUIRED else None
+        else ORACLE_QUALITY_EVENT_VERSION
+        if event in _QUALITY_REQUIRED
+        else None
     )
     if expected_version is not None and supplied.get("event_version") != expected_version:
         raise AnalyticsContractError

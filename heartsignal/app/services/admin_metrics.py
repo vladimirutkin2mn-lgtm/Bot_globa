@@ -237,7 +237,9 @@ class AdminMetricsService:
                 user_validation_total=sum(int(count) for _, count in rejection_rows),
                 technical_total=technical_total,
                 conversation_rejection_reasons={
-                    str(reason): int(count) for reason, count in rejection_rows if reason is not None
+                    str(reason): int(count)
+                    for reason, count in rejection_rows
+                    if reason is not None
                 },
                 analysis_failure_codes={
                     str(code): int(count)
@@ -294,7 +296,9 @@ def _oracle_quality(
             if properties.get("attempt_kind") == "repair":
                 bucket["repairs"] = int(bucket["repairs"]) + 1
             _sum_optional_int(bucket, "latency", properties.get("latency_ms"))
-            bucket["input_tokens"] = int(bucket["input_tokens"]) + _int(properties.get("input_tokens"))
+            bucket["input_tokens"] = int(bucket["input_tokens"]) + _int(
+                properties.get("input_tokens")
+            )
             bucket["output_tokens"] = int(bucket["output_tokens"]) + _int(
                 properties.get("output_tokens")
             )

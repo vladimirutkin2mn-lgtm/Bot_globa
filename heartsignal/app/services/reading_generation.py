@@ -273,13 +273,9 @@ class ReadingGenerationService:
                 last_completion,
             )
         except LLMTimeoutError:
-            return await self._fail_observed(
-                context, "llm_timeout", attempts, last_completion
-            )
+            return await self._fail_observed(context, "llm_timeout", attempts, last_completion)
         except LLMRateLimitError:
-            return await self._fail_observed(
-                context, "llm_rate_limited", attempts, last_completion
-            )
+            return await self._fail_observed(context, "llm_rate_limited", attempts, last_completion)
         except LLMAuthenticationError:
             return await self._fail_observed(
                 context,
