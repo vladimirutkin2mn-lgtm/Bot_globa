@@ -230,7 +230,9 @@ async def test_load_and_revoke_serialize_without_post_revoke_ciphertext(
         assert not isinstance(revoke_result, BaseException)
         assert revoke_result.status is BirthProfileConsentStatus.REVOKED
         async with payment_db() as session:
-            profile = await session.scalar(select(BirthProfile).where(BirthProfile.user_id == user.id))
+            profile = await session.scalar(
+                select(BirthProfile).where(BirthProfile.user_id == user.id)
+            )
             assert profile is not None
             private = await session.get(BirthProfilePrivateContent, profile.id)
         assert profile.status == BirthProfileStatus.DELETED.value
