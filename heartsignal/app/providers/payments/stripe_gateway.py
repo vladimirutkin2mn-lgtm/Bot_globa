@@ -58,6 +58,7 @@ class StripeGateway:
                         "client_reference_id": request.order_id,
                         "metadata": {
                             "order_id": request.order_id,
+                            "product_code": request.product_code,
                             "product_version": str(request.product_version),
                         },
                     },

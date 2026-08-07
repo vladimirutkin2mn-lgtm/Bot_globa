@@ -88,9 +88,13 @@ class PaymentService:
                 .where(
                     PaymentOrder.user_id == user_id,
                     PaymentOrder.provider == self._provider_name,
-                    PaymentOrder.product_code == product.code.value,
+                    PaymentOrder.product_code.in_(
+                        self._catalog.active_order_codes(product.code)
+                    ),
                     PaymentOrder.status.in_(("creating", "pending")),
                 )
+                .order_by(PaymentOrder.created_at.desc())
+                .limit(1)
                 .with_for_update()
             )
             if order is None:
@@ -104,10 +108,12 @@ class PaymentService:
                     currency=product.currency,
                     mode="one_time",
                     market="RU",
-                    product_version=1,
+                    product_version=product.version,
                     commercial_snapshot={
                         "product_code": product.code.value,
-                        "product_version": 1,
+                        "product_version": product.version,
+                        "title": product.title,
+                        "receipt_label": product.receipt_label,
                         "credits": product.credits,
                         "amount_minor": product.amount_minor,
                         "currency": product.currency,
@@ -174,9 +180,9 @@ class PaymentService:
                 "checkout_started",
                 {
                     "order_id": str(request.order_id),
-                    "product_code": product.code.value,
+                    "product_code": order.product_code,
                     "provider": self._provider_name,
-                    "credits": str(product.credits),
+                    "credits": str(order.credits),
                 },
             )
         return CheckoutResult(

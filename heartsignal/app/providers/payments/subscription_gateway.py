@@ -28,6 +28,7 @@ class CreateSubscriptionCheckout:
     success_url: str
     cancel_url: str
     receipt_contact: str | None = None
+    receipt_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,7 @@ class RenewSubscription:
     idempotency_key: str
     encrypted_payment_method: bytes | None = None
     receipt_contact: str | None = None
+    receipt_label: str | None = None
 
 
 @dataclass(frozen=True)
