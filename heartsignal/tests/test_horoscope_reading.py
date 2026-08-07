@@ -1,11 +1,13 @@
 """Application and prompt boundary tests for the Horoscope persona."""
 
+from datetime import date
 from uuid import UUID, uuid4
 
 import pytest
 
 from app.db.reading_models import Reading
 from app.domain.horoscope import HoroscopeScope
+from app.domain.horoscope_topic import HoroscopeTopic
 from app.domain.oracle_safety import OracleSafetyAction
 from app.domain.reading import ReadingDraftRequest
 from app.prompts.horoscope import load_horoscope_prompts
@@ -66,6 +68,7 @@ async def test_use_case_freezes_astrology_versions_without_raw_birth_fields() ->
             topic=HoroscopeScope.WEEK_FORECAST,
             question="Which themes may be useful to observe this week?",
             context="I want to keep my next choice reversible.",
+            reference_date=date(2026, 8, 7),
         ),
     )
     replay = await use_case.generate_existing_preview(first.reading_id, user_id)
@@ -74,7 +77,11 @@ async def test_use_case_freezes_astrology_versions_without_raw_birth_fields() ->
     assert len(drafts.requests) == 1
     _, request = drafts.requests[0]
     assert request.persona_code == "astrologer"
-    assert request.topic == HoroscopeScope.WEEK_FORECAST.value
+    assert request.topic == "week_forecast__2026_08_03"
+    assert HoroscopeTopic.parse(request.topic) == HoroscopeTopic(
+        HoroscopeScope.WEEK_FORECAST,
+        date(2026, 8, 3),
+    )
     assert request.engine_version == "astrology-calculation-v1"
     assert request.prompt_version == "astrologer-v1"
     assert request.schema_version == "astrology-reading-result-v1"
