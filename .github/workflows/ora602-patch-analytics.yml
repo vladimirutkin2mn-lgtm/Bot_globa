@@ -1,0 +1,141 @@
+name: ORA-602 analytics contract patch
+
+on:
+  push:
+    branches:
+      - agent/ora-602-cost-quality-observability
+    paths:
+      - .github/workflows/ora602-patch-analytics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch quality event contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('heartsignal/app/providers/analytics.py')
+          text = path.read_text()
+
+          def once(old: str, new: str) -> None:
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one match for: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          once(
+              'PRODUCT_EVENT_TAXONOMY_VERSION = "oracle-product-events-v1"\nLEGACY_EVENT_TAXONOMY_VERSION',
+              'PRODUCT_EVENT_TAXONOMY_VERSION = "oracle-product-events-v1"\n'
+              'ORACLE_QUALITY_EVENT_VERSION = "oracle-quality-events-v1"\n'
+              'LEGACY_EVENT_TAXONOMY_VERSION',
+          )
+          once(
+              '        "order_id",\n        "reading_id",',
+              '        "order_id",\n        "observation_id",\n        "reading_id",',
+          )
+          once(
+              '        "deleted_count",\n        "memory_count",',
+              '        "deleted_count",\n        "estimated_cost_microusd",\n'
+              '        "input_tokens",\n        "latency_ms",\n        "memory_count",\n'
+              '        "output_tokens",',
+          )
+          once(
+              '    ACCOUNT = "account"\n    ACTION = "action"',
+              '    ACCOUNT = "account"\n    OBSERVATION = "observation"\n    ACTION = "action"',
+          )
+          once(
+              'def _oracle_properties(*values: str) -> frozenset[str]:\n'
+              '    return frozenset(("event_version", *values))\n\n\n_EVENT_PROPERTIES',
+              'def _oracle_properties(*values: str) -> frozenset[str]:\n'
+              '    return frozenset(("event_version", *values))\n\n\n'
+              'def _quality_properties(*values: str) -> frozenset[str]:\n'
+              '    return frozenset(("event_version", *values))\n\n\n_EVENT_PROPERTIES',
+          )
+          once(
+              '    OracleProductEvent.SAFETY_OUTPUT_REJECTED.value: _oracle_properties(\n'
+              '        "reading_id",\n        "persona_code",\n        "validator_version",\n'
+              '        "category_codes",\n        "repair_used",\n    ),\n}',
+              '    OracleProductEvent.SAFETY_OUTPUT_REJECTED.value: _oracle_properties(\n'
+              '        "reading_id",\n        "persona_code",\n        "validator_version",\n'
+              '        "category_codes",\n        "repair_used",\n    ),\n'
+              '    "oracle_llm_attempt_observed": _quality_properties(\n'
+              '        "observation_id", "persona_code", "provider", "model", "prompt_version",\n'
+              '        "attempt_kind", "status_code", "latency_ms", "input_tokens",\n'
+              '        "output_tokens", "estimated_cost_microusd", "cost_known",\n    ),\n'
+              '    "oracle_astrology_observed": _quality_properties(\n'
+              '        "observation_id", "persona_code", "scope_code", "engine_version",\n'
+              '        "status_code", "latency_ms", "failure_code",\n    ),\n'
+              '    "oracle_generation_observed": _quality_properties(\n'
+              '        "observation_id", "persona_code", "prompt_version", "status_code",\n'
+              '        "attempt_count", "repair_used", "failure_code",\n    ),\n}',
+          )
+          once(
+              '}\n\n_EVENT_SCOPES: dict[str, EventScope] = {',
+              '}\n\n_QUALITY_REQUIRED: dict[str, frozenset[str]] = {\n'
+              '    "oracle_llm_attempt_observed": frozenset({\n'
+              '        "event_version", "observation_id", "persona_code", "provider", "model",\n'
+              '        "prompt_version", "attempt_kind", "status_code", "latency_ms", "cost_known",\n'
+              '    }),\n'
+              '    "oracle_astrology_observed": frozenset({\n'
+              '        "event_version", "observation_id", "persona_code", "scope_code",\n'
+              '        "engine_version", "status_code", "latency_ms",\n'
+              '    }),\n'
+              '    "oracle_generation_observed": frozenset({\n'
+              '        "event_version", "observation_id", "persona_code", "prompt_version",\n'
+              '        "status_code", "attempt_count", "repair_used",\n'
+              '    }),\n'
+              '}\n\n_EVENT_SCOPES: dict[str, EventScope] = {',
+          )
+          once(
+              '    OracleProductEvent.SAFETY_OUTPUT_REJECTED.value: EventScope.READING,\n}',
+              '    OracleProductEvent.SAFETY_OUTPUT_REJECTED.value: EventScope.READING,\n'
+              '    "oracle_llm_attempt_observed": EventScope.OBSERVATION,\n'
+              '    "oracle_astrology_observed": EventScope.OBSERVATION,\n'
+              '    "oracle_generation_observed": EventScope.OBSERVATION,\n}',
+          )
+          once(
+              '    required = _ORACLE_REQUIRED.get(event, frozenset())',
+              '    required = _ORACLE_REQUIRED.get(event, _QUALITY_REQUIRED.get(event, frozenset()))',
+          )
+          once(
+              '    if (\n        event in _ORACLE_REQUIRED\n        and supplied.get("event_version") != PRODUCT_EVENT_TAXONOMY_VERSION\n    ):\n'
+              '        raise AnalyticsContractError',
+              '    expected_version = (\n'
+              '        PRODUCT_EVENT_TAXONOMY_VERSION\n'
+              '        if event in _ORACLE_REQUIRED\n'
+              '        else ORACLE_QUALITY_EVENT_VERSION if event in _QUALITY_REQUIRED else None\n'
+              '    )\n'
+              '    if expected_version is not None and supplied.get("event_version") != expected_version:\n'
+              '        raise AnalyticsContractError',
+          )
+          once(
+              '    elif scope is EventScope.ACCOUNT:\n        identity = properties.get("user_id")\n    else:',
+              '    elif scope is EventScope.ACCOUNT:\n        identity = properties.get("user_id")\n'
+              '    elif scope is EventScope.OBSERVATION:\n        identity = properties.get("observation_id")\n    else:',
+          )
+          once(
+              '    if event in _ORACLE_REQUIRED:\n        return PRODUCT_EVENT_TAXONOMY_VERSION\n'
+              '    if event in _EVENT_PROPERTIES:',
+              '    if event in _ORACLE_REQUIRED:\n        return PRODUCT_EVENT_TAXONOMY_VERSION\n'
+              '    if event in _QUALITY_REQUIRED:\n        return ORACLE_QUALITY_EVENT_VERSION\n'
+              '    if event in _EVENT_PROPERTIES:',
+          )
+          path.write_text(text)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add heartsignal/app/providers/analytics.py
+          git commit -m 'ORA-602: register oracle quality event contracts'
+          git push origin HEAD:agent/ora-602-cost-quality-observability
