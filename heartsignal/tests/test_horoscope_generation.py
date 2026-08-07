@@ -1,6 +1,7 @@
 """Generation pipeline tests for fact-bound Horoscope readings."""
 
 import json
+from datetime import date
 from uuid import UUID, uuid4
 
 from app.domain.horoscope import (
@@ -8,6 +9,7 @@ from app.domain.horoscope import (
     HoroscopeFactBundle,
     HoroscopeScope,
 )
+from app.domain.horoscope_topic import HoroscopeTopic
 from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
@@ -65,14 +67,16 @@ class RecordingFacts:
     ) -> None:
         self.bundle = bundle
         self.error = error
-        self.calls: list[tuple[UUID, HoroscopeScope]] = []
+        self.calls: list[tuple[UUID, HoroscopeScope, date | None]] = []
 
     async def calculate_for_user(
         self,
         user_id: UUID,
         scope: HoroscopeScope,
+        *,
+        reference_date: date | None = None,
     ) -> HoroscopeFactBundle:
-        self.calls.append((user_id, scope))
+        self.calls.append((user_id, scope, reference_date))
         if self.error is not None:
             raise self.error
         assert self.bundle is not None
@@ -98,14 +102,17 @@ def _claimed(
     reading_id: UUID,
     user_id: UUID,
     scope: HoroscopeScope = HoroscopeScope.NATAL_PROFILE,
+    *,
+    reference_date: date | None = None,
 ) -> ReadingGenerationClaim:
+    topic = HoroscopeTopic.for_request(scope, reference_date)
     return ReadingGenerationClaim(
         ReadingGenerationClaimStatus.CLAIMED,
         context=ReadingGenerationContext(
             reading_id=reading_id,
             user_id=user_id,
             persona_code="astrologer",
-            topic=scope.value,
+            topic=topic.storage_value(),
             question="What pattern may help me choose a next step?",
             context="Keep the first experiment reversible.",
             engine_version="astrology-calculation-v1",
@@ -131,7 +138,7 @@ async def test_generation_sends_only_calculated_facts_and_persists_empty_symbols
     assert outcome.result is not None and outcome.facts == bundle
     assert store.completed_payload == serialize_horoscope(outcome.result, bundle)
     assert store.completed_symbols == ()
-    assert facts.calls == [(user_id, HoroscopeScope.NATAL_PROFILE)]
+    assert facts.calls == [(user_id, HoroscopeScope.NATAL_PROFILE, None)]
     assert len(llm.requests) == 1
     prompt = llm.requests[0].user_prompt
     assert bundle.digest() in prompt
@@ -140,6 +147,34 @@ async def test_generation_sends_only_calculated_facts_and_persists_empty_symbols
     assert "Amsterdam" not in prompt
     assert "birth_date" not in prompt
     assert "birth_time" not in prompt
+
+
+async def test_generation_reuses_persisted_forecast_anchor_for_fact_calculation() -> None:
+    reading_id, user_id = uuid4(), uuid4()
+    anchor_source = date(2026, 8, 7)
+    store = RecordingStore(
+        _claimed(
+            reading_id,
+            user_id,
+            HoroscopeScope.MONTH_FORECAST,
+            reference_date=anchor_source,
+        )
+    )
+    facts = RecordingFacts(
+        None,
+        BirthProfileUnavailableError("active birth profile is required"),
+    )
+
+    outcome = await HoroscopeGenerationService(store, SequenceLLM([]), facts).generate_preview(
+        reading_id,
+        user_id,
+    )
+
+    assert outcome.status is HoroscopeGenerationStatus.FAILED
+    assert outcome.failure_code == "birth_profile_unavailable"
+    assert facts.calls == [
+        (user_id, HoroscopeScope.MONTH_FORECAST, date(2026, 8, 1)),
+    ]
 
 
 async def test_generation_repairs_one_invalid_fact_claim_without_exposing_payload() -> None:
