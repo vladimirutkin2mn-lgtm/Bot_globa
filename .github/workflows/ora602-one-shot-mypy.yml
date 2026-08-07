@@ -1,0 +1,78 @@
+name: ORA-602 one-shot mypy fix
+
+on:
+  push:
+    branches:
+      - agent/ora-602-cost-quality-observability
+    paths:
+      - .github/workflows/ora602-one-shot-mypy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ora-602-cost-quality-observability
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch strict typing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('heartsignal/app/services/admin_metrics.py')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  'from collections.abc import Iterable\nfrom dataclasses import dataclass, field\n',
+                  'from collections.abc import Iterable, Mapping\nfrom dataclasses import dataclass, field\nfrom typing import SupportsFloat, cast\n',
+              ),
+              (
+                  '    rows: Iterable[tuple[str, dict[str, object]]],\n',
+                  '    rows: Iterable[tuple[str, Mapping[str, object]]],\n',
+              ),
+              (
+                  '''            key = (\n                properties.get("provider", "unknown"),\n                properties.get("model", "unknown"),\n                properties.get("persona_code", "unknown"),\n                properties.get("prompt_version", "unknown"),\n            )\n            bucket = llm.setdefault(key, _LLMAccumulator())\n            bucket.calls += 1\n            bucket.failed += properties.get("status_code") != "completed"\n            bucket.repairs += properties.get("attempt_kind") == "repair"\n            latency = _optional_int(properties.get("latency_ms"))\n            if latency is not None:\n                bucket.latency_total += latency\n                bucket.latency_count += 1\n            bucket.input_tokens += _int(properties.get("input_tokens"))\n            bucket.output_tokens += _int(properties.get("output_tokens"))\n            if properties.get("cost_known") == "true":\n                bucket.cost_known += 1\n                bucket.cost += _int(properties.get("estimated_cost_microusd"))\n''',
+                  '''            llm_key = (\n                properties.get("provider", "unknown"),\n                properties.get("model", "unknown"),\n                properties.get("persona_code", "unknown"),\n                properties.get("prompt_version", "unknown"),\n            )\n            llm_bucket = llm.setdefault(llm_key, _LLMAccumulator())\n            llm_bucket.calls += 1\n            llm_bucket.failed += properties.get("status_code") != "completed"\n            llm_bucket.repairs += properties.get("attempt_kind") == "repair"\n            latency = _optional_int(properties.get("latency_ms"))\n            if latency is not None:\n                llm_bucket.latency_total += latency\n                llm_bucket.latency_count += 1\n            llm_bucket.input_tokens += _int(properties.get("input_tokens"))\n            llm_bucket.output_tokens += _int(properties.get("output_tokens"))\n            if properties.get("cost_known") == "true":\n                llm_bucket.cost_known += 1\n                llm_bucket.cost += _int(properties.get("estimated_cost_microusd"))\n''',
+              ),
+              (
+                  '''            key = (\n                properties.get("engine_version", "unknown"),\n                properties.get("scope_code", "unknown"),\n            )\n            bucket = astrology.setdefault(key, _AstrologyAccumulator())\n            bucket.count += 1\n            bucket.failed += properties.get("status_code") != "completed"\n            latency = _optional_int(properties.get("latency_ms"))\n            if latency is not None:\n                bucket.latency_total += latency\n                bucket.latency_count += 1\n            if failure_code := properties.get("failure_code"):\n                bucket.failures[failure_code] += 1\n''',
+                  '''            astrology_key = (\n                properties.get("engine_version", "unknown"),\n                properties.get("scope_code", "unknown"),\n            )\n            astrology_bucket = astrology.setdefault(astrology_key, _AstrologyAccumulator())\n            astrology_bucket.count += 1\n            astrology_bucket.failed += properties.get("status_code") != "completed"\n            latency = _optional_int(properties.get("latency_ms"))\n            if latency is not None:\n                astrology_bucket.latency_total += latency\n                astrology_bucket.latency_count += 1\n            if failure_code := properties.get("failure_code"):\n                astrology_bucket.failures[failure_code] += 1\n''',
+              ),
+              (
+                  '''            key = (\n                properties.get("persona_code", "unknown"),\n                properties.get("prompt_version", "unknown"),\n            )\n            bucket = generation.setdefault(key, _GenerationAccumulator())\n            bucket.count += 1\n            bucket.attempts_total += _int(properties.get("attempt_count"))\n            if properties.get("status_code") == "completed":\n                bucket.completed += 1\n            else:\n                bucket.failed += 1\n            bucket.repairs += properties.get("repair_used") == "true"\n            if failure_code := properties.get("failure_code"):\n                bucket.failures[failure_code] += 1\n''',
+                  '''            generation_key = (\n                properties.get("persona_code", "unknown"),\n                properties.get("prompt_version", "unknown"),\n            )\n            generation_bucket = generation.setdefault(\n                generation_key, _GenerationAccumulator()\n            )\n            generation_bucket.count += 1\n            generation_bucket.attempts_total += _int(properties.get("attempt_count"))\n            if properties.get("status_code") == "completed":\n                generation_bucket.completed += 1\n            else:\n                generation_bucket.failed += 1\n            generation_bucket.repairs += properties.get("repair_used") == "true"\n            if failure_code := properties.get("failure_code"):\n                generation_bucket.failures[failure_code] += 1\n''',
+              ),
+              (
+                  '    return None if value is None else float(value)\n',
+                  '    return None if value is None else float(cast(SupportsFloat, value))\n',
+              ),
+          ]
+
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected replacement once: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+          cd heartsignal
+          pip install -e '.[dev]'
+          ruff format app/services/admin_metrics.py
+          ruff check app/services/admin_metrics.py
+          mypy app/services/admin_metrics.py
+          cd ..
+          git rm .github/workflows/ora602-one-shot-mypy.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add heartsignal/app/services/admin_metrics.py
+          git commit -m 'ORA-602: satisfy strict typing in quality aggregates'
+          git push origin HEAD:agent/ora-602-cost-quality-observability
