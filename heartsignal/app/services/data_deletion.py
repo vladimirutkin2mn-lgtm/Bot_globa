@@ -220,9 +220,7 @@ class DataDeletionService:
             with_for_update=True,
         )
         birth_profile = await self.session.scalar(
-            select(BirthProfile)
-            .where(BirthProfile.user_id == user_id)
-            .with_for_update()
+            select(BirthProfile).where(BirthProfile.user_id == user_id).with_for_update()
         )
         if birth_profile is not None:
             await self.session.get(
