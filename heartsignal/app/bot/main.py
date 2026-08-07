@@ -29,9 +29,18 @@ from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
 from app.providers.payments.composition import create_payment_components
 from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
+from app.services.birth_profile import BirthProfileService
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
+from app.services.horoscope_facts import HoroscopeFactService
+from app.services.horoscope_generation import HoroscopeGenerationService
+from app.services.horoscope_reading import HoroscopeReadingUseCase
+from app.services.horoscope_renderer import HoroscopeRenderer
 from app.services.monetized_reading import MonetizedReadingService
+from app.services.natal_chart import (
+    AstronomyEngineNatalChartCalculator,
+    ConsentedNatalChartService,
+)
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
@@ -133,14 +142,15 @@ def create_dispatcher(
         preview_entitlements=preview_entitlements,
     )
     oracle_memory = QualityManagedOracleMemoryService(sessions, cipher)
+    reading_store = SqlAlchemyReadingGenerationStore(
+        sessions,
+        cipher,
+        settings.raw_content_retention_days,
+    )
     dispatcher["tarot_use_case"] = TarotReadingUseCase.from_services(
         reading_service,
         ReadingGenerationService(
-            SqlAlchemyReadingGenerationStore(
-                sessions,
-                cipher,
-                settings.raw_content_retention_days,
-            ),
+            reading_store,
             llm,
             max_repair_attempts=settings.llm_max_repair_attempts,
             memory_retriever=OracleReadingMemoryRetriever(oracle_memory),
@@ -153,6 +163,24 @@ def create_dispatcher(
         reading_service,
         settings.tarot_full_price_credits,
     )
+    birth_profiles = BirthProfileService(sessions, cipher)
+    natal_charts = ConsentedNatalChartService(
+        birth_profiles,
+        AstronomyEngineNatalChartCalculator(),
+    )
+    horoscope_facts = HoroscopeFactService(natal_charts)
+    dispatcher["birth_profile_service"] = birth_profiles
+    dispatcher["horoscope_use_case"] = HoroscopeReadingUseCase.from_services(
+        reading_service,
+        HoroscopeGenerationService(
+            reading_store,
+            llm,
+            horoscope_facts,
+            max_repair_attempts=settings.llm_max_repair_attempts,
+        ),
+        entitlements=preview_entitlements,
+    )
+    dispatcher["horoscope_renderer"] = HoroscopeRenderer()
     dispatcher.startup.register(sync_persona_registry)
     return dispatcher
 
