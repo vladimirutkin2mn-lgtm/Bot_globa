@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+import app.db.reading_models  # noqa: F401
 from app.db.analytics import AnalyticsEvent
 from app.db.models import BillingJob, BillingOutboxEvent
 from app.observability.oracle_quality import ASTROLOGY_EVENT, GENERATION_EVENT, LLM_ATTEMPT_EVENT
