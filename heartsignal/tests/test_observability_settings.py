@@ -11,6 +11,20 @@ def test_postgres_analytics_backend_is_supported() -> None:
     assert settings.analytics_backend == "postgres"
 
 
+def test_llm_cost_rates_must_be_configured_together() -> None:
+    with pytest.raises(ValidationError):
+        ObservabilitySettings(llm_input_cost_usd_per_million_tokens=2.0)
+    with pytest.raises(ValidationError):
+        ObservabilitySettings(llm_output_cost_usd_per_million_tokens=6.0)
+
+    settings = ObservabilitySettings(
+        llm_input_cost_usd_per_million_tokens=2.0,
+        llm_output_cost_usd_per_million_tokens=6.0,
+    )
+    assert settings.llm_input_cost_usd_per_million_tokens == 2.0
+    assert settings.llm_output_cost_usd_per_million_tokens == 6.0
+
+
 def test_enabled_admin_metrics_require_token() -> None:
     with pytest.raises(ValidationError):
         ObservabilitySettings(app_env="test", admin_metrics_enabled=True)
