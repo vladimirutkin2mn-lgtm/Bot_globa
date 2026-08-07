@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.db.base import Base
 from app.db.models import BillingJob, PaymentOrder, ProviderWebhookEvent, User
+from app.db.reading_models import Reading  # noqa: F401
 from app.providers.payments.gateway import AuthoritativePayment, CreateCheckout, HostedCheckout
 
 

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -17,12 +18,15 @@ from app.domain.horoscope import (
     HoroscopeScope,
 )
 from app.domain.horoscope_topic import HoroscopeTopic
+from app.domain.natal_chart import NATAL_CHART_ENGINE_VERSION
 from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
     ReadingGenerationClaimStatus,
+    ReadingGenerationContext,
     ReadingGenerationFinalizeStatus,
 )
+from app.observability.oracle_quality import OracleQualityObserver, elapsed_ms
 from app.prompts.horoscope import (
     HoroscopePromptNotFoundError,
     HoroscopePromptSet,
@@ -124,6 +128,7 @@ class HoroscopeGenerationService:
         prompt_loader: Callable[[str], HoroscopePromptSet] = load_horoscope_prompts,
         validator: HoroscopeResultValidator | None = None,
         analytics: OracleProductAnalytics | None = None,
+        quality_observer: OracleQualityObserver | None = None,
     ) -> None:
         if max_repair_attempts not in {0, 1}:
             raise ValueError("Horoscope generation allows at most one repair attempt")
@@ -134,6 +139,7 @@ class HoroscopeGenerationService:
         self._prompt_loader = prompt_loader
         self._validator = validator or HoroscopeResultValidator()
         self._analytics = analytics
+        self._quality_observer = quality_observer
 
     async def generate_preview(
         self,
@@ -156,25 +162,22 @@ class HoroscopeGenerationService:
         completion: LLMCompletion | None = None
         try:
             if context.persona_code != "astrologer":
-                return await self._fail(
-                    reading_id,
-                    user_id,
+                return await self._fail_observed(
+                    context,
                     "persona_mismatch",
                     attempts,
                     completion,
                 )
             if context.engine_version != "astrology-calculation-v1":
-                return await self._fail(
-                    reading_id,
-                    user_id,
+                return await self._fail_observed(
+                    context,
                     "engine_version_mismatch",
                     attempts,
                     completion,
                 )
             if context.schema_version != self._validator.schema_version:
-                return await self._fail(
-                    reading_id,
-                    user_id,
+                return await self._fail_observed(
+                    context,
                     "schema_version_mismatch",
                     attempts,
                     completion,
@@ -182,8 +185,8 @@ class HoroscopeGenerationService:
             topic = HoroscopeTopic.parse(context.topic)
             scope = topic.scope
             prompts = self._prompt_loader(context.prompt_version)
-            facts = await self._facts.calculate_for_user(
-                user_id,
+            facts = await self._calculate_facts(
+                context,
                 scope,
                 reference_date=topic.reference_date,
             )
@@ -194,6 +197,8 @@ class HoroscopeGenerationService:
                 schema=self._validator.json_schema(),
                 message_ids=(str(reading_id),),
                 participant_labels=(),
+                telemetry_persona_code=context.persona_code,
+                telemetry_prompt_version=context.prompt_version,
             )
             attempts += 1
             completion = await self._llm.generate_analysis(request)
@@ -214,6 +219,8 @@ class HoroscopeGenerationService:
                         message_ids=request.message_ids,
                         participant_labels=request.participant_labels,
                         repair=True,
+                        telemetry_persona_code=context.persona_code,
+                        telemetry_prompt_version=context.prompt_version,
                     )
                 )
                 validated = self._validator.validate(completion.payload, facts)
@@ -267,6 +274,11 @@ class HoroscopeGenerationService:
                     "memory_count": 0,
                 },
             )
+            await self._observe_generation(
+                context,
+                status_code="completed",
+                attempts=attempts,
+            )
             return HoroscopeGenerationResult(
                 HoroscopeGenerationStatus.COMPLETED,
                 result=validated.result,
@@ -286,87 +298,141 @@ class HoroscopeGenerationService:
             finally:
                 raise
         except HoroscopePromptNotFoundError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "prompt_not_found",
                 attempts,
                 completion,
             )
         except BirthProfileUnavailableError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "birth_profile_unavailable",
                 attempts,
                 completion,
             )
         except InvalidHoroscopeResult as error:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 f"horoscope_{error.code}",
                 attempts,
                 completion,
             )
         except LLMTimeoutError:
-            return await self._fail(reading_id, user_id, "llm_timeout", attempts, completion)
+            return await self._fail_observed(context, "llm_timeout", attempts, completion)
         except LLMRateLimitError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_rate_limited",
                 attempts,
                 completion,
             )
         except LLMAuthenticationError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_authentication_error",
                 attempts,
                 completion,
             )
         except LLMInvalidRequestError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_invalid_request",
                 attempts,
                 completion,
             )
         except LLMTransientError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_transient_error",
                 attempts,
                 completion,
             )
         except LLMUnexpectedError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "unexpected_provider_error",
                 attempts,
                 completion,
             )
         except (TypeError, ValueError):
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "invalid_generation_input",
                 attempts,
                 completion,
             )
         except Exception:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "unexpected_pipeline_error",
                 attempts,
                 completion,
             )
+
+    async def _calculate_facts(
+        self,
+        context: ReadingGenerationContext,
+        scope: HoroscopeScope,
+        *,
+        reference_date: date | None,
+    ) -> HoroscopeFactBundle:
+        started = time.perf_counter_ns()
+        try:
+            facts = await self._facts.calculate_for_user(
+                context.user_id,
+                scope,
+                reference_date=reference_date,
+            )
+        except BirthProfileUnavailableError:
+            await self._observe_astrology(
+                context,
+                scope,
+                engine_version=NATAL_CHART_ENGINE_VERSION,
+                status_code="failed",
+                latency_ms=elapsed_ms(started),
+                failure_code="birth_profile_unavailable",
+            )
+            raise
+        except Exception:
+            await self._observe_astrology(
+                context,
+                scope,
+                engine_version=NATAL_CHART_ENGINE_VERSION,
+                status_code="failed",
+                latency_ms=elapsed_ms(started),
+                failure_code="astrology_calculation_failed",
+            )
+            raise
+        await self._observe_astrology(
+            context,
+            scope,
+            engine_version=facts.natal_engine_version,
+            status_code="completed",
+            latency_ms=elapsed_ms(started),
+        )
+        return facts
+
+    async def _observe_astrology(
+        self,
+        context: ReadingGenerationContext,
+        scope: HoroscopeScope,
+        *,
+        engine_version: str,
+        status_code: str,
+        latency_ms: int,
+        failure_code: str | None = None,
+    ) -> None:
+        if self._quality_observer is None:
+            return
+        await self._quality_observer.astrology(
+            persona_code=context.persona_code,
+            scope_code=scope.value,
+            engine_version=engine_version,
+            status_code=status_code,
+            latency_ms=latency_ms,
+            failure_code=failure_code,
+        )
 
     def _ready_result(self, claim: ReadingGenerationClaim) -> HoroscopeGenerationResult:
         if claim.ready is None or claim.ready.symbols:
@@ -424,6 +490,48 @@ class HoroscopeGenerationService:
             f"{json.dumps(input_payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
             "FACT_BUNDLE_JSON:\n"
             f"{json.dumps(facts.payload(), ensure_ascii=False, separators=(',', ':'))}"
+        )
+
+    async def _fail_observed(
+        self,
+        context: ReadingGenerationContext,
+        failure_code: str,
+        attempts: int,
+        completion: LLMCompletion | None,
+    ) -> HoroscopeGenerationResult:
+        result = await self._fail(
+            context.reading_id,
+            context.user_id,
+            failure_code,
+            attempts,
+            completion,
+        )
+        if result.status is HoroscopeGenerationStatus.FAILED:
+            await self._observe_generation(
+                context,
+                status_code="failed",
+                attempts=attempts,
+                failure_code=failure_code,
+            )
+        return result
+
+    async def _observe_generation(
+        self,
+        context: ReadingGenerationContext,
+        *,
+        status_code: str,
+        attempts: int,
+        failure_code: str | None = None,
+    ) -> None:
+        if self._quality_observer is None:
+            return
+        await self._quality_observer.generation(
+            persona_code=context.persona_code,
+            prompt_version=context.prompt_version,
+            status_code=status_code,
+            attempt_count=attempts,
+            repair_used=attempts > 1,
+            failure_code=failure_code,
         )
 
     async def _fail(

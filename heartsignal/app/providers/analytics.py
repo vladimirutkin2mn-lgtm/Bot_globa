@@ -10,6 +10,7 @@ from uuid import UUID
 logger = logging.getLogger(__name__)
 
 PRODUCT_EVENT_TAXONOMY_VERSION = "oracle-product-events-v1"
+ORACLE_QUALITY_EVENT_VERSION = "oracle-quality-events-v1"
 LEGACY_EVENT_TAXONOMY_VERSION = "legacy-platform-events-v1"
 
 _SAFE_VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,127}\Z")
@@ -18,6 +19,7 @@ _UUID_KEYS = frozenset(
         "analysis_id",
         "memory_item_id",
         "order_id",
+        "observation_id",
         "reading_id",
         "refund_id",
         "subscription_id",
@@ -34,7 +36,11 @@ _INTEGER_KEYS = frozenset(
         "created_count",
         "credits",
         "deleted_count",
+        "estimated_cost_microusd",
+        "input_tokens",
+        "latency_ms",
         "memory_count",
+        "output_tokens",
         "message_count_bucket",
         "model_inferred_count",
         "product_version",
@@ -55,6 +61,7 @@ class EventScope(StrEnum):
     ORDER = "order"
     MEMORY_ITEM = "memory_item"
     ACCOUNT = "account"
+    OBSERVATION = "observation"
     ACTION = "action"
 
 
@@ -93,6 +100,10 @@ class OracleProductEvent(StrEnum):
 
 
 def _oracle_properties(*values: str) -> frozenset[str]:
+    return frozenset(("event_version", *values))
+
+
+def _quality_properties(*values: str) -> frozenset[str]:
     return frozenset(("event_version", *values))
 
 
@@ -310,6 +321,38 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
         "category_codes",
         "repair_used",
     ),
+    "oracle_llm_attempt_observed": _quality_properties(
+        "observation_id",
+        "persona_code",
+        "provider",
+        "model",
+        "prompt_version",
+        "attempt_kind",
+        "status_code",
+        "latency_ms",
+        "input_tokens",
+        "output_tokens",
+        "estimated_cost_microusd",
+        "cost_known",
+    ),
+    "oracle_astrology_observed": _quality_properties(
+        "observation_id",
+        "persona_code",
+        "scope_code",
+        "engine_version",
+        "status_code",
+        "latency_ms",
+        "failure_code",
+    ),
+    "oracle_generation_observed": _quality_properties(
+        "observation_id",
+        "persona_code",
+        "prompt_version",
+        "status_code",
+        "attempt_count",
+        "repair_used",
+        "failure_code",
+    ),
 }
 
 _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
@@ -416,6 +459,45 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
     ),
 }
 
+_QUALITY_REQUIRED: dict[str, frozenset[str]] = {
+    "oracle_llm_attempt_observed": frozenset(
+        {
+            "event_version",
+            "observation_id",
+            "persona_code",
+            "provider",
+            "model",
+            "prompt_version",
+            "attempt_kind",
+            "status_code",
+            "latency_ms",
+            "cost_known",
+        }
+    ),
+    "oracle_astrology_observed": frozenset(
+        {
+            "event_version",
+            "observation_id",
+            "persona_code",
+            "scope_code",
+            "engine_version",
+            "status_code",
+            "latency_ms",
+        }
+    ),
+    "oracle_generation_observed": frozenset(
+        {
+            "event_version",
+            "observation_id",
+            "persona_code",
+            "prompt_version",
+            "status_code",
+            "attempt_count",
+            "repair_used",
+        }
+    ),
+}
+
 _EVENT_SCOPES: dict[str, EventScope] = {
     "bot_started": EventScope.USER,
     "age_confirmed": EventScope.USER,
@@ -474,6 +556,9 @@ _EVENT_SCOPES: dict[str, EventScope] = {
     OracleProductEvent.SHARE_CONFIRMED.value: EventScope.ACTION,
     OracleProductEvent.SAFETY_INPUT_CLASSIFIED.value: EventScope.ACTION,
     OracleProductEvent.SAFETY_OUTPUT_REJECTED.value: EventScope.READING,
+    "oracle_llm_attempt_observed": EventScope.OBSERVATION,
+    "oracle_astrology_observed": EventScope.OBSERVATION,
+    "oracle_generation_observed": EventScope.OBSERVATION,
 }
 
 
@@ -532,7 +617,7 @@ def validate_event_properties(event: str, properties: Mapping[str, str] | None) 
     if allowed is None:
         raise AnalyticsContractError
     supplied = dict(properties or {})
-    required = _ORACLE_REQUIRED.get(event, frozenset())
+    required = _ORACLE_REQUIRED.get(event, _QUALITY_REQUIRED.get(event, frozenset()))
     if not required <= supplied.keys() or not supplied.keys() <= allowed:
         raise AnalyticsContractError
     for key, value in supplied.items():
@@ -550,10 +635,14 @@ def validate_event_properties(event: str, properties: Mapping[str, str] | None) 
                 raise AnalyticsContractError from None
         elif _SAFE_VALUE.fullmatch(value) is None:
             raise AnalyticsContractError
-    if (
-        event in _ORACLE_REQUIRED
-        and supplied.get("event_version") != PRODUCT_EVENT_TAXONOMY_VERSION
-    ):
+    expected_version = (
+        PRODUCT_EVENT_TAXONOMY_VERSION
+        if event in _ORACLE_REQUIRED
+        else ORACLE_QUALITY_EVENT_VERSION
+        if event in _QUALITY_REQUIRED
+        else None
+    )
+    if expected_version is not None and supplied.get("event_version") != expected_version:
         raise AnalyticsContractError
     return supplied
 
@@ -589,6 +678,8 @@ def event_identity(
         identity = properties.get("memory_item_id")
     elif scope is EventScope.ACCOUNT:
         identity = properties.get("user_id")
+    elif scope is EventScope.OBSERVATION:
+        identity = properties.get("observation_id")
     else:
         identity = correlation_id
     if identity is None:
@@ -601,6 +692,8 @@ def event_taxonomy_version(event: str) -> str:
 
     if event in _ORACLE_REQUIRED:
         return PRODUCT_EVENT_TAXONOMY_VERSION
+    if event in _QUALITY_REQUIRED:
+        return ORACLE_QUALITY_EVENT_VERSION
     if event in _EVENT_PROPERTIES:
         return LEGACY_EVENT_TAXONOMY_VERSION
     raise AnalyticsContractError

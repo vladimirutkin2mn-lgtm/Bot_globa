@@ -19,6 +19,7 @@ from app.domain.reading_generation import (
 )
 from app.domain.reading_memory_context import ReadingMemoryContextItem, ReadingMemoryRetriever
 from app.domain.reading_result import ReadingResult
+from app.observability.oracle_quality import OracleQualityObserver
 from app.prompts.oracle import load_oracle_reading_prompts
 from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet
 from app.providers.analytics import OracleProductEvent
@@ -97,6 +98,7 @@ class ReadingGenerationService:
         validator: ReadingResultValidator | None = None,
         memory_retriever: ReadingMemoryRetriever | None = None,
         analytics: OracleProductAnalytics | None = None,
+        quality_observer: OracleQualityObserver | None = None,
     ) -> None:
         if max_repair_attempts not in {0, 1}:
             raise ValueError("reading generation allows at most one repair attempt")
@@ -107,6 +109,7 @@ class ReadingGenerationService:
         self._validator = validator or ReadingResultValidator()
         self._memory_retriever = memory_retriever
         self._analytics = analytics
+        self._quality_observer = quality_observer
 
     async def generate_preview(
         self,
@@ -152,6 +155,8 @@ class ReadingGenerationService:
                 schema=self._validator.json_schema(),
                 message_ids=(str(reading_id),),
                 participant_labels=(),
+                telemetry_persona_code=context.persona_code,
+                telemetry_prompt_version=context.prompt_version,
             )
             attempts += 1
             last_completion = await self._llm.generate_analysis(request)
@@ -175,6 +180,8 @@ class ReadingGenerationService:
                         message_ids=request.message_ids,
                         participant_labels=request.participant_labels,
                         repair=True,
+                        telemetry_persona_code=context.persona_code,
+                        telemetry_prompt_version=context.prompt_version,
                     )
                 )
                 validated = self._validator.validate(
@@ -229,6 +236,11 @@ class ReadingGenerationService:
                         ),
                     },
                 )
+            await self._observe_generation(
+                context,
+                status_code="completed",
+                attempts=attempts,
+            )
             return ReadingGenerationResult(
                 ReadingGenerationStatus.COMPLETED,
                 result=validated.result,
@@ -247,71 +259,61 @@ class ReadingGenerationService:
             finally:
                 raise
         except ReadingPromptNotFoundError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "prompt_not_found",
                 attempts,
                 last_completion,
             )
         except InvalidReadingResult as error:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 f"reading_{error.code}",
                 attempts,
                 last_completion,
             )
         except LLMTimeoutError:
-            return await self._fail(reading_id, user_id, "llm_timeout", attempts, last_completion)
+            return await self._fail_observed(context, "llm_timeout", attempts, last_completion)
         except LLMRateLimitError:
-            return await self._fail(
-                reading_id, user_id, "llm_rate_limited", attempts, last_completion
-            )
+            return await self._fail_observed(context, "llm_rate_limited", attempts, last_completion)
         except LLMAuthenticationError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_authentication_error",
                 attempts,
                 last_completion,
             )
         except LLMInvalidRequestError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_invalid_request",
                 attempts,
                 last_completion,
             )
         except LLMTransientError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "llm_transient_error",
                 attempts,
                 last_completion,
             )
         except LLMUnexpectedError:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "unexpected_provider_error",
                 attempts,
                 last_completion,
             )
         except (TypeError, ValueError):
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "invalid_generation_input",
                 attempts,
                 last_completion,
             )
         except Exception:
-            return await self._fail(
-                reading_id,
-                user_id,
+            return await self._fail_observed(
+                context,
                 "unexpected_pipeline_error",
                 attempts,
                 last_completion,
@@ -414,6 +416,48 @@ class ReadingGenerationService:
         return (
             f"{prompts.request_instruction}\n\nINPUT_JSON:\n"
             f"{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+        )
+
+    async def _fail_observed(
+        self,
+        context: ReadingGenerationContext,
+        failure_code: str,
+        attempts: int,
+        completion: LLMCompletion | None,
+    ) -> ReadingGenerationResult:
+        result = await self._fail(
+            context.reading_id,
+            context.user_id,
+            failure_code,
+            attempts,
+            completion,
+        )
+        if result.status is ReadingGenerationStatus.FAILED:
+            await self._observe_generation(
+                context,
+                status_code="failed",
+                attempts=attempts,
+                failure_code=failure_code,
+            )
+        return result
+
+    async def _observe_generation(
+        self,
+        context: ReadingGenerationContext,
+        *,
+        status_code: str,
+        attempts: int,
+        failure_code: str | None = None,
+    ) -> None:
+        if self._quality_observer is None:
+            return
+        await self._quality_observer.generation(
+            persona_code=context.persona_code,
+            prompt_version=context.prompt_version,
+            status_code=status_code,
+            attempt_count=attempts,
+            repair_used=attempts > 1,
+            failure_code=failure_code,
         )
 
     async def _fail(
