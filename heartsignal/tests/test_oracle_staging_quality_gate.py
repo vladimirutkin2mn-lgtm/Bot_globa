@@ -108,10 +108,10 @@ ASTROLOGY_CASES = DATASET["astrology_cases"]
 
 def _prompt_text(persona: str, prompt_version: str) -> str:
     if persona == "astrologer":
-        prompt = load_horoscope_prompts(prompt_version)
-    else:
-        prompt = load_oracle_reading_prompts(prompt_version)
-    return f"{prompt.system}\n{prompt.request_instruction}"
+        horoscope_prompt = load_horoscope_prompts(prompt_version)
+        return f"{horoscope_prompt.system}\n{horoscope_prompt.request_instruction}"
+    reading_prompt = load_oracle_reading_prompts(prompt_version)
+    return f"{reading_prompt.system}\n{reading_prompt.request_instruction}"
 
 
 def test_staging_dataset_covers_exactly_four_deployed_personas() -> None:
