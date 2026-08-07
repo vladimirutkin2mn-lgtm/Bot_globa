@@ -1,8 +1,9 @@
 """Aggregate-only administration metrics with no user-content fields."""
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -285,7 +286,7 @@ class AdminMetricsService:
 
 
 def _oracle_quality(
-    rows: Iterable[tuple[str, dict[str, object]]],
+    rows: Iterable[tuple[str, Mapping[str, str]]],
     jobs: dict[str, int],
     outbox: dict[str, int],
 ) -> OracleQualityMetrics:
@@ -299,56 +300,62 @@ def _oracle_quality(
     payment_failed = 0
 
     for event_name, raw_properties in rows:
-        properties = {str(key): str(value) for key, value in raw_properties.items()}
+        properties = dict(raw_properties)
         if event_name == LLM_ATTEMPT_EVENT:
-            key = (
+            llm_key = (
                 properties.get("provider", "unknown"),
                 properties.get("model", "unknown"),
                 properties.get("persona_code", "unknown"),
                 properties.get("prompt_version", "unknown"),
             )
-            bucket = llm.setdefault(key, _LLMAccumulator())
-            bucket.calls += 1
-            bucket.failed += properties.get("status_code") != "completed"
-            bucket.repairs += properties.get("attempt_kind") == "repair"
+            llm_bucket = llm.setdefault(llm_key, _LLMAccumulator())
+            llm_bucket.calls += 1
+            llm_bucket.failed += properties.get("status_code") != "completed"
+            llm_bucket.repairs += properties.get("attempt_kind") == "repair"
             latency = _optional_int(properties.get("latency_ms"))
             if latency is not None:
-                bucket.latency_total += latency
-                bucket.latency_count += 1
-            bucket.input_tokens += _int(properties.get("input_tokens"))
-            bucket.output_tokens += _int(properties.get("output_tokens"))
+                llm_bucket.latency_total += latency
+                llm_bucket.latency_count += 1
+            llm_bucket.input_tokens += _int(properties.get("input_tokens"))
+            llm_bucket.output_tokens += _int(properties.get("output_tokens"))
             if properties.get("cost_known") == "true":
-                bucket.cost_known += 1
-                bucket.cost += _int(properties.get("estimated_cost_microusd"))
+                llm_bucket.cost_known += 1
+                llm_bucket.cost += _int(properties.get("estimated_cost_microusd"))
         elif event_name == ASTROLOGY_EVENT:
-            key = (
+            astrology_key = (
                 properties.get("engine_version", "unknown"),
                 properties.get("scope_code", "unknown"),
             )
-            bucket = astrology.setdefault(key, _AstrologyAccumulator())
-            bucket.count += 1
-            bucket.failed += properties.get("status_code") != "completed"
+            astrology_bucket = astrology.setdefault(
+                astrology_key, _AstrologyAccumulator()
+            )
+            astrology_bucket.count += 1
+            astrology_bucket.failed += properties.get("status_code") != "completed"
             latency = _optional_int(properties.get("latency_ms"))
             if latency is not None:
-                bucket.latency_total += latency
-                bucket.latency_count += 1
+                astrology_bucket.latency_total += latency
+                astrology_bucket.latency_count += 1
             if failure_code := properties.get("failure_code"):
-                bucket.failures[failure_code] += 1
+                astrology_bucket.failures[failure_code] += 1
         elif event_name == GENERATION_EVENT:
-            key = (
+            generation_key = (
                 properties.get("persona_code", "unknown"),
                 properties.get("prompt_version", "unknown"),
             )
-            bucket = generation.setdefault(key, _GenerationAccumulator())
-            bucket.count += 1
-            bucket.attempts_total += _int(properties.get("attempt_count"))
+            generation_bucket = generation.setdefault(
+                generation_key, _GenerationAccumulator()
+            )
+            generation_bucket.count += 1
+            generation_bucket.attempts_total += _int(
+                properties.get("attempt_count")
+            )
             if properties.get("status_code") == "completed":
-                bucket.completed += 1
+                generation_bucket.completed += 1
             else:
-                bucket.failed += 1
-            bucket.repairs += properties.get("repair_used") == "true"
+                generation_bucket.failed += 1
+            generation_bucket.repairs += properties.get("repair_used") == "true"
             if failure_code := properties.get("failure_code"):
-                bucket.failures[failure_code] += 1
+                generation_bucket.failures[failure_code] += 1
         elif event_name == OracleProductEvent.SAFETY_INPUT_CLASSIFIED.value:
             input_classified += 1
             if action := properties.get("action_code"):
@@ -438,5 +445,5 @@ def _int(value: str | None) -> int:
     return _optional_int(value) or 0
 
 
-def _float_or_none(value: object) -> float | None:
+def _float_or_none(value: Any) -> float | None:
     return None if value is None else float(value)
