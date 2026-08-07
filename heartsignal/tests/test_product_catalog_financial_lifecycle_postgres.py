@@ -21,10 +21,7 @@ from app.providers.payments.refund_gateway import (
     CreateRefund,
     RefundCapabilities,
 )
-from app.services.payment_completion_service import (
-    PaymentCompletionOutcome,
-    PaymentCompletionService,
-)
+from app.services.payment_completion_service import PaymentCompletionService
 from app.services.refund_service import RefundRequestOutcome, RefundService
 from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
@@ -94,7 +91,7 @@ async def test_astrology_v2_completion_and_refund_use_order_not_current_label(
             provider_status="paid",
         ),
     )
-    assert outcome is PaymentCompletionOutcome.COMPLETED
+    assert outcome == "completed"
 
     configured = settings.model_copy(
         update={
