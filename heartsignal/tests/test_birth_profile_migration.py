@@ -123,9 +123,6 @@ def test_birth_profile_migration_refuses_live_consent_downgrade() -> None:
         assert failed.returncode != 0
         assert "downgrade refused" in failed.stderr
         assert asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _HEAD
-        assert (
-            asyncio.run(_scalar(url, schema, "SELECT count(*) FROM birth_profile_consents"))
-            == 1
-        )
+        assert asyncio.run(_scalar(url, schema, "SELECT count(*) FROM birth_profile_consents")) == 1
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
