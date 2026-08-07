@@ -66,10 +66,7 @@ def test_exact_time_produces_ascendant_and_twelve_equal_houses() -> None:
     assert result.ascendant_longitude_millidegrees is not None
     assert len(result.houses) == 12
     assert result.houses[0].number == 1
-    assert (
-        result.houses[0].cusp_longitude_millidegrees
-        == result.ascendant_longitude_millidegrees
-    )
+    assert result.houses[0].cusp_longitude_millidegrees == result.ascendant_longitude_millidegrees
     for previous, current in zip(result.houses, result.houses[1:], strict=True):
         assert (
             current.cusp_longitude_millidegrees
