@@ -106,8 +106,7 @@ class AstronomyEngineNatalChartCalculator:
             utc.second + utc.microsecond / 1_000_000,
         )
         planets = tuple(
-            self._planet_position(body, engine_body, astro_time)
-            for body, engine_body in _BODIES
+            self._planet_position(body, engine_body, astro_time) for body, engine_body in _BODIES
         )
         aspects = self._aspects(planets)
         if profile.time_known:
@@ -115,8 +114,7 @@ class AstronomyEngineNatalChartCalculator:
             houses = tuple(
                 NatalHouse(
                     number=number,
-                    cusp_longitude_millidegrees=(ascendant + (number - 1) * 30_000)
-                    % 360_000,
+                    cusp_longitude_millidegrees=(ascendant + (number - 1) * 30_000) % 360_000,
                     sign=self._sign((ascendant + (number - 1) * 30_000) % 360_000),
                 )
                 for number in range(1, 13)
