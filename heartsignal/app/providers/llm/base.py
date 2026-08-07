@@ -12,6 +12,8 @@ class LLMRequest:
     message_ids: tuple[str, ...]
     participant_labels: tuple[str, ...]
     repair: bool = False
+    telemetry_persona_code: str | None = None
+    telemetry_prompt_version: str | None = None
 
 
 @dataclass(frozen=True)
