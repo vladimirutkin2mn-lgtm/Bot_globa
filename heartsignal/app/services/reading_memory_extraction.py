@@ -200,12 +200,14 @@ class ReadingMemoryExtractionService:
         reading_id: UUID,
         user_id: UUID,
     ) -> CompletedReadingMemorySnapshot:
-        async with self._sessions() as session:
+        async with self._sessions.begin() as session:
             active_user = await session.scalar(
-                select(User.id).where(
+                select(User)
+                .where(
                     User.id == user_id,
                     User.privacy_status == "active",
                 )
+                .with_for_update(of=User)
             )
             if active_user is None:
                 raise LookupError("active oracle memory user not found")
