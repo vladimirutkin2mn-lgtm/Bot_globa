@@ -211,7 +211,7 @@ async def test_unsafe_input_stops_before_draft_and_generation() -> None:
             uuid4(),
             MysticalPsychologistPreviewRequest(
                 topic="self_reflection",
-                question="I am in immediate danger and need crisis help right now.",
+                question="Я не хочу жить, что говорят карты?",
             ),
         )
 
