@@ -132,9 +132,7 @@ class BirthProfileInput:
             raise ValueError("invalid decrypted birth UTC offset")
         return cls(
             birth_date=date.fromisoformat(birth_date_value),
-            birth_time=(
-                None if birth_time_value is None else time.fromisoformat(birth_time_value)
-            ),
+            birth_time=(None if birth_time_value is None else time.fromisoformat(birth_time_value)),
             birth_place=birth_place,
             timezone=timezone_name,
             latitude=float(latitude),
