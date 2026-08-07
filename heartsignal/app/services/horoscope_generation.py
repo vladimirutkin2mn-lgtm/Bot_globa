@@ -23,6 +23,7 @@ from app.domain.reading import ReadingSymbolInput
 from app.domain.reading_generation import (
     ReadingGenerationClaim,
     ReadingGenerationClaimStatus,
+    ReadingGenerationContext,
     ReadingGenerationFinalizeStatus,
 )
 from app.observability.oracle_quality import OracleQualityObserver, elapsed_ms

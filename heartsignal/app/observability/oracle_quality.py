@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Final
 from uuid import uuid4
 
-from app.providers.analytics import AnalyticsClient, ORACLE_QUALITY_EVENT_VERSION
+from app.providers.analytics import ORACLE_QUALITY_EVENT_VERSION, AnalyticsClient
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMClient,
