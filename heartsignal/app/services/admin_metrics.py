@@ -1,10 +1,11 @@
 """Aggregate-only administration metrics with no user-content fields."""
 
-from collections import Counter, defaultdict
+from collections import Counter
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.analytics import AnalyticsEvent
@@ -123,6 +124,38 @@ class AdminMetrics(BaseModel):
     oracle_quality: OracleQualityMetrics
 
 
+@dataclass(slots=True)
+class _LLMAccumulator:
+    calls: int = 0
+    failed: int = 0
+    repairs: int = 0
+    latency_total: int = 0
+    latency_count: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost: int = 0
+    cost_known: int = 0
+
+
+@dataclass(slots=True)
+class _AstrologyAccumulator:
+    count: int = 0
+    failed: int = 0
+    latency_total: int = 0
+    latency_count: int = 0
+    failures: Counter[str] = field(default_factory=Counter)
+
+
+@dataclass(slots=True)
+class _GenerationAccumulator:
+    completed: int = 0
+    failed: int = 0
+    repairs: int = 0
+    attempts_total: int = 0
+    count: int = 0
+    failures: Counter[str] = field(default_factory=Counter)
+
+
 class AdminMetricsService:
     """Compute global aggregates; no rows contain prompts or user identities."""
 
@@ -213,9 +246,7 @@ class AdminMetricsService:
 
         jobs = {status: int(count) for status, count in job_rows}
         outbox = {status: int(count) for status, count in outbox_rows}
-        technical_total = failed + sum(
-            count for status, count in jobs.items() if status == "manual_review"
-        )
+        technical_total = failed + jobs.get("manual_review", 0)
         return AdminMetrics(
             analyses_by_status=statuses,
             terminal_completed=completed,
@@ -258,9 +289,9 @@ def _oracle_quality(
     jobs: dict[str, int],
     outbox: dict[str, int],
 ) -> OracleQualityMetrics:
-    llm: dict[tuple[str, str, str, str], dict[str, object]] = {}
-    astrology: dict[tuple[str, str], dict[str, object]] = {}
-    generation: dict[tuple[str, str], dict[str, object]] = {}
+    llm: dict[tuple[str, str, str, str], _LLMAccumulator] = {}
+    astrology: dict[tuple[str, str], _AstrologyAccumulator] = {}
+    generation: dict[tuple[str, str], _GenerationAccumulator] = {}
     input_classified = 0
     output_rejected = 0
     actions: Counter[str] = Counter()
@@ -276,93 +307,48 @@ def _oracle_quality(
                 properties.get("persona_code", "unknown"),
                 properties.get("prompt_version", "unknown"),
             )
-            bucket = llm.setdefault(
-                key,
-                {
-                    "calls": 0,
-                    "failed": 0,
-                    "repairs": 0,
-                    "latency_total": 0,
-                    "latency_count": 0,
-                    "input_tokens": 0,
-                    "output_tokens": 0,
-                    "cost": 0,
-                    "cost_known": 0,
-                },
-            )
-            bucket["calls"] = int(bucket["calls"]) + 1
-            if properties.get("status_code") != "completed":
-                bucket["failed"] = int(bucket["failed"]) + 1
-            if properties.get("attempt_kind") == "repair":
-                bucket["repairs"] = int(bucket["repairs"]) + 1
-            _sum_optional_int(bucket, "latency", properties.get("latency_ms"))
-            bucket["input_tokens"] = int(bucket["input_tokens"]) + _int(
-                properties.get("input_tokens")
-            )
-            bucket["output_tokens"] = int(bucket["output_tokens"]) + _int(
-                properties.get("output_tokens")
-            )
+            bucket = llm.setdefault(key, _LLMAccumulator())
+            bucket.calls += 1
+            bucket.failed += properties.get("status_code") != "completed"
+            bucket.repairs += properties.get("attempt_kind") == "repair"
+            latency = _optional_int(properties.get("latency_ms"))
+            if latency is not None:
+                bucket.latency_total += latency
+                bucket.latency_count += 1
+            bucket.input_tokens += _int(properties.get("input_tokens"))
+            bucket.output_tokens += _int(properties.get("output_tokens"))
             if properties.get("cost_known") == "true":
-                bucket["cost_known"] = int(bucket["cost_known"]) + 1
-                bucket["cost"] = int(bucket["cost"]) + _int(
-                    properties.get("estimated_cost_microusd")
-                )
+                bucket.cost_known += 1
+                bucket.cost += _int(properties.get("estimated_cost_microusd"))
         elif event_name == ASTROLOGY_EVENT:
             key = (
                 properties.get("engine_version", "unknown"),
                 properties.get("scope_code", "unknown"),
             )
-            bucket = astrology.setdefault(
-                key,
-                {
-                    "count": 0,
-                    "failed": 0,
-                    "latency_total": 0,
-                    "latency_count": 0,
-                    "failures": Counter(),
-                },
-            )
-            bucket["count"] = int(bucket["count"]) + 1
-            if properties.get("status_code") != "completed":
-                bucket["failed"] = int(bucket["failed"]) + 1
-            _sum_optional_int(bucket, "latency", properties.get("latency_ms"))
-            failure_code = properties.get("failure_code")
-            if failure_code:
-                failures = bucket["failures"]
-                assert isinstance(failures, Counter)
-                failures[failure_code] += 1
+            bucket = astrology.setdefault(key, _AstrologyAccumulator())
+            bucket.count += 1
+            bucket.failed += properties.get("status_code") != "completed"
+            latency = _optional_int(properties.get("latency_ms"))
+            if latency is not None:
+                bucket.latency_total += latency
+                bucket.latency_count += 1
+            if failure_code := properties.get("failure_code"):
+                bucket.failures[failure_code] += 1
         elif event_name == GENERATION_EVENT:
             key = (
                 properties.get("persona_code", "unknown"),
                 properties.get("prompt_version", "unknown"),
             )
-            bucket = generation.setdefault(
-                key,
-                {
-                    "completed": 0,
-                    "failed": 0,
-                    "repairs": 0,
-                    "attempts_total": 0,
-                    "count": 0,
-                    "failures": Counter(),
-                },
-            )
-            bucket["count"] = int(bucket["count"]) + 1
-            bucket["attempts_total"] = int(bucket["attempts_total"]) + _int(
-                properties.get("attempt_count")
-            )
-            status = properties.get("status_code")
-            if status == "completed":
-                bucket["completed"] = int(bucket["completed"]) + 1
+            bucket = generation.setdefault(key, _GenerationAccumulator())
+            bucket.count += 1
+            bucket.attempts_total += _int(properties.get("attempt_count"))
+            if properties.get("status_code") == "completed":
+                bucket.completed += 1
             else:
-                bucket["failed"] = int(bucket["failed"]) + 1
-            if properties.get("repair_used") == "true":
-                bucket["repairs"] = int(bucket["repairs"]) + 1
-            failure_code = properties.get("failure_code")
-            if failure_code:
-                failures = bucket["failures"]
-                assert isinstance(failures, Counter)
-                failures[failure_code] += 1
+                bucket.failed += 1
+            bucket.repairs += properties.get("repair_used") == "true"
+            if failure_code := properties.get("failure_code"):
+                bucket.failures[failure_code] += 1
         elif event_name == OracleProductEvent.SAFETY_INPUT_CLASSIFIED.value:
             input_classified += 1
             if action := properties.get("action_code"):
@@ -383,14 +369,14 @@ def _oracle_quality(
                 model=model,
                 persona_code=persona,
                 prompt_version=prompt,
-                call_count=int(bucket["calls"]),
-                failed_call_count=int(bucket["failed"]),
-                repair_call_count=int(bucket["repairs"]),
-                average_latency_ms=_average(bucket, "latency"),
-                input_tokens_total=int(bucket["input_tokens"]),
-                output_tokens_total=int(bucket["output_tokens"]),
-                estimated_cost_microusd_total=int(bucket["cost"]),
-                cost_known_call_count=int(bucket["cost_known"]),
+                call_count=bucket.calls,
+                failed_call_count=bucket.failed,
+                repair_call_count=bucket.repairs,
+                average_latency_ms=_average(bucket.latency_total, bucket.latency_count),
+                input_tokens_total=bucket.input_tokens,
+                output_tokens_total=bucket.output_tokens,
+                estimated_cost_microusd_total=bucket.cost,
+                cost_known_call_count=bucket.cost_known,
             )
             for (provider, model, persona, prompt), bucket in sorted(llm.items())
         ],
@@ -398,10 +384,10 @@ def _oracle_quality(
             OracleAstrologyBucket(
                 engine_version=engine,
                 scope_code=scope,
-                calculation_count=int(bucket["count"]),
-                failed_count=int(bucket["failed"]),
-                average_latency_ms=_average(bucket, "latency"),
-                failure_codes=dict(sorted(_counter(bucket, "failures").items())),
+                calculation_count=bucket.count,
+                failed_count=bucket.failed,
+                average_latency_ms=_average(bucket.latency_total, bucket.latency_count),
+                failure_codes=dict(sorted(bucket.failures.items())),
             )
             for (engine, scope), bucket in sorted(astrology.items())
         ],
@@ -409,15 +395,13 @@ def _oracle_quality(
             OracleGenerationBucket(
                 persona_code=persona,
                 prompt_version=prompt,
-                completed_count=int(bucket["completed"]),
-                failed_count=int(bucket["failed"]),
-                repair_used_count=int(bucket["repairs"]),
+                completed_count=bucket.completed,
+                failed_count=bucket.failed,
+                repair_used_count=bucket.repairs,
                 average_attempt_count=(
-                    int(bucket["attempts_total"]) / int(bucket["count"])
-                    if int(bucket["count"])
-                    else None
+                    bucket.attempts_total / bucket.count if bucket.count else None
                 ),
-                failure_codes=dict(sorted(_counter(bucket, "failures").items())),
+                failure_codes=dict(sorted(bucket.failures.items())),
             )
             for (persona, prompt), bucket in sorted(generation.items())
         ],
@@ -437,32 +421,21 @@ def _oracle_quality(
     )
 
 
-def _sum_optional_int(bucket: dict[str, object], prefix: str, value: str | None) -> None:
+def _average(total: int, count: int) -> float | None:
+    return total / count if count else None
+
+
+def _optional_int(value: str | None) -> int | None:
     if value is None:
-        return
-    parsed = _int(value)
-    bucket[f"{prefix}_total"] = int(bucket[f"{prefix}_total"]) + parsed
-    bucket[f"{prefix}_count"] = int(bucket[f"{prefix}_count"]) + 1
-
-
-def _average(bucket: dict[str, object], prefix: str) -> float | None:
-    count = int(bucket[f"{prefix}_count"])
-    return int(bucket[f"{prefix}_total"]) / count if count else None
-
-
-def _counter(bucket: dict[str, object], key: str) -> Counter[str]:
-    value = bucket[key]
-    assert isinstance(value, Counter)
-    return value
-
-
-def _int(value: str | None) -> int:
-    if value is None:
-        return 0
+        return None
     try:
         return int(value)
     except ValueError:
-        return 0
+        return None
+
+
+def _int(value: str | None) -> int:
+    return _optional_int(value) or 0
 
 
 def _float_or_none(value: object) -> float | None:
