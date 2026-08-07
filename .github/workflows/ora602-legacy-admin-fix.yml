@@ -1,5 +1,6 @@
 name: ORA-602 legacy admin metric fix
 
+# One-shot self-cleaning compatibility fix.
 on:
   push:
     branches:
