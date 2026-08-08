@@ -1,4 +1,4 @@
-"""PostgreSQL regressions for monotonic preview and full report access."""
+"""PostgreSQL regressions for monotonic legacy preview and full access."""
 
 import asyncio
 import os
@@ -12,12 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.db.base import Base
 from app.db.models import Analysis, CreditTransaction, User
-from app.providers.analytics import NoOpAnalyticsClient
-from app.services.analysis_service import AnalysisServiceResult
 from app.services.credits_service import CreditsService, SpendOutcome
-from app.services.monetized_analysis import AccessOutcome, MonetizedAnalysisService
+from app.services.legacy_analysis_access import (
+    LegacyAnalysisAccessOutcome,
+    LegacyAnalysisAccessService,
+)
 from app.services.preview_entitlement import PreviewEntitlementService, PreviewOutcome
-from tests.test_report_service import payload
 
 pytestmark = pytest.mark.postgres
 
@@ -33,11 +33,6 @@ async def monotonic_db() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
         await connection.run_sync(Base.metadata.create_all)
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
-
-
-class NeverRun:
-    async def analyze(self, analysis_id: UUID, owner_id: UUID) -> AnalysisServiceResult:
-        raise AssertionError("analysis must not run")
 
 
 async def _draft(
@@ -58,23 +53,8 @@ async def _complete(sessions: async_sessionmaker[AsyncSession], analysis_id: UUI
         analysis = await session.get(Analysis, analysis_id)
         assert analysis is not None
         analysis.status = "completed"
-        analysis.result_json = payload()
+        analysis.result_json = {"legacy": "retained-for-financial-compatibility"}
         analysis.completed_at = datetime.now(UTC)
-
-
-def _monetized(
-    sessions: async_sessionmaker[AsyncSession],
-    credits: CreditsService,
-    previews: PreviewEntitlementService,
-) -> MonetizedAnalysisService:
-    return MonetizedAnalysisService(
-        sessions,
-        credits,
-        previews,
-        NeverRun(),
-        1,
-        NoOpAnalyticsClient(),
-    )
 
 
 async def test_preview_finalization_preserves_existing_full_access(
@@ -83,7 +63,7 @@ async def test_preview_finalization_preserves_existing_full_access(
     user_id, analysis_id = await _draft(monotonic_db)
     credits = CreditsService(monotonic_db)
     previews = PreviewEntitlementService(monotonic_db)
-    monetized = _monetized(monotonic_db, credits, previews)
+    legacy_access = LegacyAnalysisAccessService(monotonic_db)
 
     assert await previews.reserve_preview(user_id, analysis_id) is PreviewOutcome.RESERVED
     await credits.grant(user_id, 1, "monotonic:deterministic:grant")
@@ -91,8 +71,8 @@ async def test_preview_finalization_preserves_existing_full_access(
     assert spent.outcome is SpendOutcome.SPENT and spent.transaction_id is not None
     await _complete(monotonic_db, analysis_id)
     assert (
-        await monetized._set_access(analysis_id, user_id, "full", 1, spent.transaction_id)
-        is AccessOutcome.UPDATED
+        await legacy_access.grant_full_access(analysis_id, user_id, 1, spent.transaction_id)
+        is LegacyAnalysisAccessOutcome.UPDATED
     )
 
     assert await previews.finalize_preview(user_id, analysis_id) is PreviewOutcome.CONSUMED
@@ -141,7 +121,7 @@ async def test_preview_and_full_race_always_finishes_with_full_access(
         user_id, analysis_id = await _draft(monotonic_db)
         credits = CreditsService(monotonic_db)
         previews = PreviewEntitlementService(monotonic_db)
-        monetized = _monetized(monotonic_db, credits, previews)
+        legacy_access = LegacyAnalysisAccessService(monotonic_db)
 
         assert await previews.reserve_preview(user_id, analysis_id) is PreviewOutcome.RESERVED
         await credits.grant(user_id, 1, f"monotonic:race:{iteration}:grant")
@@ -151,10 +131,10 @@ async def test_preview_and_full_race_always_finishes_with_full_access(
 
         preview_outcome, access_outcome = await asyncio.gather(
             previews.finalize_preview(user_id, analysis_id),
-            monetized._set_access(analysis_id, user_id, "full", 1, spent.transaction_id),
+            legacy_access.grant_full_access(analysis_id, user_id, 1, spent.transaction_id),
         )
         assert preview_outcome is PreviewOutcome.CONSUMED
-        assert access_outcome is AccessOutcome.UPDATED
+        assert access_outcome is LegacyAnalysisAccessOutcome.UPDATED
 
         async with monotonic_db() as session:
             analysis = await session.get(Analysis, analysis_id)
