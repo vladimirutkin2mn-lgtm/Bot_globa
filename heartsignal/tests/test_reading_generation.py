@@ -162,7 +162,7 @@ class ControlledLLM:
         self.outputs = list(outputs)
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         output = self.outputs.pop(0)
         if isinstance(output, Exception):
@@ -428,7 +428,7 @@ async def test_duplicate_symbol_positions_fail_before_provider_call() -> None:
 
 async def test_cancellation_marks_generation_failed_and_propagates() -> None:
     class CancelledLLM:
-        async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+        async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
             raise asyncio.CancelledError
 
     store = MemoryStore()
