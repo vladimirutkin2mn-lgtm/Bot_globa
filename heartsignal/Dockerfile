@@ -11,7 +11,7 @@ RUN pip wheel --wheel-dir /wheels .
 FROM python:3.12-slim AS runtime
 
 ARG APP_VERSION=0.1.0
-LABEL org.opencontainers.image.title="HeartSignal" \
+LABEL org.opencontainers.image.title="Bot Globa" \
       org.opencontainers.image.version="${APP_VERSION}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

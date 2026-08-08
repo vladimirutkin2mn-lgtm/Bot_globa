@@ -33,9 +33,8 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🔮 Таролог", callback_data="menu:tarot")],
+            [InlineKeyboardButton(text="🗂 Мои расклады", callback_data="tarot:history")],
             [InlineKeyboardButton(text="🧠 Память", callback_data="menu:memory")],
-            [InlineKeyboardButton(text=texts.ANALYZE, callback_data="menu:analyze")],
-            [InlineKeyboardButton(text=texts.HISTORY, callback_data="menu:history")],
             [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
             [InlineKeyboardButton(text=texts.PRIVACY, callback_data="menu:privacy")],
         ]
