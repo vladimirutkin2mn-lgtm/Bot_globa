@@ -85,7 +85,7 @@ class ClaimedStore:
 
 
 class ValidLLM:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         return LLMCompletion(
             payload=json.dumps(
                 {
