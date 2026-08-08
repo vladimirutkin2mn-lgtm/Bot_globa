@@ -17,6 +17,11 @@ class ClosingClient(PlainClient):
         self.closed = True
 
 
+def test_stub_exposes_only_neutral_structured_transport() -> None:
+    assert hasattr(StubLLMClient, "generate_structured")
+    assert not hasattr(StubLLMClient, "generate_analysis")
+
+
 async def test_stub_and_plain_clients_close_safely() -> None:
     await close_llm_client(StubLLMClient())
     await close_llm_client(PlainClient())
