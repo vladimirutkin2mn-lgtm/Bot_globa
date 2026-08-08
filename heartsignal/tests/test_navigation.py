@@ -12,8 +12,6 @@ def test_main_menu_contains_required_sections() -> None:
         "🌙 Мистический психолог",
         "🪐 Астролог",
         "🧠 Память",
-        texts.ANALYZE,
-        texts.HISTORY,
         texts.BALANCE,
         texts.PRIVACY,
     ]
@@ -23,8 +21,6 @@ def test_main_menu_contains_required_sections() -> None:
         "menu:psy",
         "menu:astro",
         "menu:memory",
-        "menu:analyze",
-        "menu:history",
         "menu:balance",
         "menu:privacy",
     ]
