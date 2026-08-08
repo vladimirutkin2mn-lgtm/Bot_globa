@@ -108,7 +108,7 @@ Use user_statement for durable facts that do not fit a narrower category. Return
             "optional_context": snapshot.context,
             "completed_reading_result": snapshot.result,
         }
-        completion = await self._llm.generate_analysis(
+        completion = await self._llm.generate_structured(
             LLMRequest(
                 system_prompt=self._SYSTEM_PROMPT,
                 user_prompt=(

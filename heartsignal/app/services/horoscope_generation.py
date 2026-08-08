@@ -201,14 +201,14 @@ class HoroscopeGenerationService:
                 telemetry_prompt_version=context.prompt_version,
             )
             attempts += 1
-            completion = await self._llm.generate_analysis(request)
+            completion = await self._llm.generate_structured(request)
             try:
                 validated = self._validator.validate(completion.payload, facts)
             except InvalidHoroscopeResult as error:
                 if self._max_repairs == 0:
                     raise
                 attempts += 1
-                completion = await self._llm.generate_analysis(
+                completion = await self._llm.generate_structured(
                     LLMRequest(
                         system_prompt=prompts.system,
                         user_prompt=(

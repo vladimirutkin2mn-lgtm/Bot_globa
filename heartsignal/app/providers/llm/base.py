@@ -1,4 +1,4 @@
-"""Clean LLM boundary with no vendor types."""
+"""Clean LLM boundary with no vendor or product-specific types."""
 
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
@@ -28,7 +28,7 @@ class LLMCompletion:
 
 
 class LLMClient(Protocol):
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion: ...
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion: ...
 
 
 @runtime_checkable
