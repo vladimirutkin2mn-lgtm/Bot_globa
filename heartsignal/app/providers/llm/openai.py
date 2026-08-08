@@ -80,7 +80,7 @@ class OpenAILLMClient:
     async def aclose(self) -> None:
         await self._client.close()
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         started = time.monotonic()
         for attempt in range(1, self._max_attempts + 1):
             try:
@@ -99,7 +99,7 @@ class OpenAILLMClient:
                 text_config: ResponseTextConfigParam = {
                     "format": {
                         "type": "json_schema",
-                        "name": "analysis_result",
+                        "name": "structured_result",
                         "strict": True,
                         "schema": converted_schema,
                     }
