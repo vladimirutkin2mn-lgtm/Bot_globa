@@ -121,7 +121,7 @@ class ControlledLLM:
         self.outputs = list(outputs)
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         return LLMCompletion(
             payload=self.outputs.pop(0),
