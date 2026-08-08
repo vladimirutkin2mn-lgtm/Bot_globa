@@ -35,7 +35,7 @@ class StubLLMClient:
     async def aclose(self) -> None:
         return None
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.calls += 1
         if self.behavior == "timeout":
             raise LLMTimeoutError
