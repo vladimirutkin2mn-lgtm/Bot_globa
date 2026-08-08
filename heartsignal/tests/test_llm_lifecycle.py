@@ -5,7 +5,7 @@ from app.providers.llm.stub import StubLLMClient
 
 
 class PlainClient:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         raise AssertionError
 
 
