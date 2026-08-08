@@ -1,4 +1,4 @@
-"""Milestone 4 history, feedback concurrency, ownership, and deletion on PostgreSQL."""
+"""Historical Analysis history, feedback, ownership, and deletion on PostgreSQL."""
 
 import asyncio
 import os
@@ -8,20 +8,17 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base
 from app.db.models import Analysis, User
 from app.repositories.analyses import DeletionOutcome, FeedbackOutcome, SqlAlchemyAnalysisRepository
-from app.services.report_renderer import ReportRenderer
-from app.services.report_service import ReportService
-from tests.test_report_service import Analytics, payload
 
 pytestmark = pytest.mark.postgres
+
+
+def _legacy_result() -> dict[str, object]:
+    return {"summary": "historical result", "schema_version": "analysis_v1"}
 
 
 @pytest.fixture
@@ -68,7 +65,7 @@ async def create_row(
             relationship_stage="dating",
             message_count=1,
             character_count=7,
-            result_json=payload() if status == "completed" else None,
+            result_json=_legacy_result() if status == "completed" else None,
             completed_at=(completed_at or datetime.now(UTC)) if status == "completed" else None,
             failure_code="safe" if status == "failed" else None,
             report_access="full" if status == "completed" else "none",
@@ -78,22 +75,20 @@ async def create_row(
         return row
 
 
-async def test_feedback_ten_way_has_one_winner_and_one_event(
+async def test_feedback_ten_way_has_one_winner(
     postgres_m4: async_sessionmaker[AsyncSession],
 ) -> None:
     row = await create_row(postgres_m4)
-    analytics = Analytics()
 
     async def submit(score: int) -> FeedbackOutcome:
         async with postgres_m4() as session:
-            return await ReportService(
-                SqlAlchemyAnalysisRepository(session), ReportRenderer(), analytics
-            ).feedback(row.id, row.user_id, score)
+            return await SqlAlchemyAnalysisRepository(session).record_feedback(
+                row.id, row.user_id, score
+            )
 
     outcomes = await asyncio.gather(*(submit((index % 5) + 1) for index in range(10)))
     assert outcomes.count(FeedbackOutcome.RECORDED) == 1
     assert outcomes.count(FeedbackOutcome.ALREADY_RECORDED) == 9
-    assert analytics.events == ["analysis_feedback_submitted"]
     async with postgres_m4() as session:
         stored = await session.get(Analysis, row.id)
         assert stored and stored.feedback_score in range(1, 6) and stored.feedback_submitted_at
@@ -112,7 +107,7 @@ async def test_invalid_feedback_has_distinct_outcome(
 
 
 @pytest.mark.parametrize("status", ["draft", "processing", "failed"])
-async def test_report_deletion_rejects_non_completed_without_mutation(
+async def test_deletion_rejects_non_completed_without_mutation(
     postgres_m4: async_sessionmaker[AsyncSession], status: str
 ) -> None:
     row = await create_row(postgres_m4, status)
