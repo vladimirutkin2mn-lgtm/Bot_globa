@@ -126,7 +126,6 @@ def create_dispatcher(
         sessions,
         analytics,
         settings,
-        llm,
         payments.legacy,
         product_catalog,
         CheckoutService(sessions, settings, billing_catalog, payments.gateways),
