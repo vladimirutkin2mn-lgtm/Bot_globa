@@ -20,7 +20,6 @@ from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.db.models import User
 from app.services.onboarding import CURRENT_CONSENT_VERSION, OnboardingService, TelegramIdentity
 
-
 type Harness = tuple[Dispatcher, Bot, "RecordingSession", "MemoryUsers", OnboardingService]
 
 
