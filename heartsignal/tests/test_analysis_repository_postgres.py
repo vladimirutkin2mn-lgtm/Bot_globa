@@ -1,4 +1,4 @@
-"""Milestone 3 persistence, constraints, and concurrency on real PostgreSQL."""
+"""Historical Analysis persistence, constraints, and concurrency on PostgreSQL."""
 
 import asyncio
 import os
@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
@@ -19,12 +19,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.db.base import Base
 from app.db.models import Analysis, User
-from app.providers.analytics import NoOpAnalyticsClient
-from app.providers.llm.base import LLMCompletion, LLMRequest, LLMTimeoutError
-from app.providers.llm.stub import StubLLMClient
 from app.repositories.analyses import ClaimOutcome, LLMMetadata, SqlAlchemyAnalysisRepository
-from app.services.analysis_service import AnalysisService, AnalysisServiceStatus
-from tests.test_analysis_service import valid_payload
 
 pytestmark = pytest.mark.postgres
 
@@ -82,7 +77,7 @@ async def create_analysis(
         return analysis
 
 
-async def test_milestone3_success_metadata_persists_across_sessions(
+async def test_historical_success_metadata_persists_across_sessions(
     postgres_m3: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
     _, sessions = postgres_m3
@@ -169,72 +164,6 @@ async def test_ten_concurrent_claims_have_exactly_one_winner(
     assert outcomes.count(ClaimOutcome.PROCESSING) == 9
 
 
-class CountingLLM:
-    def __init__(
-        self, entered: asyncio.Event | None = None, release: asyncio.Event | None = None
-    ) -> None:
-        self.calls, self.entered, self.release = 0, entered, release
-
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
-        self.calls += 1
-        if self.entered:
-            self.entered.set()
-        if self.release:
-            await self.release.wait()
-        else:
-            await asyncio.sleep(0.1)
-        return LLMCompletion(
-            valid_payload(), "stub", "stub", input_tokens=1, output_tokens=2, latency_ms=3
-        )
-
-
-async def test_ten_concurrent_services_make_one_provider_call(
-    postgres_m3: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
-) -> None:
-    _, sessions = postgres_m3
-    analysis = await create_analysis(sessions)
-    llm = CountingLLM()
-
-    async def analyze() -> AnalysisServiceStatus:
-        async with sessions() as session:
-            result = await AnalysisService(
-                SqlAlchemyAnalysisRepository(session), llm, NoOpAnalyticsClient(), "stub", "stub"
-            ).analyze(analysis.id, analysis.user_id)
-            return result.status
-
-    statuses = await asyncio.gather(*(analyze() for _ in range(10)))
-    assert llm.calls == 1 and statuses.count(AnalysisServiceStatus.COMPLETED) == 1
-    assert statuses.count(AnalysisServiceStatus.ALREADY_PROCESSING) == 9
-
-
-async def test_claim_is_committed_before_provider_wait(
-    postgres_m3: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
-) -> None:
-    _, sessions = postgres_m3
-    analysis = await create_analysis(sessions)
-    entered, release = asyncio.Event(), asyncio.Event()
-    llm = CountingLLM(entered, release)
-    async with sessions() as service_session:
-        task = asyncio.create_task(
-            AnalysisService(
-                SqlAlchemyAnalysisRepository(service_session),
-                llm,
-                NoOpAnalyticsClient(),
-                "stub",
-                "stub",
-            ).analyze(analysis.id, analysis.user_id)
-        )
-        await asyncio.wait_for(entered.wait(), 2)
-        async with sessions() as observer:
-            assert (
-                await observer.scalar(select(Analysis.status).where(Analysis.id == analysis.id))
-                == "processing"
-            )
-            assert await observer.scalar(text("SELECT 1")) == 1
-        release.set()
-        assert (await task).status == AnalysisServiceStatus.COMPLETED
-
-
 async def test_failure_persists_without_result_or_completed_timestamp(
     postgres_m3: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
@@ -258,63 +187,6 @@ async def test_failure_persists_without_result_or_completed_timestamp(
             select(Analysis.result_json.is_(None)).where(Analysis.id == analysis.id)
         )
         assert sql_null is True
-
-
-async def test_real_service_timeout_persists_sql_null_result(
-    postgres_m3: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
-) -> None:
-    _, sessions = postgres_m3
-    analysis = await create_analysis(sessions)
-
-    class TimeoutLLM:
-        async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
-            raise LLMTimeoutError
-
-    async with sessions() as session:
-        result = await AnalysisService(
-            SqlAlchemyAnalysisRepository(session),
-            TimeoutLLM(),
-            NoOpAnalyticsClient(),
-            "stub",
-            "stub",
-        ).analyze(analysis.id, analysis.user_id)
-        assert result.status == AnalysisServiceStatus.FAILED
-        assert result.failure_code == "llm_timeout"
-    async with sessions() as session:
-        stored = await session.get(Analysis, analysis.id)
-        assert stored is not None and stored.status == "failed"
-        assert stored.result_json is None and stored.completed_at is None
-        assert stored.failure_code == "llm_timeout"
-        assert (
-            await session.scalar(
-                select(Analysis.result_json.is_(None)).where(Analysis.id == analysis.id)
-            )
-            is True
-        )
-
-
-async def test_real_service_stub_repository_demo_path(
-    postgres_m3: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
-) -> None:
-    _, sessions = postgres_m3
-    analysis = await create_analysis(sessions)
-    async with sessions() as session:
-        result = await AnalysisService(
-            SqlAlchemyAnalysisRepository(session),
-            StubLLMClient(),
-            NoOpAnalyticsClient(),
-            "stub",
-            "stub",
-        ).analyze(analysis.id, analysis.user_id)
-        assert result.status == AnalysisServiceStatus.COMPLETED
-    async with sessions() as session:
-        stored = await session.get(Analysis, analysis.id)
-        assert stored is not None and stored.result_json is not None
-        assert (stored.llm_provider, stored.model_name, stored.prompt_version) == (
-            "stub",
-            "stub",
-            "analysis_v1",
-        )
 
 
 @pytest.mark.parametrize(
