@@ -1,7 +1,7 @@
-"""Deterministic, fictional local provider."""
+"""Deterministic local structured-output provider for Oracle development and CI."""
 
 import json
-from typing import Literal
+from typing import Literal, cast
 
 from app.providers.llm.base import (
     LLMAuthenticationError,
@@ -16,7 +16,7 @@ StubBehavior = Literal[
     "success",
     "invalid_json",
     "invalid_schema",
-    "invalid_evidence_ref",
+    "invalid_semantics",
     "timeout",
     "rate_limit",
     "authentication_error",
@@ -27,6 +27,8 @@ StubBehavior = Literal[
 
 
 class StubLLMClient:
+    """Return deterministic Oracle-compatible JSON without external network calls."""
+
     def __init__(self, model: str = "stub", behavior: StubBehavior = "success") -> None:
         self.model, self.behavior, self.calls = model, behavior, 0
 
@@ -43,68 +45,86 @@ class StubLLMClient:
             raise LLMAuthenticationError
         if self.behavior == "transport_error":
             raise LLMTransientError
-        invalid = self.behavior in {"invalid_json", "invalid_schema", "invalid_evidence_ref"}
+
+        invalid_schema = self.behavior == "invalid_schema"
+        invalid_semantics = self.behavior == "invalid_semantics"
         if self.behavior == "repair_success" and not request.repair:
-            invalid = True
+            invalid_schema = True
         if self.behavior == "repair_failure":
-            invalid = True
-        if invalid and self.behavior == "invalid_json":
+            invalid_schema = True
+
+        if self.behavior == "invalid_json":
             payload = "{not-json"
-        elif invalid and self.behavior in {"invalid_schema", "repair_failure", "repair_success"}:
-            payload = json.dumps({"summary": "неполный ответ"}, ensure_ascii=False)
+        elif invalid_schema:
+            payload = json.dumps({"title": "incomplete"}, ensure_ascii=False)
         else:
-            payload = json.dumps(self._result(request, invalid), ensure_ascii=False)
+            payload = json.dumps(
+                self._reading_result(request, invalid_semantics=invalid_semantics),
+                ensure_ascii=False,
+            )
         return LLMCompletion(payload, "stub", self.model, "stub-request", 120, 240, 1)
 
-    def _result(self, request: LLMRequest, invalid_ref: bool) -> dict[str, object]:
-        ref = "m999" if invalid_ref else request.message_ids[0]
+    @staticmethod
+    def _input_payload(request: LLMRequest) -> dict[str, object]:
+        marker = "INPUT_JSON:\n"
+        if marker not in request.user_prompt:
+            return {}
+        raw = request.user_prompt.split(marker, 1)[1]
+        raw = raw.split("\n\nCORRECTION_INSTRUCTION:", 1)[0]
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        return cast(dict[str, object], parsed) if isinstance(parsed, dict) else {}
+
+    @classmethod
+    def _reading_result(
+        cls,
+        request: LLMRequest,
+        *,
+        invalid_semantics: bool,
+    ) -> dict[str, object]:
+        source = cls._input_payload(request)
+        selected = source.get("selected_symbols")
+        symbol_rows = selected if isinstance(selected, list) else []
+        symbols: list[dict[str, object]] = []
+        for index, item in enumerate(symbol_rows):
+            if not isinstance(item, dict):
+                continue
+            symbol_id = str(item.get("symbol_id", f"symbol_{index + 1}"))
+            if invalid_semantics and index == 0:
+                symbol_id = "unexpected_symbol"
+            symbols.append(
+                {
+                    "symbol_id": symbol_id,
+                    "position": str(item.get("position", f"position_{index + 1}")),
+                    "orientation": str(item.get("orientation", "upright")),
+                    "interpretation": (
+                        "Символ предлагает рассмотреть ситуацию как повод для наблюдения, "
+                        "а не как гарантированное предсказание."
+                    ),
+                }
+            )
         return {
-            "quality": {
-                "sufficient": True,
-                "issues": [],
-                "participants_detected": list(request.participant_labels),
-            },
-            "summary": (
-                "В диалоге заметен взаимный обмен репликами, "
-                "но контекста для уверенных выводов мало."
+            "title": "Рефлексивный разбор",
+            "opening": (
+                "Этот результат — символическая интерпретация для размышления, "
+                "а не достоверное знание о будущем или других людях."
             ),
-            "dynamic": {"direction": "mixed", "confidence": 0.6},
-            "reciprocity_score": {
-                "value": 60,
-                "positive_signals": ["Оба участника отвечают"],
-                "negative_signals": [],
-                "limitations": ["Короткий фрагмент"],
+            "symbols": symbols,
+            "patterns": ["Полезно отделить наблюдаемые факты от возможных интерпретаций."],
+            "possible_scenarios": [
+                {
+                    "scenario": "Ситуация может проясниться после дополнительной информации.",
+                    "conditions": ["Появятся новые наблюдаемые факты."],
+                }
+            ],
+            "reflection_questions": ["Какой следующий шаг остаётся обратимым и проверяемым?"],
+            "practical_step": "Выберите один небольшой обратимый шаг и оцените его результат.",
+            "uncertainty_note": "Неопределённость остаётся; символы не подтверждают факты.",
+            "share_card": {
+                "headline": "Символический взгляд",
+                "short_text": "Наблюдай факты, сохраняй пространство для неопределённости.",
             },
-            "observations": [
-                {
-                    "claim": "Участники поддерживают диалог.",
-                    "evidence_refs": [ref],
-                    "importance": "high",
-                }
-            ],
-            "hypotheses": [
-                {
-                    "label": "Открытость к общению",
-                    "explanation": "Ответы могут указывать на готовность продолжать разговор.",
-                    "supporting_evidence_refs": [ref],
-                    "contradicting_evidence_refs": [],
-                    "confidence": "medium",
-                }
-            ],
-            "unknowns": ["Неизвестен более широкий контекст общения."],
-            "next_actions": [
-                {
-                    "action": "Задать спокойный открытый вопрос.",
-                    "why": "Это даст больше наблюдаемых данных.",
-                    "risk": "Ответ может быть кратким.",
-                }
-            ],
-            "reply_suggestions": [
-                {
-                    "style": "light_low_pressure",
-                    "text": "Как прошёл твой день?",
-                    "why_it_fits": "Сообщение оставляет пространство для ответа.",
-                }
-            ],
             "safety": {"high_risk_detected": False, "categories": []},
         }
