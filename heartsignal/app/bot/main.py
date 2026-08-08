@@ -6,11 +6,10 @@ import logging
 from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from app.bot.dependencies import OnboardingDependencyMiddleware
-from app.bot.followup_handlers import router as followup_router
-from app.bot.handlers import router
+from app.bot.core_handlers import router as core_router
 from app.bot.memory_handlers import router as memory_router
 from app.bot.observability import TelegramObservabilityMiddleware
+from app.bot.oracle_dependencies import OracleDependencyMiddleware
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.bot.refund_handlers import router as refund_router
@@ -79,7 +78,8 @@ def create_dispatcher(
     engine: AsyncEngine | None = None,
     release_settings: OracleReleaseSettings | None = None,
 ) -> Dispatcher:
-    """Create a dispatcher with durable FSM and explicit per-update dependencies."""
+    """Create the Oracle-only dispatcher over reusable platform infrastructure."""
+
     resolved_observability = observability_settings or get_observability_settings()
     resolved_release = release_settings or get_oracle_release_settings()
     resolved_engine = engine or create_engine(str(settings.database_url))
@@ -122,7 +122,7 @@ def create_dispatcher(
         name.value: gateway for name, gateway in payments.subscription_gateways.items()
     }
     refund_gateways = {name.value: gateway for name, gateway in payments.refund_gateways.items()}
-    dependency_middleware = OnboardingDependencyMiddleware(
+    dependency_middleware = OracleDependencyMiddleware(
         sessions,
         analytics,
         settings,
@@ -144,12 +144,15 @@ def create_dispatcher(
     dispatcher.callback_query.outer_middleware(tarot_safety_middleware)
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
-    dispatcher.include_router(followup_router)
+
+    # Active product routes only. The imported HeartSignal analysis/follow-up routers
+    # remain in source temporarily for migration compatibility but are not registered.
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(memory_router)
     dispatcher.include_router(tarot_router)
-    dispatcher.include_router(router)
+    dispatcher.include_router(core_router)
+
     dispatcher["database_engine"] = resolved_engine
     dispatcher["owns_database_engine"] = engine is None
     dispatcher["llm_client"] = llm
