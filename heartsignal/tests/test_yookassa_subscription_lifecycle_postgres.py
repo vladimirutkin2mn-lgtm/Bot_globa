@@ -11,7 +11,6 @@ from app.db.models import CreditTransaction, PaymentOrder, Subscription, User
 from app.providers.payments.subscription_gateway import PaidSubscriptionFact
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 pytestmark = pytest.mark.postgres
 
@@ -81,7 +80,7 @@ def _paid(user_id: UUID, order_id: UUID) -> PaidSubscriptionFact:
 
 @pytest.mark.asyncio
 async def test_duplicate_initial_fact_stores_method_and_grants_once(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id, order_id = await _checkout_order(payment_db)
     processor = SubscriptionEventProcessor(

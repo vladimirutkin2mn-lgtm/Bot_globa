@@ -9,8 +9,8 @@ import httpx
 
 from app.providers.payments.base import (
     PermanentProviderError,
-    ProviderStateMismatch,
-    UnknownProviderOutcome,
+    ProviderStateMismatchError,
+    UnknownProviderOutcomeError,
 )
 from app.providers.payments.gateway import AuthoritativePayment, CreateCheckout, HostedCheckout
 from app.providers.payments.subscription_gateway import (
@@ -163,7 +163,7 @@ class YooKassaGateway:
         value, _ = await self._post_payment(payload, request.idempotency_key)
         status = str(value.get("status", "unknown"))
         if status not in {"succeeded", "canceled"}:
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         return self._subscription_fact(value)
 
     async def fetch_subscription_event(
@@ -173,7 +173,7 @@ class YooKassaGateway:
         value = await self._get_payment(object_id)
         status = str(value.get("status", "unknown"))
         if status not in {"succeeded", "canceled"}:
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         return self._subscription_fact(value)
 
     async def fetch_subscription(self, subscription_id: str) -> SubscriptionProviderFact:
@@ -200,9 +200,9 @@ class YooKassaGateway:
                     json=payload,
                 )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         if response.status_code >= 500:
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         if response.status_code >= 400:
             raise PermanentProviderError(f"http_{response.status_code}")
         value = response.json()
@@ -217,9 +217,9 @@ class YooKassaGateway:
                     f"https://api.yookassa.ru/v3/payments/{payment_id}", auth=self._auth
                 )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         if response.status_code >= 500:
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         if response.status_code >= 400:
             raise PermanentProviderError(f"http_{response.status_code}")
         value = response.json()
@@ -246,10 +246,10 @@ class YooKassaGateway:
         try:
             actual_amount = parse_minor_amount(amount.get("value"))
         except ValueError as exc:
-            raise ProviderStateMismatch("subscription amount malformed") from exc
+            raise ProviderStateMismatchError("subscription amount malformed") from exc
         actual_currency = str(amount.get("currency", "")).upper()
         if actual_amount != amount_minor or actual_currency != currency:
-            raise ProviderStateMismatch("subscription commercial mismatch")
+            raise ProviderStateMismatchError("subscription commercial mismatch")
 
         initial_order_id: UUID | None = None
         encrypted_payment_method: bytes | None = None
@@ -290,12 +290,12 @@ class YooKassaGateway:
                 period_end=period_end,
             )
         if status != "succeeded" or not bool(value.get("paid")):
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         paid_at = _datetime(value.get("captured_at") or value.get("created_at"), "paid_at")
         if kind == "initial":
             payment_method = _mapping(value.get("payment_method"))
             if not bool(payment_method.get("saved")):
-                raise ProviderStateMismatch("payment method was not saved")
+                raise ProviderStateMismatchError("payment method was not saved")
             encrypted_payment_method = self._encrypt_payment_method(
                 _required_text(payment_method.get("id"), "payment_method_id")
             )
@@ -426,7 +426,7 @@ def _mapping(value: object) -> dict[str, Any]:
 def _required_text(value: object, name: str) -> str:
     result = str(value or "").strip()
     if not result:
-        raise ProviderStateMismatch(f"missing {name}")
+        raise ProviderStateMismatchError(f"missing {name}")
     return result
 
 
@@ -434,9 +434,9 @@ def _positive_int(value: object, name: str) -> int:
     try:
         result = int(_required_text(value, name))
     except ValueError as exc:
-        raise ProviderStateMismatch(f"invalid {name}") from exc
+        raise ProviderStateMismatchError(f"invalid {name}") from exc
     if result <= 0:
-        raise ProviderStateMismatch(f"invalid {name}")
+        raise ProviderStateMismatchError(f"invalid {name}")
     return result
 
 
@@ -444,7 +444,7 @@ def _uuid(value: object, name: str) -> UUID:
     try:
         return UUID(_required_text(value, name))
     except ValueError as exc:
-        raise ProviderStateMismatch(f"invalid {name}") from exc
+        raise ProviderStateMismatchError(f"invalid {name}") from exc
 
 
 def _datetime(value: object, name: str) -> datetime:
@@ -454,11 +454,11 @@ def _datetime(value: object, name: str) -> datetime:
         try:
             result = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError as exc:
-            raise ProviderStateMismatch(f"invalid {name}") from exc
+            raise ProviderStateMismatchError(f"invalid {name}") from exc
     else:
-        raise ProviderStateMismatch(f"missing {name}")
+        raise ProviderStateMismatchError(f"missing {name}")
     if result.tzinfo is None or result.utcoffset() is None:
-        raise ProviderStateMismatch(f"invalid {name}")
+        raise ProviderStateMismatchError(f"invalid {name}")
     return result.astimezone(UTC)
 
 

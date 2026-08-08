@@ -15,8 +15,8 @@ from app.providers.payments.base import (
     PaymentPayloadError,
     PaymentSignatureError,
     PermanentProviderError,
-    ProviderStateMismatch,
-    UnknownProviderOutcome,
+    ProviderStateMismatchError,
+    UnknownProviderOutcomeError,
 )
 from app.providers.payments.gateway import AuthoritativePayment, CreateCheckout, HostedCheckout
 from app.providers.payments.subscription_gateway import (
@@ -67,7 +67,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
         if not result.id or not result.url:
@@ -94,7 +94,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
         metadata = dict(value.metadata or {})
@@ -146,7 +146,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
         if not result.id or not result.url or str(result.mode) != "subscription":
@@ -207,7 +207,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
 
@@ -222,7 +222,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
 
@@ -237,7 +237,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
 
@@ -259,7 +259,7 @@ class StripeGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
 
@@ -284,7 +284,7 @@ class StripeGateway:
         actual_amount = int(_value(invoice, "amount_paid") or _value(invoice, "amount_due") or 0)
         actual_currency = str(_value(invoice, "currency") or "").upper()
         if actual_amount != amount_minor or actual_currency != currency:
-            raise ProviderStateMismatch("subscription commercial mismatch")
+            raise ProviderStateMismatchError("subscription commercial mismatch")
         status = str(_value(invoice, "status") or "")
         paid = status == "paid" or event_type == "invoice.paid"
         if paid:
@@ -359,7 +359,7 @@ def _metadata(value: object) -> dict[str, object]:
     raw = _value(value, "metadata")
     if isinstance(raw, Mapping):
         return {str(key): item for key, item in raw.items()}
-    raise ProviderStateMismatch("subscription metadata missing")
+    raise ProviderStateMismatchError("subscription metadata missing")
 
 
 def _text_metadata(metadata: Mapping[str, object], name: str) -> str:
@@ -370,9 +370,9 @@ def _int_metadata(metadata: Mapping[str, object], name: str) -> int:
     try:
         value = int(_required_text(metadata.get(name), name))
     except ValueError as exc:
-        raise ProviderStateMismatch(f"invalid {name}") from exc
+        raise ProviderStateMismatchError(f"invalid {name}") from exc
     if value <= 0:
-        raise ProviderStateMismatch(f"invalid {name}")
+        raise ProviderStateMismatchError(f"invalid {name}")
     return value
 
 
@@ -380,20 +380,20 @@ def _uuid_metadata(metadata: Mapping[str, object], name: str) -> UUID:
     try:
         return UUID(_required_text(metadata.get(name), name))
     except ValueError as exc:
-        raise ProviderStateMismatch(f"invalid {name}") from exc
+        raise ProviderStateMismatchError(f"invalid {name}") from exc
 
 
 def _required_text(value: object, name: str) -> str:
     text = str(value or "").strip()
     if not text:
-        raise ProviderStateMismatch(f"missing {name}")
+        raise ProviderStateMismatchError(f"missing {name}")
     return text
 
 
 def _required_datetime(value: object, name: str) -> datetime:
     result = _optional_datetime(value)
     if result is None:
-        raise ProviderStateMismatch(f"missing {name}")
+        raise ProviderStateMismatchError(f"missing {name}")
     return result
 
 
@@ -406,4 +406,4 @@ def _optional_datetime(value: object) -> datetime | None:
         return value.astimezone(UTC)
     if isinstance(value, (int, float)):
         return datetime.fromtimestamp(value, UTC)
-    raise ProviderStateMismatch("invalid provider timestamp")
+    raise ProviderStateMismatchError("invalid provider timestamp")

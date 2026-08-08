@@ -42,7 +42,7 @@ class SqlAlchemyReadingRepository:
 
     async def enabled_persona(self, code: str) -> Persona | None:
         return cast(
-            Persona | None,
+            "Persona | None",
             await self._session.scalar(
                 select(Persona).where(Persona.code == code, Persona.enabled.is_(True))
             ),
@@ -113,7 +113,7 @@ class SqlAlchemyReadingRepository:
             statement = statement.where(Reading.status != ReadingStatus.DELETED.value)
         if for_update:
             statement = statement.with_for_update(of=Reading)
-        return cast(Reading | None, await self._session.scalar(statement))
+        return cast("Reading | None", await self._session.scalar(statement))
 
     async def load_source(self, reading_id: UUID, user_id: UUID) -> ReadingSource | None:
         row = await self._session.scalar(
@@ -160,7 +160,7 @@ class SqlAlchemyReadingRepository:
         value = self._cipher.decrypt_json(ContentPurpose.READING_RESULT, row.result_ciphertext)
         if not isinstance(value, dict):
             raise ValueError("invalid decrypted reading result shape")
-        return cast(dict[str, object], value)
+        return cast("dict[str, object]", value)
 
     async def start_generation(self, reading_id: UUID, user_id: UUID) -> Reading:
         reading = await self._required_locked(reading_id, user_id)

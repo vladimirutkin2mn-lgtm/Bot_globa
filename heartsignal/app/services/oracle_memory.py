@@ -134,7 +134,7 @@ class OracleMemoryService:
             if not self._permits_memory(consent):
                 raise MemoryConsentRequiredError("explicit oracle memory consent is required")
             item = cast(
-                OracleMemoryItem | None,
+                "OracleMemoryItem | None",
                 await session.scalar(
                     select(OracleMemoryItem)
                     .where(
@@ -343,7 +343,7 @@ class OracleMemoryService:
         async with self._sessions.begin() as session:
             await self._required_active_user(session, user_id, for_update=True)
             item = cast(
-                OracleMemoryItem | None,
+                "OracleMemoryItem | None",
                 await session.scalar(
                     select(OracleMemoryItem)
                     .where(
@@ -370,7 +370,7 @@ class OracleMemoryService:
         if request.candidate_key is None or request.source_reading_id is None:
             return None
         return cast(
-            OracleMemoryItem | None,
+            "OracleMemoryItem | None",
             await session.scalar(
                 select(OracleMemoryItem)
                 .where(
@@ -511,7 +511,7 @@ class OracleMemoryService:
         statement = select(User).where(User.id == user_id, User.privacy_status == "active")
         if for_update:
             statement = statement.with_for_update(of=User)
-        user = cast(User | None, await session.scalar(statement))
+        user = cast("User | None", await session.scalar(statement))
         if user is None:
             raise LookupError("active oracle memory user not found")
         return user

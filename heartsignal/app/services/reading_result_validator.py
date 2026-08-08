@@ -17,7 +17,7 @@ from app.services.reading_output_safety import (
 )
 
 
-class InvalidReadingResult(ValueError):
+class InvalidReadingResultError(ValueError):
     """Safe invalid-output error that never contains the model payload."""
 
     def __init__(self, code: str, issues: tuple[str, ...] = ()) -> None:
@@ -55,7 +55,7 @@ class ReadingResultValidator:
         try:
             json.loads(payload)
         except json.JSONDecodeError as exc:
-            raise InvalidReadingResult("invalid_json") from exc
+            raise InvalidReadingResultError("invalid_json") from exc
         try:
             result = ReadingResult.model_validate_json(payload)
         except ValidationError as exc:
@@ -63,19 +63,19 @@ class ReadingResultValidator:
                 ".".join(str(part) for part in error["loc"]) + ":invalid"
                 for error in exc.errors(include_input=False, include_url=False)
             )
-            raise InvalidReadingResult("invalid_schema", issues) from exc
+            raise InvalidReadingResultError("invalid_schema", issues) from exc
         try:
             validate_reading_semantics(result, expected_symbols)
         except ReadingSemanticValidationError as exc:
-            raise InvalidReadingResult("invalid_semantics", tuple(exc.issues)) from exc
+            raise InvalidReadingResultError("invalid_semantics", tuple(exc.issues)) from exc
         try:
             self._output_safety.validate(result)
         except ReadingOutputSafetyError as exc:
-            raise InvalidReadingResult("unsafe_output", exc.issues) from exc
+            raise InvalidReadingResultError("unsafe_output", exc.issues) from exc
         return ReadingResultValidation(result=result, schema_version=self.schema_version)
 
     @staticmethod
-    def repair_instruction(error: InvalidReadingResult) -> str:
+    def repair_instruction(error: InvalidReadingResultError) -> str:
         """Build a payload-free correction instruction for one controlled retry."""
 
         issue_lines = "\n".join(f"- {issue}" for issue in error.issues[:20])

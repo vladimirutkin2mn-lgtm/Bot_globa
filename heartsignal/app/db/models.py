@@ -1,5 +1,4 @@
 """Database models owned by the onboarding milestone."""
-# ruff: noqa: E501
 
 from datetime import datetime
 from uuid import UUID, uuid4

@@ -4,8 +4,6 @@ A flow owns everything that differs between personas — callback namespace, FSM
 copy and keyboards — so `app.bot.persona_handlers` can stay persona-neutral.
 """
 
-# ruff: noqa: RUF001
-
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol

@@ -1,5 +1,4 @@
 """Inline keyboard factories."""
-# ruff: noqa: RUF001
 
 from collections.abc import Sequence
 from uuid import UUID

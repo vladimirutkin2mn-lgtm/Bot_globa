@@ -1,6 +1,7 @@
 """Graceful durable Telegram update worker runtime."""
 
 import asyncio
+import contextlib
 import os
 import signal
 import socket
@@ -57,10 +58,8 @@ async def run(
             worked = await worker.run_once(worker_id)
             if worked:
                 continue
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stopped.wait(), timeout=runtime.telegram_worker_idle_seconds)
-            except TimeoutError:
-                pass
     finally:
         try:
             await close_dispatcher(dispatcher)

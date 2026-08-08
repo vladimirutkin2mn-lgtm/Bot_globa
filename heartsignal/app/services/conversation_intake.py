@@ -8,12 +8,12 @@ from app.repositories.analyses import AnalysisRepository
 from app.repositories.private_content import AnalysisSource
 from app.services.conversation_parser import (
     ConversationParser,
-    ConversationRejected,
+    ConversationRejectedError,
     ParsedConversation,
 )
 
 
-class InvalidTransition(ValueError):
+class InvalidTransitionError(ValueError):
     pass
 
 
@@ -54,10 +54,10 @@ class ConversationIntakeService:
 
     async def submit(self, analysis: Analysis, content: str) -> ParsedConversation:
         if analysis.intake_step != "waiting_for_conversation":
-            raise InvalidTransition("Conversation is not expected")
+            raise InvalidTransitionError("Conversation is not expected")
         try:
             parsed = self._parser.parse(content)
-        except ConversationRejected as error:
+        except ConversationRejectedError as error:
             await self._analytics.track(
                 str(analysis.user_id),
                 "conversation_rejected",
@@ -101,7 +101,7 @@ class ConversationIntakeService:
             or not source.participants
             or label not in source.participants
         ):
-            raise InvalidTransition("Invalid participant selection")
+            raise InvalidTransitionError("Invalid participant selection")
         source = AnalysisSource(
             source.messages, source.participants, label, source.user_goal, source.relationship_stage
         )
@@ -115,7 +115,7 @@ class ConversationIntakeService:
         if analysis.intake_step == "waiting_for_relationship_stage" and source.user_goal == clean:
             return
         if analysis.intake_step != "waiting_for_goal" or not clean or len(clean) > self._goal_limit:
-            raise InvalidTransition("Invalid goal")
+            raise InvalidTransitionError("Invalid goal")
         await self._store_source(
             analysis,
             AnalysisSource(
@@ -142,7 +142,7 @@ class ConversationIntakeService:
         if analysis.intake_step == "complete" and source.relationship_stage == code:
             return analysis
         if analysis.intake_step != "waiting_for_relationship_stage" or code not in allowed:
-            raise InvalidTransition("Invalid relationship stage")
+            raise InvalidTransitionError("Invalid relationship stage")
         await self._store_source(
             analysis,
             AnalysisSource(
@@ -166,7 +166,7 @@ class ConversationIntakeService:
         if analysis.status == "deleted" and analysis.intake_step != "complete":
             return
         if analysis.status != "draft" or analysis.intake_step == "complete":
-            raise InvalidTransition("Only an unfinished active draft can be cancelled")
+            raise InvalidTransitionError("Only an unfinished active draft can be cancelled")
         await self._analyses.cancel(analysis)
         await self._analytics.track(
             str(analysis.user_id), "analysis_cancelled", {"analysis_id": str(analysis.id)}
@@ -175,7 +175,7 @@ class ConversationIntakeService:
     async def reset_conversation(self, analysis: Analysis) -> None:
         """Erase submitted context and return an owned unfinished draft to intake start."""
         if analysis.status != "draft" or analysis.intake_step == "complete":
-            raise InvalidTransition("Only an unfinished active draft can be reset")
+            raise InvalidTransitionError("Only an unfinished active draft can be reset")
         if (
             analysis.intake_step == "waiting_for_conversation"
             and analysis.normalized_conversation_json is None

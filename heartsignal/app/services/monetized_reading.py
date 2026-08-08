@@ -126,10 +126,10 @@ class MonetizedReadingService:
 
     async def _state(self, reading_id: UUID, user_id: UUID) -> Reading | None:
         async with self._sessions() as session:
-            value = await session.scalar(
+            reading: Reading | None = await session.scalar(
                 select(Reading).where(Reading.id == reading_id, Reading.user_id == user_id)
             )
-            return value
+            return reading
 
     async def _validated_result(self, reading_id: UUID, user_id: UUID) -> ReadingResult | None:
         try:

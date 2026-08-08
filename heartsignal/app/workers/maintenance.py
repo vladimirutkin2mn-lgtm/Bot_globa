@@ -1,6 +1,7 @@
 """Graceful periodic maintenance for retention and interrupted analyses."""
 
 import asyncio
+import contextlib
 import logging
 import signal
 from dataclasses import dataclass
@@ -74,10 +75,8 @@ async def run(
                 raise
             except Exception:
                 logger.exception("maintenance_iteration_failed")
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stopped.wait(), timeout=runtime.maintenance_interval_seconds)
-            except TimeoutError:
-                pass
     finally:
         await engine.dispose()
 

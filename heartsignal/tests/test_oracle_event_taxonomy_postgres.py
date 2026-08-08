@@ -13,11 +13,10 @@ from app.providers.analytics import (
 )
 from app.providers.analytics_postgres import PostgresAnalyticsClient
 from app.services.oracle_product_analytics import OracleProductAnalytics
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 
 async def test_oracle_events_deduplicate_by_reading_memory_item_and_action(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     analytics = OracleProductAnalytics(PostgresAnalyticsClient(payment_db))
     user_id = uuid4()

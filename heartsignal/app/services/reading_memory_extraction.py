@@ -28,7 +28,7 @@ from app.domain.oracle_memory import (
 from app.domain.reading import ReadingStatus
 from app.providers.llm.base import LLMClient, LLMRequest
 from app.services.horoscope_storage import (
-    InvalidStoredHoroscope,
+    InvalidStoredHoroscopeError,
     horoscope_memory_source,
 )
 from app.services.oracle_memory import (
@@ -42,7 +42,7 @@ from app.services.sensitive_content import (
 )
 
 
-class InvalidMemoryExtraction(ValueError):
+class InvalidMemoryExtractionError(ValueError):
     """Safe validation error that never includes generated or private text."""
 
 
@@ -124,7 +124,7 @@ Use user_statement for durable facts that do not fit a narrower category. Return
         try:
             return MemoryExtractionPayload.model_validate_json(completion.payload)
         except (ValidationError, TypeError, ValueError) as exc:
-            raise InvalidMemoryExtraction("invalid structured memory extraction") from exc
+            raise InvalidMemoryExtractionError("invalid structured memory extraction") from exc
 
 
 class ReadingMemoryExtractionService:
@@ -185,7 +185,7 @@ class ReadingMemoryExtractionService:
             )
             previous = requests.get(candidate_key)
             if previous is not None and previous != request:
-                raise InvalidMemoryExtraction("conflicting memory candidate fingerprint")
+                raise InvalidMemoryExtractionError("conflicting memory candidate fingerprint")
             requests[candidate_key] = request
 
         created, skipped = await self._memory.remember_extracted_reading(
@@ -284,7 +284,7 @@ class ReadingMemoryExtractionService:
             if reading.schema_version == ASTROLOGY_READING_SCHEMA_VERSION:
                 try:
                     result = horoscope_memory_source(result)
-                except InvalidStoredHoroscope as exc:
+                except InvalidStoredHoroscopeError as exc:
                     raise MemorySourceUnavailableError(
                         "completed astrology reading private source is invalid"
                     ) from exc

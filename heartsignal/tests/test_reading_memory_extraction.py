@@ -9,7 +9,7 @@ from app.domain.memory_extraction import CompletedReadingMemorySnapshot
 from app.domain.oracle_memory import MemoryClaimBasis, MemoryKind
 from app.providers.llm.base import LLMCompletion, LLMRequest
 from app.services.reading_memory_extraction import (
-    InvalidMemoryExtraction,
+    InvalidMemoryExtractionError,
     LLMReadingMemoryExtractor,
 )
 
@@ -98,7 +98,7 @@ async def test_llm_extractor_rejects_unstructured_payload_without_leaking_text()
     secret = "sensitive private text"
     extractor = LLMReadingMemoryExtractor(FakeLLM(secret))
 
-    with pytest.raises(InvalidMemoryExtraction) as error:
+    with pytest.raises(InvalidMemoryExtractionError) as error:
         await extractor.extract(_snapshot())
 
     assert secret not in str(error.value)

@@ -23,9 +23,8 @@ from app.services.subscription_lifecycle import (
     PastDueSubscriptionPeriod,
     PeriodApplyOutcome,
     SubscriptionLifecycleService,
-    SubscriptionStateMismatch,
+    SubscriptionStateMismatchError,
 )
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 pytestmark = pytest.mark.postgres
 
@@ -70,7 +69,7 @@ def _paid(
 
 @pytest.mark.asyncio
 async def test_ten_concurrent_period_completions_grant_once(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)
@@ -96,13 +95,13 @@ async def test_ten_concurrent_period_completions_grant_once(
 
 @pytest.mark.asyncio
 async def test_duplicate_period_with_different_payment_is_rejected(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)
     assert await service.apply_paid_period(user_id, _paid()) is PeriodApplyOutcome.APPLIED
 
-    with pytest.raises(SubscriptionStateMismatch):
+    with pytest.raises(SubscriptionStateMismatchError):
         await service.apply_paid_period(
             user_id,
             _paid(invoice_id="invoice-conflict", payment_id="payment-conflict"),
@@ -115,7 +114,7 @@ async def test_duplicate_period_with_different_payment_is_rejected(
 
 @pytest.mark.asyncio
 async def test_past_due_period_can_recover_to_paid_once(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)
@@ -160,7 +159,7 @@ async def test_past_due_period_can_recover_to_paid_once(
 
 @pytest.mark.asyncio
 async def test_concurrent_scheduler_creates_one_period_job(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)
@@ -181,7 +180,7 @@ async def test_concurrent_scheduler_creates_one_period_job(
 
 @pytest.mark.asyncio
 async def test_cancel_at_period_end_preserves_credits_and_finalizes_once(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)
@@ -218,7 +217,7 @@ async def test_cancel_at_period_end_preserves_credits_and_finalizes_once(
 
 @pytest.mark.asyncio
 async def test_resume_before_period_end_is_idempotent(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)
@@ -249,7 +248,7 @@ async def test_resume_before_period_end_is_idempotent(
 
 @pytest.mark.asyncio
 async def test_past_due_expires_after_grace_without_credit_mutation(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await _user(payment_db)
     service = SubscriptionLifecycleService(payment_db)

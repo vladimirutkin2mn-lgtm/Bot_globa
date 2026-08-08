@@ -123,7 +123,7 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
         async with self._sessions.begin() as session:
             await self._required_active_user(session, user_id, for_update=True)
             item = cast(
-                OracleMemoryItem | None,
+                "OracleMemoryItem | None",
                 await session.scalar(
                     select(OracleMemoryItem)
                     .where(
@@ -344,7 +344,7 @@ class QualityManagedOracleMemoryService(OracleMemoryService):
             if not self._permits_memory(consent):
                 raise MemoryConsentRequiredError("explicit oracle memory consent is required")
             item = cast(
-                OracleMemoryItem | None,
+                "OracleMemoryItem | None",
                 await session.scalar(
                     select(OracleMemoryItem)
                     .where(

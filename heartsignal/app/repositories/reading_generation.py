@@ -70,7 +70,7 @@ class SqlAlchemyReadingGenerationStore:
                 )
             if status not in {ReadingStatus.DRAFT, ReadingStatus.FAILED}:
                 return ReadingGenerationClaim(ReadingGenerationClaimStatus.NOT_READY)
-            persona = cast(Persona | None, await session.get(Persona, reading.persona_id))
+            persona = cast("Persona | None", await session.get(Persona, reading.persona_id))
             if persona is None or not persona.enabled:
                 return ReadingGenerationClaim(ReadingGenerationClaimStatus.PERSONA_DISABLED)
             try:

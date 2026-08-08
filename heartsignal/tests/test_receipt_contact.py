@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.receipt_contact import InvalidReceiptContact, validate_receipt_contact
+from app.services.receipt_contact import InvalidReceiptContactError, validate_receipt_contact
 
 
 @pytest.mark.parametrize(
@@ -16,5 +16,5 @@ def test_valid_receipt_contact_is_typed_and_redacted(value: str) -> None:
     "value", ["", "buyer@", "@example.com", "79991234567", "+012345678", "+12 345"]
 )
 def test_invalid_receipt_contact(value: str) -> None:
-    with pytest.raises(InvalidReceiptContact):
+    with pytest.raises(InvalidReceiptContactError):
         validate_receipt_contact(value)

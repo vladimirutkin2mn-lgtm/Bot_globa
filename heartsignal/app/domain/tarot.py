@@ -1,7 +1,5 @@
 """Versioned tarot catalog and spread definitions for deterministic readings."""
 
-# ruff: noqa: RUF001
-
 from dataclasses import dataclass
 
 

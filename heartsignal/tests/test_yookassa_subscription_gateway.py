@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.providers.payments.base import ProviderStateMismatch
+from app.providers.payments.base import ProviderStateMismatchError
 from app.providers.payments.subscription_gateway import (
     CreateSubscriptionCheckout,
     InitialSubscriptionFailedFact,
@@ -50,7 +50,7 @@ class FakeHttpClient:
         assert auth == ("shop", "secret")
         self.posts.append((json, headers))
         payment_id = f"payment-{len(self.posts)}"
-        amount = cast(dict[str, str], json["amount"])
+        amount = cast("dict[str, str]", json["amount"])
         value = {
             "id": payment_id,
             "status": self.next_status,
@@ -125,9 +125,9 @@ async def test_initial_checkout_saves_method_and_returns_only_encrypted_envelope
     fact = await value.fetch_subscription_event("invoice.paid", hosted.checkout_id)
 
     payload, headers = transport.posts[0]
-    metadata = cast(dict[str, str], payload["metadata"])
-    receipt = cast(dict[str, object], payload["receipt"])
-    items = cast(list[dict[str, object]], receipt["items"])
+    metadata = cast("dict[str, str]", payload["metadata"])
+    receipt = cast("dict[str, object]", payload["receipt"])
+    items = cast("list[dict[str, object]]", receipt["items"])
     assert payload["save_payment_method"] is True
     assert payload["capture"] is True
     assert payload["description"] == request.receipt_label
@@ -176,7 +176,7 @@ async def test_renewal_decrypts_method_only_inside_adapter_and_reuses_idempotenc
     fact = await value.renew_subscription(request)
 
     payload, headers = transport.posts[0]
-    metadata = cast(dict[str, str], payload["metadata"])
+    metadata = cast("dict[str, str]", payload["metadata"])
     assert payload["payment_method_id"] == "pm-secret-value"
     assert payload["capture"] is True
     assert payload["description"] == request.receipt_label
@@ -217,7 +217,7 @@ async def test_subscription_amount_mismatch_fails_closed(
     value = gateway(cipher)
     hosted = await value.create_subscription_checkout(checkout_request())
 
-    with pytest.raises(ProviderStateMismatch):
+    with pytest.raises(ProviderStateMismatchError):
         await value.fetch_subscription_event("invoice.paid", hosted.checkout_id)
 
 

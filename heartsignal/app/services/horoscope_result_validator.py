@@ -19,7 +19,7 @@ from app.services.reading_output_safety import (
 )
 
 
-class InvalidHoroscopeResult(ValueError):
+class InvalidHoroscopeResultError(ValueError):
     """Safe invalid-output error containing codes and field paths only."""
 
     def __init__(self, code: str, issues: tuple[str, ...] = ()) -> None:
@@ -58,9 +58,9 @@ class HoroscopeResultValidator:
         try:
             validate_astrology_reading_semantics(result, expected_facts)
         except AstrologyReadingSemanticError as exc:
-            raise InvalidHoroscopeResult("invalid_semantics", tuple(exc.issues)) from exc
+            raise InvalidHoroscopeResultError("invalid_semantics", tuple(exc.issues)) from exc
         if set(result.limitations) != set(expected_facts.limitations):
-            raise InvalidHoroscopeResult(
+            raise InvalidHoroscopeResultError(
                 "invalid_semantics",
                 ("limitations:mismatch",),
             )
@@ -73,7 +73,7 @@ class HoroscopeResultValidator:
         try:
             serialized = json.dumps(payload, ensure_ascii=False)
         except (TypeError, ValueError) as exc:
-            raise InvalidHoroscopeResult("invalid_json") from exc
+            raise InvalidHoroscopeResultError("invalid_json") from exc
         result = self._parse(serialized)
         self._validate_safety(result)
         return HoroscopeResultValidation(result=result, schema_version=self.schema_version)
@@ -82,7 +82,7 @@ class HoroscopeResultValidator:
         try:
             json.loads(payload)
         except json.JSONDecodeError as exc:
-            raise InvalidHoroscopeResult("invalid_json") from exc
+            raise InvalidHoroscopeResultError("invalid_json") from exc
         try:
             return AstrologyReadingResult.model_validate_json(payload)
         except ValidationError as exc:
@@ -90,16 +90,16 @@ class HoroscopeResultValidator:
                 ".".join(str(part) for part in error["loc"]) + ":invalid"
                 for error in exc.errors(include_input=False, include_url=False)
             )
-            raise InvalidHoroscopeResult("invalid_schema", issues) from exc
+            raise InvalidHoroscopeResultError("invalid_schema", issues) from exc
 
     def _validate_safety(self, result: AstrologyReadingResult) -> None:
         try:
             self._output_safety.validate_texts(visible_astrology_texts(result))
         except ReadingOutputSafetyError as exc:
-            raise InvalidHoroscopeResult("unsafe_output", exc.issues) from exc
+            raise InvalidHoroscopeResultError("unsafe_output", exc.issues) from exc
 
     @staticmethod
-    def repair_instruction(error: InvalidHoroscopeResult) -> str:
+    def repair_instruction(error: InvalidHoroscopeResultError) -> str:
         """Create one payload-free correction instruction for a controlled retry."""
 
         issue_lines = "\n".join(f"- {issue}" for issue in error.issues[:20])

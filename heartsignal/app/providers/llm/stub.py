@@ -1,5 +1,4 @@
 """Deterministic, fictional local provider."""
-# ruff: noqa: RUF001
 
 import json
 from typing import Literal

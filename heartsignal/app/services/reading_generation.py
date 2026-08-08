@@ -38,7 +38,7 @@ from app.services.oracle_product_analytics import (
     OracleAnalyticsValue,
     OracleProductAnalytics,
 )
-from app.services.reading_result_validator import InvalidReadingResult, ReadingResultValidator
+from app.services.reading_result_validator import InvalidReadingResultError, ReadingResultValidator
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,7 @@ class ReadingGenerationService:
                 validated = self._validator.validate(
                     last_completion.payload, list(expected_symbols)
                 )
-            except InvalidReadingResult as error:
+            except InvalidReadingResultError as error:
                 if self._max_repairs == 0:
                     raise
                 repair_prompt = (
@@ -265,7 +265,7 @@ class ReadingGenerationService:
                 attempts,
                 last_completion,
             )
-        except InvalidReadingResult as error:
+        except InvalidReadingResultError as error:
             return await self._fail_observed(
                 context,
                 f"reading_{error.code}",
@@ -350,7 +350,7 @@ class ReadingGenerationService:
         try:
             payload = json.dumps(claim.ready.payload, ensure_ascii=False)
             validated = self._validator.validate(payload, list(claim.ready.symbols))
-        except (InvalidReadingResult, TypeError, ValueError):
+        except (InvalidReadingResultError, TypeError, ValueError):
             return ReadingGenerationResult(ReadingGenerationStatus.CORRUPTED_RESULT)
         return ReadingGenerationResult(
             ReadingGenerationStatus.COMPLETED,

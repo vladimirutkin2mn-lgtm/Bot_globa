@@ -1,7 +1,5 @@
 """Localized, payload-free handoffs for unsafe oracle requests."""
 
-# ruff: noqa: RUF001
-
 from dataclasses import dataclass
 from enum import StrEnum
 

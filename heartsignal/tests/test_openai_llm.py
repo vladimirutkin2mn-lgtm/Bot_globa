@@ -68,7 +68,7 @@ def adapter(client: FakeClient, attempts: int = 2) -> OpenAILLMClient:
         "configured-model",
         12.5,
         attempts,
-        cast(AsyncOpenAI, client),
+        cast("AsyncOpenAI", client),
     )
 
 

@@ -1,5 +1,4 @@
 """Telegram flow for safe monetary refund requests."""
-# ruff: noqa: RUF001
 
 from decimal import Decimal
 from uuid import UUID

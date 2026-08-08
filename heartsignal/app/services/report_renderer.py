@@ -1,5 +1,4 @@
 """Pure, provider-independent Russian report rendering and safe text chunking."""
-# ruff: noqa: RUF001, RUF002, E501
 
 from dataclasses import dataclass
 

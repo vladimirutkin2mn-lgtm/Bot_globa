@@ -30,7 +30,7 @@ async def _scalar(url: str, schema: str, statement: str) -> object | None:
     try:
         async with engine.connect() as connection:
             return cast(
-                object | None,
+                "object | None",
                 await connection.scalar(text(statement)),
             )
     finally:
@@ -102,6 +102,7 @@ def test_subscription_job_downgrade_refuses_live_reconciliation_state() -> None:
         _insert_job(url, schema)
         failed = subprocess.run(
             ("alembic", "downgrade", _PARENT),
+            check=False,
             env=environment,
             capture_output=True,
             text=True,

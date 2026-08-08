@@ -33,7 +33,7 @@ class SubscriptionLifecycleError(RuntimeError):
     """Safe subscription state failure without provider payload details."""
 
 
-class SubscriptionStateMismatch(SubscriptionLifecycleError):
+class SubscriptionStateMismatchError(SubscriptionLifecycleError):
     """Provider identity or immutable commercial terms conflict with stored state."""
 
 
@@ -157,7 +157,7 @@ class SubscriptionLifecycleService:
                 None,
                 value.provider_customer_id,
             }:
-                raise SubscriptionStateMismatch("provider customer identity mismatch")
+                raise SubscriptionStateMismatchError("provider customer identity mismatch")
             else:
                 customer.provider_customer_id = value.provider_customer_id
 
@@ -180,7 +180,7 @@ class SubscriptionLifecycleService:
                     .with_for_update()
                 )
                 if active is not None:
-                    raise SubscriptionStateMismatch("active subscription identity mismatch")
+                    raise SubscriptionStateMismatchError("active subscription identity mismatch")
                 subscription = Subscription(
                     user_id=user_id,
                     billing_customer_id=customer.id,
@@ -208,7 +208,7 @@ class SubscriptionLifecycleService:
                         and period_start >= _aware_utc(subscription.cancel_at)
                     )
                 ):
-                    raise SubscriptionStateMismatch(
+                    raise SubscriptionStateMismatchError(
                         "paid period is after subscription cancellation"
                     )
 
@@ -258,7 +258,7 @@ class SubscriptionLifecycleService:
                     .with_for_update()
                 )
                 if order is None:
-                    raise SubscriptionStateMismatch("initial subscription order missing")
+                    raise SubscriptionStateMismatchError("initial subscription order missing")
                 self._verify_initial_order(order, user_id, value)
                 order.status = "completed"
                 order.provider_invoice_id = value.provider_invoice_id
@@ -341,7 +341,7 @@ class SubscriptionLifecycleService:
                 or transaction.payment_order_id != order.id
                 or transaction.amount != value.credits
             ):
-                raise SubscriptionStateMismatch("subscription credit identity mismatch")
+                raise SubscriptionStateMismatchError("subscription credit identity mismatch")
 
             period.status = "paid"
             period.provider_invoice_id = value.provider_invoice_id
@@ -409,7 +409,7 @@ class SubscriptionLifecycleService:
                 subscription.product_code != value.product_code
                 or subscription.product_version != value.product_version
             ):
-                raise SubscriptionStateMismatch("past-due commercial identity mismatch")
+                raise SubscriptionStateMismatchError("past-due commercial identity mismatch")
 
             period = await session.scalar(
                 select(SubscriptionPeriod)
@@ -429,7 +429,7 @@ class SubscriptionLifecycleService:
                     and period.credits == value.credits
                 ):
                     return False
-                raise SubscriptionStateMismatch("past-due period identity mismatch")
+                raise SubscriptionStateMismatchError("past-due period identity mismatch")
             if period is None:
                 period = SubscriptionPeriod(
                     subscription_id=subscription.id,
@@ -488,7 +488,7 @@ class SubscriptionLifecycleService:
             if subscription.current_period_end is None or cancel_at < _aware_utc(
                 subscription.current_period_end
             ):
-                raise SubscriptionStateMismatch("cancellation precedes paid period end")
+                raise SubscriptionStateMismatchError("cancellation precedes paid period end")
             if (
                 subscription.status == "cancel_at_period_end"
                 and subscription.cancel_at == cancel_at
@@ -695,7 +695,7 @@ class SubscriptionLifecycleService:
             or subscription.product_code != value.product_code
             or subscription.product_version != value.product_version
         ):
-            raise SubscriptionStateMismatch("subscription identity mismatch")
+            raise SubscriptionStateMismatchError("subscription identity mismatch")
 
     @staticmethod
     def _verify_initial_order(
@@ -721,7 +721,7 @@ class SubscriptionLifecycleService:
             or str(snapshot.get("price_reference", "")) != value.price_reference
             or str(snapshot.get("consent_version", "")) != value.consent_version
         ):
-            raise SubscriptionStateMismatch("initial subscription order mismatch")
+            raise SubscriptionStateMismatchError("initial subscription order mismatch")
 
     @staticmethod
     def _verify_paid_order(
@@ -741,7 +741,7 @@ class SubscriptionLifecycleService:
             or order.provider_invoice_id != value.provider_invoice_id
             or order.provider_payment_id != value.provider_payment_id
         ):
-            raise SubscriptionStateMismatch("provider payment identity mismatch")
+            raise SubscriptionStateMismatchError("provider payment identity mismatch")
 
     @staticmethod
     def _verify_paid_period(
@@ -755,7 +755,7 @@ class SubscriptionLifecycleService:
             or period.currency != value.currency
             or period.credits != value.credits
         ):
-            raise SubscriptionStateMismatch("paid period identity mismatch")
+            raise SubscriptionStateMismatchError("paid period identity mismatch")
 
     @staticmethod
     def _verify_pending_period(
@@ -770,4 +770,4 @@ class SubscriptionLifecycleService:
             or period.provider_invoice_id not in {None, value.provider_invoice_id}
             or period.provider_payment_id not in {None, value.provider_payment_id}
         ):
-            raise SubscriptionStateMismatch("pending period identity mismatch")
+            raise SubscriptionStateMismatchError("pending period identity mismatch")

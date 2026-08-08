@@ -60,7 +60,7 @@ class EncryptedAnalysisContentRepository:
         value = self.cipher.decrypt_json(ContentPurpose.ANALYSIS_SOURCE, row.source_ciphertext)
         if not isinstance(value, dict):
             raise ValueError("invalid decrypted source shape")
-        return AnalysisSource(**cast(dict[str, object], value))  # type: ignore[arg-type]
+        return AnalysisSource(**cast("dict[str, object]", value))  # type: ignore[arg-type]
 
     async def store_result(self, analysis_id: UUID, result: dict[str, object]) -> bool:
         analysis = await self.session.scalar(
@@ -97,7 +97,7 @@ class EncryptedAnalysisContentRepository:
         if row is None or row.result_ciphertext is None:
             return None
         value = self.cipher.decrypt_json(ContentPurpose.ANALYSIS_RESULT, row.result_ciphertext)
-        return cast(dict[str, object], value)
+        return cast("dict[str, object]", value)
 
     async def clear_source(self, row: AnalysisPrivateContent, now: datetime | None = None) -> None:
         row.source_ciphertext = None

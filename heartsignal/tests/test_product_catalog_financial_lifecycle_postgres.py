@@ -23,7 +23,6 @@ from app.providers.payments.refund_gateway import (
 )
 from app.services.payment_completion_service import PaymentCompletionService
 from app.services.refund_service import RefundRequestOutcome, RefundService
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 
 class ReservationOnlyRefundGateway:
@@ -37,7 +36,7 @@ class ReservationOnlyRefundGateway:
 
 
 async def test_astrology_v2_completion_and_refund_use_order_not_current_label(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
     settings: Settings,
 ) -> None:
     async with payment_db.begin() as session:

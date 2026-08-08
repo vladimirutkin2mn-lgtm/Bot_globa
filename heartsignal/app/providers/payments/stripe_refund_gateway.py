@@ -5,7 +5,7 @@ import importlib
 from collections.abc import Mapping
 from typing import Any
 
-from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcome
+from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcomeError
 from app.providers.payments.refund_gateway import (
     AuthoritativeRefund,
     CreateRefund,
@@ -40,7 +40,7 @@ class StripeRefundGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
         return self._fact(value)
@@ -52,7 +52,7 @@ class StripeRefundGateway:
                 self._timeout,
             )
         except (TimeoutError, self._stripe.APIConnectionError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         except self._stripe.StripeError as exc:
             raise PermanentProviderError(type(exc).__name__) from exc
         return self._fact(value)

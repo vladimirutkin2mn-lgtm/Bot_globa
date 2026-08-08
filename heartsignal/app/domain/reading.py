@@ -66,13 +66,13 @@ _ALLOWED_TRANSITIONS: dict[ReadingStatus, frozenset[ReadingStatus]] = {
 }
 
 
-class InvalidReadingTransition(ValueError):
+class InvalidReadingTransitionError(ValueError):
     """Safe state-machine error that contains no private reading content."""
 
 
 def ensure_reading_transition(current: ReadingStatus, target: ReadingStatus) -> None:
     if target not in _ALLOWED_TRANSITIONS[current]:
-        raise InvalidReadingTransition(f"invalid reading transition: {current} -> {target}")
+        raise InvalidReadingTransitionError(f"invalid reading transition: {current} -> {target}")
 
 
 class ReadingDraftRequest(StrictReadingModel):

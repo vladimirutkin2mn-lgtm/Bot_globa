@@ -6,8 +6,6 @@ Callback namespaces are deliberately short: Telegram caps callback data at 64 by
 a payload already carries a 36-character reading UUID.
 """
 
-# ruff: noqa: RUF001
-
 from types import MappingProxyType
 
 from app.bot.persona_flow import PersonaFlow, PersonaFlowTexts

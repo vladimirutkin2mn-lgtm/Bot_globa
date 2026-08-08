@@ -1,5 +1,4 @@
 """Provider-independent report rendering and chunking regression tests."""
-# ruff: noqa: RUF001
 
 from app.domain.analysis import AnalysisResult
 from app.providers.llm.base import LLMRequest

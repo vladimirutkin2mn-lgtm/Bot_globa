@@ -13,7 +13,6 @@ from app.services.subscription_lifecycle import (
     PeriodApplyOutcome,
     SubscriptionLifecycleService,
 )
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 pytestmark = pytest.mark.postgres
 
@@ -81,7 +80,7 @@ def _paid(order_id: UUID) -> PaidSubscriptionPeriod:
 
 @pytest.mark.asyncio
 async def test_first_paid_period_completes_existing_checkout_order_once(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id, order_id = await _checkout_order(payment_db)
     service = SubscriptionLifecycleService(payment_db)

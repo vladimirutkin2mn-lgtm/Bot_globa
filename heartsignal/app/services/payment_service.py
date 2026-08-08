@@ -333,7 +333,7 @@ class PaymentService:
     async def order_by_token(self, token: UUID) -> PaymentOrder | None:
         async with self._sessions() as session:
             return cast(
-                PaymentOrder | None,
+                "PaymentOrder | None",
                 await session.scalar(
                     select(PaymentOrder).where(PaymentOrder.checkout_token == token)
                 ),

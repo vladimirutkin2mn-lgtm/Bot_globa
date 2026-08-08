@@ -1,5 +1,4 @@
 """Telegram subscription checkout and lifecycle management."""
-# ruff: noqa: RUF001
 
 from uuid import UUID
 
@@ -12,7 +11,7 @@ from app.domain.products import ProductCatalog
 from app.services.credits_service import CreditsService
 from app.services.onboarding import OnboardingService
 from app.services.subscription_checkout_service import (
-    SubscriptionCheckoutRejected,
+    SubscriptionCheckoutRejectedError,
     SubscriptionCheckoutService,
 )
 from app.services.subscription_management_service import (
@@ -225,7 +224,7 @@ async def create_subscription_checkout(
         result = await subscription_checkout.create_checkout(
             user.id, product_code, market, currency
         )
-    except SubscriptionCheckoutRejected:
+    except SubscriptionCheckoutRejectedError:
         await callback.message.answer("Подписка сейчас недоступна. Попробуйте позже.")
         return
     if result.url is None:

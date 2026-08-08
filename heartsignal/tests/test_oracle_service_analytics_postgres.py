@@ -17,11 +17,10 @@ from app.services.birth_profile import BirthProfileService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.reading_service import ReadingService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 
 async def test_reading_and_birth_profile_emit_only_safe_metadata(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     async with payment_db.begin() as session:
         user = User(telegram_user_id=uuid4().int % 10**12, first_name="Analytics User")

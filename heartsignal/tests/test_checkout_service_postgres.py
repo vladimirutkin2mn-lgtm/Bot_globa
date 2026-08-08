@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import Settings
 from app.db.models import PaymentOrder, User
 from app.domain.billing import BillingCatalog
-from app.providers.payments.base import PaymentProviderName, UnknownProviderOutcome
+from app.providers.payments.base import PaymentProviderName, UnknownProviderOutcomeError
 from app.providers.payments.gateway import CreateCheckout, HostedCheckout
 from app.services.checkout_service import CheckoutService
 
@@ -26,7 +26,7 @@ class IdempotentGateway:
         self.keys.append(request.idempotency_key)
         if self.timeout_once:
             self.timeout_once = False
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         return HostedCheckout("yk-one", "https://provider.test/one", "pending")
 
     async def fetch_payment(self, checkout_id: str):  # type: ignore[no-untyped-def]

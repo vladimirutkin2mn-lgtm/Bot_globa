@@ -4,8 +4,6 @@ Persona-neutral: the only thing that varies is the wording supplied by `ReadingC
 Nothing here reads the private source text — only the already validated result.
 """
 
-# ruff: noqa: RUF001
-
 from dataclasses import dataclass
 
 from app.domain.reading import SymbolOrientation

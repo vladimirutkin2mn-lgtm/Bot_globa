@@ -15,7 +15,7 @@ from app.db.models import (
     RefundRequest,
     User,
 )
-from app.providers.payments.base import PermanentProviderError, ProviderStateMismatch
+from app.providers.payments.base import PermanentProviderError, ProviderStateMismatchError
 from app.providers.payments.refund_gateway import (
     AuthoritativeRefund,
     CreateRefund,
@@ -138,7 +138,7 @@ class RefundReconciliationService:
                 )
                 return self._complete_locked(job, "failed")
             if fact.status != "succeeded":
-                raise ProviderStateMismatch("unknown refund status")
+                raise ProviderStateMismatchError("unknown refund status")
             if reservation.status == "released":
                 return self._manual_locked(job, refund, "succeeded_refund_released")
             purchase = await session.scalar(
@@ -241,9 +241,12 @@ class RefundReconciliationService:
             return "refund_payment_mismatch"
         if fact.amount_minor != refund.amount_minor or fact.currency != refund.currency:
             return "refund_amount_mismatch"
-        if order.provider_live_mode is not None and fact.live_mode is not None:
-            if order.provider_live_mode != fact.live_mode:
-                return "refund_live_mode_mismatch"
+        if (
+            order.provider_live_mode is not None
+            and fact.live_mode is not None
+            and order.provider_live_mode != fact.live_mode
+        ):
+            return "refund_live_mode_mismatch"
         return None
 
     @staticmethod

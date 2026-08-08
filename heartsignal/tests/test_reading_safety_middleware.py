@@ -4,8 +4,6 @@ Every persona reading flow goes through the same middleware, so each case is
 parametrized over the full MVP flow registry rather than asserted for tarot only.
 """
 
-# ruff: noqa: RUF001
-
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch

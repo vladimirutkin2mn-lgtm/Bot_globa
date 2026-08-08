@@ -98,7 +98,7 @@ def _load_dataset() -> Dataset:
     raw: object = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise AssertionError("oracle staging fixture root must be an object")
-    return cast(Dataset, raw)
+    return cast("Dataset", raw)
 
 
 DATASET = _load_dataset()

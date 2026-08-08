@@ -1,5 +1,4 @@
 """Telegram onboarding and conversation intake handlers."""
-# ruff: noqa: RUF001, E501
 
 import logging
 from uuid import UUID
@@ -38,9 +37,9 @@ from app.config import Settings
 from app.db.models import Analysis
 from app.domain.products import ProductCatalog
 from app.repositories.analyses import DeletionOutcome, FeedbackOutcome
-from app.services.checkout_service import CheckoutRejected, CheckoutService
-from app.services.conversation_intake import ConversationIntakeService, InvalidTransition
-from app.services.conversation_parser import ConversationRejected
+from app.services.checkout_service import CheckoutRejectedError, CheckoutService
+from app.services.conversation_intake import ConversationIntakeService, InvalidTransitionError
+from app.services.conversation_parser import ConversationRejectedError
 from app.services.credits_service import CreditsService
 from app.services.data_deletion import DataDeletionService
 from app.services.monetized_analysis import MonetizedAnalysisService, MonetizedStatus
@@ -52,9 +51,16 @@ from app.services.onboarding import (
 )
 from app.services.payment_service import CheckoutOutcome, PaymentService
 from app.services.preview_entitlement import PreviewEntitlementService
-from app.services.receipt_contact import InvalidReceiptContact, validate_receipt_contact
-from app.services.report_renderer import RELATIONSHIP_STAGE_LABELS
+from app.services.receipt_contact import InvalidReceiptContactError, validate_receipt_contact
+from app.services.report_renderer import RELATIONSHIP_STAGE_LABELS, ReportRenderer
 from app.services.report_service import ReportResult, ReportService, ReportStatus
+
+UNLOCKED_NONE = "Не разблокирован"
+ACCESS_LEVEL_LABELS: dict[str, str] = {
+    "preview": "Превью",
+    "full": "Полный",
+    "none": UNLOCKED_NONE,
+}
 
 router = Router(name="onboarding")
 logger = logging.getLogger(__name__)
@@ -257,7 +263,7 @@ async def receive_conversation(
     else:
         try:
             parsed = await intake.submit(analysis, message.text)
-        except ConversationRejected as error:
+        except ConversationRejectedError as error:
             await message.answer(
                 texts.REJECTION_MESSAGES[error.reason.value],
                 reply_markup=cancel_keyboard(analysis.id),
@@ -281,9 +287,9 @@ async def choose_participant(
     analysis = await _owned(callback, onboarding, intake, parts[2] if len(parts) > 2 else "")
     try:
         if analysis is None:
-            raise InvalidTransition("missing")
+            raise InvalidTransitionError("missing")
         await intake.participant(analysis, parts[3] if len(parts) > 3 else "")
-    except InvalidTransition:
+    except InvalidTransitionError:
         await callback.answer(texts.STALE_DRAFT, show_alert=True)
         return
     await callback.answer()
@@ -323,9 +329,9 @@ async def choose_goal(
         return
     try:
         if analysis is None:
-            raise InvalidTransition("missing")
+            raise InvalidTransitionError("missing")
         await intake.goal(analysis, GOALS[int(value)])
-    except (InvalidTransition, ValueError, IndexError):
+    except (InvalidTransitionError, ValueError, IndexError):
         await callback.answer(texts.STALE_DRAFT, show_alert=True)
         return
     await callback.answer()
@@ -351,9 +357,9 @@ async def custom_goal(
         return
     try:
         if analysis is None:
-            raise InvalidTransition("missing")
+            raise InvalidTransitionError("missing")
         await intake.goal(analysis, message.text or "")
-    except InvalidTransition:
+    except InvalidTransitionError:
         await message.answer("Вопрос пустой или слишком длинный. Сократите его и отправьте снова.")
         return
     await state.clear()
@@ -374,9 +380,9 @@ async def choose_stage(
     analysis = await _owned(callback, onboarding, intake, parts[2] if len(parts) > 2 else "")
     try:
         if analysis is None:
-            raise InvalidTransition("missing")
+            raise InvalidTransitionError("missing")
         completed = await intake.relationship_stage(analysis, parts[3] if len(parts) > 3 else "")
-    except InvalidTransition:
+    except InvalidTransitionError:
         await callback.answer(texts.STALE_DRAFT, show_alert=True)
         return
     await callback.answer()
@@ -403,9 +409,9 @@ async def cancel_intake(
     analysis = await _owned(callback, onboarding, intake, parts[2] if len(parts) > 2 else "")
     try:
         if analysis is None:
-            raise InvalidTransition("missing")
+            raise InvalidTransitionError("missing")
         await intake.cancel(analysis)
-    except InvalidTransition:
+    except InvalidTransitionError:
         await callback.answer(texts.STALE_DRAFT, show_alert=True)
         return
     await callback.answer()
@@ -428,7 +434,7 @@ async def resend(
         return
     try:
         await intake.reset_conversation(analysis)
-    except InvalidTransition:
+    except InvalidTransitionError:
         await callback.answer(texts.STALE_DRAFT, show_alert=True)
         return
     await callback.answer()
@@ -577,7 +583,7 @@ async def create_production_checkout(
         return
     try:
         result = await checkout.create_one_time_checkout(user.id, product_code, market, currency)
-    except CheckoutRejected:
+    except CheckoutRejectedError:
         await callback.message.answer("Оплата сейчас недоступна. Попробуйте позже.")
         return
     if not result.url:
@@ -610,17 +616,17 @@ async def receive_receipt_contact(
         currency = str(data["currency"])
         user = await onboarding.current_user(message.from_user.id)
         if user is None:
-            raise CheckoutRejected("user not found")
+            raise CheckoutRejectedError("user not found")
         result = await checkout.create_one_time_checkout(
             user.id, product_code, market, currency, receipt_contact=contact.value
         )
-    except InvalidReceiptContact:
+    except InvalidReceiptContactError:
         await message.answer(
             "Некорректный email или телефон. Проверьте формат и отправьте ещё раз.",
             reply_markup=receipt_contact_keyboard(),
         )
         return
-    except (CheckoutRejected, KeyError):
+    except (CheckoutRejectedError, KeyError):
         await state.clear()
         await message.answer("Оплата сейчас недоступна. Попробуйте позже.")
         return
@@ -691,8 +697,6 @@ async def billing_action(
         return
     await callback.answer()
     if outcome.status is MonetizedStatus.PREVIEW_COMPLETED and outcome.result:
-        from app.services.report_renderer import ReportRenderer
-
         report = ReportRenderer().render_preview(outcome.result)
         for index, chunk in enumerate(report.chunks):
             markup = (
@@ -702,8 +706,6 @@ async def billing_action(
             )
             await callback.message.answer(chunk, reply_markup=markup)
     elif outcome.status is MonetizedStatus.FULL_COMPLETED and outcome.result:
-        from app.services.report_renderer import ReportRenderer
-
         await deliver_report(callback.message, analysis_id, ReportRenderer().render(outcome.result))
     elif outcome.status is MonetizedStatus.INSUFFICIENT_CREDITS:
         preview = await previews.get_preview_state(user.id)
@@ -744,7 +746,9 @@ async def _show_history(
     labels = [
         (
             item.analysis_id,
-            f"{dict(preview='Превью', full='Полный', none='Не разблокирован').get(item.access_level, 'Не разблокирован')} · {item.completed_at:%d.%m.%Y} · {RELATIONSHIP_STAGE_LABELS.get(item.relationship_stage or '', 'Стадия не указана')}",
+            f"{ACCESS_LEVEL_LABELS.get(item.access_level, UNLOCKED_NONE)}"
+            f" · {item.completed_at:%d.%m.%Y}"
+            f" · {RELATIONSHIP_STAGE_LABELS.get(item.relationship_stage or '', 'Стадия не указана')}",
         )
         for item in history_page.items
     ]

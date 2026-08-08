@@ -64,6 +64,7 @@ def _upgrade_head(environment: dict[str, str]) -> None:
 def _privacy_downgrade(environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ("alembic", "downgrade", _PRIVACY_PARENT),
+        check=False,
         env=environment,
         capture_output=True,
         text=True,

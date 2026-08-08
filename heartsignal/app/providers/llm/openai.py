@@ -95,7 +95,7 @@ class OpenAILLMClient:
                     "content": request.user_prompt,
                 }
                 input_messages: ResponseInputParam = [system_message, user_message]
-                converted_schema = cast(dict[str, object], openai_strict_schema(request.schema))
+                converted_schema = cast("dict[str, object]", openai_strict_schema(request.schema))
                 text_config: ResponseTextConfigParam = {
                     "format": {
                         "type": "json_schema",

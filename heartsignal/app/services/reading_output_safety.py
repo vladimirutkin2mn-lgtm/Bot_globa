@@ -1,4 +1,3 @@
-# ruff: noqa: RUF001
 """Deterministic safety checks for user-visible oracle output."""
 
 import re

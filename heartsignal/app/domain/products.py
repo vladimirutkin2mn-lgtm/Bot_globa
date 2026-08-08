@@ -1,5 +1,4 @@
 """Versioned server-owned product catalog for oracle billing and presentation."""
-# ruff: noqa: RUF001
 
 from dataclasses import dataclass
 from enum import StrEnum

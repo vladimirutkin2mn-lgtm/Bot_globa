@@ -73,7 +73,7 @@ class RecordingSession(AiohttpSession):
         self,
         bot: Bot,
         method: TelegramMethod[TelegramType],
-        timeout: int | None = None,  # noqa: ASYNC109 -- aiogram API
+        timeout: int | None = None,  # noqa: ASYNC109 -- aiogram session contract
     ) -> TelegramType:
         self.methods.append(method)
         if isinstance(method, SendMessage) and method.text == self.fail_text:
@@ -81,7 +81,7 @@ class RecordingSession(AiohttpSession):
             raise RuntimeError("SECRET-PRIVATE-CONTENT")
         if isinstance(method, SendMessage):
             return cast(
-                TelegramType,
+                "TelegramType",
                 Message(
                     message_id=len(self.methods) + 100,
                     date=datetime.now(UTC),
@@ -89,13 +89,13 @@ class RecordingSession(AiohttpSession):
                     text=method.text,
                 ),
             )
-        return cast(TelegramType, True)
+        return cast("TelegramType", True)
 
     async def stream_content(
         self,
         url: str,
         headers: dict[str, Any] | None = None,
-        timeout: int = 30,  # noqa: ASYNC109 -- aiogram API
+        timeout: int = 30,  # noqa: ASYNC109 -- aiogram session contract
         chunk_size: int = 65536,
         raise_for_status: bool = True,
     ) -> AsyncGenerator[bytes, None]:
@@ -233,7 +233,7 @@ async def harness() -> AsyncGenerator[Harness, None]:
     dispatcher["previews"] = FakePreviews()
     dispatcher["analysis_price"] = 1
     dispatcher["reports"] = ReportService(
-        cast(ReportRepository, analyses), ReportRenderer(), NoOpAnalytics()
+        cast("ReportRepository", analyses), ReportRenderer(), NoOpAnalytics()
     )
     yield dispatcher, bot, session, users, service
     await bot.session.close()
@@ -357,7 +357,7 @@ async def test_analyze_with_current_consent_shows_placeholder(harness: Harness) 
 async def test_complete_intake_duplicate_callbacks_and_restart_resume(harness: Harness) -> None:
     dispatcher, bot, session, users, service = harness
     await complete(service)
-    intake = cast(ConversationIntakeService, dispatcher["intake"])
+    intake = cast("ConversationIntakeService", dispatcher["intake"])
     await dispatcher.feed_update(
         bot, callback_update("menu:analyze", 10), onboarding=service, intake=intake
     )
@@ -403,7 +403,7 @@ async def test_complete_intake_duplicate_callbacks_and_restart_resume(harness: H
 async def test_invalid_non_text_reset_cancel_menu_and_stale_callbacks(harness: Harness) -> None:
     dispatcher, bot, session, users, service = harness
     await complete(service)
-    intake = cast(ConversationIntakeService, dispatcher["intake"])
+    intake = cast("ConversationIntakeService", dispatcher["intake"])
     await dispatcher.feed_update(
         bot, callback_update("menu:analyze", 20), onboarding=service, intake=intake
     )
@@ -447,7 +447,7 @@ async def test_invalid_non_text_reset_cancel_menu_and_stale_callbacks(harness: H
 async def test_custom_goal_text_and_non_text(harness: Harness) -> None:
     dispatcher, bot, session, users, service = harness
     await complete(service)
-    intake = cast(ConversationIntakeService, dispatcher["intake"])
+    intake = cast("ConversationIntakeService", dispatcher["intake"])
     draft = await intake.start(users.users[42])
     await intake.submit(draft, "A: 1\nB: 2\nA: 3\nB: 4")
     await intake.participant(draft, "B")
@@ -519,7 +519,7 @@ async def test_processing_notice_failure_still_runs_analysis_privately(
 ) -> None:
     dispatcher, bot, session, users, service = harness
     await complete(service)
-    intake = cast(ConversationIntakeService, dispatcher["intake"])
+    intake = cast("ConversationIntakeService", dispatcher["intake"])
     runner = CompletedRunner()
     dispatcher["analysis_service"] = runner
     await dispatcher.feed_update(

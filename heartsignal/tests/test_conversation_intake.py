@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.db.models import Analysis, User
-from app.services.conversation_intake import ConversationIntakeService, InvalidTransition
-from app.services.conversation_parser import ConversationParser, ConversationRejected
+from app.services.conversation_intake import ConversationIntakeService, InvalidTransitionError
+from app.services.conversation_parser import ConversationParser, ConversationRejectedError
 
 
 class MemoryAnalyses:
@@ -123,23 +123,23 @@ async def test_invalid_transitions_participant_goal_stage_and_cancellation(
 ) -> None:
     service, _, analytics, user = service_parts
     draft = await service.start(user)
-    with pytest.raises(InvalidTransition):
+    with pytest.raises(InvalidTransitionError):
         await service.participant(draft, "A")
     await service.submit(draft, "A: one\nB: two\nA: three\nB: four")
-    with pytest.raises(InvalidTransition):
+    with pytest.raises(InvalidTransitionError):
         await service.participant(draft, "C")
     await service.participant(draft, "B")
-    with pytest.raises(InvalidTransition):
+    with pytest.raises(InvalidTransitionError):
         await service.goal(draft, "x" * 21)
     await service.goal(draft, "Question")
-    with pytest.raises(InvalidTransition):
+    with pytest.raises(InvalidTransitionError):
         await service.relationship_stage(draft, "invalid")
     await service.relationship_stage(draft, "not_provided")
     await service.relationship_stage(draft, "not_provided")
     assert draft.intake_step == "complete" and draft.status == "draft"
-    with pytest.raises(InvalidTransition):
+    with pytest.raises(InvalidTransitionError):
         await service.cancel(draft)
-    with pytest.raises(InvalidTransition):
+    with pytest.raises(InvalidTransitionError):
         await service.reset_conversation(draft)
     cancellable = await service.start(user)
     await service.cancel(cancellable)
@@ -156,7 +156,7 @@ async def test_ownership_and_analytics_never_expose_secret(
     draft = await service.start(user)
     assert await service.owned(draft.id, uuid4()) is None
     secret = "SECRET-MARKER"
-    with pytest.raises(ConversationRejected):
+    with pytest.raises(ConversationRejectedError):
         await service.submit(draft, f"A: {secret}")
     serialized = repr(analytics.events)
     assert secret not in serialized and secret not in caplog.text

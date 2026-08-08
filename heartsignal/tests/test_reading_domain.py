@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.reading import (
-    InvalidReadingTransition,
+    InvalidReadingTransitionError,
     ReadingDraftRequest,
     ReadingStatus,
     ReadingSymbolInput,
@@ -48,9 +48,9 @@ def test_reading_state_machine_allows_only_explicit_transitions() -> None:
     ensure_reading_transition(ReadingStatus.PREVIEW_READY, ReadingStatus.FULL_READY)
     ensure_reading_transition(ReadingStatus.FULL_READY, ReadingStatus.DELETED)
 
-    with pytest.raises(InvalidReadingTransition):
+    with pytest.raises(InvalidReadingTransitionError):
         ensure_reading_transition(ReadingStatus.DRAFT, ReadingStatus.FULL_READY)
-    with pytest.raises(InvalidReadingTransition):
+    with pytest.raises(InvalidReadingTransitionError):
         ensure_reading_transition(ReadingStatus.DELETED, ReadingStatus.GENERATING)
 
 
