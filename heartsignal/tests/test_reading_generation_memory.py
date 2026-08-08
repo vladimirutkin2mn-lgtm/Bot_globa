@@ -73,7 +73,7 @@ class RecordingLLM:
     def __init__(self) -> None:
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         payload = {
             "title": "A reflective title",
