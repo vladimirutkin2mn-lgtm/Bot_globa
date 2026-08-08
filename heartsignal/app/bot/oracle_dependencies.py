@@ -15,8 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.config import Settings
 from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
-from app.providers.llm.base import LLMClient
 from app.providers.payments.base import PaymentProvider
+from app.repositories.users import SqlAlchemyUserRepository
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.data_deletion import DataDeletionService
@@ -28,7 +28,6 @@ from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
 from app.services.subscription_checkout_service import SubscriptionCheckoutService
 from app.services.subscription_management_service import SubscriptionManagementService
-from app.repositories.users import SqlAlchemyUserRepository
 
 
 class OracleDependencyMiddleware(BaseMiddleware):
@@ -39,7 +38,6 @@ class OracleDependencyMiddleware(BaseMiddleware):
         sessions: async_sessionmaker[AsyncSession],
         analytics: AnalyticsClient,
         settings: Settings,
-        llm: LLMClient,
         payment_provider: PaymentProvider | None,
         product_catalog: ProductCatalog,
         checkout_service: CheckoutService,
@@ -50,7 +48,6 @@ class OracleDependencyMiddleware(BaseMiddleware):
         self._sessions = sessions
         self._analytics = analytics
         self._settings = settings
-        self._llm = llm
         self._payment_provider = payment_provider
         self._product_catalog = product_catalog
         self._checkout_service = checkout_service
