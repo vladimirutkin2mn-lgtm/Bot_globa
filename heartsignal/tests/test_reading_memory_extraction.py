@@ -19,7 +19,7 @@ class FakeLLM:
         self.payload = payload
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         return LLMCompletion(
             payload=self.payload,
