@@ -39,7 +39,7 @@ class GoldenHoroscopeLLM:
     def __init__(self) -> None:
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         input_payload = _json_section(request.user_prompt, "INPUT_JSON:", "FACT_BUNDLE_JSON:")
         facts_payload = _json_section(request.user_prompt, "FACT_BUNDLE_JSON:")
@@ -97,7 +97,7 @@ class GoldenHoroscopeLLM:
 
 
 class AlteredChartHoroscopeLLM:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         input_payload = _json_section(request.user_prompt, "INPUT_JSON:", "FACT_BUNDLE_JSON:")
         facts_payload = _json_section(request.user_prompt, "FACT_BUNDLE_JSON:")
         limitations = facts_payload["limitations"]
