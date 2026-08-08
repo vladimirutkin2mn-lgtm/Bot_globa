@@ -1,5 +1,5 @@
 """Domain-neutral Telegram onboarding, account, privacy and credit routes."""
-# ruff: noqa: RUF001, E501
+# ruff: noqa: RUF001
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
