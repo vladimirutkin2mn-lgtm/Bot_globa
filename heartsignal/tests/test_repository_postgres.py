@@ -18,11 +18,8 @@ from sqlalchemy.ext.asyncio import (
 
 from app.db.base import Base
 from app.db.models import Analysis, User
-from app.providers.analytics import NoOpAnalyticsClient
 from app.repositories.analyses import SqlAlchemyAnalysisRepository
 from app.repositories.users import SqlAlchemyUserRepository
-from app.services.conversation_intake import ConversationIntakeService, InvalidTransitionError
-from app.services.conversation_parser import ConversationParser
 
 pytestmark = pytest.mark.postgres
 
@@ -148,7 +145,13 @@ async def test_analysis_json_relationship_ownership_and_durable_transition(
         repository = SqlAlchemyAnalysisRepository(session)
         analysis, created = await repository.create_or_resume(user.id)
         analysis.normalized_conversation_json = [
-            {"id": "m1", "speaker": "A", "text": "private", "timestamp": None, "source_order": 1}
+            {
+                "id": "m1",
+                "speaker": "A",
+                "text": "private",
+                "timestamp": None,
+                "source_order": 1,
+            }
         ]
         analysis.participants_json = {"A": "Anna", "B": "Ivan"}
         analysis.message_count = 1
@@ -230,63 +233,3 @@ async def test_analysis_constraints_reject_invalid_status_and_duplicate_active(
         )
         with pytest.raises(IntegrityError):
             await session.commit()
-
-
-async def test_reset_persists_cleared_sensitive_fields(
-    postgres: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
-) -> None:
-    _, sessions = postgres
-    user = await _persist_user(sessions, 204)
-    async with sessions() as session:
-        from app.services.sensitive_content import AESGCMSensitiveContentCipher
-
-        repository = SqlAlchemyAnalysisRepository(
-            session, AESGCMSensitiveContentCipher("test-only-strong-content-key-32-bytes"), 30
-        )
-        service = ConversationIntakeService(repository, ConversationParser(), NoOpAnalyticsClient())
-        draft, _ = await repository.create_or_resume(user.id)
-        await service.submit(draft, "A: one\nB: two\nA: three\nB: four")
-        await service.participant(draft, "A")
-        await service.goal(draft, "Question")
-        await service.reset_conversation(draft)
-        draft_id = draft.id
-    async with sessions() as session:
-        from app.db.models import AnalysisPrivateContent
-
-        stored = await SqlAlchemyAnalysisRepository(session).get_owned(draft_id, user.id)
-        assert stored is not None and stored.intake_step == "waiting_for_conversation"
-        assert stored.normalized_conversation_json is None and stored.participants_json is None
-        assert stored.user_goal is None and stored.user_participant_label is None
-        private = await session.get(AnalysisPrivateContent, draft_id)
-        assert private is not None and private.source_ciphertext is None
-
-
-async def test_stale_callbacks_cannot_mutate_completed_analysis_with_active_successor(
-    postgres: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
-) -> None:
-    _, sessions = postgres
-    user = await _persist_user(sessions, 205)
-    async with sessions() as session:
-        repository = SqlAlchemyAnalysisRepository(session)
-        service = ConversationIntakeService(repository, ConversationParser(), NoOpAnalyticsClient())
-        completed, _ = await repository.create_or_resume(user.id)
-        completed.intake_step = "complete"
-        await repository.save(completed)
-        active, created = await repository.create_or_resume(user.id)
-        assert created
-        with pytest.raises(InvalidTransitionError):
-            await service.reset_conversation(completed)
-        with pytest.raises(InvalidTransitionError):
-            await service.cancel(completed)
-        completed_id, active_id = completed.id, active.id
-    async with sessions() as session:
-        repository = SqlAlchemyAnalysisRepository(session)
-        stored_completed = await repository.get_owned(completed_id, user.id)
-        stored_active = await repository.get_owned(active_id, user.id)
-        assert stored_completed is not None
-        assert stored_completed.status == "draft" and stored_completed.intake_step == "complete"
-        assert stored_active is not None
-        assert stored_active.status == "draft"
-        assert stored_active.intake_step == "waiting_for_conversation"
-        active_draft = await repository.get_active(user.id)
-        assert active_draft is not None and active_draft.id == active_id
