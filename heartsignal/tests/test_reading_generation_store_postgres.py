@@ -1,5 +1,7 @@
 """PostgreSQL locking and state coverage for reading generation claims."""
 
+import asyncio
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -103,14 +105,24 @@ async def test_claim_is_exactly_once_and_contains_decrypted_source(
     )
     store = SqlAlchemyReadingGenerationStore(payment_db, cipher)
 
-    first = await store.claim_preview(reading.id, owner.id)
-    second = await store.claim_preview(reading.id, owner.id)
+    first, second = await asyncio.gather(
+        store.claim_preview(reading.id, owner.id),
+        store.claim_preview(reading.id, owner.id),
+    )
 
-    assert first.status is ReadingGenerationClaimStatus.CLAIMED
-    assert first.context is not None
-    assert first.context.question == "Which trade-off needs a slower review?"
-    assert first.context.prompt_version == "tarot-reader-v1"
-    assert second.status is ReadingGenerationClaimStatus.ALREADY_PROCESSING
+    statuses = {first.status, second.status}
+    assert statuses == {
+        ReadingGenerationClaimStatus.CLAIMED,
+        ReadingGenerationClaimStatus.ALREADY_PROCESSING,
+    }
+    claimed = next(
+        result
+        for result in (first, second)
+        if result.status is ReadingGenerationClaimStatus.CLAIMED
+    )
+    assert claimed.context is not None
+    assert claimed.context.question == "Which trade-off needs a slower review?"
+    assert claimed.context.prompt_version == "tarot-reader-v1"
 
 
 async def test_complete_preview_replays_payload_and_symbols_without_new_claim(
