@@ -89,6 +89,8 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["subscriptions"] = self._subscriptions
             data["refunds"] = self._refunds
             data["billing_settings"] = self._settings
+            # Transitional handler coordinate only: value now comes from the Oracle price.
+            data["analysis_price"] = self._settings.tarot_full_price_credits
             data["analytics"] = self._analytics
             data["data_deletion"] = DataDeletionService(session, self._analytics)
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
