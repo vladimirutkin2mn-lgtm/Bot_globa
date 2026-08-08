@@ -8,17 +8,15 @@ def test_main_menu_contains_required_sections() -> None:
     keyboard = main_menu_keyboard()
     assert [row[0].text for row in keyboard.inline_keyboard] == [
         "🔮 Таролог",
+        "🗂 Мои расклады",
         "🧠 Память",
-        texts.ANALYZE,
-        texts.HISTORY,
         texts.BALANCE,
         texts.PRIVACY,
     ]
     assert [row[0].callback_data for row in keyboard.inline_keyboard] == [
         "menu:tarot",
+        "tarot:history",
         "menu:memory",
-        "menu:analyze",
-        "menu:history",
         "menu:balance",
         "menu:privacy",
     ]
