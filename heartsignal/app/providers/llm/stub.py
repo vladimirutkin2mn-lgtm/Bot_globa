@@ -1,4 +1,5 @@
 """Deterministic local structured-output provider for Oracle development and CI."""
+# ruff: noqa: RUF001
 
 import json
 from typing import Literal, cast
