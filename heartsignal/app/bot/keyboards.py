@@ -36,8 +36,6 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="menu:psy")],
             [InlineKeyboardButton(text="🪐 Астролог", callback_data="menu:astro")],
             [InlineKeyboardButton(text="🧠 Память", callback_data="menu:memory")],
-            [InlineKeyboardButton(text=texts.ANALYZE, callback_data="menu:analyze")],
-            [InlineKeyboardButton(text=texts.HISTORY, callback_data="menu:history")],
             [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
             [InlineKeyboardButton(text=texts.PRIVACY, callback_data="menu:privacy")],
         ]
