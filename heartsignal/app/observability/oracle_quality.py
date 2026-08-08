@@ -81,7 +81,7 @@ class OracleQualityObserver:
         observation_id = uuid4()
         started = time.perf_counter_ns()
         try:
-            completion = await llm.generate_analysis(request)
+            completion = await llm.generate_structured(request)
         except Exception as error:
             await self._track(
                 LLM_ATTEMPT_EVENT,
@@ -179,11 +179,11 @@ class ObservedLLMClient:
         self._inner = inner
         self._observer = observer
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         persona_code = request.telemetry_persona_code
         prompt_version = request.telemetry_prompt_version
         if persona_code is None or prompt_version is None:
-            return await self._inner.generate_analysis(request)
+            return await self._inner.generate_structured(request)
         return await self._observer.generate(
             self._inner,
             request,
