@@ -47,9 +47,7 @@ def _identity(callback: CallbackQuery) -> TelegramIdentity:
     )
 
 
-async def _show_onboarding_step(
-    message: Message, state: FSMContext, step: OnboardingStep
-) -> None:
+async def _show_onboarding_step(message: Message, state: FSMContext, step: OnboardingStep) -> None:
     if step is OnboardingStep.AGE:
         await state.set_state(OnboardingStates.waiting_for_age)
         await message.answer(texts.WELCOME, reply_markup=age_keyboard())
@@ -252,18 +250,14 @@ async def create_production_checkout(
     _, _, product_code, market, currency = parts
     if billing_settings.yookassa_receipts_required and market == "RU" and currency == "RUB":
         await state.set_state(PaymentStates.waiting_for_receipt_contact)
-        await state.set_data(
-            {"product_code": product_code, "market": market, "currency": currency}
-        )
+        await state.set_data({"product_code": product_code, "market": market, "currency": currency})
         await callback.message.answer(
             "Отправьте email или телефон в международном формате для кассового чека.",
             reply_markup=receipt_contact_keyboard(),
         )
         return
     try:
-        result = await checkout.create_one_time_checkout(
-            user.id, product_code, market, currency
-        )
+        result = await checkout.create_one_time_checkout(user.id, product_code, market, currency)
     except CheckoutRejected:
         await callback.message.answer("Оплата сейчас недоступна. Попробуйте позже.")
         return
