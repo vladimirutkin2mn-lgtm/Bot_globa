@@ -74,7 +74,7 @@ def adapter(client: FakeClient, attempts: int = 2) -> OpenAILLMClient:
 
 async def test_request_contract_and_metadata_extraction() -> None:
     client = FakeClient()
-    completion = await adapter(client).generate_analysis(request())
+    completion = await adapter(client).generate_structured(request())
     call = client.responses.calls[0]
     assert call["model"] == "configured-model"
     assert call["input"] == [
@@ -83,6 +83,7 @@ async def test_request_contract_and_metadata_extraction() -> None:
     ]
     format_ = cast_dict(cast_dict(call["text"])["format"])
     assert format_["type"] == "json_schema" and format_["strict"] is True
+    assert format_["name"] == "structured_result"
     assert call["store"] is False and call["timeout"] == 12.5
     assert (completion.model, completion.provider_request_id) == ("actual-model", "req-123")
     assert (completion.input_tokens, completion.output_tokens) == (17, 29)
@@ -94,7 +95,7 @@ def cast_dict(value: object) -> dict[str, Any]:
 
 
 async def test_missing_usage_is_safe() -> None:
-    completion = await adapter(FakeClient(FakeResponse(usage=None))).generate_analysis(request())
+    completion = await adapter(FakeClient(FakeResponse(usage=None))).generate_structured(request())
     assert completion.input_tokens is None and completion.output_tokens is None
 
 
@@ -163,7 +164,7 @@ async def test_non_retryable_sdk_errors_are_mapped_once(
 ) -> None:
     client = FakeClient(sdk_error)
     with pytest.raises(mapped):
-        await adapter(client, 3).generate_analysis(request())
+        await adapter(client, 3).generate_structured(request())
     assert len(client.responses.calls) == 1
 
 
@@ -177,13 +178,13 @@ async def test_non_retryable_sdk_errors_are_mapped_once(
 async def test_transient_errors_retry_to_configured_limit(sdk_error: Exception) -> None:
     client = FakeClient(sdk_error, sdk_error, sdk_error)
     with pytest.raises(LLMTransientError):
-        await adapter(client, 3).generate_analysis(request())
+        await adapter(client, 3).generate_structured(request())
     assert len(client.responses.calls) == 3
 
 
 async def test_transient_retry_can_succeed() -> None:
     client = FakeClient(openai.APIConnectionError(request=sdk_request()), FakeResponse())
-    result = await adapter(client).generate_analysis(request())
+    result = await adapter(client).generate_structured(request())
     assert result.model == "actual-model" and len(client.responses.calls) == 2
 
 
@@ -192,5 +193,5 @@ async def test_unexpected_sdk_error_is_mapped_without_private_logging(
 ) -> None:
     client = FakeClient(openai.OpenAIError(SECRET))
     with pytest.raises(LLMUnexpectedError):
-        await adapter(client).generate_analysis(request())
+        await adapter(client).generate_structured(request())
     assert SECRET not in caplog.text
