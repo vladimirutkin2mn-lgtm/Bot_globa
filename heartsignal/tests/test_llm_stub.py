@@ -48,7 +48,7 @@ def llm_request(repair: bool = False) -> LLMRequest:
 
 async def test_default_stub_returns_oracle_reading_result() -> None:
     client = StubLLMClient()
-    completion = await client.generate_analysis(llm_request())
+    completion = await client.generate_structured(llm_request())
     result = ReadingResult.model_validate_json(completion.payload)
     assert completion.provider == "stub"
     assert result.symbols[0].symbol_id == "major_07"
@@ -59,13 +59,15 @@ async def test_default_stub_returns_oracle_reading_result() -> None:
 @pytest.mark.parametrize("behavior", ["invalid_json", "invalid_schema"])
 async def test_invalid_stub_payload_behaviors(behavior: str) -> None:
     client = StubLLMClient(behavior=behavior)  # type: ignore[arg-type]
-    completion = await client.generate_analysis(llm_request())
+    completion = await client.generate_structured(llm_request())
     with pytest.raises((ValueError, ValidationError)):
         ReadingResult.model_validate_json(completion.payload)
 
 
 async def test_invalid_semantics_remains_schema_valid_but_changes_symbol_identity() -> None:
-    completion = await StubLLMClient(behavior="invalid_semantics").generate_analysis(llm_request())
+    completion = await StubLLMClient(behavior="invalid_semantics").generate_structured(
+        llm_request()
+    )
     result = ReadingResult.model_validate_json(completion.payload)
     assert result.symbols[0].symbol_id == "unexpected_symbol"
 
@@ -81,19 +83,21 @@ async def test_invalid_semantics_remains_schema_valid_but_changes_symbol_identit
 )
 async def test_stub_error_behaviors(behavior: str, error: type[Exception]) -> None:
     with pytest.raises(error):
-        await StubLLMClient(behavior=behavior).generate_analysis(llm_request())  # type: ignore[arg-type]
+        await StubLLMClient(behavior=behavior).generate_structured(  # type: ignore[arg-type]
+            llm_request()
+        )
 
 
 async def test_stub_repair_success_and_failure() -> None:
     success = StubLLMClient(behavior="repair_success")
-    first = await success.generate_analysis(llm_request())
+    first = await success.generate_structured(llm_request())
     with pytest.raises(ValidationError):
         ReadingResult.model_validate_json(first.payload)
-    repaired = await success.generate_analysis(llm_request(True))
+    repaired = await success.generate_structured(llm_request(True))
     ReadingResult.model_validate_json(repaired.payload)
 
     failure = StubLLMClient(behavior="repair_failure")
     with pytest.raises(ValidationError):
         ReadingResult.model_validate_json(
-            (await failure.generate_analysis(llm_request(True))).payload
+            (await failure.generate_structured(llm_request(True))).payload
         )
