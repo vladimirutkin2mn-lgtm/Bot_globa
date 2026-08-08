@@ -33,6 +33,8 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🔮 Таролог", callback_data="menu:tarot")],
+            [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="menu:love")],
+            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="menu:psy")],
             [InlineKeyboardButton(text="🧠 Память", callback_data="menu:memory")],
             [InlineKeyboardButton(text=texts.ANALYZE, callback_data="menu:analyze")],
             [InlineKeyboardButton(text=texts.HISTORY, callback_data="menu:history")],

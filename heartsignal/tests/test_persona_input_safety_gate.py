@@ -1,3 +1,5 @@
+"""Unsafe intake must never be persisted or sent to a prompt, for any persona."""
+
 from uuid import UUID, uuid4
 
 import pytest
@@ -6,11 +8,21 @@ from app.db.reading_models import Reading
 from app.domain.oracle_safety import OracleRiskCategory, OracleSafetyAction
 from app.domain.reading import ReadingDraftRequest
 from app.domain.reading_generation import ReadingSymbolContext
+from app.services.persona_reading import (
+    PersonaPreviewRequest,
+    PersonaReadingUseCase,
+    UnsafePersonaInputError,
+)
 from app.services.reading_generation import ReadingGenerationResult
-from app.services.tarot_reading import (
-    TarotPreviewRequest,
-    TarotReadingUseCase,
-    UnsafeTarotInputError,
+
+# (persona_code, a topic that persona supports)
+PERSONA_TOPICS = [
+    ("tarot_reader", "general_forecast"),
+    ("love_oracle", "love"),
+    ("mystical_psychologist", "self_reflection"),
+]
+personas = pytest.mark.parametrize(
+    ("persona_code", "topic"), PERSONA_TOPICS, ids=[code for code, _ in PERSONA_TOPICS]
 )
 
 
@@ -35,17 +47,21 @@ class ForbiddenGenerationService:
         raise AssertionError("unsafe input must not reach generation")
 
 
+@personas
 @pytest.mark.asyncio
-async def test_self_harm_is_rejected_before_draft_creation() -> None:
+async def test_self_harm_is_rejected_before_draft_creation(
+    persona_code: str,
+    topic: str,
+) -> None:
     drafts = ForbiddenDraftService()
     generation = ForbiddenGenerationService()
-    use_case = TarotReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase(persona_code, drafts, generation)
 
-    with pytest.raises(UnsafeTarotInputError) as captured:
+    with pytest.raises(UnsafePersonaInputError) as captured:
         await use_case.create_preview(
             uuid4(),
-            TarotPreviewRequest(
-                topic="general_forecast",
+            PersonaPreviewRequest(
+                topic=topic,
                 question="Я не хочу жить. Что говорят карты?",
             ),
         )
@@ -57,17 +73,21 @@ async def test_self_harm_is_rejected_before_draft_creation() -> None:
     assert "Я не хочу жить" not in str(captured.value)
 
 
+@personas
 @pytest.mark.asyncio
-async def test_stalking_request_is_blocked_before_draft_creation() -> None:
+async def test_stalking_request_is_blocked_before_draft_creation(
+    persona_code: str,
+    topic: str,
+) -> None:
     drafts = ForbiddenDraftService()
     generation = ForbiddenGenerationService()
-    use_case = TarotReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase(persona_code, drafts, generation)
 
-    with pytest.raises(UnsafeTarotInputError) as captured:
+    with pytest.raises(UnsafePersonaInputError) as captured:
         await use_case.create_preview(
             uuid4(),
-            TarotPreviewRequest(
-                topic="love",
+            PersonaPreviewRequest(
+                topic=topic,
                 question="Скажи, как выследить бывшую",
             ),
         )
@@ -76,3 +96,12 @@ async def test_stalking_request_is_blocked_before_draft_creation() -> None:
     assert captured.value.categories == (OracleRiskCategory.VIOLENCE_OR_STALKING,)
     assert drafts.calls == 0
     assert generation.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_the_astrology_persona_cannot_be_built_by_this_use_case() -> None:
+    """A birth-data persona must not silently lose its calculation engine."""
+    from app.services.persona_reading import PersonaConfigurationError
+
+    with pytest.raises(PersonaConfigurationError, match="requires the astrology use case"):
+        PersonaReadingUseCase("astrologer", ForbiddenDraftService(), ForbiddenGenerationService())

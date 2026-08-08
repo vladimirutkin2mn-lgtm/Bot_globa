@@ -11,12 +11,14 @@ from app.bot.followup_handlers import router as followup_router
 from app.bot.handlers import router
 from app.bot.memory_handlers import router as memory_router
 from app.bot.observability import TelegramObservabilityMiddleware
+from app.bot.persona_flow import PersonaReadingBundle
+from app.bot.persona_flows import MVP_READING_FLOWS, TAROT_FLOW
+from app.bot.persona_handlers import create_persona_router
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
+from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
-from app.bot.tarot_handlers import router as tarot_router
-from app.bot.tarot_safety_middleware import TarotSafetyHandoffMiddleware
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
@@ -50,6 +52,7 @@ from app.services.natal_chart import (
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.oracle_release_controls import OracleReleaseControls
+from app.services.persona_reading import PersonaReadingUseCase, SymbolDrawer
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.reading_generation import ReadingGenerationService
@@ -62,7 +65,7 @@ from app.services.subscription_checkout_service import SubscriptionCheckoutServi
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
 from app.services.subscription_management_service import SubscriptionManagementService
-from app.services.tarot_reading import TarotReadingUseCase
+from app.services.symbolic_engine import TarotSymbolDrawer
 
 logger = logging.getLogger(__name__)
 
@@ -137,18 +140,19 @@ def create_dispatcher(
         RefundService(sessions, settings, refund_gateways),
     )
     rate_middleware = RateLimitMiddleware(FixedWindowRateLimiter())
-    tarot_safety_middleware = TarotSafetyHandoffMiddleware()
+    safety_middleware = ReadingSafetyHandoffMiddleware()
     dispatcher.message.outer_middleware(rate_middleware)
     dispatcher.callback_query.outer_middleware(rate_middleware)
-    dispatcher.message.outer_middleware(tarot_safety_middleware)
-    dispatcher.callback_query.outer_middleware(tarot_safety_middleware)
+    dispatcher.message.outer_middleware(safety_middleware)
+    dispatcher.callback_query.outer_middleware(safety_middleware)
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
     dispatcher.include_router(followup_router)
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(memory_router)
-    dispatcher.include_router(tarot_router)
+    for flow in MVP_READING_FLOWS:
+        dispatcher.include_router(create_persona_router(flow))
     dispatcher.include_router(router)
     dispatcher["database_engine"] = resolved_engine
     dispatcher["owns_database_engine"] = engine is None
@@ -159,7 +163,7 @@ def create_dispatcher(
     dispatcher["oracle_release_controls"] = release_controls
     dispatcher["error_reporter"] = reporter
     dispatcher["persona_registry"] = PersonaRegistryService(sessions)
-    dispatcher["tarot_history"] = ReadingHistoryService(sessions)
+    dispatcher["reading_history"] = ReadingHistoryService(sessions)
     preview_entitlements = PreviewEntitlementService(sessions)
     reading_service = ReadingService(
         sessions,
@@ -175,24 +179,35 @@ def create_dispatcher(
         cipher,
         settings.raw_content_retention_days,
     )
-    dispatcher["tarot_use_case"] = TarotReadingUseCase.from_services(
-        reading_service,
-        ReadingGenerationService(
-            reading_store,
-            llm,
-            max_repair_attempts=settings.llm_max_repair_attempts,
-            memory_retriever=OracleReadingMemoryRetriever(oracle_memory),
-            analytics=oracle_analytics,
-            quality_observer=quality_observer,
-        ),
-        entitlements=preview_entitlements,
+    reading_generation = ReadingGenerationService(
+        reading_store,
+        llm,
+        max_repair_attempts=settings.llm_max_repair_attempts,
+        memory_retriever=OracleReadingMemoryRetriever(oracle_memory),
+        analytics=oracle_analytics,
+        quality_observer=quality_observer,
     )
-    dispatcher["tarot_monetized"] = MonetizedReadingService(
+    monetized_readings = MonetizedReadingService(
         sessions,
         CreditsService(sessions),
         reading_service,
-        settings.tarot_full_price_credits,
+        settings.reading_full_price_credits,
     )
+    # Only the tarot persona has a deterministic symbol set; the others reason in words.
+    drawers: dict[str, SymbolDrawer] = {TAROT_FLOW.persona_code: TarotSymbolDrawer()}
+    dispatcher["persona_readings"] = {
+        flow.persona_code: PersonaReadingBundle(
+            use_case=PersonaReadingUseCase.from_services(
+                flow.persona_code,
+                reading_service,
+                reading_generation,
+                drawer=drawers.get(flow.persona_code),
+                entitlements=preview_entitlements,
+            ),
+            monetized=monetized_readings,
+        )
+        for flow in MVP_READING_FLOWS
+    }
     birth_profiles = BirthProfileService(sessions, cipher, analytics=oracle_analytics)
     natal_charts = ConsentedNatalChartService(
         birth_profiles,

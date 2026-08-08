@@ -14,11 +14,11 @@ from app.domain.reading_generation import ReadingSymbolContext
 from app.prompts.reading import load_reading_prompts
 from app.providers.llm.base import LLMCompletion, LLMRequest
 from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
-from app.services.love_oracle_reading import (
-    LoveOraclePreviewRequest,
-    LoveOracleReadingUseCase,
-    UnsafeLoveOracleInputError,
-    UnsupportedLoveOracleTopicError,
+from app.services.persona_reading import (
+    PersonaPreviewRequest,
+    PersonaReadingUseCase,
+    UnsafePersonaInputError,
+    UnsupportedPersonaTopicError,
 )
 from app.services.reading_generation import (
     ReadingGenerationResult,
@@ -153,12 +153,12 @@ def test_love_oracle_prompt_is_memory_aware_and_rejects_inner_state_claims() -> 
 async def test_use_case_freezes_love_versions_and_passes_no_symbols() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = LoveOracleReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("love_oracle", drafts, generation)
     user_id = uuid4()
 
     first = await use_case.create_preview(
         user_id,
-        LoveOraclePreviewRequest(
+        PersonaPreviewRequest(
             topic="communication",
             question="How can I ask for clarity without applying pressure?",
             context="We have spoken less often during the last two weeks.",
@@ -183,12 +183,15 @@ async def test_use_case_freezes_love_versions_and_passes_no_symbols() -> None:
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = LoveOracleReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("love_oracle", drafts, generation)
 
-    with pytest.raises(UnsupportedLoveOracleTopicError, match="unsupported Love Oracle topic"):
+    with pytest.raises(
+        UnsupportedPersonaTopicError,
+        match="unsupported topic for persona love_oracle",
+    ):
         await use_case.create_preview(
             uuid4(),
-            LoveOraclePreviewRequest(
+            PersonaPreviewRequest(
                 topic="medical_diagnosis",
                 question="What illness explains this relationship?",
             ),
@@ -200,12 +203,12 @@ async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
 async def test_unsafe_input_stops_before_draft_and_generation() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = LoveOracleReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("love_oracle", drafts, generation)
 
-    with pytest.raises(UnsafeLoveOracleInputError) as captured:
+    with pytest.raises(UnsafePersonaInputError) as captured:
         await use_case.create_preview(
             uuid4(),
-            LoveOraclePreviewRequest(
+            PersonaPreviewRequest(
                 topic="love",
                 question="I want to kill myself if this person does not return.",
             ),
@@ -237,11 +240,11 @@ async def test_postgres_love_oracle_preview_is_validated_and_idempotent(
         SqlAlchemyReadingGenerationStore(payment_db, cipher),
         llm,
     )
-    use_case = LoveOracleReadingUseCase.from_services(readings, generation)
+    use_case = PersonaReadingUseCase.from_services("love_oracle", readings, generation)
 
     first = await use_case.create_preview(
         user.id,
-        LoveOraclePreviewRequest(
+        PersonaPreviewRequest(
             topic="boundaries",
             question="What boundary could help me stop guessing?",
             context="I have already sent one unanswered message.",
@@ -293,11 +296,11 @@ async def test_mind_reading_and_guaranteed_reunion_are_rejected_before_persisten
         MindReadingLoveOracleLLM(),
         max_repair_attempts=0,
     )
-    use_case = LoveOracleReadingUseCase.from_services(readings, generation)
+    use_case = PersonaReadingUseCase.from_services("love_oracle", readings, generation)
 
     outcome = await use_case.create_preview(
         user.id,
-        LoveOraclePreviewRequest(
+        PersonaPreviewRequest(
             topic="love",
             question="How should I think about the current distance?",
         ),
