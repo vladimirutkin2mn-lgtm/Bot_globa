@@ -63,9 +63,7 @@ async def test_actual_privacy_screen_prompt_and_cancel(privacy_harness: Harness)
     await dispatcher.feed_update(bot, callback_update("privacy:delete_all", 3), **common)
     await dispatcher.feed_update(bot, callback_update("privacy:cancel", 4), **common)
     rendered = [method.text for method in session.methods if isinstance(method, SendMessage)]
-    assert any(
-        "30" in value and "шифруются" in value and "памяти" in value for value in rendered
-    )
+    assert any("30" in value and "шифруются" in value and "памяти" in value for value in rendered)
     assert texts.DELETE_ALL_PROMPT in rendered
     assert texts.DELETE_ALL_CANCELLED in rendered
 
