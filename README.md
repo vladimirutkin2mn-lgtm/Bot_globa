@@ -23,6 +23,8 @@ Telegram-first продукт, который создаёт персонали�
 
 ## Документы
 
+- [Готовность к продакшену](docs/runbooks/production-readiness.md) — что должно быть настроено и подтверждено до первого реального платежа.
+
 - [План адаптации fabric_bot](docs/FABRIC_BOT_ADAPTATION_PLAN.md)
 - [MVP scope: четыре направления](docs/MVP_SCOPE_V2.md)
 - [Исполнимый MVP backlog](docs/MVP_BACKLOG.md)
