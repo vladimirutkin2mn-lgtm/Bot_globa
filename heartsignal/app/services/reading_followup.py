@@ -30,8 +30,11 @@ from app.domain.reading_followup import (
     validate_reading_followup_semantics,
 )
 from app.domain.reading_result import ReadingResult
-from app.prompts.followup_loader import load_followup_prompts
-from app.prompts.loader import PromptNotFoundError, PromptSet
+from app.prompts.reading_followup import (
+    ReadingFollowUpPromptNotFoundError,
+    ReadingFollowUpPromptSet,
+    load_reading_followup_prompts,
+)
 from app.providers.analytics import AnalyticsClient
 from app.providers.llm.base import (
     LLMAuthenticationError,
@@ -124,7 +127,7 @@ class ReadingFollowUpService:
         lease_seconds: int = 180,
         max_question_characters: int = 1000,
         max_repair_attempts: int = 1,
-        prompt_loader: Callable[[str], PromptSet] = load_followup_prompts,
+        prompt_loader: Callable[[str], ReadingFollowUpPromptSet] = load_reading_followup_prompts,
     ) -> None:
         self._sessions = sessions
         self._cipher = cipher
@@ -253,7 +256,7 @@ class ReadingFollowUpService:
                 },
             )
             return completed
-        except PromptNotFoundError:
+        except ReadingFollowUpPromptNotFoundError:
             code = "prompt_not_found"
         except (ValidationError, ValueError, ReadingFollowUpSemanticError):
             code = "invalid_model_output"

@@ -1,5 +1,4 @@
 """Deterministic local structured-output provider for Oracle development and CI."""
-# ruff: noqa: RUF001
 
 import json
 from typing import Literal, cast
@@ -76,7 +75,7 @@ class StubLLMClient:
             parsed = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             return {}
-        return cast(dict[str, object], parsed) if isinstance(parsed, dict) else {}
+        return cast("dict[str, object]", parsed) if isinstance(parsed, dict) else {}
 
     @classmethod
     def _reading_result(
