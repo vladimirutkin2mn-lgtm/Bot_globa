@@ -38,7 +38,7 @@ class YooKassaRefundGateway:
                 "value": format(Decimal(request.amount_minor) / Decimal(100), ".2f"),
                 "currency": request.currency,
             },
-            "description": "HeartSignal refund"[:128],
+            "description": "Bot Globa refund"[:128],
             "metadata": {"refund_request_id": str(request.refund_request_id)},
         }
         try:

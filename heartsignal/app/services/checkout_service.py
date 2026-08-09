@@ -40,6 +40,7 @@ class ReceiptContactCipher:
     """Authenticated temporary storage with a billing-specific derived key."""
 
     def __init__(self, secret: str) -> None:
+        # Frozen key-derivation input: renaming it would invalidate every stored receipt.
         self._key = hashlib.sha256(b"heartsignal:billing-receipt:v1\0" + secret.encode()).digest()
 
     def encrypt(self, value: str) -> bytes:

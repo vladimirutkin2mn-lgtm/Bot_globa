@@ -1,1 +1,1 @@
-"""HeartSignal test suite."""
+"""Bot Globa test suite."""

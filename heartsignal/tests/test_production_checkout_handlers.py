@@ -16,7 +16,7 @@ from aiogram.methods.base import TelegramType
 from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
 
-from app.bot.handlers import (
+from app.bot.core_handlers import (
     buy_credits,
     cancel_receipt_contact,
     create_production_checkout,

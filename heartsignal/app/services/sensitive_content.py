@@ -78,6 +78,8 @@ class AESGCMSensitiveContentCipher:
         )
 
     def _key(self, purpose: ContentPurpose) -> bytes:
+        # The salt is a frozen key-derivation input, not a brand name. Renaming it would
+        # derive a different key and make every existing ciphertext undecryptable.
         derived: bytes = HKDF(
             algorithm=hashes.SHA256(),
             length=32,
@@ -87,6 +89,7 @@ class AESGCMSensitiveContentCipher:
         return derived
 
     def _fingerprint_key(self, purpose: ContentPurpose) -> bytes:
+        # Frozen for the same reason as the content salt above.
         derived: bytes = HKDF(
             algorithm=hashes.SHA256(),
             length=32,

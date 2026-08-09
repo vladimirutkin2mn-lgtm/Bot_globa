@@ -1,1 +1,1 @@
-"""HeartSignal application package."""
+"""Bot Globa application package."""

@@ -33,7 +33,7 @@ async def payment_return(token: UUID, request: Request) -> HTMLResponse:
     }.get(order.status, "Оплата обрабатывается")
     return HTMLResponse(
         f"<!doctype html><title>Статус оплаты</title><h1>{label}</h1>"
-        "<p>Вернитесь в бот. HeartSignal не собирает данные карты.</p>"
+        "<p>Вернитесь в бот. Сервис не собирает данные карты.</p>"
     )
 
 

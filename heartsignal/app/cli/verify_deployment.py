@@ -53,7 +53,7 @@ def _json_object(response: httpx.Response) -> dict[str, object] | None:
 
 
 class DeploymentVerifier:
-    """Run bounded, privacy-safe checks against one deployed HeartSignal instance."""
+    """Run bounded, privacy-safe checks against one deployed instance."""
 
     def __init__(
         self,
@@ -239,7 +239,7 @@ class DeploymentVerifier:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Verify a deployed HeartSignal release")
+    parser = argparse.ArgumentParser(description="Verify a deployed release")
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--max-pending-updates", type=int, default=100)
     parser.add_argument("--recent-error-seconds", type=int, default=900)

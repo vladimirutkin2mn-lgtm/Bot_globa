@@ -1,4 +1,4 @@
-"""Historical Analysis access compatibility without HeartSignal orchestration.
+"""Historical Analysis access compatibility for the retired relationship product.
 
 The relationship-analysis product is retired, but existing ledger rows can still
 reference Analysis records.  Keep the smallest possible mutation boundary for

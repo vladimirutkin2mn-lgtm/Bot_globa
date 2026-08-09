@@ -153,8 +153,6 @@ def create_dispatcher(
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
 
-    # Active product routes only. The imported HeartSignal analysis/follow-up routers
-    # remain in source temporarily for migration compatibility but are not registered.
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(memory_router)

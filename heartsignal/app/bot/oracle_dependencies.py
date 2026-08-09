@@ -1,9 +1,4 @@
-"""Per-update dependencies for the active AI-oracle Telegram runtime.
-
-The imported HeartSignal analysis stack is intentionally excluded here. Legacy
-services remain available for historical compatibility and later cleanup, but
-production Telegram updates must not construct them.
-"""
+"""Per-update dependencies for the AI-oracle Telegram runtime."""
 
 from collections.abc import Awaitable, Callable
 from typing import Any
