@@ -17,9 +17,10 @@ class SafetyIntake:
 
     persona_code: str
     question_state: str
-    context_state: str
-    skip_context_callback: str
     handoff_keyboard: Callable[[], InlineKeyboardMarkup]
+    # A follow-up asks one question and has no optional-context step.
+    context_state: str | None = None
+    skip_context_callback: str | None = None
 
 
 def state_name(state: State) -> str:

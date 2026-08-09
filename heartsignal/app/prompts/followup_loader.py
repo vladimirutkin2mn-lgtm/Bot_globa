@@ -4,7 +4,7 @@ from importlib.resources import files
 
 from app.prompts.loader import PromptNotFoundError, PromptSet
 
-KNOWN_FOLLOWUP_PROMPT_VERSIONS = frozenset({"followup_v1"})
+KNOWN_FOLLOWUP_PROMPT_VERSIONS = frozenset({"followup_v1", "reading_followup_v1"})
 
 
 def load_followup_prompts(version: str) -> PromptSet:

@@ -474,7 +474,7 @@ class PersonaReadingHandlers:
         await _send_chunks(
             message,
             render_full(outcome, self._flow.copy),
-            self._flow.result_keyboard(),
+            self._flow.full_result_keyboard(outcome.reading_id),
         )
 
     async def _answer_unavailable(self, message: Message) -> None:

@@ -27,6 +27,8 @@ class ContentPurpose(StrEnum):
     PAYMENT_METHOD = "payment-method"
     FOLLOW_UP_QUESTION = "follow-up-question"
     FOLLOW_UP_ANSWER = "follow-up-answer"
+    READING_FOLLOW_UP_QUESTION = "reading-follow-up-question"
+    READING_FOLLOW_UP_ANSWER = "reading-follow-up-answer"
 
 
 class SensitiveContentError(ValueError):

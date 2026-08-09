@@ -155,9 +155,13 @@ Backlog рассчитан на четыре MVP-направления: тар�
 
 ### ORA-305 · Paid contextual follow-up — P0 / M
 
-- [ ] Один follow-up в полном reading.
-- [ ] Exactly-once consumption.
-- [ ] Без нового расклада и повторного списания.
+- [x] Один follow-up в полном reading.
+- [x] Exactly-once consumption.
+- [x] Без нового расклада и повторного списания.
+
+Реализовано на `Reading` для всех четырёх персон: `app/services/reading_followup.py`,
+таблица `reading_followups`. Аналогичный механизм на `Analysis` остаётся до удаления
+legacy-вертикали.
 
 ---
 

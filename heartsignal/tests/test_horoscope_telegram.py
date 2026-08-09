@@ -140,7 +140,13 @@ def test_the_astrologer_is_registered_with_the_crisis_middleware() -> None:
     codes = {intake.persona_code for intake in mvp_safety_intakes()}
 
     assert HOROSCOPE_FLOW.persona_code in codes
-    assert codes == {"tarot_reader", "love_oracle", "mystical_psychologist", "astrologer"}
+    assert codes == {
+        "tarot_reader",
+        "love_oracle",
+        "mystical_psychologist",
+        "astrologer",
+        "reading_followup",
+    }
 
 
 def test_topics_keyboard_offers_every_supported_scope_plus_the_profile_screen() -> None:
