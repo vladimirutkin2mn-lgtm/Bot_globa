@@ -8,6 +8,7 @@ from collections.abc import Mapping
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.platform.identity import PRODUCT_IDENTITY
 from app.providers.payments.base import (
     PaymentPayloadError,
     PaymentProviderName,
@@ -26,6 +27,29 @@ STRIPE_PAYMENT_EVENTS = {
     "customer.subscription.updated",
     "customer.subscription.deleted",
 }
+PRODUCT_MARKER_KEY = "product"
+
+
+def event_belongs_to_this_product(event_type: str, metadata: Mapping[str, object]) -> bool:
+    """Decide whether a provider event was created by this product.
+
+    One provider account can serve several products, and a provider fans every subscribed
+    event out to every configured endpoint. Checkouts we create always carry the marker,
+    so a checkout without it belongs to someone else and is dropped before it reaches the
+    durable inbox.
+
+    Invoice and subscription payloads are different: the marker lives on the subscription,
+    not on the object the provider sends. Dropping those on a missing marker would discard
+    our own renewals, so they are only rejected when a marker is present and names another
+    product. Anything that slips through resolves to `order_not_found`, which is terminal
+    and writes nothing to the ledger.
+    """
+    marker = metadata.get(PRODUCT_MARKER_KEY)
+    if event_type.startswith("checkout.session.") or event_type.startswith("payment."):
+        return marker == PRODUCT_IDENTITY.repository_slug
+    return marker is None or marker == PRODUCT_IDENTITY.repository_slug
+
+
 YOOKASSA_PAYMENT_EVENTS = {
     "payment.succeeded",
     "payment.canceled",
@@ -117,6 +141,11 @@ async def stripe_webhook(request: Request) -> dict[str, str]:
         raise HTTPException(400, "malformed event") from None
     if event_type not in STRIPE_PAYMENT_EVENTS:
         return {"status": "ignored"}
+    metadata = obj.get("metadata") if isinstance(obj, dict) else None
+    if not event_belongs_to_this_product(
+        event_type, metadata if isinstance(metadata, dict) else {}
+    ):
+        return {"status": "ignored"}
     await request.app.state.webhook_inbox.accept(
         "stripe", event_id, event_type, object_id, hashlib.sha256(body).hexdigest()
     )
@@ -150,6 +179,10 @@ async def yookassa_webhook(request: Request) -> dict[str, str]:
     except (ValueError, TypeError, KeyError, json.JSONDecodeError):
         raise HTTPException(400, "malformed event") from None
     if provider_event_type not in YOOKASSA_PAYMENT_EVENTS:
+        return {"status": "ignored"}
+    if not event_belongs_to_this_product(
+        provider_event_type, metadata if isinstance(metadata, dict) else {}
+    ):
         return {"status": "ignored"}
     subscription = isinstance(metadata, dict) and metadata.get("billing_mode") == "subscription"
     event_type = provider_event_type

@@ -1,0 +1,103 @@
+# Production stack for a shared single-host deployment.
+#
+# TLS and routing belong to the Caddy instance that already fronts the host; this stack
+# only joins its external `web` network and is reached by service name. It never
+# publishes a port, so it cannot collide with the products already running there.
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.prod
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - default
+      - web
+    restart: unless-stopped
+
+  telegram-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.prod
+    command: ["python", "-m", "app.workers.telegram"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  billing-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.prod
+    command: ["python", "-m", "app.workers.billing"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  maintenance-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.prod
+    command: ["python", "-m", "app.workers.maintenance"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  oracle-memory-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.prod
+    command: ["python", "-m", "app.workers.oracle_memory"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bot_globa}
+      POSTGRES_USER: ${POSTGRES_USER:-bot_globa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bot_globa} -d ${POSTGRES_DB:-bot_globa}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+networks:
+  # Created and owned by the host's proxy stack.
+  web:
+    external: true
+
+volumes:
+  pgdata:

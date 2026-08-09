@@ -76,5 +76,9 @@ async def test_one_time_checkout_uses_receipt_label_but_keeps_order_metadata(
     metadata = cast("dict[str, object]", transport.payload["metadata"])
     assert transport.payload["description"] == request.receipt_label
     assert items[0]["description"] == request.receipt_label
-    assert metadata == {"order_id": request.order_id, "product_version": 2}
+    assert metadata == {
+        "product": "bot_globa",
+        "order_id": request.order_id,
+        "product_version": 2,
+    }
     assert request.product_code not in str(receipt)

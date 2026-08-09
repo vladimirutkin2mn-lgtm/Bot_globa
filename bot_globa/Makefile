@@ -238,6 +238,17 @@ install: ## Create ./.venv from uv.lock (exact versions, same as CI)
 lock: ## Re-resolve uv.lock after changing dependencies in pyproject.toml
 	uv lock
 
+.PHONY: deploy-prod-remote
+deploy-prod-remote: ## Sync, build, migrate and smoke the shared-host production stack
+	DEPLOY_HOST="$(DEPLOY_HOST)" DEPLOY_PATH="$(DEPLOY_PATH)" DEPLOY_SSH_OPTS='$(DEPLOY_SSH_OPTS)' \
+	SKIP_SYNC="$(SKIP_SYNC)" SKIP_MIGRATIONS="$(SKIP_MIGRATIONS)" RUN_SMOKE="$(RUN_SMOKE)" \
+	bash tools/deploy_prod_remote.sh
+
+.PHONY: smoke-prod-remote
+smoke-prod-remote: ## Verify an already deployed release
+	DEPLOY_HOST="$(DEPLOY_HOST)" DEPLOY_PATH="$(DEPLOY_PATH)" DEPLOY_SSH_OPTS='$(DEPLOY_SSH_OPTS)' \
+	bash tools/smoke_prod_remote.sh
+
 .PHONY: api
 api: ## Run the API on the host with reload
 	$(BIN)uvicorn app.api.main:app --reload

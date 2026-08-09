@@ -139,6 +139,7 @@ or loosening an assertion.
 | Refunds | [`docs/provider-refunds.md`](docs/provider-refunds.md) |
 | Release gates and verification | [`docs/release-gates.md`](docs/release-gates.md) |
 | **Production readiness** | [`../docs/runbooks/production-readiness.md`](../docs/runbooks/production-readiness.md) |
+| Shared-host deployment | [`../docs/runbooks/shared-host-deployment.md`](../docs/runbooks/shared-host-deployment.md) |
 | Rollout and rollback | [`../docs/runbooks/oracle-limited-release.md`](../docs/runbooks/oracle-limited-release.md) |
 
 `PRODUCT_SPEC.md` and `TASKS.md` describe the historical HeartSignal product. They are

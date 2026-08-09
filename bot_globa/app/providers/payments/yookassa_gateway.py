@@ -7,6 +7,7 @@ from uuid import UUID
 
 import httpx
 
+from app.platform.identity import PRODUCT_IDENTITY
 from app.providers.payments.base import (
     PermanentProviderError,
     ProviderStateMismatchError,
@@ -52,7 +53,11 @@ class YooKassaGateway:
             "capture": True,
             "confirmation": {"type": "redirect", "return_url": request.success_url},
             "description": label,
-            "metadata": {"order_id": request.order_id, "product_version": request.product_version},
+            "metadata": {
+                "product": PRODUCT_IDENTITY.repository_slug,
+                "order_id": request.order_id,
+                "product_version": request.product_version,
+            },
         }
         receipt = self._receipt(label, request.amount_minor, request.receipt_contact)
         if receipt is not None:
@@ -389,6 +394,7 @@ def _subscription_metadata(
     period_end: datetime | None = None,
 ) -> dict[str, str]:
     value = {
+        "product": PRODUCT_IDENTITY.repository_slug,
         "billing_mode": "subscription",
         "subscription_kind": subscription_kind,
         "user_id": str(user_id),

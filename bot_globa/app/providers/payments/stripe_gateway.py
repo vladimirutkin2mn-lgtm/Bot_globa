@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from app.platform.identity import PRODUCT_IDENTITY
 from app.providers.payments.base import (
     PaymentPayloadError,
     PaymentSignatureError,
@@ -57,6 +58,7 @@ class StripeGateway:
                         "cancel_url": request.cancel_url,
                         "client_reference_id": request.order_id,
                         "metadata": {
+                            "product": PRODUCT_IDENTITY.repository_slug,
                             "order_id": request.order_id,
                             "product_code": request.product_code,
                             "product_version": str(request.product_version),
@@ -117,6 +119,7 @@ class StripeGateway:
         self, request: CreateSubscriptionCheckout
     ) -> HostedSubscriptionCheckout:
         metadata = {
+            "product": PRODUCT_IDENTITY.repository_slug,
             "user_id": str(request.user_id),
             "order_id": str(request.order_id),
             "product_code": request.product_code,

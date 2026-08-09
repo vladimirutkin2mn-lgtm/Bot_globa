@@ -2,7 +2,9 @@
 
 > **This runbook is not currently executable.** The `render.yaml` it refers to was not
 > carried over with the imported baseline. Recreate it, or pick a different target
-> platform, before attempting a production deploy. What a deploy must satisfy is
+> platform, before attempting a production deploy. The shared-host deployment that is
+> actually used is described in
+> [`../../docs/runbooks/shared-host-deployment.md`](../../docs/runbooks/shared-host-deployment.md). What a deploy must satisfy is
 > enumerated in [`../../docs/runbooks/production-readiness.md`](../../docs/runbooks/production-readiness.md).
 
 This runbook describes the first supported production topology for HeartSignal. The repository root contains `render.yaml`, which creates one managed PostgreSQL database, one public API service and three private workers.
