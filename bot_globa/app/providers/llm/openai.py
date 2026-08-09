@@ -69,11 +69,17 @@ class OpenAILLMClient:
         timeout_seconds: float,
         max_attempts: int,
         client: AsyncOpenAI | None = None,
+        base_url: str | None = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("OpenAI API key is required")
+        # A base URL lets an OpenAI-compatible provider serve the same Responses API
+        # contract. The strict schema and the repair retry are unchanged either way.
         self._client: AsyncOpenAI = client or AsyncOpenAI(
-            api_key=api_key, timeout=timeout_seconds, max_retries=0
+            api_key=api_key,
+            timeout=timeout_seconds,
+            max_retries=0,
+            base_url=base_url or None,
         )
         self._model, self._timeout, self._max_attempts = model, timeout_seconds, max_attempts
 

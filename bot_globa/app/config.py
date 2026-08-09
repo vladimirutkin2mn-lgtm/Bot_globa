@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     llm_provider: Literal["stub", "openai"] = "stub"
     openai_api_key: SecretStr = Field(default=SecretStr(""))
     llm_model: str = "stub"
+    llm_base_url: str = ""
     llm_timeout_seconds: float = Field(default=45, gt=0)
     llm_max_transport_attempts: int = Field(default=2, ge=1, le=5)
     llm_max_repair_attempts: int = Field(default=1, ge=0, le=1)
