@@ -41,7 +41,7 @@ class RecordingSession(AiohttpSession):
             raise RuntimeError("SECRET-PRIVATE-CONTENT")
         if isinstance(method, SendMessage):
             return cast(
-                TelegramType,
+                "TelegramType",
                 Message(
                     message_id=len(self.methods) + 100,
                     date=datetime.now(UTC),
@@ -49,7 +49,7 @@ class RecordingSession(AiohttpSession):
                     text=method.text,
                 ),
             )
-        return cast(TelegramType, True)
+        return cast("TelegramType", True)
 
     async def stream_content(
         self,
