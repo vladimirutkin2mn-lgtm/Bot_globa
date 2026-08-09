@@ -62,15 +62,34 @@ refuses to continue if it is missing. Start from
 Migrations run through `app.cli.release`, which takes a PostgreSQL advisory lock, so two
 concurrent deploys cannot race the schema.
 
-## First deployment: billing stays off
+## Billing is all-or-nothing at boot
 
-Deploy with `BILLING_ENABLED=false`. The four oracle personas work, readings generate,
-memory and follow-ups work — nothing charges. Payments are switched on only after the
-five staging attestations pass, which is a separate exercise described in the readiness
-runbook.
+With `APP_ENV=production`, enabling billing without a complete provider configuration is
+a startup failure, not a degraded mode. The settings refuse:
+
+- the `mock` provider;
+- billing with neither Stripe nor YooKassa enabled;
+- YooKassa without a shop id, secret key and webhook IP allowlist;
+- a non-HTTPS `PAYMENT_PUBLIC_BASE_URL`.
+
+So there are exactly two working shapes for a first deploy. Either fill the provider
+credentials and ship with billing on, or set `BILLING_ENABLED=false` and ship the oracle
+without payments — all four personas, readings, memory and follow-ups work either way.
+There is no half-configured middle.
 
 Set `ORACLE_ROLLOUT_PERCENTAGE=0` for the first deploy and raise it once the process is
 observed healthy. `ORACLE_ENABLED=false` plus a restart is the emergency stop.
+
+## Database: its own instance
+
+This stack runs PostgreSQL 17, the version CI tests against. The host's other product
+runs PostgreSQL 16, so reusing its instance would put production on a major version this
+test suite has never executed against — and one restart would take both products down.
+
+To reuse it anyway: point `DATABASE_URL` at that service, create the database and role
+there, and delete the `db` service and the `pgdata` volume from
+`docker-compose.prod.yml`. Advisory locks are per-database, so the release lock stays
+isolated either way.
 
 ## Sharing one payment provider account with another product
 
