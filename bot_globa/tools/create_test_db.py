@@ -16,11 +16,11 @@ import sys
 
 import asyncpg
 
-USER = os.environ.get("DB_USER", "heartsignal")
+USER = os.environ.get("DB_USER", "bot_globa")
 PASSWORD = os.environ.get("DB_PASSWORD", USER)
 HOST = os.environ.get("DB_HOST", "localhost")
 PORT = int(os.environ.get("DB_PORT", "5432"))
-TEST_DB = os.environ.get("TEST_DB_NAME", "heartsignal_test")
+TEST_DB = os.environ.get("TEST_DB_NAME", "bot_globa_test")
 
 
 RESET = os.environ.get("RESET") == "1"

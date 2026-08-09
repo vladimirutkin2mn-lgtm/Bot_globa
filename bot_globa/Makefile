@@ -22,9 +22,9 @@ SRC     := app tests migrations scripts
 # Host-side connections to the Dockerised postgres from docker-compose.yml.
 # The dev database and the test database are separate, exactly like CI —
 # scripts/reset_test_database.py refuses to touch anything without a `_test` suffix.
-DB_USER      ?= heartsignal
-DB_NAME      ?= heartsignal
-TEST_DB_NAME ?= heartsignal_test
+DB_USER      ?= bot_globa
+DB_NAME      ?= bot_globa
+TEST_DB_NAME ?= bot_globa_test
 
 LOCAL_DB_URL      ?= postgresql+asyncpg://$(DB_USER):$(DB_USER)@localhost:5432/$(DB_NAME)
 TEST_DATABASE_URL ?= postgresql+asyncpg://$(DB_USER):$(DB_USER)@localhost:5432/$(TEST_DB_NAME)

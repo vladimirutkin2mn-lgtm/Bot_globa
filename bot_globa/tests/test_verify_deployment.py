@@ -14,21 +14,21 @@ from app.cli.verify_deployment import (
 from app.config import Settings
 
 _TOKEN = "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-_WEBHOOK = "https://heartsignal.example/telegram/webhook"
+_WEBHOOK = "https://bot-globa.example/telegram/webhook"
 _NOW = datetime(2026, 8, 5, 4, 30, tzinfo=UTC)
 
 
 def production_settings() -> Settings:
     return Settings(
         app_env="production",
-        database_url="postgresql+asyncpg://user:pass@db:5432/heartsignal",
+        database_url="postgresql+asyncpg://user:pass@db:5432/bot_globa",
         telegram_bot_token=SecretStr(_TOKEN),
         telegram_webhook_url=_WEBHOOK,
         telegram_webhook_secret=SecretStr("release-verification-secret-0123456789"),
         content_encryption_key=SecretStr(
             "0123456789abcdefghijklmnopqrstuvwxyz-HEARTSIGNAL-production-key"
         ),
-        payment_public_base_url="https://heartsignal.example",
+        payment_public_base_url="https://bot-globa.example",
     )
 
 
@@ -52,7 +52,7 @@ def mock_transport(
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.host == "heartsignal.example":
+        if request.url.host == "bot-globa.example":
             if request.url.path == "/health/live":
                 return httpx.Response(200, json={"status": "ok"})
             if request.url.path == "/health/ready":
@@ -144,4 +144,4 @@ async def test_verifier_requires_webhook_route_to_reject_wrong_secret() -> None:
 
 def test_api_origin_rejects_embedded_credentials() -> None:
     with pytest.raises(VerificationConfigurationError):
-        api_origin("https://user:password@heartsignal.example/telegram/webhook")
+        api_origin("https://user:password@bot-globa.example/telegram/webhook")

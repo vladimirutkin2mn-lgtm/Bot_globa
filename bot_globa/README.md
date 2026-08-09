@@ -3,9 +3,6 @@
 The Telegram-first personalized AI oracle. Product scope lives at the repository root
 (`../README.md`, `../docs/`); this file covers running and changing the code.
 
-The directory is still called `heartsignal/` because the imported production baseline has
-not been renamed yet — that is ORA-002.
-
 ## Requirements
 
 - Python 3.12
@@ -52,8 +49,8 @@ make ci           # the whole CI pipeline, locally
 
 Postgres-marked tests skip silently without `TEST_DATABASE_URL`, so a green run that
 skipped them proves nothing. The Makefile always exports it and fails fast when the
-database is unreachable. Dev and test databases are separate (`heartsignal` /
-`heartsignal_test`), exactly as in CI.
+database is unreachable. Dev and test databases are separate (`bot_globa` /
+`bot_globa_test`), exactly as in CI.
 
 ## Architecture
 

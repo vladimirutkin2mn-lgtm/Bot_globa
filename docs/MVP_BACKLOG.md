@@ -26,9 +26,14 @@ Backlog рассчитан на четыре MVP-направления: тар�
 
 ### ORA-002 · Repository and package identity — P0 / S
 
-- [ ] Обновить project metadata, README, env example и image names.
-- [ ] Удалить старые deployment identifiers и проверить секреты.
-- [ ] Не переписывать исторические migration IDs.
+- [x] Обновить project metadata, README, env example и image names.
+- [x] Удалить старые deployment identifiers и проверить секреты.
+- [x] Не переписывать исторические migration IDs.
+
+Каталог `heartsignal/` переименован в `bot_globa/`, базы данных — в `bot_globa` и
+`bot_globa_test`, CI-джоба — в `Bot Globa CI`. Не тронуты: ID миграций и три
+криптографических идентификатора (HKDF-соли и HMAC-префикс чека) — они входят в
+вывод ключей, а не в брендинг.
 
 **Acceptance:** проект запускается из `Bot_globa`, а финансовая история миграций сохранена.
 

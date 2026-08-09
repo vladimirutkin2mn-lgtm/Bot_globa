@@ -1,24 +1,24 @@
-name: HeartSignal Baseline CI
+name: Bot Globa CI
 
 on:
   push:
     branches:
       - main
     paths:
-      - "heartsignal/**"
-      - ".github/workflows/heartsignal-ci.yml"
+      - "bot_globa/**"
+      - ".github/workflows/bot-globa-ci.yml"
   pull_request:
     paths:
-      - "heartsignal/**"
-      - ".github/workflows/heartsignal-ci.yml"
+      - "bot_globa/**"
+      - ".github/workflows/bot-globa-ci.yml"
 
 concurrency:
-  group: heartsignal-ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  group: bot-globa-ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 defaults:
   run:
-    working-directory: heartsignal
+    working-directory: bot_globa
 
 jobs:
   quality:
@@ -27,18 +27,18 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_DB: heartsignal_test
-          POSTGRES_USER: heartsignal
-          POSTGRES_PASSWORD: heartsignal
+          POSTGRES_DB: bot_globa_test
+          POSTGRES_USER: bot_globa
+          POSTGRES_PASSWORD: bot_globa
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U heartsignal -d heartsignal_test"
+          --health-cmd "pg_isready -U bot_globa -d bot_globa_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      TEST_DATABASE_URL: postgresql+asyncpg://heartsignal:heartsignal@localhost:5432/heartsignal_test
+      TEST_DATABASE_URL: postgresql+asyncpg://bot_globa:bot_globa@localhost:5432/bot_globa_test
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
         with:
           version: "0.9.28"
           enable-cache: true
-          cache-dependency-glob: heartsignal/uv.lock
+          cache-dependency-glob: bot_globa/uv.lock
 
       - name: Fail if uv.lock is out of date with pyproject.toml
         run: uv lock --check
@@ -67,7 +67,7 @@ jobs:
 
       - name: Validate Alembic migration chain
         env:
-          DATABASE_URL: postgresql+asyncpg://heartsignal:heartsignal@localhost:5432/heartsignal_test
+          DATABASE_URL: postgresql+asyncpg://bot_globa:bot_globa@localhost:5432/bot_globa_test
           TELEGRAM_BOT_TOKEN: 123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
           CONTENT_ENCRYPTION_KEY: ci-only-key
         run: |
@@ -109,15 +109,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: heartsignal-test-reports
+          name: bot-globa-test-reports
           path: |
-            heartsignal/platform-invariants-report.xml
-            heartsignal/oracle-safety-report.xml
-            heartsignal/oracle-staging-quality-report.xml
-            heartsignal/oracle-release-controls-report.xml
-            heartsignal/oracle-quality-report.xml
-            heartsignal/pytest-report.xml
-            heartsignal/coverage.xml
+            bot_globa/platform-invariants-report.xml
+            bot_globa/oracle-safety-report.xml
+            bot_globa/oracle-staging-quality-report.xml
+            bot_globa/oracle-release-controls-report.xml
+            bot_globa/oracle-quality-report.xml
+            bot_globa/pytest-report.xml
+            bot_globa/coverage.xml
           if-no-files-found: warn
           retention-days: 7
 

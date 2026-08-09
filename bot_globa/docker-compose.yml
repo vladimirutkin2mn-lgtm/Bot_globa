@@ -4,11 +4,11 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: heartsignal
-      POSTGRES_USER: heartsignal
-      POSTGRES_PASSWORD: heartsignal
+      POSTGRES_DB: bot_globa
+      POSTGRES_USER: bot_globa
+      POSTGRES_PASSWORD: bot_globa
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U heartsignal -d heartsignal"]
+      test: ["CMD-SHELL", "pg_isready -U bot_globa -d bot_globa"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -9,11 +9,11 @@ This runbook describes the first supported production topology for HeartSignal. 
 
 ## Runtime topology
 
-- `heartsignal-api` receives HTTPS health checks, Telegram updates and payment webhooks. Telegram ingress authenticates the secret header, validates and size-bounds the update, encrypts it into PostgreSQL, and returns `204` without running aiogram handlers.
-- `heartsignal-telegram-worker` claims encrypted Telegram updates, decrypts one update in memory, runs the aiogram dispatcher, and erases the payload after completion or terminal failure. aiogram FSM state is stored durably in PostgreSQL and event handling for one FSM key is serialized with PostgreSQL advisory locks.
-- `heartsignal-billing-worker` processes durable billing jobs, payment reconciliation and the billing outbox. Billing remains disabled until provider credentials and product configuration are complete.
-- `heartsignal-maintenance-worker` clears expired encrypted analysis source content and recovers analyses left in `processing` beyond the configured lease.
-- `heartsignal-db` is the source of truth for product, billing, deletion, analytics, Telegram inbox and FSM state.
+- `bot-globa-api` receives HTTPS health checks, Telegram updates and payment webhooks. Telegram ingress authenticates the secret header, validates and size-bounds the update, encrypts it into PostgreSQL, and returns `204` without running aiogram handlers.
+- `bot-globa-telegram-worker` claims encrypted Telegram updates, decrypts one update in memory, runs the aiogram dispatcher, and erases the payload after completion or terminal failure. aiogram FSM state is stored durably in PostgreSQL and event handling for one FSM key is serialized with PostgreSQL advisory locks.
+- `bot-globa-billing-worker` processes durable billing jobs, payment reconciliation and the billing outbox. Billing remains disabled until provider credentials and product configuration are complete.
+- `bot-globa-maintenance-worker` runs the periodic retention and recovery passes.
+- `bot-globa-db` is the source of truth for product, billing, deletion, analytics, Telegram inbox and FSM state.
 
 The image runs as a non-root user, exposes `/health/live` and `/health/ready`, and handles `SIGTERM` with a bounded graceful-shutdown window.
 

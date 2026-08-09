@@ -1,7 +1,7 @@
-# Root convenience wrapper: the real Makefile lives in heartsignal/.
+# Root convenience wrapper: the real Makefile lives in bot_globa/.
 # `make check` at the repo root behaves exactly like `make check` there.
 
-APP_DIR := heartsignal
+APP_DIR := bot_globa
 
 .DEFAULT_GOAL := help
 
