@@ -29,7 +29,7 @@ class RecordingAnalytics:
 
 
 class SuccessfulLLM:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         return LLMCompletion(
             payload='{"private":"RESULT-MUST-NOT-ENTER-TELEMETRY"}',
             provider="openai",
@@ -41,7 +41,7 @@ class SuccessfulLLM:
 
 
 class DifferentModelLLM:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         return LLMCompletion(
             payload="{}",
             provider="openai",
@@ -53,7 +53,7 @@ class DifferentModelLLM:
 
 
 class TimeoutLLM:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         raise LLMTimeoutError("PRIVATE-PROVIDER-DETAIL")
 
 
@@ -84,8 +84,8 @@ async def test_observed_llm_records_tokens_latency_cost_and_repair_without_conte
     )
     client = ObservedLLMClient(SuccessfulLLM(), observer)
 
-    primary = await client.generate_analysis(_request())
-    repair = await client.generate_analysis(_request(repair=True))
+    primary = await client.generate_structured(_request())
+    repair = await client.generate_structured(_request(repair=True))
 
     assert primary.payload == repair.payload
     assert len(recording.calls) == 2
@@ -135,7 +135,7 @@ async def test_cost_is_unknown_when_runtime_model_does_not_match_configured_rate
         ),
     )
 
-    completion = await client.generate_analysis(_request())
+    completion = await client.generate_structured(_request())
 
     assert completion.model == "unexpected-model"
     properties = recording.calls[0][2]
@@ -157,7 +157,7 @@ async def test_observed_llm_records_safe_failure_code_without_provider_error_tex
     )
 
     with pytest.raises(LLMTimeoutError):
-        await client.generate_analysis(_request())
+        await client.generate_structured(_request())
 
     assert len(recording.calls) == 1
     properties = recording.calls[0][2]
@@ -167,7 +167,7 @@ async def test_observed_llm_records_safe_failure_code_without_provider_error_tex
     assert "PRIVATE-PROVIDER-DETAIL" not in str(recording.calls)
 
 
-async def test_untagged_legacy_llm_request_is_transparent_and_unobserved() -> None:
+async def test_untagged_llm_request_is_transparent_and_unobserved() -> None:
     recording = RecordingAnalytics()
     client = ObservedLLMClient(
         SuccessfulLLM(),
@@ -178,7 +178,7 @@ async def test_untagged_legacy_llm_request_is_transparent_and_unobserved() -> No
         ),
     )
 
-    completion = await client.generate_analysis(_request(tagged=False))
+    completion = await client.generate_structured(_request(tagged=False))
 
     assert completion.model == "quality-model"
     assert recording.calls == []

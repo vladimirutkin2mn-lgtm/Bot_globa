@@ -57,7 +57,7 @@ class GoldenLoveOracleLLM:
     def __init__(self) -> None:
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         payload = {
             "title": "A grounded look at distance and communication",
@@ -111,7 +111,7 @@ class GoldenLoveOracleLLM:
 
 
 class MindReadingLoveOracleLLM:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         del request
         payload = {
             "title": "His hidden feelings",

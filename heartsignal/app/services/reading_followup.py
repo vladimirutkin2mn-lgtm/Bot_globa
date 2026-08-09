@@ -213,7 +213,7 @@ class ReadingFollowUpService:
                 (),
                 telemetry_prompt_version=self._prompt_version,
             )
-            completion = await self._llm.generate_analysis(request)
+            completion = await self._llm.generate_structured(request)
             attempts += 1
             completions.append(completion)
             try:
@@ -221,7 +221,7 @@ class ReadingFollowUpService:
             except (ValidationError, ValueError, ReadingFollowUpSemanticError) as error:
                 if self._max_repairs == 0:
                     raise
-                completion = await self._llm.generate_analysis(
+                completion = await self._llm.generate_structured(
                     LLMRequest(
                         prompts.system,
                         prompts.repair.format(

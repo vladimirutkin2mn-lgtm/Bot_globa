@@ -5,7 +5,7 @@ from app.providers.llm.stub import StubLLMClient
 
 
 class PlainClient:
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         raise AssertionError
 
 
@@ -15,6 +15,11 @@ class ClosingClient(PlainClient):
 
     async def aclose(self) -> None:
         self.closed = True
+
+
+def test_stub_exposes_only_neutral_structured_transport() -> None:
+    assert hasattr(StubLLMClient, "generate_structured")
+    assert not hasattr(StubLLMClient, "generate_analysis")
 
 
 async def test_stub_and_plain_clients_close_safely() -> None:

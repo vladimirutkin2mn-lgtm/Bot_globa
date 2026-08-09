@@ -53,7 +53,7 @@ class SlowLLM:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         del request
         self.calls += 1
         await asyncio.sleep(0.2)
@@ -66,7 +66,7 @@ class SequenceLLM:
         self.calls = 0
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.calls += 1
         self.requests.append(request)
         output = self.outputs.pop(0)

@@ -159,7 +159,7 @@ class ReadingGenerationService:
                 telemetry_prompt_version=context.prompt_version,
             )
             attempts += 1
-            last_completion = await self._llm.generate_analysis(request)
+            last_completion = await self._llm.generate_structured(request)
             try:
                 validated = self._validator.validate(
                     last_completion.payload, list(expected_symbols)
@@ -172,7 +172,7 @@ class ReadingGenerationService:
                     f"{self._validator.repair_instruction(error)}"
                 )
                 attempts += 1
-                last_completion = await self._llm.generate_analysis(
+                last_completion = await self._llm.generate_structured(
                     LLMRequest(
                         system_prompt=prompts.system,
                         user_prompt=repair_prompt,

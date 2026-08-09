@@ -88,7 +88,7 @@ class SequenceLLM:
         self.payloads = payloads
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         payload = self.payloads[len(self.requests) - 1]
         return LLMCompletion(

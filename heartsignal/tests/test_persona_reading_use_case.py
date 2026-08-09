@@ -55,7 +55,7 @@ class StructuredTarotLLM:
     def __init__(self) -> None:
         self.requests: list[LLMRequest] = []
 
-    async def generate_analysis(self, request: LLMRequest) -> LLMCompletion:
+    async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
         self.requests.append(request)
         input_json = request.user_prompt.split("INPUT_JSON:\n", 1)[1].split(
             "\n\nCORRECTION_INSTRUCTION:",
