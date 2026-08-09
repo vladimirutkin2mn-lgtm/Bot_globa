@@ -1,6 +1,6 @@
 """Pure contract tests for encrypted BirthProfile payloads."""
 
-from datetime import UTC, date, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import cast
 
 import pytest
@@ -54,7 +54,7 @@ def test_birth_profile_round_trips_exact_and_unknown_time() -> None:
     [
         ({"birth_place": ""}, "birth place"),
         ({"timezone": "Not/A_Timezone"}, "valid IANA timezone"),
-        ({"birth_date": date.today() + timedelta(days=1)}, "cannot be in the future"),
+        ({"birth_date": datetime.now(UTC).date() + timedelta(days=1)}, "cannot be in the future"),
         ({"birth_time": time(12, tzinfo=UTC)}, "timezone-naive"),
         ({"latitude": 90.1}, "between -90 and 90"),
         ({"longitude": -180.1}, "between -180 and 180"),
@@ -71,13 +71,13 @@ def test_birth_profile_rejects_invalid_private_fields(
 
     with pytest.raises(ValueError, match=message):
         BirthProfileInput(
-            birth_date=cast(date, values["birth_date"]),
-            birth_time=cast(time | None, values["birth_time"]),
-            birth_place=cast(str, values["birth_place"]),
-            timezone=cast(str, values["timezone"]),
-            latitude=cast(float, values["latitude"]),
-            longitude=cast(float, values["longitude"]),
-            utc_offset_minutes=cast(int, values["utc_offset_minutes"]),
+            birth_date=cast("date", values["birth_date"]),
+            birth_time=cast("time | None", values["birth_time"]),
+            birth_place=cast("str", values["birth_place"]),
+            timezone=cast("str", values["timezone"]),
+            latitude=cast("float", values["latitude"]),
+            longitude=cast("float", values["longitude"]),
+            utc_offset_minutes=cast("int", values["utc_offset_minutes"]),
         )
 
 

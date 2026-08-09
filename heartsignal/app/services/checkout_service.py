@@ -18,13 +18,13 @@ from app.providers.payments.base import (
     BillingMarket,
     PaymentProviderName,
     PermanentProviderError,
-    UnknownProviderOutcome,
+    UnknownProviderOutcomeError,
 )
 from app.providers.payments.gateway import CreateCheckout, HostedCheckout, OneTimePaymentGateway
-from app.services.receipt_contact import InvalidReceiptContact, validate_receipt_contact
+from app.services.receipt_contact import InvalidReceiptContactError, validate_receipt_contact
 
 
-class CheckoutRejected(Exception):
+class CheckoutRejectedError(Exception):
     pass
 
 
@@ -51,7 +51,7 @@ class ReceiptContactCipher:
     def decrypt(self, value: bytes) -> str:
         nonce, tag, ciphertext = value[:16], value[16:48], value[48:]
         if not hmac.compare_digest(tag, hmac.digest(self._key, nonce + ciphertext, "sha256")):
-            raise CheckoutRejected("receipt contact storage is invalid")
+            raise CheckoutRejectedError("receipt contact storage is invalid")
         stream = hashlib.shake_256(self._key + nonce).digest(len(ciphertext))
         return bytes(a ^ b for a, b in zip(ciphertext, stream, strict=True)).decode()
 
@@ -75,7 +75,7 @@ class CheckoutService:
     async def order_by_token(self, token: UUID) -> PaymentOrder | None:
         async with self._sessions() as session:
             return cast(
-                PaymentOrder | None,
+                "PaymentOrder | None",
                 await session.scalar(
                     select(PaymentOrder).where(PaymentOrder.checkout_token == token)
                 ),
@@ -90,38 +90,38 @@ class CheckoutService:
         receipt_contact: str | None = None,
     ) -> OneTimeCheckoutResult:
         if not self._settings.permits_new_checkout():
-            raise CheckoutRejected("billing unavailable")
+            raise CheckoutRejectedError("billing unavailable")
         try:
             offer = self._catalog.resolve_product_offer(product_code, market, currency)
         except LookupError as exc:
-            raise CheckoutRejected("unsupported offer") from exc
+            raise CheckoutRejectedError("unsupported offer") from exc
         if offer.purchase_mode is not PurchaseMode.ONE_TIME:
-            raise CheckoutRejected("subscriptions unavailable")
+            raise CheckoutRejectedError("subscriptions unavailable")
         enabled = (
             self._settings.yookassa_enabled
             if offer.provider is PaymentProviderName.YOOKASSA
             else self._settings.stripe_enabled
         )
         if not enabled or offer.provider not in self._gateways:
-            raise CheckoutRejected("provider unavailable")
+            raise CheckoutRejectedError("provider unavailable")
         if (
             offer.provider is PaymentProviderName.YOOKASSA
             and self._settings.yookassa_receipts_required
         ):
             try:
                 if not receipt_contact:
-                    raise InvalidReceiptContact
+                    raise InvalidReceiptContactError
                 validate_receipt_contact(receipt_contact)
-            except InvalidReceiptContact:
-                raise CheckoutRejected("valid receipt contact required") from None
+            except InvalidReceiptContactError:
+                raise CheckoutRejectedError("valid receipt contact required") from None
         attempt = uuid4()
         now = datetime.now(UTC)
         async with self._sessions.begin() as session:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
             if user is None:
-                raise CheckoutRejected("user not found")
+                raise CheckoutRejectedError("user not found")
             if user.privacy_status != "active":
-                raise CheckoutRejected("user deleted")
+                raise CheckoutRejectedError("user deleted")
             order = await session.scalar(
                 select(PaymentOrder)
                 .where(
@@ -151,7 +151,7 @@ class CheckoutService:
                 )
             if order is None:
                 if offer.price_reference.startswith("unconfigured:"):
-                    raise CheckoutRejected("product price unavailable")
+                    raise CheckoutRejectedError("product price unavailable")
                 order = PaymentOrder(
                     user_id=user_id,
                     provider=offer.provider.value,
@@ -187,7 +187,7 @@ class CheckoutService:
                 price_reference = _snapshot_text(snapshot, "price_reference")
                 receipt_label = _optional_snapshot_text(snapshot, "receipt_label")
                 if price_reference.startswith("unconfigured:"):
-                    raise CheckoutRejected("stored product price unavailable")
+                    raise CheckoutRejectedError("stored product price unavailable")
             order.checkout_creation_attempt_id, order.checkout_creation_started_at = attempt, now
             if receipt_contact:
                 order.encrypted_receipt_contact = self._cipher.encrypt(receipt_contact)
@@ -207,12 +207,12 @@ class CheckoutService:
             order_id, token = order.id, order.checkout_token
         try:
             checkout = await self._gateways[offer.provider].create_checkout(request)
-        except UnknownProviderOutcome:
+        except UnknownProviderOutcomeError:
             await self._unknown(order_id, attempt, offer.provider.value)
             return OneTimeCheckoutResult(order_id, token, None, "creating")
         except PermanentProviderError:
             await self._failed(order_id, attempt)
-            raise CheckoutRejected("provider rejected checkout") from None
+            raise CheckoutRejectedError("provider rejected checkout") from None
         await self._save(order_id, attempt, checkout)
         return OneTimeCheckoutResult(order_id, token, checkout.url, "pending")
 
@@ -300,7 +300,7 @@ class CheckoutService:
 def _snapshot_text(snapshot: dict[str, object], key: str) -> str:
     value = snapshot.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise CheckoutRejected("stored commercial snapshot unavailable")
+        raise CheckoutRejectedError("stored commercial snapshot unavailable")
     return value.strip()
 
 

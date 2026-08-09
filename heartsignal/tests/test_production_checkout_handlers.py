@@ -26,7 +26,7 @@ from app.bot.states import PaymentStates
 from app.config import Settings
 from app.db.models import User
 from app.providers.payments.base import Checkout
-from app.services.checkout_service import CheckoutRejected, OneTimeCheckoutResult
+from app.services.checkout_service import CheckoutRejectedError, OneTimeCheckoutResult
 from app.services.payment_service import CheckoutOutcome, CheckoutResult
 
 
@@ -44,7 +44,7 @@ class RecordingSession(AiohttpSession):
         self.methods.append(method)
         if isinstance(method, SendMessage):
             return cast(
-                TelegramType,
+                "TelegramType",
                 Message(
                     message_id=len(self.methods) + 100,
                     date=datetime.now(UTC),
@@ -53,8 +53,8 @@ class RecordingSession(AiohttpSession):
                 ),
             )
         if isinstance(method, AnswerCallbackQuery):
-            return cast(TelegramType, True)
-        return cast(TelegramType, True)
+            return cast("TelegramType", True)
+        return cast("TelegramType", True)
 
     async def stream_content(
         self,
@@ -91,7 +91,7 @@ class FakeCheckout:
     ) -> OneTimeCheckoutResult:
         self.calls.append((user_id, product, market, currency, receipt_contact))
         if self.reject:
-            raise CheckoutRejected("unavailable")
+            raise CheckoutRejectedError("unavailable")
         return OneTimeCheckoutResult(user_id, uuid4(), self.url, "pending")
 
 
@@ -146,7 +146,7 @@ async def test_billing_disabled_uses_legacy_mock_checkout(
     _, session, _, callback, onboarding = handler_context
     callback = with_data(callback, "credits:buy:analysis_single")
     await buy_credits(callback, onboarding, FakeLegacyPayments(), settings)
-    markup = cast(InlineKeyboardMarkup, sent(session)[-1].reply_markup)
+    markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     assert markup.inline_keyboard[0][0].url == "https://local.test/mock"
 
 
@@ -159,7 +159,7 @@ async def test_billing_enabled_opens_explicit_market_selection(
     await buy_credits(
         callback, onboarding, None, settings.model_copy(update={"billing_enabled": True})
     )
-    markup = cast(InlineKeyboardMarkup, sent(session)[-1].reply_markup)
+    markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
     assert callbacks[:3] == [
         "credits:offer:analysis_single:RU:RUB",

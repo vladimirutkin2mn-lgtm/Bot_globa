@@ -14,7 +14,7 @@ from app.providers.payments.base import (
     BillingMarket,
     PaymentProviderName,
     PermanentProviderError,
-    UnknownProviderOutcome,
+    UnknownProviderOutcomeError,
 )
 from app.providers.payments.subscription_gateway import (
     CreateSubscriptionCheckout,
@@ -23,7 +23,7 @@ from app.providers.payments.subscription_gateway import (
 )
 
 
-class SubscriptionCheckoutRejected(RuntimeError):
+class SubscriptionCheckoutRejectedError(RuntimeError):
     """Safe user-facing rejection without provider detail."""
 
 
@@ -56,28 +56,28 @@ class SubscriptionCheckoutService:
         currency: str,
     ) -> SubscriptionCheckoutResult:
         if not self._settings.permits_new_checkout() or not self._settings.subscriptions_enabled:
-            raise SubscriptionCheckoutRejected("subscriptions unavailable")
+            raise SubscriptionCheckoutRejectedError("subscriptions unavailable")
         try:
             offer = self._catalog.resolve_product_offer(product_code, market, currency)
         except LookupError as exc:
-            raise SubscriptionCheckoutRejected("unsupported offer") from exc
+            raise SubscriptionCheckoutRejectedError("unsupported offer") from exc
         if offer.purchase_mode is not PurchaseMode.SUBSCRIPTION:
-            raise SubscriptionCheckoutRejected("not a subscription offer")
+            raise SubscriptionCheckoutRejectedError("not a subscription offer")
         if offer.provider not in self._gateways:
-            raise SubscriptionCheckoutRejected("subscription provider unavailable")
+            raise SubscriptionCheckoutRejectedError("subscription provider unavailable")
         if (
             offer.provider is PaymentProviderName.YOOKASSA
             and self._settings.yookassa_receipts_required
             and not self._settings.yookassa_receipt_email
         ):
-            raise SubscriptionCheckoutRejected("receipt contact unavailable")
+            raise SubscriptionCheckoutRejectedError("receipt contact unavailable")
 
         attempt = uuid4()
         now = datetime.now(UTC)
         async with self._sessions.begin() as session:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
             if user is None or user.privacy_status != "active":
-                raise SubscriptionCheckoutRejected("active user not found")
+                raise SubscriptionCheckoutRejectedError("active user not found")
             order = await session.scalar(
                 select(PaymentOrder)
                 .where(
@@ -108,7 +108,7 @@ class SubscriptionCheckoutService:
                 )
             if order is None:
                 if offer.price_reference.startswith("unconfigured:"):
-                    raise SubscriptionCheckoutRejected("subscription price unavailable")
+                    raise SubscriptionCheckoutRejectedError("subscription price unavailable")
                 order = PaymentOrder(
                     user_id=user_id,
                     provider=offer.provider.value,
@@ -148,7 +148,7 @@ class SubscriptionCheckoutService:
                 consent_version = _snapshot_text(snapshot, "consent_version")
                 receipt_label = _optional_snapshot_text(snapshot, "receipt_label")
                 if price_reference.startswith("unconfigured:"):
-                    raise SubscriptionCheckoutRejected("stored subscription price unavailable")
+                    raise SubscriptionCheckoutRejectedError("stored subscription price unavailable")
             order.checkout_creation_attempt_id = attempt
             order.checkout_creation_started_at = now
             request = CreateSubscriptionCheckout(
@@ -184,12 +184,12 @@ class SubscriptionCheckoutService:
 
         try:
             checkout = await self._gateways[provider].create_subscription_checkout(request)
-        except UnknownProviderOutcome:
+        except UnknownProviderOutcomeError:
             await self._unknown(order_id, attempt, provider.value)
             return SubscriptionCheckoutResult(order_id, token, None, "creating")
         except PermanentProviderError:
             await self._failed(order_id, attempt)
-            raise SubscriptionCheckoutRejected("provider rejected checkout") from None
+            raise SubscriptionCheckoutRejectedError("provider rejected checkout") from None
         await self._save(order_id, attempt, checkout)
         return SubscriptionCheckoutResult(order_id, token, checkout.url, "pending")
 
@@ -273,7 +273,7 @@ class SubscriptionCheckoutService:
 def _snapshot_text(snapshot: dict[str, object], key: str) -> str:
     value = snapshot.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise SubscriptionCheckoutRejected("stored commercial snapshot unavailable")
+        raise SubscriptionCheckoutRejectedError("stored commercial snapshot unavailable")
     return value.strip()
 
 

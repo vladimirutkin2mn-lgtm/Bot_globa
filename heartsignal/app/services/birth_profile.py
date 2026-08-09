@@ -284,7 +284,7 @@ class BirthProfileService:
         user_id: UUID,
     ) -> BirthProfile | None:
         return cast(
-            BirthProfile | None,
+            "BirthProfile | None",
             await session.scalar(
                 select(BirthProfile).where(BirthProfile.user_id == user_id).with_for_update()
             ),
@@ -300,7 +300,7 @@ class BirthProfileService:
         statement = select(User).where(User.id == user_id, User.privacy_status == "active")
         if for_update:
             statement = statement.with_for_update(of=User)
-        user = cast(User | None, await session.scalar(statement))
+        user = cast("User | None", await session.scalar(statement))
         if user is None:
             raise LookupError("active birth profile user not found")
         return user

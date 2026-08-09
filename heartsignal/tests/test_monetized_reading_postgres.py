@@ -116,7 +116,7 @@ async def _ready_reading(
     ready = await service.complete_preview(
         reading.id,
         user.id,
-        cast(dict[str, object], _result().model_dump(mode="json")),
+        cast("dict[str, object]", _result().model_dump(mode="json")),
         _symbols(),
     )
     return user, service, ready

@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Personal Claude Code permission allowlist — machine-local, not shared.
+.claude/settings.local.json
+
+# oh-my-claudecode working state (plans, notepad, logs, sessions).
+.omc/

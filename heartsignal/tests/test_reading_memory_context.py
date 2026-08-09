@@ -86,7 +86,7 @@ async def test_retrieval_preserves_high_stakes_topics_and_epistemic_labels() -> 
         age_days=0,
     )
     fake = FakeMemoryService([irrelevant, financial, inferred, relationship])
-    retriever = OracleReadingMemoryRetriever(cast(OracleMemoryService, fake))
+    retriever = OracleReadingMemoryRetriever(cast("OracleMemoryService", fake))
 
     selected = await retriever.retrieve(
         user_id,
@@ -127,7 +127,7 @@ async def test_retrieval_enforces_item_and_character_budgets() -> None:
         for index in range(10)
     ]
     retriever = OracleReadingMemoryRetriever(
-        cast(OracleMemoryService, FakeMemoryService(items)),
+        cast("OracleMemoryService", FakeMemoryService(items)),
         max_items=3,
         max_item_characters=80,
         max_total_characters=170,
@@ -149,7 +149,7 @@ async def test_retrieval_enforces_item_and_character_budgets() -> None:
 
 @pytest.mark.asyncio
 async def test_retrieval_returns_empty_when_consent_service_returns_no_memory() -> None:
-    retriever = OracleReadingMemoryRetriever(cast(OracleMemoryService, FakeMemoryService([])))
+    retriever = OracleReadingMemoryRetriever(cast("OracleMemoryService", FakeMemoryService([])))
     assert (
         await retriever.retrieve(
             uuid4(),

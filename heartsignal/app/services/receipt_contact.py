@@ -9,7 +9,7 @@ _EMAIL = re.compile(
 _PHONE = re.compile(r"^\+[1-9][0-9]{7,14}$")
 
 
-class InvalidReceiptContact(ValueError):
+class InvalidReceiptContactError(ValueError):
     pass
 
 
@@ -24,5 +24,5 @@ class ReceiptContact:
 def validate_receipt_contact(value: str) -> ReceiptContact:
     candidate = value.strip()
     if not (_EMAIL.fullmatch(candidate) or _PHONE.fullmatch(candidate)):
-        raise InvalidReceiptContact("invalid receipt contact")
+        raise InvalidReceiptContactError("invalid receipt contact")
     return ReceiptContact(candidate)

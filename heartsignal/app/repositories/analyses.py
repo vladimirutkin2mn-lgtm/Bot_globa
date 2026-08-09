@@ -125,7 +125,7 @@ class SqlAlchemyAnalysisRepository:
 
     async def get_active(self, user_id: UUID) -> Analysis | None:
         return cast(
-            Analysis | None,
+            "Analysis | None",
             await self._session.scalar(
                 select(Analysis)
                 .where(
@@ -139,7 +139,7 @@ class SqlAlchemyAnalysisRepository:
 
     async def get_latest_pending_billing(self, user_id: UUID) -> Analysis | None:
         return cast(
-            Analysis | None,
+            "Analysis | None",
             await self._session.scalar(
                 select(Analysis)
                 .where(
@@ -171,7 +171,7 @@ class SqlAlchemyAnalysisRepository:
 
     async def get_owned(self, analysis_id: UUID, user_id: UUID) -> Analysis | None:
         return cast(
-            Analysis | None,
+            "Analysis | None",
             await self._session.scalar(
                 select(Analysis).where(Analysis.id == analysis_id, Analysis.user_id == user_id)
             ),
@@ -179,7 +179,7 @@ class SqlAlchemyAnalysisRepository:
 
     async def get_owned_completed(self, analysis_id: UUID, user_id: UUID) -> Analysis | None:
         return cast(
-            Analysis | None,
+            "Analysis | None",
             await self._session.scalar(
                 select(Analysis).where(
                     Analysis.id == analysis_id,
@@ -212,7 +212,7 @@ class SqlAlchemyAnalysisRepository:
         if score not in range(1, 6):
             return FeedbackOutcome.INVALID_SCORE
         changed = cast(
-            CursorResult[object],
+            "CursorResult[object]",
             await self._session.execute(
                 update(Analysis)
                 .where(
@@ -239,7 +239,7 @@ class SqlAlchemyAnalysisRepository:
 
     async def delete_owned(self, analysis_id: UUID, user_id: UUID) -> DeletionOutcome:
         changed = cast(
-            CursorResult[object],
+            "CursorResult[object]",
             await self._session.execute(
                 update(Analysis)
                 .where(
@@ -385,7 +385,7 @@ class SqlAlchemyAnalysisRepository:
             .where(Analysis.id == analysis_id, Analysis.status == "processing")
             .values(**values)
         )
-        result_proxy = cast(CursorResult[object], await self._session.execute(statement))
+        result_proxy = cast("CursorResult[object]", await self._session.execute(statement))
         if result_proxy.rowcount != 1:
             await self._session.rollback()
             raise RuntimeError("Analysis is not processing")

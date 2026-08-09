@@ -70,9 +70,9 @@ async def test_worker_completes_successful_update() -> None:
     bot = Bot(token="123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     try:
         worker = TelegramUpdateWorker(
-            cast(TelegramUpdateInboxService, inbox),
+            cast("TelegramUpdateInboxService", inbox),
             bot,
-            cast(Dispatcher, dispatcher),
+            cast("Dispatcher", dispatcher),
         )
         assert await worker.run_once("worker")
         assert dispatcher.updates == [2001]
@@ -89,9 +89,9 @@ async def test_worker_retries_unexpected_handler_failure() -> None:
     bot = Bot(token="123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     try:
         worker = TelegramUpdateWorker(
-            cast(TelegramUpdateInboxService, inbox),
+            cast("TelegramUpdateInboxService", inbox),
             bot,
-            cast(Dispatcher, dispatcher),
+            cast("Dispatcher", dispatcher),
         )
         assert await worker.run_once("worker")
         assert inbox.retried == [(2002, claim_id, "unexpected_handler_error")]
@@ -107,9 +107,9 @@ async def test_worker_permanently_rejects_invalid_decrypted_update() -> None:
     bot = Bot(token="123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     try:
         worker = TelegramUpdateWorker(
-            cast(TelegramUpdateInboxService, inbox),
+            cast("TelegramUpdateInboxService", inbox),
             bot,
-            cast(Dispatcher, dispatcher),
+            cast("Dispatcher", dispatcher),
         )
         assert await worker.run_once("worker")
         assert inbox.failed == [(2003, claim_id, "invalid_telegram_update")]

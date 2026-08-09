@@ -106,7 +106,7 @@ class PostgresFSMStorage(BaseStorage):
         statement = select(TelegramFSMState).where(*_matches(key))
         if for_update:
             statement = statement.with_for_update()
-        return cast(TelegramFSMState | None, await session.scalar(statement))
+        return cast("TelegramFSMState | None", await session.scalar(statement))
 
     def _decode_data(self, row: TelegramFSMState | None) -> dict[str, Any]:
         if row is None or row.data_ciphertext is None:
@@ -117,7 +117,7 @@ class PostgresFSMStorage(BaseStorage):
         )
         if not isinstance(value, dict) or not all(isinstance(item, str) for item in value):
             raise InvalidFSMDataError("FSM data must be a JSON object with string keys")
-        return cast(dict[str, Any], value).copy()
+        return cast("dict[str, Any]", value).copy()
 
     def _encode_data(self, data: Mapping[str, Any]) -> bytes | None:
         copied = dict(data)

@@ -173,7 +173,7 @@ class TelegramUpdateInboxService:
         return ClaimedTelegramUpdate(
             update_id,
             claim_id,
-            cast(dict[str, object], value),
+            cast("dict[str, object]", value),
         )
 
     async def complete(self, update_id: int, claim_id: UUID) -> bool:

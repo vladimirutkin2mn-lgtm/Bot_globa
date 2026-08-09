@@ -4,13 +4,13 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-import app.db.reading_models  # noqa: F401
+# Imported for its side effect: the shared metadata needs every mapped table.
+from app.db import reading_models as _reading_models  # noqa: F401
 from app.db.analytics import AnalyticsEvent
 from app.db.models import BillingJob, BillingOutboxEvent
 from app.observability.oracle_quality import ASTROLOGY_EVENT, GENERATION_EVENT, LLM_ATTEMPT_EVENT
 from app.providers.analytics import ORACLE_QUALITY_EVENT_VERSION, PRODUCT_EVENT_TAXONOMY_VERSION
 from app.services.admin_metrics import AdminMetricsService
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 
 def _quality(
@@ -32,7 +32,7 @@ def _quality(
 
 
 async def test_admin_metrics_group_oracle_cost_quality_safety_and_billing_health(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     private_sentinel = "PRIVATE-OBSERVABILITY-SENTINEL"
     async with payment_db.begin() as session:

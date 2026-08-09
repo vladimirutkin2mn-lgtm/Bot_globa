@@ -1,7 +1,5 @@
 """Bound untrusted oracle data and validate share-safe structured text."""
 
-# ruff: noqa: RUF001
-
 import json
 import re
 from collections.abc import Mapping, Sequence

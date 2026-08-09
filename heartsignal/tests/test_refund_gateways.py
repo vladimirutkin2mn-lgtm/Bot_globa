@@ -52,7 +52,7 @@ class FakeStripeClient:
 def stripe_gateway() -> tuple[StripeRefundGateway, FakeStripeClient]:
     value = object.__new__(StripeRefundGateway)
     client = FakeStripeClient()
-    dynamic = cast(Any, value)
+    dynamic = cast("Any", value)
     dynamic._stripe = FakeStripe()
     dynamic._client = client
     dynamic._timeout = 1

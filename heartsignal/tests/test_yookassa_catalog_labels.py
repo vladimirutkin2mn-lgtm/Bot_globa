@@ -71,9 +71,9 @@ async def test_one_time_checkout_uses_receipt_label_but_keeps_order_metadata(
     await YooKassaGateway("shop", "secret").create_checkout(request)
 
     assert transport.payload is not None
-    receipt = cast(dict[str, object], transport.payload["receipt"])
-    items = cast(list[dict[str, object]], receipt["items"])
-    metadata = cast(dict[str, object], transport.payload["metadata"])
+    receipt = cast("dict[str, object]", transport.payload["receipt"])
+    items = cast("list[dict[str, object]]", receipt["items"])
+    metadata = cast("dict[str, object]", transport.payload["metadata"])
     assert transport.payload["description"] == request.receipt_label
     assert items[0]["description"] == request.receipt_label
     assert metadata == {"order_id": request.order_id, "product_version": 2}

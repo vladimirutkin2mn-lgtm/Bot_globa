@@ -21,7 +21,7 @@ from app.db.models import Analysis, User
 from app.providers.analytics import NoOpAnalyticsClient
 from app.repositories.analyses import SqlAlchemyAnalysisRepository
 from app.repositories.users import SqlAlchemyUserRepository
-from app.services.conversation_intake import ConversationIntakeService, InvalidTransition
+from app.services.conversation_intake import ConversationIntakeService, InvalidTransitionError
 from app.services.conversation_parser import ConversationParser
 
 pytestmark = pytest.mark.postgres
@@ -274,9 +274,9 @@ async def test_stale_callbacks_cannot_mutate_completed_analysis_with_active_succ
         await repository.save(completed)
         active, created = await repository.create_or_resume(user.id)
         assert created
-        with pytest.raises(InvalidTransition):
+        with pytest.raises(InvalidTransitionError):
             await service.reset_conversation(completed)
-        with pytest.raises(InvalidTransition):
+        with pytest.raises(InvalidTransitionError):
             await service.cancel(completed)
         completed_id, active_id = completed.id, active.id
     async with sessions() as session:

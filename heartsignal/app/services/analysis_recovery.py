@@ -97,7 +97,7 @@ async def requeue_stale_processing(
     requeued = 0
     if retryable:
         changed = cast(
-            CursorResult[object],
+            "CursorResult[object]",
             await session.execute(
                 update(Analysis)
                 .where(
@@ -117,7 +117,7 @@ async def requeue_stale_processing(
     closed = 0
     if refunded:
         changed = cast(
-            CursorResult[object],
+            "CursorResult[object]",
             await session.execute(
                 update(Analysis)
                 .where(

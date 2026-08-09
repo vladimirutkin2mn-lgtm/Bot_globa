@@ -34,7 +34,7 @@ async def valid_payload() -> dict[str, object]:
     completion = await StubLLMClient().generate_analysis(
         LLMRequest("s", "u", AnalysisResult.model_json_schema(), ("m1",), ("A", "B"))
     )
-    return cast(dict[str, object], json.loads(completion.payload))
+    return cast("dict[str, object]", json.loads(completion.payload))
 
 
 async def test_valid_result_and_generated_schema() -> None:

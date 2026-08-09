@@ -44,7 +44,7 @@ class StoredHoroscopeEnvelope(StrictReadingResultModel):
     facts: StoredHoroscopeFactBundle
 
 
-class InvalidStoredHoroscope(ValueError):
+class InvalidStoredHoroscopeError(ValueError):
     """Safe storage error containing no persisted private or generated text."""
 
 
@@ -90,14 +90,14 @@ def deserialize_horoscope(
                 HoroscopeFact(
                     fact_id=fact.fact_id,
                     kind=fact.kind,
-                    details=cast(dict[str, object], fact.details),
+                    details=cast("dict[str, object]", fact.details),
                 )
                 for fact in envelope.facts.facts
             ),
             limitations=tuple(envelope.facts.limitations),
         )
     except (ValidationError, TypeError, ValueError) as exc:
-        raise InvalidStoredHoroscope("invalid stored Horoscope envelope") from exc
+        raise InvalidStoredHoroscopeError("invalid stored Horoscope envelope") from exc
     return envelope.result, facts
 
 

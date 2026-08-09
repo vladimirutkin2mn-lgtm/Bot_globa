@@ -1,5 +1,4 @@
 """Telegram intake and replay flow for the one included paid follow-up."""
-# ruff: noqa: RUF001
 
 from uuid import UUID
 

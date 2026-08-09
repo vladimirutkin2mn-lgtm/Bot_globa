@@ -5,7 +5,15 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.domain.reading import ReadingSymbolInput, SymbolOrientation
-from app.domain.tarot import MAJOR_ARCANA_V1, TarotCard, TarotCatalog, TarotSpread, tarot_spread
+from app.domain.reading_generation import ReadingSymbolContext
+from app.domain.tarot import (
+    MAJOR_ARCANA_V1,
+    THREE_CARD_SPREAD,
+    TarotCard,
+    TarotCatalog,
+    TarotSpread,
+    tarot_spread,
+)
 
 
 class UnknownSpreadError(LookupError):
@@ -86,3 +94,26 @@ class TarotSymbolicEngine:
             return SymbolOrientation.UPRIGHT
         digest = self._digest(seed, "orientation", card.code)
         return SymbolOrientation.REVERSED if digest[0] & 1 else SymbolOrientation.UPRIGHT
+
+
+class TarotSymbolDrawer:
+    """Adapt the deterministic tarot engine to the persona-neutral drawing contract."""
+
+    def __init__(
+        self,
+        engine: TarotSymbolicEngine | None = None,
+        spread_code: str = THREE_CARD_SPREAD.code,
+    ) -> None:
+        self._engine = engine or TarotSymbolicEngine()
+        self.version = self._engine.version
+        self.set_code = spread_code
+
+    def draw(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
+        return tuple(
+            ReadingSymbolContext(
+                symbol=card.to_reading_symbol(),
+                display_name=card.card.name_ru,
+                interpretation_theme=card.interpretation_theme,
+            )
+            for card in self._engine.draw(reading_id, self.set_code)
+        )

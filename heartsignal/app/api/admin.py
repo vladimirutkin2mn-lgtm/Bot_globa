@@ -22,7 +22,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 def _require_admin(request: Request, supplied_token: str | None) -> ObservabilitySettings:
-    settings = cast(ObservabilitySettings, request.app.state.observability_settings)
+    settings = cast("ObservabilitySettings", request.app.state.observability_settings)
     if not settings.admin_metrics_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     expected = settings.admin_api_token.get_secret_value()
@@ -33,8 +33,8 @@ def _require_admin(request: Request, supplied_token: str | None) -> Observabilit
 
 
 def _release_service(request: Request) -> ReleaseReadinessService:
-    engine = cast(AsyncEngine, request.app.state.db_engine)
-    settings = cast(Settings, request.app.state.settings)
+    engine = cast("AsyncEngine", request.app.state.db_engine)
+    settings = cast("Settings", request.app.state.settings)
     return ReleaseReadinessService(create_session_factory(engine), settings)
 
 
@@ -44,7 +44,7 @@ async def metrics(
     admin_token: Annotated[str | None, Header(alias="X-Admin-Token")] = None,
 ) -> AdminMetrics:
     _require_admin(request, admin_token)
-    service = cast(AdminMetricsService, request.app.state.admin_metrics_service)
+    service = cast("AdminMetricsService", request.app.state.admin_metrics_service)
     return await service.snapshot()
 
 

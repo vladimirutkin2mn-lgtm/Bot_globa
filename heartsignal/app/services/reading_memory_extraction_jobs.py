@@ -23,7 +23,7 @@ from app.providers.llm.base import (
 )
 from app.services.oracle_memory import MemoryConsentRequiredError, MemoryProvenanceError
 from app.services.reading_memory_extraction import (
-    InvalidMemoryExtraction,
+    InvalidMemoryExtractionError,
     MemorySourceUnavailableError,
 )
 
@@ -144,7 +144,7 @@ class ReadingMemoryExtractionJobWorker:
         except asyncio.CancelledError:
             raise
         except (
-            InvalidMemoryExtraction,
+            InvalidMemoryExtractionError,
             LLMTimeoutError,
             LLMRateLimitError,
             LLMTransientError,

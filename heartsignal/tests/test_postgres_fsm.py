@@ -91,7 +91,7 @@ async def test_storage_keys_are_isolated(
 async def test_event_isolation_serializes_same_key_across_instances(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
-    engine = cast(AsyncEngine, payment_db.kw["bind"])
+    engine = cast("AsyncEngine", payment_db.kw["bind"])
     first = PostgresEventIsolation(engine)
     second = PostgresEventIsolation(engine)
     first_entered = asyncio.Event()
@@ -122,7 +122,7 @@ async def test_event_isolation_serializes_same_key_across_instances(
 async def test_event_isolation_allows_different_keys_in_parallel(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
-    engine = cast(AsyncEngine, payment_db.kw["bind"])
+    engine = cast("AsyncEngine", payment_db.kw["bind"])
     isolation = PostgresEventIsolation(engine)
     both_entered = asyncio.Event()
     entered = 0

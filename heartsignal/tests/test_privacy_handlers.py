@@ -34,7 +34,7 @@ from tests.test_telegram_handlers import (
 @pytest.fixture
 async def privacy_harness() -> AsyncGenerator[Harness, None]:
     fixture_function = cast(
-        Callable[[], AsyncGenerator[Harness, None]],
+        "Callable[[], AsyncGenerator[Harness, None]]",
         _harness_fixture._fixture_function,
     )
     generator = fixture_function()

@@ -1,5 +1,4 @@
 """Local mock checkout and provider-neutral webhook endpoints."""
-# ruff: noqa: E501
 
 import json
 import time

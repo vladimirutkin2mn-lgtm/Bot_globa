@@ -16,7 +16,7 @@ class RejectionReason(StrEnum):
     NO_VALID_MESSAGES = "no_valid_messages"
 
 
-class ConversationRejected(ValueError):
+class ConversationRejectedError(ValueError):
     def __init__(self, reason: RejectionReason) -> None:
         self.reason = reason
         super().__init__(reason.value)
@@ -54,11 +54,13 @@ def _timestamp(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     try:
-        return datetime.strptime(stripped, _DATETIME_FORMAT).isoformat()
+        # Chat exports carry local wall-clock time with no zone; keep it naive.
+        # Chat exports carry local wall-clock time with no zone to recover.
+        return datetime.strptime(stripped, _DATETIME_FORMAT).isoformat()  # noqa: DTZ007
     except ValueError:
         pass
     try:
-        return datetime.strptime(stripped, _TIME_FORMAT).time().isoformat()
+        return datetime.strptime(stripped, _TIME_FORMAT).time().isoformat()  # noqa: DTZ007
     except ValueError:
         pass
     return None
@@ -74,9 +76,9 @@ class ConversationParser:
 
     def parse(self, content: str) -> ParsedConversation:
         if not content.strip():
-            raise ConversationRejected(RejectionReason.EMPTY_CONTENT)
+            raise ConversationRejectedError(RejectionReason.EMPTY_CONTENT)
         if len(content) > self.max_characters:
-            raise ConversationRejected(RejectionReason.OVERSIZED)
+            raise ConversationRejectedError(RejectionReason.OVERSIZED)
         raw: list[tuple[str, str | None, str]] = []
         current: tuple[str, str | None, list[str]] | None = None
         source_format = "simple_prefix"
@@ -109,14 +111,14 @@ class ConversationParser:
                 if content.strip()
                 else RejectionReason.NO_VALID_MESSAGES
             )
-            raise ConversationRejected(reason)
+            raise ConversationRejectedError(reason)
         names = list(dict.fromkeys(item[0] for item in raw))
         if len(names) == 1:
-            raise ConversationRejected(RejectionReason.ONE_PARTICIPANT)
+            raise ConversationRejectedError(RejectionReason.ONE_PARTICIPANT)
         if len(names) > self.max_participants:
-            raise ConversationRejected(RejectionReason.TOO_MANY_PARTICIPANTS)
+            raise ConversationRejectedError(RejectionReason.TOO_MANY_PARTICIPANTS)
         if len(raw) < self.min_messages:
-            raise ConversationRejected(RejectionReason.TOO_SHORT)
+            raise ConversationRejectedError(RejectionReason.TOO_SHORT)
         labels = {name: chr(65 + index) for index, name in enumerate(names)}
         messages = [
             NormalizedMessage(f"m{index}", labels[name], timestamp, text, index)

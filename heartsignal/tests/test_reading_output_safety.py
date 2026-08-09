@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app.domain.reading import ReadingSymbolInput, SymbolOrientation
-from app.services.reading_result_validator import InvalidReadingResult, ReadingResultValidator
+from app.services.reading_result_validator import InvalidReadingResultError, ReadingResultValidator
 
 
 def _expected_symbols() -> list[ReadingSymbolInput]:
@@ -123,7 +123,7 @@ def test_unsafe_top_level_claims_are_rejected(
     payload = _payload()
     payload[field] = value
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         _validate(payload)
 
     assert captured.value.code == "unsafe_output"
@@ -139,7 +139,7 @@ def test_nested_symbol_interpretation_is_checked() -> None:
     assert isinstance(symbol, dict)
     symbol["interpretation"] = "Track her without her knowledge."
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         _validate(payload)
 
     assert captured.value.code == "unsafe_output"
@@ -156,7 +156,7 @@ def test_nested_scenario_condition_is_checked() -> None:
     assert isinstance(conditions, list)
     conditions[0] = "Do not make decisions without another reading."
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         _validate(payload)
 
     assert captured.value.code == "unsafe_output"
@@ -169,7 +169,7 @@ def test_share_card_fear_based_upsell_is_checked() -> None:
     assert isinstance(share_card, dict)
     share_card["short_text"] = "You are cursed; pay now to remove the curse."
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         _validate(payload)
 
     assert captured.value.code == "unsafe_output"
@@ -182,7 +182,7 @@ def test_repair_instruction_contains_only_safe_issue_codes() -> None:
     payload = _payload()
     payload["title"] = f"They will definitely return. {secret}"
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         _validate(payload)
 
     instruction = ReadingResultValidator.repair_instruction(captured.value)

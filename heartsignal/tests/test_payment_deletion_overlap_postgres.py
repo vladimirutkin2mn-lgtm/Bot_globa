@@ -1,6 +1,6 @@
 """Deterministic payment completion and privacy deletion lock-overlap tests."""
 
-# Per-iteration closures are fully awaited before the next iteration.
+# Each closure is awaited inside the iteration that builds it.
 # ruff: noqa: B023
 
 import asyncio

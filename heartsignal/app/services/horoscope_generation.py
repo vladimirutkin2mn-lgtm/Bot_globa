@@ -46,10 +46,10 @@ from app.providers.llm.base import (
 )
 from app.services.horoscope_result_validator import (
     HoroscopeResultValidator,
-    InvalidHoroscopeResult,
+    InvalidHoroscopeResultError,
 )
 from app.services.horoscope_storage import (
-    InvalidStoredHoroscope,
+    InvalidStoredHoroscopeError,
     deserialize_horoscope,
     serialize_horoscope,
 )
@@ -204,7 +204,7 @@ class HoroscopeGenerationService:
             completion = await self._llm.generate_analysis(request)
             try:
                 validated = self._validator.validate(completion.payload, facts)
-            except InvalidHoroscopeResult as error:
+            except InvalidHoroscopeResultError as error:
                 if self._max_repairs == 0:
                     raise
                 attempts += 1
@@ -311,7 +311,7 @@ class HoroscopeGenerationService:
                 attempts,
                 completion,
             )
-        except InvalidHoroscopeResult as error:
+        except InvalidHoroscopeResultError as error:
             return await self._fail_observed(
                 context,
                 f"horoscope_{error.code}",
@@ -443,7 +443,7 @@ class HoroscopeGenerationService:
                 json.dumps(stored_result.model_dump(mode="json"), ensure_ascii=False),
                 facts,
             )
-        except (InvalidStoredHoroscope, InvalidHoroscopeResult):
+        except (InvalidStoredHoroscopeError, InvalidHoroscopeResultError):
             return HoroscopeGenerationResult(HoroscopeGenerationStatus.CORRUPTED_RESULT)
         return HoroscopeGenerationResult(
             HoroscopeGenerationStatus.COMPLETED,

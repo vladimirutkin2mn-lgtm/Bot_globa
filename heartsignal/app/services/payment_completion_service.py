@@ -355,7 +355,7 @@ class PaymentCompletionService:
     @staticmethod
     async def _lock_order(session: AsyncSession, order_id: UUID) -> PaymentOrder | None:
         return cast(
-            PaymentOrder | None,
+            "PaymentOrder | None",
             await session.scalar(
                 select(PaymentOrder)
                 .where(PaymentOrder.id == order_id)

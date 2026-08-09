@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcome
+from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcomeError
 from app.providers.payments.refund_gateway import (
     AuthoritativeRefund,
     CreateRefund,
@@ -50,7 +50,7 @@ class YooKassaRefundGateway:
                     json=payload,
                 )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         return self._response(response)
 
     async def fetch_refund(self, refund_id: str) -> AuthoritativeRefund:
@@ -61,13 +61,13 @@ class YooKassaRefundGateway:
                     auth=self._auth,
                 )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise UnknownProviderOutcome from exc
+            raise UnknownProviderOutcomeError from exc
         return self._response(response)
 
     @staticmethod
     def _response(response: httpx.Response) -> AuthoritativeRefund:
         if response.status_code >= 500:
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         if response.status_code >= 400:
             raise PermanentProviderError(f"http_{response.status_code}")
         value = response.json()

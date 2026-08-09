@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     conversation_max_participants: int = Field(default=2, ge=2)
     analysis_goal_max_characters: int = Field(default=500, ge=1)
     analysis_price_credits: int = Field(default=1, ge=1)
-    tarot_full_price_credits: int = Field(default=1, ge=1)
+    reading_full_price_credits: int = Field(default=1, ge=1)
     payment_provider: str = "mock"
     payment_public_base_url: str = "http://localhost:8000"
     payment_webhook_secret: SecretStr = Field(default=SecretStr("local-mock-secret"))

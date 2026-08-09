@@ -14,11 +14,11 @@ from app.domain.reading_generation import ReadingSymbolContext
 from app.prompts.oracle import load_oracle_reading_prompts
 from app.providers.llm.base import LLMCompletion, LLMRequest
 from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
-from app.services.mystical_psychologist_reading import (
-    MysticalPsychologistPreviewRequest,
-    MysticalPsychologistReadingUseCase,
-    UnsafeMysticalPsychologistInputError,
-    UnsupportedMysticalPsychologistTopicError,
+from app.services.persona_reading import (
+    PersonaPreviewRequest,
+    PersonaReadingUseCase,
+    UnsafePersonaInputError,
+    UnsupportedPersonaTopicError,
 )
 from app.services.reading_generation import (
     ReadingGenerationResult,
@@ -155,12 +155,12 @@ def test_mystical_psychologist_prompt_is_reflective_not_clinical() -> None:
 async def test_use_case_freezes_reflective_versions_and_passes_no_symbols() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = MysticalPsychologistReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("mystical_psychologist", drafts, generation)
     user_id = uuid4()
 
     first = await use_case.create_preview(
         user_id,
-        MysticalPsychologistPreviewRequest(
+        PersonaPreviewRequest(
             topic="self_reflection",
             question="Why do I keep delaying work after it is already good enough?",
         ),
@@ -184,15 +184,15 @@ async def test_use_case_freezes_reflective_versions_and_passes_no_symbols() -> N
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = MysticalPsychologistReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("mystical_psychologist", drafts, generation)
 
     with pytest.raises(
-        UnsupportedMysticalPsychologistTopicError,
-        match="unsupported Mystical Psychologist topic",
+        UnsupportedPersonaTopicError,
+        match="unsupported topic for persona mystical_psychologist",
     ):
         await use_case.create_preview(
             uuid4(),
-            MysticalPsychologistPreviewRequest(
+            PersonaPreviewRequest(
                 topic="medical_diagnosis",
                 question="Give me a clinical diagnosis from this pattern.",
             ),
@@ -204,12 +204,12 @@ async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
 async def test_unsafe_input_stops_before_draft_and_generation() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = MysticalPsychologistReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("mystical_psychologist", drafts, generation)
 
-    with pytest.raises(UnsafeMysticalPsychologistInputError) as captured:
+    with pytest.raises(UnsafePersonaInputError) as captured:
         await use_case.create_preview(
             uuid4(),
-            MysticalPsychologistPreviewRequest(
+            PersonaPreviewRequest(
                 topic="self_reflection",
                 question="Я не хочу жить, что говорят карты?",
             ),
@@ -241,11 +241,11 @@ async def test_postgres_reflection_is_validated_and_idempotent(
         SqlAlchemyReadingGenerationStore(payment_db, cipher),
         llm,
     )
-    use_case = MysticalPsychologistReadingUseCase.from_services(readings, generation)
+    use_case = PersonaReadingUseCase.from_services("mystical_psychologist", readings, generation)
 
     first = await use_case.create_preview(
         user.id,
-        MysticalPsychologistPreviewRequest(
+        PersonaPreviewRequest(
             topic="work",
             question="Why do I keep revising work that already meets the brief?",
             context="This happens most often before asking for feedback.",
@@ -296,11 +296,11 @@ async def test_diagnosis_and_dependency_are_rejected_before_persistence(
         DiagnosticDependencyLLM(),
         max_repair_attempts=0,
     )
-    use_case = MysticalPsychologistReadingUseCase.from_services(readings, generation)
+    use_case = PersonaReadingUseCase.from_services("mystical_psychologist", readings, generation)
 
     outcome = await use_case.create_preview(
         user.id,
-        MysticalPsychologistPreviewRequest(
+        PersonaPreviewRequest(
             topic="self_reflection",
             question="What might be behind this repeating pattern?",
         ),

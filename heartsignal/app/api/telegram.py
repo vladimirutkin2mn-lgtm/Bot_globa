@@ -34,7 +34,7 @@ async def telegram_webhook(
     telegram_secret: Annotated[str | None, Header(alias="X-Telegram-Bot-Api-Secret-Token")] = None,
 ) -> Response:
     """Authenticate, validate, durably enqueue, and acknowledge without running handlers."""
-    settings = cast(Settings, request.app.state.settings)
+    settings = cast("Settings", request.app.state.settings)
     if not settings.webhook_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     expected = settings.telegram_webhook_secret.get_secret_value()
@@ -42,7 +42,7 @@ async def telegram_webhook(
     if not hmac.compare_digest(supplied.encode(), expected.encode()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    max_bytes = cast(int, request.app.state.telegram_webhook_max_bytes)
+    max_bytes = cast("int", request.app.state.telegram_webhook_max_bytes)
     declared = request.headers.get("content-length")
     if declared is not None:
         try:
@@ -71,15 +71,15 @@ async def telegram_webhook(
         raw_payload = json.loads(bytes(body))
         if not isinstance(raw_payload, dict):
             raise TypeError
-        payload = cast(dict[str, object], raw_payload)
-        bot = cast(Bot, request.app.state.telegram_bot)
+        payload = cast("dict[str, object]", raw_payload)
+        bot = cast("Bot", request.app.state.telegram_bot)
         update = Update.model_validate(payload, context={"bot": bot})
     except (json.JSONDecodeError, ValidationError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid update"
         ) from None
 
-    inbox = cast(TelegramUpdateInboxService, request.app.state.telegram_update_inbox)
+    inbox = cast("TelegramUpdateInboxService", request.app.state.telegram_update_inbox)
     accepted = await inbox.accept(update.update_id, _telegram_user_id(update), payload)
     if accepted.outcome is TelegramAcceptOutcome.PAYLOAD_MISMATCH:
         logger.warning("telegram_update_payload_mismatch update_id=%s", update.update_id)

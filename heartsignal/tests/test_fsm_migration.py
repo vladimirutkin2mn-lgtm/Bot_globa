@@ -117,6 +117,7 @@ def test_downgrade_refuses_to_destroy_live_fsm_state() -> None:
         )
         failed = subprocess.run(
             ("alembic", "downgrade", "20260804_10"),
+            check=False,
             env=environment,
             capture_output=True,
             text=True,

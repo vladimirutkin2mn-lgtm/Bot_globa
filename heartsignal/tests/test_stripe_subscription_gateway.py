@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.providers.payments.base import ProviderStateMismatch
+from app.providers.payments.base import ProviderStateMismatchError
 from app.providers.payments.stripe_gateway import StripeGateway
 from app.providers.payments.subscription_gateway import (
     CreateSubscriptionCheckout,
@@ -140,7 +140,7 @@ def invoice_value(
 def gateway(invoice: object, subscription: object) -> tuple[StripeGateway, FakeClient]:
     value = object.__new__(StripeGateway)
     client = FakeClient(invoice, subscription)
-    dynamic = cast(Any, value)
+    dynamic = cast("Any", value)
     dynamic._stripe = FakeStripe()
     dynamic._client = client
     dynamic._webhook_secret = "whsec_test"
@@ -173,8 +173,8 @@ async def test_subscription_checkout_uses_server_metadata_and_idempotency() -> N
     assert result.checkout_id == "cs_sub_1"
     assert client.checkout.sessions.created is not None
     params, options = client.checkout.sessions.created
-    metadata = cast(dict[str, str], params["metadata"])
-    subscription_data = cast(dict[str, object], params["subscription_data"])
+    metadata = cast("dict[str, str]", params["metadata"])
+    subscription_data = cast("dict[str, object]", params["subscription_data"])
     assert params["mode"] == "subscription"
     assert params["line_items"] == [{"price": "price_monthly_eur", "quantity": 1}]
     assert metadata == subscription_data["metadata"]
@@ -225,7 +225,7 @@ async def test_invoice_amount_mismatch_fails_closed(commercial: dict[str, str]) 
     subscription = subscription_value(commercial)
     value, _ = gateway(invoice_value(subscription, amount=991), subscription)
 
-    with pytest.raises(ProviderStateMismatch):
+    with pytest.raises(ProviderStateMismatchError):
         await value.fetch_subscription_event("invoice.paid", "in_1")
 
 

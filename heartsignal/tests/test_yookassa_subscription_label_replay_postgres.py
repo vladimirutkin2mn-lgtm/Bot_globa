@@ -21,7 +21,6 @@ from app.providers.payments.yookassa_subscription_gateway import (
 )
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 
 class RecordingYooKassaGateway:
@@ -122,7 +121,7 @@ def _fact(
 
 
 async def test_later_renewal_uses_latest_terms_and_initial_receipt_label(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
     settings: Settings,
 ) -> None:
     user_id, order_id = await _initial_order(payment_db)
@@ -179,7 +178,7 @@ async def test_later_renewal_uses_latest_terms_and_initial_receipt_label(
     gateway = YooKassaSubscriptionGateway(
         payment_db,
         configured,
-        cast(YooKassaGateway, recording),
+        cast("YooKassaGateway", recording),
     )
 
     await gateway.fetch_subscription(provider_subscription_id)

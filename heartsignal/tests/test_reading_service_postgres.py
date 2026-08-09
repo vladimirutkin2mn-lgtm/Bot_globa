@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.db.models import User
 from app.db.reading_models import Persona, Reading, ReadingPrivateContent, ReadingSymbol
 from app.domain.reading import (
-    InvalidReadingTransition,
+    InvalidReadingTransitionError,
     ReadingDraftRequest,
     ReadingStatus,
     ReadingSymbolInput,
@@ -180,7 +180,7 @@ async def test_failed_generation_can_retry_but_ready_reading_cannot_restart(
     )
     assert ready.status == ReadingStatus.PREVIEW_READY.value
 
-    with pytest.raises(InvalidReadingTransition):
+    with pytest.raises(InvalidReadingTransitionError):
         await service.start_generation(reading.id, owner.id)
 
 

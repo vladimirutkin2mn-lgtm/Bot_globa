@@ -1,4 +1,4 @@
-"""Vertical coverage for draft, deterministic draw and structured tarot preview."""
+"""Vertical coverage for draft, deterministic draw and structured persona previews."""
 
 import json
 from uuid import UUID, uuid4
@@ -12,6 +12,11 @@ from app.domain.reading import ReadingAccess, ReadingDraftRequest, ReadingStatus
 from app.domain.reading_generation import ReadingSymbolContext
 from app.providers.llm.base import LLMCompletion, LLMRequest
 from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
+from app.services.persona_reading import (
+    PersonaPreviewRequest,
+    PersonaReadingUseCase,
+    UnsupportedPersonaTopicError,
+)
 from app.services.reading_generation import (
     ReadingGenerationResult,
     ReadingGenerationService,
@@ -19,11 +24,7 @@ from app.services.reading_generation import (
 )
 from app.services.reading_service import ReadingService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
-from app.services.tarot_reading import (
-    TarotPreviewRequest,
-    TarotReadingUseCase,
-    UnsupportedTarotTopicError,
-)
+from app.services.symbolic_engine import TarotSymbolDrawer
 
 
 class CapturingDraftService:
@@ -102,12 +103,12 @@ class StructuredTarotLLM:
 async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = TarotReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("tarot_reader", drafts, generation, drawer=TarotSymbolDrawer())
     user_id = uuid4()
 
     first = await use_case.create_preview(
         user_id,
-        TarotPreviewRequest(
+        PersonaPreviewRequest(
             topic="decision",
             question="Which option deserves a slower review?",
             context="Both options can be reversed.",
@@ -122,31 +123,30 @@ async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> N
     assert request.prompt_version == "tarot-reader-v2"
     assert request.schema_version == "reading-result-v1"
     assert request.cost_units == 0
-    assert first.spread_code == "three_card_v1"
-    assert first.cards == replay.cards
-    assert len(first.cards) == 3
-    assert tuple(card.position for card in first.cards) == (
+    assert first.symbol_set_code == "three_card_v1"
+    assert first.symbols == replay.symbols
+    assert len(first.symbols) == 3
+    assert tuple(item.symbol.position for item in first.symbols) == (
         "current_influence",
         "hidden_factor",
         "next_step",
     )
     assert len(generation.calls) == 2
-    contexts = generation.calls[0][2]
-    assert tuple(item.symbol.symbol_id for item in contexts) == tuple(
-        card.card.code for card in first.cards
-    )
-    assert all(item.display_name and item.interpretation_theme for item in contexts)
+    assert generation.calls[0][2] == first.symbols
+    assert all(item.display_name and item.interpretation_theme for item in first.symbols)
 
 
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
-    use_case = TarotReadingUseCase(drafts, generation)
+    use_case = PersonaReadingUseCase("tarot_reader", drafts, generation, drawer=TarotSymbolDrawer())
 
-    with pytest.raises(UnsupportedTarotTopicError, match="unsupported tarot topic"):
+    with pytest.raises(
+        UnsupportedPersonaTopicError, match="unsupported topic for persona tarot_reader"
+    ):
         await use_case.create_preview(
             uuid4(),
-            TarotPreviewRequest(
+            PersonaPreviewRequest(
                 topic="medical_diagnosis",
                 question="What illness do I have?",
             ),
@@ -177,11 +177,13 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
         SqlAlchemyReadingGenerationStore(payment_db, cipher),
         llm,
     )
-    use_case = TarotReadingUseCase.from_services(readings, generation)
+    use_case = PersonaReadingUseCase.from_services(
+        "tarot_reader", readings, generation, drawer=TarotSymbolDrawer()
+    )
 
     first = await use_case.create_preview(
         user.id,
-        TarotPreviewRequest(
+        PersonaPreviewRequest(
             topic="decision",
             question="Should I choose speed or deeper learning?",
             context="Both options are reversible during the next month.",
@@ -193,7 +195,7 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
     assert not first.generation.idempotent
     assert replay.generation.status is ReadingGenerationStatus.COMPLETED
     assert replay.generation.idempotent
-    assert replay.cards == first.cards
+    assert replay.symbols == first.symbols
     assert len(llm.requests) == 1
     assert not llm.requests[0].repair
 

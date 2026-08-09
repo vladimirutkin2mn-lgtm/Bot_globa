@@ -1,5 +1,3 @@
-# ruff: noqa: RUF001
-
 from app.domain.oracle_safety import (
     OracleInputSafetyClassifier,
     OracleRiskCategory,

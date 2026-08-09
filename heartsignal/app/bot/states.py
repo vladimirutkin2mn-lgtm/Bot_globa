@@ -23,5 +23,17 @@ class TarotStates(StatesGroup):
     generating = State()
 
 
+class LoveOracleStates(StatesGroup):
+    waiting_for_question = State()
+    waiting_for_context = State()
+    generating = State()
+
+
+class MysticalPsychologistStates(StatesGroup):
+    waiting_for_question = State()
+    waiting_for_context = State()
+    generating = State()
+
+
 class MemoryStates(StatesGroup):
     waiting_for_correction = State()

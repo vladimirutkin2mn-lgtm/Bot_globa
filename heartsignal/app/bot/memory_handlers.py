@@ -1,7 +1,5 @@
 """Telegram controls for explicit-consent oracle memory."""
 
-# ruff: noqa: RUF001
-
 from math import ceil
 from uuid import UUID
 

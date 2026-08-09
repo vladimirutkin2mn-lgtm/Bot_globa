@@ -5,7 +5,7 @@ import json
 import pytest
 
 from app.domain.reading import ReadingSymbolInput, SymbolOrientation
-from app.services.reading_result_validator import InvalidReadingResult, ReadingResultValidator
+from app.services.reading_result_validator import InvalidReadingResultError, ReadingResultValidator
 
 
 def _expected_symbols() -> list[ReadingSymbolInput]:
@@ -89,7 +89,7 @@ def test_valid_payload_preserves_exact_application_symbols() -> None:
 
 def test_invalid_json_is_classified_without_payload_echo() -> None:
     secret = "private-question-marker"
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         ReadingResultValidator().validate(f'{{"title":"{secret}"', _expected_symbols())
 
     assert captured.value.code == "invalid_json"
@@ -101,7 +101,7 @@ def test_extra_field_and_wrong_scalar_type_are_rejected() -> None:
     payload["title"] = 123
     payload["unexpected"] = "field"
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         ReadingResultValidator().validate(json.dumps(payload), _expected_symbols())
 
     assert captured.value.code == "invalid_schema"
@@ -129,7 +129,7 @@ def test_model_cannot_replace_selected_symbol_contract(
     assert isinstance(first, dict)
     first[field] = value
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         ReadingResultValidator().validate(json.dumps(payload), _expected_symbols())
 
     assert captured.value.code == "invalid_semantics"
@@ -145,7 +145,7 @@ def test_duplicate_or_missing_symbol_position_is_rejected() -> None:
     assert isinstance(second, dict)
     second["position"] = "current_influence"
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         ReadingResultValidator().validate(json.dumps(payload), _expected_symbols())
 
     assert captured.value.code == "invalid_semantics"
@@ -160,7 +160,7 @@ def test_safety_flag_must_match_categories() -> None:
     assert isinstance(safety, dict)
     safety["categories"] = ["financial_or_gambling"]
 
-    with pytest.raises(InvalidReadingResult) as captured:
+    with pytest.raises(InvalidReadingResultError) as captured:
         ReadingResultValidator().validate(json.dumps(payload), _expected_symbols())
 
     assert captured.value.code == "invalid_semantics"
@@ -168,7 +168,7 @@ def test_safety_flag_must_match_categories() -> None:
 
 
 def test_repair_instruction_contains_only_safe_issue_locations() -> None:
-    error = InvalidReadingResult(
+    error = InvalidReadingResultError(
         "invalid_semantics",
         ("symbols.0.symbol_id:mismatch", "safety:inconsistent_risk_flag"),
     )

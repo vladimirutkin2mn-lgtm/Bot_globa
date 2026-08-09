@@ -49,7 +49,7 @@ def _json_object(response: httpx.Response) -> dict[str, object] | None:
         return None
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         return None
-    return cast(dict[str, object], value)
+    return cast("dict[str, object]", value)
 
 
 class DeploymentVerifier:
@@ -137,14 +137,14 @@ class DeploymentVerifier:
         )
 
     async def _check_webhook_authentication(self) -> VerificationCheck:
-        probe_secret = "invalid-release-verification-secret"
-        if probe_secret == self._settings.telegram_webhook_secret.get_secret_value():
-            probe_secret += "-x"
+        rejected_probe = "invalid-release-verification-secret"
+        if rejected_probe == self._settings.telegram_webhook_secret.get_secret_value():
+            rejected_probe += "-x"
         response = await self._request(
             "POST",
             self._settings.telegram_webhook_url,
             content=b"{}",
-            headers={"X-Telegram-Bot-Api-Secret-Token": probe_secret},
+            headers={"X-Telegram-Bot-Api-Secret-Token": rejected_probe},
         )
         passed = response is not None and response.status_code == 401
         return VerificationCheck(
@@ -181,13 +181,13 @@ class DeploymentVerifier:
                 ),
             )
 
-        result = cast(dict[str, object], result_object)
+        result = cast("dict[str, object]", result_object)
         configured_url = result.get("url")
         allowed = result.get("allowed_updates")
         if allowed is None:
             allowed_valid = True
         elif isinstance(allowed, list) and all(isinstance(item, str) for item in allowed):
-            allowed_valid = {"message", "callback_query"}.issubset(cast(list[str], allowed))
+            allowed_valid = {"message", "callback_query"}.issubset(cast("list[str]", allowed))
         else:
             allowed_valid = False
         configuration_passed = (

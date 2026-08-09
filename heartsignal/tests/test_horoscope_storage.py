@@ -6,7 +6,7 @@ import pytest
 
 from app.domain.horoscope import AstrologyReadingResult
 from app.services.horoscope_storage import (
-    InvalidStoredHoroscope,
+    InvalidStoredHoroscopeError,
     deserialize_horoscope,
     horoscope_memory_source,
     serialize_horoscope,
@@ -49,5 +49,5 @@ def test_horoscope_envelope_rejects_unknown_version_and_extra_fields() -> None:
     envelope["envelope_version"] = "horoscope-envelope-v2"
     envelope["unexpected"] = True
 
-    with pytest.raises(InvalidStoredHoroscope, match="invalid stored Horoscope envelope"):
+    with pytest.raises(InvalidStoredHoroscopeError, match="invalid stored Horoscope envelope"):
         deserialize_horoscope(envelope)

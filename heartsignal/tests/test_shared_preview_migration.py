@@ -28,7 +28,7 @@ async def _scalar(url: str, schema: str, statement: str) -> object | None:
     engine = create_async_engine(url, connect_args={"server_settings": {"search_path": schema}})
     try:
         async with engine.connect() as connection:
-            return cast(object | None, await connection.scalar(text(statement)))
+            return cast("object | None", await connection.scalar(text(statement)))
     finally:
         await engine.dispose()
 
@@ -129,6 +129,7 @@ def test_shared_preview_migration_refuses_linked_reading_downgrade() -> None:
         )
         failed = subprocess.run(
             ("alembic", "downgrade", _PARENT),
+            check=False,
             env=environment,
             capture_output=True,
             text=True,

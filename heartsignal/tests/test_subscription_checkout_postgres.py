@@ -11,7 +11,7 @@ from app.config import Settings
 from app.db.models import BillingJob, PaymentOrder, User
 from app.domain.billing import BillingCatalog
 from app.domain.products import PRODUCT_CATALOG_VERSION
-from app.providers.payments.base import PaymentProviderName, UnknownProviderOutcome
+from app.providers.payments.base import PaymentProviderName, UnknownProviderOutcomeError
 from app.providers.payments.subscription_gateway import (
     CreateSubscriptionCheckout,
     HostedSubscriptionCheckout,
@@ -19,7 +19,6 @@ from app.providers.payments.subscription_gateway import (
     SubscriptionStateFact,
 )
 from app.services.subscription_checkout_service import SubscriptionCheckoutService
-from tests.payment_postgres_helpers import payment_db  # noqa: F401
 
 pytestmark = pytest.mark.postgres
 
@@ -35,7 +34,7 @@ class FakeSubscriptionGateway:
         self.calls.append(request)
         await asyncio.sleep(0.02)
         if self.unknown:
-            raise UnknownProviderOutcome
+            raise UnknownProviderOutcomeError
         return HostedSubscriptionCheckout(
             checkout_id="cs_subscription_one",
             url="https://provider.test/subscription",
@@ -86,7 +85,7 @@ async def create_user(sessions: async_sessionmaker[AsyncSession]) -> UUID:
 
 @pytest.mark.asyncio
 async def test_concurrent_subscription_checkout_has_one_provider_owner(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     gateway = FakeSubscriptionGateway()
     configured = settings()
@@ -135,7 +134,7 @@ async def test_concurrent_subscription_checkout_has_one_provider_owner(
 
 @pytest.mark.asyncio
 async def test_current_subscription_replays_unfinished_v1_snapshot_without_repricing(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id = await create_user(payment_db)
     async with payment_db.begin() as session:
@@ -204,7 +203,7 @@ async def test_current_subscription_replays_unfinished_v1_snapshot_without_repri
 
 @pytest.mark.asyncio
 async def test_unknown_checkout_creates_one_durable_reconciliation_job(
-    payment_db: async_sessionmaker[AsyncSession],  # noqa: F811
+    payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     gateway = FakeSubscriptionGateway(unknown=True)
     configured = settings()

@@ -17,7 +17,7 @@ from app.services.subscription_lifecycle import (
     PaidSubscriptionPeriod,
     PastDueSubscriptionPeriod,
     SubscriptionLifecycleService,
-    SubscriptionStateMismatch,
+    SubscriptionStateMismatchError,
 )
 
 
@@ -98,7 +98,7 @@ class SubscriptionEventProcessor:
                 or subscription.user_id != fact.user_id
                 or user.privacy_status != "active"
             ):
-                raise SubscriptionStateMismatch("saved payment method owner mismatch")
+                raise SubscriptionStateMismatchError("saved payment method owner mismatch")
             if subscription.encrypted_payment_method is None:
                 subscription.encrypted_payment_method = fact.encrypted_payment_method
 
@@ -113,9 +113,9 @@ class SubscriptionEventProcessor:
             if order is None or order.user_id != fact.user_id:
                 return False
             if order.provider != fact.provider or order.mode != "subscription_initial":
-                raise SubscriptionStateMismatch("initial subscription order identity mismatch")
+                raise SubscriptionStateMismatchError("initial subscription order identity mismatch")
             if order.status == "completed":
-                raise SubscriptionStateMismatch("completed initial subscription cannot fail")
+                raise SubscriptionStateMismatchError("completed initial subscription cannot fail")
             if order.status in {"failed", "cancelled"}:
                 return False
             if user is None or user.privacy_status != "active":
@@ -151,7 +151,7 @@ class SubscriptionEventProcessor:
             if subscription is None:
                 return False
             if subscription.user_id != fact.user_id:
-                raise SubscriptionStateMismatch("provider subscription owner mismatch")
+                raise SubscriptionStateMismatchError("provider subscription owner mismatch")
             subscription_id = subscription.id
             stored_status = subscription.status
 
@@ -159,7 +159,7 @@ class SubscriptionEventProcessor:
         canceled = fact.status in {"canceled", "unpaid", "incomplete_expired"}
         if fact.cancel_at_period_end or canceled:
             if effective is None:
-                raise SubscriptionStateMismatch("provider cancellation boundary missing")
+                raise SubscriptionStateMismatchError("provider cancellation boundary missing")
             await self._lifecycle.record_cancel_at_period_end(
                 fact.user_id, subscription_id, effective
             )

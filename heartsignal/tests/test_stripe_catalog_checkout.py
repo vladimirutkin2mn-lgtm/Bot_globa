@@ -47,7 +47,7 @@ class FakeStripe:
 async def test_one_time_checkout_uses_server_price_and_canonical_sku_metadata() -> None:
     value = object.__new__(StripeGateway)
     sessions = FakeSessions()
-    dynamic = cast(Any, value)
+    dynamic = cast("Any", value)
     dynamic._stripe = FakeStripe()
     dynamic._client = SimpleNamespace(checkout=SimpleNamespace(sessions=sessions))
     dynamic._webhook_secret = "whsec_test"

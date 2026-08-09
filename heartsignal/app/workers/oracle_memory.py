@@ -1,6 +1,7 @@
 """Graceful worker for durable completed-reading memory extraction jobs."""
 
 import asyncio
+import contextlib
 import logging
 import signal
 import socket
@@ -56,10 +57,8 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
                 logger.exception("oracle_memory_worker_iteration_failed")
                 worked = False
             if not worked:
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stopped.wait(), timeout=1.0)
-                except TimeoutError:
-                    pass
     finally:
         try:
             await close_llm_client(llm)

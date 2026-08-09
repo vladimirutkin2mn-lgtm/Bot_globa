@@ -1,11 +1,10 @@
 """Conversation parser behavior and privacy-safe validation."""
-# ruff: noqa: RUF001, E501
 
 import pytest
 
 from app.services.conversation_parser import (
     ConversationParser,
-    ConversationRejected,
+    ConversationRejectedError,
     RejectionReason,
 )
 
@@ -27,7 +26,8 @@ def test_timestamp_and_multiline_formats() -> None:
     assert timestamped.messages[0].timestamp == "2026-07-12T18:45:00"
     assert timestamped.messages[1].timestamp == "18:47:00"
     multiline = ConversationParser(min_messages=2).parse(
-        "Анна, [12.07.2026 18:45]\nПривет!\nКак день?\n\nИван, [12.07.2026 18:47]\nПривет\nНормально"
+        "Анна, [12.07.2026 18:45]\nПривет!\nКак день?\n\n"
+        "Иван, [12.07.2026 18:47]\nПривет\nНормально"
     )
     assert multiline.messages[0].text == "Привет!\nКак день?"
     assert multiline.source_format == "telegram_multiline"
@@ -62,14 +62,14 @@ def test_duplicate_looking_names_remain_distinct() -> None:
     ],
 )
 def test_rejections(content: str, reason: RejectionReason) -> None:
-    with pytest.raises(ConversationRejected) as caught:
+    with pytest.raises(ConversationRejectedError) as caught:
         ConversationParser().parse(content)
     assert caught.value.reason is reason
 
 
 def test_oversized_is_rejected_without_content_in_exception() -> None:
     secret = "СЕКРЕТНЫЙ ТЕКСТ"
-    with pytest.raises(ConversationRejected) as caught:
+    with pytest.raises(ConversationRejectedError) as caught:
         ConversationParser(max_characters=3).parse(secret)
     assert caught.value.reason is RejectionReason.OVERSIZED
     assert secret not in str(caught.value)

@@ -1,6 +1,7 @@
 """Runnable payment jobs, reconciliation, subscription lifecycle, and outbox worker."""
 
 import asyncio
+import contextlib
 import logging
 import signal
 import socket
@@ -107,10 +108,8 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
                 logger.exception("billing_worker_iteration_failed")
                 worked = False
             if not worked:
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stopped.wait(), timeout=1.0)
-                except TimeoutError:
-                    pass
     finally:
         await engine.dispose()
 

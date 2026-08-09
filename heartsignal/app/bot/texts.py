@@ -1,5 +1,4 @@
 """Centralized Russian interface copy."""
-# ruff: noqa: RUF001, E501
 
 WELCOME = (
     "HeartSignal помогает увидеть сигналы в общении, отделить факты от догадок "

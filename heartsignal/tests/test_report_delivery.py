@@ -25,7 +25,7 @@ class MessageRecorder:
 @pytest.mark.parametrize("chunks", [("one",), ("one", "two", "three")])
 async def test_chunks_order_final_actions_and_separate_feedback(chunks: tuple[str, ...]) -> None:
     message = MessageRecorder()
-    await deliver_report(cast(Message, message), "id", RenderedReport(chunks))
+    await deliver_report(cast("Message", message), "id", RenderedReport(chunks))
     assert [call[0] for call in message.calls[:-1]] == list(chunks)
     assert all(call[1] is None for call in message.calls[:-2])
     assert message.calls[-2][1] is not None
@@ -35,7 +35,7 @@ async def test_chunks_order_final_actions_and_separate_feedback(chunks: tuple[st
 async def test_existing_feedback_has_no_feedback_keyboard() -> None:
     message = MessageRecorder()
     await deliver_report(
-        cast(Message, message), "id", RenderedReport(("report",)), feedback_exists=True
+        cast("Message", message), "id", RenderedReport(("report",)), feedback_exists=True
     )
     assert message.calls[-1] == (texts.FEEDBACK_ALREADY, None)
 
@@ -46,7 +46,7 @@ async def test_send_failure_is_propagated_without_private_logging(
 ) -> None:
     message = MessageRecorder(fail_at)
     with pytest.raises(RuntimeError):
-        await deliver_report(cast(Message, message), "safe-id", RenderedReport(("one", "two")))
+        await deliver_report(cast("Message", message), "safe-id", RenderedReport(("one", "two")))
     assert "SECRET-PRIVATE-CONTENT" not in caplog.text
     assert "safe-id" in caplog.text
 
@@ -54,4 +54,4 @@ async def test_send_failure_is_propagated_without_private_logging(
 async def test_oversized_or_empty_chunks_are_rejected_before_telegram() -> None:
     for chunk in ("", "x" * 4097):
         with pytest.raises(ValueError, match="invalid_report_chunk"):
-            await deliver_report(cast(Message, MessageRecorder()), "id", RenderedReport((chunk,)))
+            await deliver_report(cast("Message", MessageRecorder()), "id", RenderedReport((chunk,)))

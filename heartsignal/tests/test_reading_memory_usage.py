@@ -50,7 +50,7 @@ async def test_usage_telemetry_failure_keeps_context_and_logs_no_value(
         created_at=datetime(2026, 8, 6, tzinfo=UTC),
     )
     fake = FailingUsageMemoryService(item)
-    retriever = OracleReadingMemoryRetriever(cast(OracleMemoryService, fake))
+    retriever = OracleReadingMemoryRetriever(cast("OracleMemoryService", fake))
     caplog.set_level(logging.WARNING)
 
     selected = await retriever.retrieve(

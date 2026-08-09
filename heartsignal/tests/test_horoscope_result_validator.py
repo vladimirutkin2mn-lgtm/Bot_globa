@@ -6,7 +6,7 @@ import pytest
 
 from app.services.horoscope_result_validator import (
     HoroscopeResultValidator,
-    InvalidHoroscopeResult,
+    InvalidHoroscopeResultError,
 )
 from tests.horoscope_helpers import sample_fact_bundle, valid_horoscope_payload
 
@@ -31,7 +31,7 @@ def test_validator_rejects_changed_digest_and_unknown_fact_reference() -> None:
     assert isinstance(first, dict)
     first["fact_ids"] = ["natal:planet:invented"]
 
-    with pytest.raises(InvalidHoroscopeResult) as error:
+    with pytest.raises(InvalidHoroscopeResultError) as error:
         HoroscopeResultValidator().validate(json.dumps(payload), bundle)
 
     assert error.value.code == "invalid_semantics"
@@ -46,7 +46,7 @@ def test_validator_requires_exact_application_limitations() -> None:
     assert isinstance(limitations, list)
     limitations.append("birth_time_unknown")
 
-    with pytest.raises(InvalidHoroscopeResult) as error:
+    with pytest.raises(InvalidHoroscopeResultError) as error:
         HoroscopeResultValidator().validate(json.dumps(payload), bundle)
 
     assert error.value.code == "invalid_semantics"
@@ -58,7 +58,7 @@ def test_validator_forbids_model_authored_chart_positions() -> None:
     payload = valid_horoscope_payload(bundle)
     payload["overview"] = "Sun in Aries at 12° guarantees a decisive result."
 
-    with pytest.raises(InvalidHoroscopeResult) as error:
+    with pytest.raises(InvalidHoroscopeResultError) as error:
         HoroscopeResultValidator().validate(json.dumps(payload), bundle)
 
     assert error.value.code == "invalid_semantics"
@@ -71,7 +71,7 @@ def test_validator_reuses_shared_oracle_output_safety() -> None:
     payload = valid_horoscope_payload(bundle)
     payload["overview"] = "This will definitely happen and cannot be avoided."
 
-    with pytest.raises(InvalidHoroscopeResult) as error:
+    with pytest.raises(InvalidHoroscopeResultError) as error:
         HoroscopeResultValidator().validate(json.dumps(payload), bundle)
 
     assert error.value.code == "unsafe_output"

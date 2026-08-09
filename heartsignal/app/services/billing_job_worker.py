@@ -15,14 +15,14 @@ from app.db.models import (
     RefundRequest,
     Subscription,
 )
-from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcome
+from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcomeError
 from app.providers.payments.gateway import CreateCheckout, OneTimePaymentGateway
 from app.providers.payments.refund_gateway import RefundGateway
 from app.providers.payments.subscription_gateway import (
     CreateSubscriptionCheckout,
     SubscriptionGateway,
 )
-from app.services.checkout_service import CheckoutRejected, ReceiptContactCipher
+from app.services.checkout_service import CheckoutRejectedError, ReceiptContactCipher
 from app.services.payment_completion_service import PaymentCompletionService
 from app.services.refund_reconciliation_service import RefundReconciliationService
 from app.services.subscription_event_processor import SubscriptionEventProcessor
@@ -90,7 +90,7 @@ class BillingJobWorker:
         job_id, claim_id = claim
         try:
             await self._process(job_id, claim_id)
-        except UnknownProviderOutcome:
+        except UnknownProviderOutcomeError:
             await self._retry(job_id, claim_id, "provider_unknown")
         except PermanentProviderError as exc:
             code = str(exc)
@@ -293,7 +293,7 @@ class BillingJobWorker:
                     raise PermanentProviderError("receipt_cipher_missing")
                 try:
                     contact = self._receipt_cipher.decrypt(order.encrypted_receipt_contact)
-                except CheckoutRejected as exc:
+                except CheckoutRejectedError as exc:
                     raise PermanentProviderError("corrupt_receipt_contact") from exc
             request = CreateCheckout(
                 str(order.id),

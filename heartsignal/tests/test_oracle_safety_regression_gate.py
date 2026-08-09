@@ -67,7 +67,7 @@ def _load_dataset() -> Dataset:
     raw: object = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise AssertionError("oracle safety fixture root must be an object")
-    return cast(Dataset, raw)
+    return cast("Dataset", raw)
 
 
 def _input_cases(dataset: Dataset) -> list[InputCase]:
@@ -75,7 +75,7 @@ def _input_cases(dataset: Dataset) -> list[InputCase]:
     for raw in dataset["input_cases"]:
         case = dict(raw)
         case["class_"] = case.pop("class")
-        cases.append(cast(InputCase, case))
+        cases.append(cast("InputCase", case))
     return cases
 
 
@@ -117,7 +117,7 @@ def test_prompt_injection_remains_json_data(case: BoundaryCase) -> None:
 
     assert wrapped.startswith(OraclePromptBoundary.input_marker)
     payload_text = wrapped.removeprefix(OraclePromptBoundary.input_marker)
-    decoded = cast(dict[str, object], json.loads(payload_text))
+    decoded = cast("dict[str, object]", json.loads(payload_text))
     assert decoded == {
         "persona_code": case["persona"],
         "user_question": case["text"],
@@ -139,8 +139,8 @@ def test_malicious_memory_remains_tagged_json_data(case: BoundaryCase) -> None:
 
     assert wrapped.startswith(OraclePromptBoundary.memory_marker)
     payload_text = wrapped.removeprefix(OraclePromptBoundary.memory_marker)
-    decoded = cast(dict[str, object], json.loads(payload_text))
-    items = cast(list[dict[str, object]], decoded["items"])
+    decoded = cast("dict[str, object]", json.loads(payload_text))
+    items = cast("list[dict[str, object]]", decoded["items"])
     assert items[0]["source"] == "user_confirmed_memory"
     assert items[0]["value"] == case["text"]
     assert case["text"] not in wrapped[: len(OraclePromptBoundary.memory_marker)]

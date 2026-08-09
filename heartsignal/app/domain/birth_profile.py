@@ -40,7 +40,7 @@ class BirthProfileInput:
             raise ValueError("birth place must contain between 1 and 200 characters")
         if not timezone_name or len(timezone_name) > 64:
             raise ValueError("birth timezone must contain between 1 and 64 characters")
-        if self.birth_date > date.today():
+        if self.birth_date > datetime.now(UTC).date():
             raise ValueError("birth date cannot be in the future")
         if self.birth_time is not None and self.birth_time.tzinfo is not None:
             raise ValueError("birth time must be local and timezone-naive")

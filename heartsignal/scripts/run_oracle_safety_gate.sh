@@ -7,8 +7,8 @@ pytest \
   tests/test_reading_output_safety.py \
   tests/test_reading_generation_output_safety.py \
   tests/test_oracle_crisis_handoff.py \
-  tests/test_tarot_input_safety_gate.py \
-  tests/test_tarot_safety_middleware.py \
+  tests/test_persona_input_safety_gate.py \
+  tests/test_reading_safety_middleware.py \
   tests/test_horoscope_result_validator.py \
   tests/test_horoscope_reading.py \
   "$@"

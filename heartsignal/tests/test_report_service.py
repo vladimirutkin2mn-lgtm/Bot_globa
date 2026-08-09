@@ -71,7 +71,7 @@ class MemoryReports:
     ) -> tuple[list[Analysis], bool]:
         rows = sorted(
             (row for row in self.rows if row.user_id == user_id and row.status == "completed"),
-            key=lambda row: (cast(datetime, row.completed_at), row.id),
+            key=lambda row: (cast("datetime", row.completed_at), row.id),
             reverse=True,
         )
         selected = rows[page * page_size : (page + 1) * page_size + 1]
@@ -105,7 +105,7 @@ def analysis(
 
 def service(rows: list[Analysis], analytics: Analytics | None = None) -> ReportService:
     return ReportService(
-        cast(ReportRepository, MemoryReports(rows)), ReportRenderer(), analytics or Analytics()
+        cast("ReportRepository", MemoryReports(rows)), ReportRenderer(), analytics or Analytics()
     )
 
 
@@ -136,7 +136,7 @@ async def test_not_found_wrong_owner_and_deleted_are_typed() -> None:
 async def test_corrupted_results_are_safely_rejected(mutation: str) -> None:
     value = copy.deepcopy(payload())
     if mutation == "invalid_enum":
-        cast(dict[str, object], value["dynamic"])["direction"] = "secret_enum"
+        cast("dict[str, object]", value["dynamic"])["direction"] = "secret_enum"
     elif mutation == "unknown_field":
         value["unknown"] = True
     else:
@@ -194,7 +194,7 @@ async def test_analytics_failure_never_changes_feedback_or_deletion(
 
     row = analysis()
     reports = ReportService(
-        cast(ReportRepository, MemoryReports([row])), ReportRenderer(), BrokenAnalytics()
+        cast("ReportRepository", MemoryReports([row])), ReportRenderer(), BrokenAnalytics()
     )
     assert await reports.feedback(row.id, row.user_id, 5) is FeedbackOutcome.RECORDED
     assert await reports.delete(row.id, row.user_id) is DeletionOutcome.DELETED
