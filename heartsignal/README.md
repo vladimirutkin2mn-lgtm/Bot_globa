@@ -96,6 +96,13 @@ the product that sends user text to a third party — see
 [`docs/privacy-deletion-retention.md`](docs/privacy-deletion-retention.md). The default
 provider (`GEOCODING_PROVIDER=stub`) is offline and makes no network call.
 
+### Paid follow-ups
+
+Every full reading includes one follow-up question. The entitlement lives in
+`reading_followups`, keyed on the reading rather than the persona, and the answer may
+only cite sections that exist in the reading it explains. See
+[`docs/style.md`](docs/style.md).
+
 ## Non-negotiable contracts
 
 - **Safety** — classify input before it reaches a prompt, validate output before

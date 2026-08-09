@@ -18,6 +18,7 @@ from app.bot.persona_flows import MVP_READING_FLOWS, TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
+from app.bot.reading_followup_handlers import create_reading_followup_router
 from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
@@ -59,6 +60,7 @@ from app.services.oracle_release_controls import OracleReleaseControls
 from app.services.persona_reading import PersonaReadingUseCase, SymbolDrawer
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
+from app.services.reading_followup import ReadingFollowUpService
 from app.services.reading_generation import ReadingGenerationService
 from app.services.reading_history import ReadingHistoryService
 from app.services.reading_memory_context import OracleReadingMemoryRetriever
@@ -158,6 +160,7 @@ def create_dispatcher(
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
     dispatcher.include_router(create_horoscope_router())
+    dispatcher.include_router(create_reading_followup_router())
     dispatcher.include_router(router)
     dispatcher["database_engine"] = resolved_engine
     dispatcher["owns_database_engine"] = engine is None
@@ -237,6 +240,15 @@ def create_dispatcher(
     )
     dispatcher["horoscope_renderer"] = HoroscopeRenderer()
     dispatcher["horoscope_monetized"] = monetized_readings
+    dispatcher["reading_followups"] = ReadingFollowUpService(
+        sessions,
+        cipher,
+        llm,
+        analytics,
+        settings.llm_provider,
+        settings.llm_model,
+        max_repair_attempts=settings.llm_max_repair_attempts,
+    )
     dispatcher.startup.register(sync_persona_registry)
     return dispatcher
 

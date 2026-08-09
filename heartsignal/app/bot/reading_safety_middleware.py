@@ -15,6 +15,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app.bot.horoscope_flow import horoscope_safety_intake
 from app.bot.persona_flows import MVP_READING_FLOWS
+from app.bot.reading_followup_handlers import followup_safety_intake
 from app.bot.safety_intake import SafetyIntake
 from app.domain.oracle_safety import OracleInputSafetyClassifier
 from app.services.oracle_crisis_handoff import OracleCrisisHandoffService
@@ -32,7 +33,11 @@ class _StateContext(Protocol):
 
 def mvp_safety_intakes() -> tuple[SafetyIntake, ...]:
     """Every intake surface that may carry a user-authored question."""
-    return (*(flow.safety_intake() for flow in MVP_READING_FLOWS), horoscope_safety_intake())
+    return (
+        *(flow.safety_intake() for flow in MVP_READING_FLOWS),
+        horoscope_safety_intake(),
+        followup_safety_intake(),
+    )
 
 
 class ReadingSafetyHandoffMiddleware(BaseMiddleware):
@@ -48,8 +53,14 @@ class ReadingSafetyHandoffMiddleware(BaseMiddleware):
         self._classifier = classifier or OracleInputSafetyClassifier()
         self._handoffs = handoffs or OracleCrisisHandoffService()
         self._by_question_state = {intake.question_state: intake for intake in resolved}
-        self._by_context_state = {intake.context_state: intake for intake in resolved}
-        self._skip_context_callbacks = {intake.skip_context_callback for intake in resolved}
+        self._by_context_state = {
+            intake.context_state: intake for intake in resolved if intake.context_state is not None
+        }
+        self._skip_context_callbacks = {
+            intake.skip_context_callback
+            for intake in resolved
+            if intake.skip_context_callback is not None
+        }
 
     async def __call__(
         self,

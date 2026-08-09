@@ -23,6 +23,8 @@ SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
 BUY_CREDITS_BUTTON = "Купить кредиты"
 CHECK_BALANCE_BUTTON = "Проверить баланс и открыть"
+FOLLOWUP_BUTTON = "Задать уточняющий вопрос"
+FOLLOWUP_NAMESPACE = "rfu"
 
 NOT_ONBOARDED = "Сначала отправьте /start и завершите подтверждение возраста и условий."
 INVALID_TEXT = "Нужно обычное текстовое сообщение допустимой длины."
@@ -131,6 +133,19 @@ class ReadingFlow:
                 [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
             ]
         )
+
+    def full_result_keyboard(self, reading_id: UUID) -> InlineKeyboardMarkup:
+        """The paid view is the only place the included follow-up is offered."""
+        rows = [
+            [
+                InlineKeyboardButton(
+                    text=FOLLOWUP_BUTTON,
+                    callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
+                )
+            ]
+        ]
+        rows.extend(self._navigation_rows())
+        return InlineKeyboardMarkup(inline_keyboard=rows)
 
     def result_keyboard(
         self,

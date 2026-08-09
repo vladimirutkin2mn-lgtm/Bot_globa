@@ -84,6 +84,19 @@ one today — keeps its own use case, router and renderer, but still reuses `Rea
 for the shared transport surface (namespace, result keyboards, history) and **must**
 register a `SafetyIntake` so the crisis middleware covers it.
 
+## Paid follow-ups
+
+A follow-up explains a reading the user already paid for. It never draws new symbols,
+never recalculates a chart and never charges again.
+
+- The entitlement is keyed on `reading_id`, not on the persona: the reading is what was
+  paid for. One shared router and one shared state group serve every persona.
+- The answer may only cite sections that exist in **that** reading. The allowed
+  references are derived from the stored result (`allowed_reading_refs`), never from a
+  fixed list, because `reading-result-v1` and `astrology-reading-result-v1` differ.
+- Reserve before provider I/O and fence every terminal write by the claim ID that
+  reserved it. A technical failure releases the entitlement so the retry is free.
+
 ## Time and place
 
 Anything derived from a birth moment is calculated, not guessed:

@@ -49,5 +49,11 @@ class HoroscopeStates(StatesGroup):
     generating = State()
 
 
+class ReadingFollowUpStates(StatesGroup):
+    """Shared by every persona: the follow-up is addressed by reading, not by persona."""
+
+    waiting_for_question = State()
+
+
 class MemoryStates(StatesGroup):
     waiting_for_correction = State()

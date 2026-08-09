@@ -855,7 +855,11 @@ class HoroscopeHandlers:
             renderer.render(result, facts) if full else renderer.render_preview(result, facts)
         )
         chunks = rendered.chunks()
-        final = markup if markup is not None else HOROSCOPE_FLOW.result_keyboard()
+        final = (
+            markup
+            if markup is not None
+            else HOROSCOPE_FLOW.full_result_keyboard(outcome.reading_id)
+        )
         for index, chunk in enumerate(chunks):
             await message.answer(chunk, reply_markup=final if index == len(chunks) - 1 else None)
 

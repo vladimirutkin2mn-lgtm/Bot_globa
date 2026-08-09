@@ -17,6 +17,7 @@ from app.db.birth_profile_models import BirthProfile  # noqa: F401
 from app.db.fsm_models import TelegramFSMState  # noqa: F401
 from app.db.memory_models import OracleMemoryItem  # noqa: F401
 from app.db.models import User  # noqa: F401
+from app.db.reading_followups import ReadingFollowUp  # noqa: F401
 from app.db.reading_models import Reading  # noqa: F401
 from app.db.release_gates import ReleaseGateAttestation  # noqa: F401
 from app.db.subscription_models import SubscriptionPeriod  # noqa: F401
