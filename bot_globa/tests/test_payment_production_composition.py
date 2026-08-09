@@ -27,14 +27,14 @@ def stripe_values() -> dict[str, object]:
         "stripe_enabled": True,
         "stripe_secret_key": "sk_live_redacted",
         "stripe_webhook_secret": "whsec_redacted",
-        "stripe_price_analysis_single_eur": "price_eur_1",
-        "stripe_price_analysis_single_usd": "price_usd_1",
-        "stripe_price_analysis_pack_5_eur": "price_eur_5",
-        "stripe_price_analysis_pack_5_usd": "price_usd_5",
-        "stripe_amount_analysis_single_eur_minor": 411,
-        "stripe_amount_analysis_single_usd_minor": 577,
-        "stripe_amount_analysis_pack_5_eur_minor": 1800,
-        "stripe_amount_analysis_pack_5_usd_minor": 2200,
+        "stripe_price_reading_single_eur": "price_eur_1",
+        "stripe_price_reading_single_usd": "price_usd_1",
+        "stripe_price_reading_pack_5_eur": "price_eur_5",
+        "stripe_price_reading_pack_5_usd": "price_usd_5",
+        "stripe_amount_reading_single_eur_minor": 411,
+        "stripe_amount_reading_single_usd_minor": 577,
+        "stripe_amount_reading_pack_5_eur_minor": 1800,
+        "stripe_amount_reading_pack_5_usd_minor": 2200,
     }
 
 
@@ -66,14 +66,14 @@ def test_mock_remains_forbidden_in_production() -> None:
 
 def test_enabled_stripe_requires_all_one_time_prices() -> None:
     values = stripe_values()
-    values["stripe_price_analysis_pack_5_usd"] = ""
+    values["stripe_price_reading_pack_5_usd"] = ""
     with pytest.raises(ValidationError):
         production(**values)
 
 
 def test_enabled_stripe_requires_explicit_expected_amounts() -> None:
     values = stripe_values()
-    values["stripe_amount_analysis_pack_5_usd_minor"] = None
+    values["stripe_amount_reading_pack_5_usd_minor"] = None
     with pytest.raises(ValidationError):
         production(**values)
 

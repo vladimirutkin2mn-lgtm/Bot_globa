@@ -27,17 +27,11 @@ def test_authoritative_routes(settings: Settings) -> None:
         catalog.resolve_product_offer("reading_single", BillingMarket.RU, "USD")
 
 
-def test_legacy_callbacks_create_current_catalog_coordinates(settings: Settings) -> None:
+def test_an_unknown_product_code_is_refused_rather_than_guessed(settings: Settings) -> None:
     catalog = BillingCatalog(settings)
 
-    offer = catalog.resolve_product_offer(
-        "analysis_single",
-        BillingMarket.RU,
-        "RUB",
-    )
-
-    assert offer.product_code is ProductCode.READING_SINGLE
-    assert offer.product_version == PRODUCT_CATALOG_VERSION
+    with pytest.raises(LookupError):
+        catalog.resolve_product_offer("analysis_single", BillingMarket.RU, "RUB")
 
 
 def test_astrology_skus_share_approved_single_reading_price_until_pricing_changes(
@@ -70,8 +64,8 @@ def test_astrology_skus_share_approved_single_reading_price_until_pricing_change
 def test_stripe_uses_currency_specific_expected_amounts(settings: Settings) -> None:
     configured = settings.model_copy(
         update={
-            "stripe_amount_analysis_single_eur_minor": 411,
-            "stripe_amount_analysis_single_usd_minor": 577,
+            "stripe_amount_reading_single_eur_minor": 411,
+            "stripe_amount_reading_single_usd_minor": 577,
         }
     )
     catalog = BillingCatalog(configured)

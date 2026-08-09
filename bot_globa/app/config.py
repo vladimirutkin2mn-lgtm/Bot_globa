@@ -27,18 +27,13 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=45, gt=0)
     llm_max_transport_attempts: int = Field(default=2, ge=1, le=5)
     llm_max_repair_attempts: int = Field(default=1, ge=0, le=1)
-    llm_prompt_version: str = "analysis_v1"
     geocoding_provider: Literal["stub", "opencage"] = "stub"
     geocoding_api_key: SecretStr = Field(default=SecretStr(""))
     geocoding_timeout_seconds: float = Field(default=8, gt=0)
     geocoding_max_transport_attempts: int = Field(default=2, ge=1, le=5)
     content_encryption_key: SecretStr
     raw_content_retention_days: int = Field(default=30, ge=1)
-    conversation_min_messages: int = Field(default=4, ge=1)
-    conversation_max_characters: int = Field(default=30_000, ge=1)
-    conversation_max_participants: int = Field(default=2, ge=2)
-    analysis_goal_max_characters: int = Field(default=500, ge=1)
-    analysis_price_credits: int = Field(default=1, ge=1)
+    reading_price_credits: int = Field(default=1, ge=1)
     reading_full_price_credits: int = Field(default=1, ge=1)
     payment_provider: str = "mock"
     payment_public_base_url: str = "http://localhost:8000"
@@ -46,8 +41,8 @@ class Settings(BaseSettings):
     payment_currency: str = "RUB"
     payment_webhook_max_age_seconds: int = Field(default=300, gt=0)
     checkout_creation_lease_seconds: int = Field(default=60, gt=0)
-    product_analysis_single_price_minor: int = Field(default=19_900, gt=0)
-    product_analysis_pack_5_price_minor: int = Field(default=69_900, gt=0)
+    product_reading_single_price_minor: int = Field(default=19_900, gt=0)
+    product_reading_pack_5_price_minor: int = Field(default=69_900, gt=0)
     product_subscription_monthly_price_minor: int = Field(default=99_000, gt=0)
     product_subscription_monthly_credits: int = Field(default=30, ge=1)
     billing_enabled: bool = False
@@ -65,18 +60,16 @@ class Settings(BaseSettings):
     yookassa_vat_code: int = Field(default=1, ge=1, le=6)
     yookassa_webhook_ip_allowlist: str = ""
     yookassa_trusted_proxy_allowlist: str = ""
-    billing_trusted_proxies: str = ""
     stripe_secret_key: SecretStr = Field(default=SecretStr(""), repr=False)
     stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), repr=False)
-    stripe_portal_url: str = ""
-    stripe_price_analysis_single_eur: str = ""
-    stripe_price_analysis_single_usd: str = ""
-    stripe_price_analysis_pack_5_eur: str = ""
-    stripe_price_analysis_pack_5_usd: str = ""
-    stripe_amount_analysis_single_eur_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_analysis_single_usd_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_analysis_pack_5_eur_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_analysis_pack_5_usd_minor: int | None = Field(default=None, gt=0)
+    stripe_price_reading_single_eur: str = ""
+    stripe_price_reading_single_usd: str = ""
+    stripe_price_reading_pack_5_eur: str = ""
+    stripe_price_reading_pack_5_usd: str = ""
+    stripe_amount_reading_single_eur_minor: int | None = Field(default=None, gt=0)
+    stripe_amount_reading_single_usd_minor: int | None = Field(default=None, gt=0)
+    stripe_amount_reading_pack_5_eur_minor: int | None = Field(default=None, gt=0)
+    stripe_amount_reading_pack_5_usd_minor: int | None = Field(default=None, gt=0)
     stripe_price_subscription_monthly_eur: str = ""
     stripe_price_subscription_monthly_usd: str = ""
     stripe_amount_subscription_monthly_eur_minor: int | None = Field(default=None, gt=0)
@@ -90,7 +83,6 @@ class Settings(BaseSettings):
     provider_request_timeout_seconds: float = Field(default=15, gt=0)
     subscription_grace_period_days: int = Field(default=3, ge=0)
     billing_consent_version: str = "billing-v1"
-    analytics_enabled: bool = False
 
     @field_validator("payment_currency")
     @classmethod
@@ -183,20 +175,20 @@ class Settings(BaseSettings):
             raise ValueError("Stripe configuration is incomplete")
         if self.stripe_enabled and not all(
             (
-                self.stripe_price_analysis_single_eur,
-                self.stripe_price_analysis_single_usd,
-                self.stripe_price_analysis_pack_5_eur,
-                self.stripe_price_analysis_pack_5_usd,
+                self.stripe_price_reading_single_eur,
+                self.stripe_price_reading_single_usd,
+                self.stripe_price_reading_pack_5_eur,
+                self.stripe_price_reading_pack_5_usd,
             )
         ):
             raise ValueError("Stripe one-time Price configuration is incomplete")
         if self.stripe_enabled and not all(
             amount is not None
             for amount in (
-                self.stripe_amount_analysis_single_eur_minor,
-                self.stripe_amount_analysis_single_usd_minor,
-                self.stripe_amount_analysis_pack_5_eur_minor,
-                self.stripe_amount_analysis_pack_5_usd_minor,
+                self.stripe_amount_reading_single_eur_minor,
+                self.stripe_amount_reading_single_usd_minor,
+                self.stripe_amount_reading_pack_5_eur_minor,
+                self.stripe_amount_reading_pack_5_usd_minor,
             )
         ):
             raise ValueError("Stripe one-time expected amounts are incomplete")

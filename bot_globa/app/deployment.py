@@ -23,7 +23,6 @@ class DeploymentSettings(BaseSettings):
     telegram_update_retry_base_seconds: int = Field(default=5, ge=1, le=3600)
     telegram_update_max_attempts: int = Field(default=8, ge=1, le=100)
     telegram_worker_idle_seconds: float = Field(default=0.5, gt=0, le=60)
-    analysis_processing_stale_seconds: int = Field(default=900, ge=60)
     maintenance_interval_seconds: float = Field(default=300, gt=0)
     maintenance_batch_size: int = Field(default=100, ge=1, le=10_000)
 

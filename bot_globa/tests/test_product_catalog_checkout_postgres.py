@@ -46,7 +46,7 @@ def _configured(settings: Settings) -> Settings:
     )
 
 
-async def test_legacy_callback_creates_only_current_sku_and_immutable_label_snapshot(
+async def test_checkout_creates_the_current_sku_with_an_immutable_label_snapshot(
     payment_db: async_sessionmaker[AsyncSession],
     settings: Settings,
 ) -> None:
@@ -67,7 +67,7 @@ async def test_legacy_callback_creates_only_current_sku_and_immutable_label_snap
 
     await service.create_one_time_checkout(
         user_id,
-        "analysis_single",
+        "reading_single",
         "RU",
         "RUB",
     )
@@ -97,7 +97,7 @@ async def test_current_callback_replays_unfinished_v1_order_without_catalog_repr
         order = PaymentOrder(
             user_id=user.id,
             provider="yookassa",
-            product_code="analysis_single",
+            product_code="reading_single",
             product_version=1,
             status="creating",
             credits=7,
@@ -108,7 +108,7 @@ async def test_current_callback_replays_unfinished_v1_order_without_catalog_repr
             idempotency_key=f"checkout:create:{uuid4()}:v1",
             checkout_creation_started_at=datetime.now(UTC) - timedelta(minutes=5),
             commercial_snapshot={
-                "product_code": "analysis_single",
+                "product_code": "reading_single",
                 "product_version": 1,
                 "title": "Legacy frozen title",
                 "receipt_label": "Legacy frozen receipt label",
@@ -117,7 +117,7 @@ async def test_current_callback_replays_unfinished_v1_order_without_catalog_repr
                 "currency": "RUB",
                 "provider": "yookassa",
                 "market": "RU",
-                "price_reference": "catalog:analysis_single:rub:v1",
+                "price_reference": "catalog:reading_single:rub:v1",
                 "billing_period": None,
             },
         )
@@ -149,12 +149,12 @@ async def test_current_callback_replays_unfinished_v1_order_without_catalog_repr
     assert result.order_id == order_id
     assert count == 1
     assert stored is not None and stored.status == "pending"
-    assert stored.product_code == "analysis_single"
+    assert stored.product_code == "reading_single"
     assert stored.product_version == 1
     assert len(gateway.requests) == 1
     request = gateway.requests[0]
-    assert request.product_code == "analysis_single"
+    assert request.product_code == "reading_single"
     assert request.product_version == 1
     assert request.amount_minor == 12_345
-    assert request.price_reference == "catalog:analysis_single:rub:v1"
+    assert request.price_reference == "catalog:reading_single:rub:v1"
     assert request.receipt_label == "Legacy frozen receipt label"

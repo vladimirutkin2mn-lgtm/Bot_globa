@@ -150,7 +150,7 @@ async def _rolled_back_projection(url: str, schema: str, outbox_id: UUID) -> Non
                 {
                     "id": outbox_id,
                     "aggregate_id": str(uuid4()),
-                    "payload": '{"product_code":"analysis_single","provider":"stripe",'
+                    "payload": '{"product_code":"reading_single","provider":"stripe",'
                     '"market":"RU","currency":"RUB","credits":"1",'
                     '"private_text":"must-not-project"}',
                     "key": f"purchase-completed:{outbox_id}",
@@ -193,7 +193,7 @@ def test_billing_outbox_projection_is_transactional_and_allow_listed() -> None:
                 "(id,aggregate_type,aggregate_id,event_type,payload,idempotency_key,status,"
                 "attempt_count,available_at,created_at) VALUES "
                 f"('{committed_id}','payment_order','{uuid4()}','purchase_completed',"
-                '\'{"product_code":"analysis_single","provider":"stripe",'
+                '\'{"product_code":"reading_single","provider":"stripe",'
                 '"market":"RU","currency":"RUB","credits":"1",'
                 '"private_text":"must-not-project"}\'::jsonb,'
                 f"'purchase-completed:{committed_id}','pending',0,now(),now())",
@@ -209,7 +209,7 @@ def test_billing_outbox_projection_is_transactional_and_allow_listed() -> None:
             )
         )
         assert isinstance(properties, str)
-        assert "analysis_single" in properties
+        assert "reading_single" in properties
         assert "must-not-project" not in properties
         assert "private_text" not in properties
     finally:

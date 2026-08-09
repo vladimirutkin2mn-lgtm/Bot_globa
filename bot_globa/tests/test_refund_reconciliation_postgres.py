@@ -108,7 +108,7 @@ async def requested_refund(
         order = PaymentOrder(
             user_id=user.id,
             provider="stripe",
-            product_code="analysis_pack_5",
+            product_code="reading_pack_5",
             status="completed",
             credits=5,
             amount_minor=1_000,

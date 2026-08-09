@@ -100,10 +100,10 @@ async def test_ten_first_checkout_calls_have_one_provider_owner(
     user = await _user(payment_db)
     provider, analytics = BlockingProvider(), Analytics()
     service = PaymentService(payment_db, ProductCatalog(settings), provider, analytics)
-    owner = asyncio.create_task(service.create_checkout(user.id, "analysis_single"))
+    owner = asyncio.create_task(service.create_checkout(user.id, "reading_single"))
     await provider.started.wait()
     followers = await asyncio.gather(
-        *(service.create_checkout(user.id, "analysis_single") for _ in range(9))
+        *(service.create_checkout(user.id, "reading_single") for _ in range(9))
     )
     assert all(result.outcome is CheckoutOutcome.CREATING for result in followers)
     provider.release.set()
@@ -122,7 +122,7 @@ async def test_ten_payment_completions_credit_once(
     provider, analytics = BlockingProvider(), Analytics()
     provider.release.set()
     service = PaymentService(payment_db, ProductCatalog(settings), provider, analytics)
-    checkout = await service.create_checkout(user.id, "analysis_single")
+    checkout = await service.create_checkout(user.id, "reading_single")
     assert checkout.checkout is not None
     event = PaymentEvent(
         "mock",
@@ -130,7 +130,7 @@ async def test_ten_payment_completions_credit_once(
         checkout.checkout.provider_checkout_id,
         "payment-one",
         "paid",
-        settings.product_analysis_single_price_minor,
+        settings.product_reading_single_price_minor,
         settings.payment_currency,
     )
     outcomes = await asyncio.gather(*(service.complete(event) for _ in range(10)))
@@ -154,9 +154,9 @@ async def test_stale_attempt_cannot_overwrite_winning_attempt(
     service = PaymentService(
         payment_db, ProductCatalog(settings), provider, analytics, creation_lease_seconds=-1
     )
-    old = asyncio.create_task(service.create_checkout(user.id, "analysis_single"))
+    old = asyncio.create_task(service.create_checkout(user.id, "reading_single"))
     await provider.started.wait()
-    winner = await service.create_checkout(user.id, "analysis_single")
+    winner = await service.create_checkout(user.id, "reading_single")
     assert winner.outcome is CheckoutOutcome.EXISTING
     provider.release.set()
     assert (await old).outcome is CheckoutOutcome.CREATING
@@ -174,10 +174,10 @@ async def test_duplicate_payment_and_event_ids_are_typed_mismatch(
     provider, analytics = BlockingProvider(), Analytics()
     provider.release.set()
     service = PaymentService(payment_db, ProductCatalog(settings), provider, analytics)
-    first_checkout = await service.create_checkout(first.id, "analysis_single")
-    second_checkout = await service.create_checkout(second.id, "analysis_single")
+    first_checkout = await service.create_checkout(first.id, "reading_single")
+    second_checkout = await service.create_checkout(second.id, "reading_single")
     assert first_checkout.checkout and second_checkout.checkout
-    amount, currency = settings.product_analysis_single_price_minor, settings.payment_currency
+    amount, currency = settings.product_reading_single_price_minor, settings.payment_currency
     first_event = PaymentEvent(
         "mock",
         "shared-event",
@@ -218,9 +218,9 @@ async def test_old_cancellation_cannot_fail_winning_attempt(
     service = PaymentService(
         payment_db, ProductCatalog(settings), provider, analytics, creation_lease_seconds=-1
     )
-    old = asyncio.create_task(service.create_checkout(user.id, "analysis_single"))
+    old = asyncio.create_task(service.create_checkout(user.id, "reading_single"))
     await provider.started.wait()
-    winner = await service.create_checkout(user.id, "analysis_single")
+    winner = await service.create_checkout(user.id, "reading_single")
     assert winner.outcome is CheckoutOutcome.EXISTING
     old.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -240,9 +240,9 @@ async def test_old_provider_error_cannot_fail_winning_attempt(
     service = PaymentService(
         payment_db, ProductCatalog(settings), provider, analytics, creation_lease_seconds=-1
     )
-    old = asyncio.create_task(service.create_checkout(user.id, "analysis_single"))
+    old = asyncio.create_task(service.create_checkout(user.id, "reading_single"))
     await provider.started.wait()
-    winner = await service.create_checkout(user.id, "analysis_single")
+    winner = await service.create_checkout(user.id, "reading_single")
     assert winner.outcome is CheckoutOutcome.EXISTING
     provider.release.set()
     assert (await old).outcome is CheckoutOutcome.PROVIDER_FAILED

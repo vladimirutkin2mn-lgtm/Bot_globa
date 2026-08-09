@@ -25,7 +25,6 @@ nothing is a bot with a stubbed model, no payments and no analytics.
 | `SUBSCRIPTIONS_ENABLED` | `false` | `true` |
 | `REFUNDS_ENABLED` | `false` | `true` |
 | `YOOKASSA_RECURRING_ENABLED` | `false` | `true` |
-| `ANALYTICS_ENABLED` | `false` | `true` |
 | `ANALYTICS_BACKEND` | `noop` | `postgres` |
 | `ADMIN_METRICS_ENABLED` | `false` | `true` |
 | `ADMIN_API_TOKEN` | empty | a real secret |

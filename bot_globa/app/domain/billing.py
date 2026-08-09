@@ -122,12 +122,12 @@ def _stripe_coordinates(
 
     if currency == "EUR":
         single = (
-            settings.stripe_price_analysis_single_eur,
-            settings.stripe_amount_analysis_single_eur_minor,
+            settings.stripe_price_reading_single_eur,
+            settings.stripe_amount_reading_single_eur_minor,
         )
         pack = (
-            settings.stripe_price_analysis_pack_5_eur,
-            settings.stripe_amount_analysis_pack_5_eur_minor,
+            settings.stripe_price_reading_pack_5_eur,
+            settings.stripe_amount_reading_pack_5_eur_minor,
         )
         subscription = (
             settings.stripe_price_subscription_monthly_eur,
@@ -135,12 +135,12 @@ def _stripe_coordinates(
         )
     elif currency == "USD":
         single = (
-            settings.stripe_price_analysis_single_usd,
-            settings.stripe_amount_analysis_single_usd_minor,
+            settings.stripe_price_reading_single_usd,
+            settings.stripe_amount_reading_single_usd_minor,
         )
         pack = (
-            settings.stripe_price_analysis_pack_5_usd,
-            settings.stripe_amount_analysis_pack_5_usd_minor,
+            settings.stripe_price_reading_pack_5_usd,
+            settings.stripe_amount_reading_pack_5_usd_minor,
         )
         subscription = (
             settings.stripe_price_subscription_monthly_usd,

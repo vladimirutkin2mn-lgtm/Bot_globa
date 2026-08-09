@@ -125,7 +125,7 @@ async def handler_context() -> AsyncGenerator[
         from_user=actor,
         chat_instance="chat",
         message=message,
-        data="credits:offer:analysis_single:RU:RUB",
+        data="credits:offer:reading_single:RU:RUB",
     ).as_(bot)
     yield bot, session, state, callback, FakeOnboarding()
     await bot.session.close()
@@ -144,7 +144,7 @@ async def test_billing_disabled_uses_legacy_mock_checkout(
     settings: Settings,
 ) -> None:
     _, session, _, callback, onboarding = handler_context
-    callback = with_data(callback, "credits:buy:analysis_single")
+    callback = with_data(callback, "credits:buy:reading_single")
     await buy_credits(callback, onboarding, FakeLegacyPayments(), settings)
     markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     assert markup.inline_keyboard[0][0].url == "https://local.test/mock"
@@ -155,16 +155,16 @@ async def test_billing_enabled_opens_explicit_market_selection(
     settings: Settings,
 ) -> None:
     _, session, _, callback, onboarding = handler_context
-    callback = with_data(callback, "credits:buy:analysis_single")
+    callback = with_data(callback, "credits:buy:reading_single")
     await buy_credits(
         callback, onboarding, None, settings.model_copy(update={"billing_enabled": True})
     )
     markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
     assert callbacks[:3] == [
-        "credits:offer:analysis_single:RU:RUB",
-        "credits:offer:analysis_single:INTERNATIONAL:EUR",
-        "credits:offer:analysis_single:INTERNATIONAL:USD",
+        "credits:offer:reading_single:RU:RUB",
+        "credits:offer:reading_single:INTERNATIONAL:EUR",
+        "credits:offer:reading_single:INTERNATIONAL:USD",
     ]
 
 
@@ -175,7 +175,7 @@ async def test_receipts_disabled_starts_direct_checkout_and_returns_button(
     _, session, state, callback, onboarding = handler_context
     checkout = FakeCheckout()
     await create_production_checkout(callback, state, onboarding, checkout, settings)
-    assert checkout.calls[0][1:] == ("analysis_single", "RU", "RUB", None)
+    assert checkout.calls[0][1:] == ("reading_single", "RU", "RUB", None)
     assert sent(session)[-1].reply_markup.inline_keyboard[0][0].url == checkout.url  # type: ignore[union-attr]
 
 
@@ -193,7 +193,7 @@ async def test_receipts_enabled_stores_only_offer_coordinates(
     )
     assert await state.get_state() == PaymentStates.waiting_for_receipt_contact.state
     assert await state.get_data() == {
-        "product_code": "analysis_single",
+        "product_code": "reading_single",
         "market": "RU",
         "currency": "RUB",
     }
@@ -206,7 +206,7 @@ async def test_valid_contact_starts_checkout_and_clears_fsm(
 ) -> None:
     bot, session, state, _, onboarding = handler_context
     await state.set_state(PaymentStates.waiting_for_receipt_contact)
-    await state.set_data({"product_code": "analysis_single", "market": "RU", "currency": "RUB"})
+    await state.set_data({"product_code": "reading_single", "market": "RU", "currency": "RUB"})
     checkout = FakeCheckout()
     message = Message(
         message_id=2,
@@ -226,7 +226,7 @@ async def test_invalid_contact_remains_in_state_for_retry(
 ) -> None:
     bot, _, state, _, onboarding = handler_context
     await state.set_state(PaymentStates.waiting_for_receipt_contact)
-    await state.set_data({"product_code": "analysis_single", "market": "RU", "currency": "RUB"})
+    await state.set_data({"product_code": "reading_single", "market": "RU", "currency": "RUB"})
     message = Message(
         message_id=2,
         date=datetime.now(UTC),
@@ -271,7 +271,7 @@ async def test_rejection_and_pending_checkout_clear_state(
 ) -> None:
     bot, session, state, _, onboarding = handler_context
     await state.set_state(PaymentStates.waiting_for_receipt_contact)
-    await state.set_data({"product_code": "analysis_single", "market": "RU", "currency": "RUB"})
+    await state.set_data({"product_code": "reading_single", "market": "RU", "currency": "RUB"})
     message = Message(
         message_id=4,
         date=datetime.now(UTC),

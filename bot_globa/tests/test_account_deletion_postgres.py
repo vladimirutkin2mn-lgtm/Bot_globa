@@ -41,7 +41,7 @@ async def test_webhook_cleanup_matches_provider_and_object_id(
             order = PaymentOrder(
                 user_id=user.id,
                 provider=provider,
-                product_code="analysis_single",
+                product_code="reading_single",
                 status="pending",
                 credits=1,
                 amount_minor=500,
@@ -219,7 +219,7 @@ async def test_complete_account_tombstone_preserves_immutable_ledger(
         completed_order = PaymentOrder(
             user_id=user.id,
             provider="stripe",
-            product_code="analysis_single",
+            product_code="reading_single",
             status="completed",
             credits=1,
             amount_minor=500,
@@ -234,7 +234,7 @@ async def test_complete_account_tombstone_preserves_immutable_ledger(
         pending_order = PaymentOrder(
             user_id=user.id,
             provider="stripe",
-            product_code="analysis_pack_5",
+            product_code="reading_pack_5",
             status="pending",
             credits=5,
             amount_minor=1800,
@@ -254,7 +254,7 @@ async def test_complete_account_tombstone_preserves_immutable_ledger(
             amount=1,
             idempotency_key=f"purchase:{completed_order.id}",
             payment_order_id=completed_order.id,
-            product_code="analysis_single",
+            product_code="reading_single",
             external_payment_provider="stripe",
             external_payment_id=completed_order.provider_payment_id,
         )

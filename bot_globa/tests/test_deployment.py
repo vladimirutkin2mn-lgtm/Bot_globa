@@ -104,6 +104,4 @@ def test_deployment_settings_reject_unbounded_values() -> None:
     with pytest.raises(ValidationError):
         DeploymentSettings(telegram_worker_idle_seconds=0)
     with pytest.raises(ValidationError):
-        DeploymentSettings(analysis_processing_stale_seconds=59)
-    with pytest.raises(ValidationError):
         DeploymentSettings(maintenance_batch_size=10_001)

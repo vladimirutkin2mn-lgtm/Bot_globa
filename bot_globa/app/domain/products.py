@@ -16,24 +16,9 @@ class ProductCode(StrEnum):
     SUBSCRIPTION_MONTHLY = "subscription_monthly"
 
 
-class LegacyProductCode(StrEnum):
-    """Accepted only as compatibility aliases or historical order coordinates."""
-
-    ANALYSIS_SINGLE = "analysis_single"
-    ANALYSIS_PACK_5 = "analysis_pack_5"
-
-
-_LEGACY_ALIASES = {
-    LegacyProductCode.ANALYSIS_SINGLE.value: ProductCode.READING_SINGLE,
-    LegacyProductCode.ANALYSIS_PACK_5.value: ProductCode.READING_PACK_5,
-}
-_CURRENT_LEGACY_CODES = {
-    ProductCode.READING_SINGLE: (LegacyProductCode.ANALYSIS_SINGLE.value,),
-    ProductCode.READING_PACK_5: (LegacyProductCode.ANALYSIS_PACK_5.value,),
-}
-_LEGACY_LABELS = {
-    (LegacyProductCode.ANALYSIS_SINGLE.value, 1): "Один полный разбор",
-    (LegacyProductCode.ANALYSIS_PACK_5.value, 1): "Пять полных разборов",
+# An order keeps the label it was created with, so a later catalog reprice or rename
+# cannot change what an existing order is completed or refunded as.
+_HISTORICAL_LABELS = {
     (ProductCode.SUBSCRIPTION_MONTHLY.value, 1): "Месячная подписка",
 }
 
@@ -54,8 +39,8 @@ class ProductCatalog:
     """Expose current sellable products while preserving historical display labels."""
 
     def __init__(self, settings: Settings) -> None:
-        reading_cost = settings.analysis_price_credits
-        single_amount = settings.product_analysis_single_price_minor
+        reading_cost = settings.reading_price_credits
+        single_amount = settings.product_reading_single_price_minor
         subscription_title = (
             "Месячная подписка с автопродлением"
             if settings.subscriptions_enabled
@@ -77,7 +62,7 @@ class ProductCatalog:
                 "Пять полных разборов",
                 "Пакет из пяти персональных разборов",
                 reading_cost * 5,
-                settings.product_analysis_pack_5_price_minor,
+                settings.product_reading_pack_5_price_minor,
                 settings.payment_currency,
             ),
             ProductCode.ASTROLOGY_NATAL: Product(
@@ -111,29 +96,20 @@ class ProductCatalog:
         }
 
     @staticmethod
-    def canonical_code(code: str | ProductCode | LegacyProductCode) -> ProductCode:
-        """Map retired callback coordinates to current SKU without creating legacy orders."""
-
+    def canonical_code(code: str | ProductCode) -> ProductCode:
         value = code.value if isinstance(code, StrEnum) else code
-        alias = _LEGACY_ALIASES.get(value)
-        if alias is not None:
-            return alias
         try:
             return ProductCode(value)
         except ValueError as exc:
             raise LookupError("unknown product") from exc
 
     @classmethod
-    def active_order_codes(
-        cls,
-        code: str | ProductCode | LegacyProductCode,
-    ) -> tuple[str, ...]:
-        """Find an unfinished pre-migration order before creating a current SKU order."""
+    def active_order_codes(cls, code: str | ProductCode) -> tuple[str, ...]:
+        """Find an unfinished order for this SKU before creating another one."""
 
-        canonical = cls.canonical_code(code)
-        return (canonical.value, *_CURRENT_LEGACY_CODES.get(canonical, ()))
+        return (cls.canonical_code(code).value,)
 
-    def get(self, code: str | ProductCode | LegacyProductCode) -> Product | None:
+    def get(self, code: str | ProductCode) -> Product | None:
         try:
             canonical = self.canonical_code(code)
         except LookupError:
@@ -153,7 +129,7 @@ class ProductCatalog:
             and current.version == product_version
         ):
             return current.title
-        return _LEGACY_LABELS.get((product_code, product_version))
+        return _HISTORICAL_LABELS.get((product_code, product_version))
 
 
 def format_minor(amount: int, currency: str) -> str:

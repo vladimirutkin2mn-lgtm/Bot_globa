@@ -198,7 +198,7 @@ async def _create_external_identity_conflict(
                 amount=1,
                 idempotency_key=f"preexisting:{payment_id}",
                 payment_order_id=existing_order_id,
-                product_code="analysis_single",
+                product_code="reading_single",
                 external_payment_provider="stripe",
                 external_payment_id=payment_id,
             )

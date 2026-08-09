@@ -77,7 +77,7 @@ async def purchase(
         order = PaymentOrder(
             user_id=user.id,
             provider=provider,
-            product_code="analysis_pack_5",
+            product_code="reading_pack_5",
             status="completed",
             credits=credits,
             amount_minor=amount_minor,
@@ -156,7 +156,7 @@ async def test_partial_refund_uses_integer_minor_units_and_residual_on_last_refu
                 amount=-1,
                 idempotency_key=f"purchase_refund:{row.id}",
                 payment_order_id=order_id,
-                product_code="analysis_pack_5",
+                product_code="reading_pack_5",
                 external_payment_id=f"refund-{row.id}",
                 external_payment_provider="stripe",
                 original_purchase_transaction_id=(
