@@ -93,6 +93,27 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
     return chunk_sections(tuple(sections))
 
 
+def chunk_text(text: str) -> tuple[str, ...]:
+    """Chunk free-form rendered text, preferring paragraph then line boundaries."""
+    sections: list[str] = []
+    for paragraph in text.split("\n\n"):
+        if len(paragraph) <= TARGET_CHUNK:
+            sections.append(paragraph)
+            continue
+        current = ""
+        for line in paragraph.split("\n"):
+            candidate = line if not current else f"{current}\n{line}"
+            if len(candidate) <= TARGET_CHUNK:
+                current = candidate
+                continue
+            if current:
+                sections.append(current)
+            current = line[:TARGET_CHUNK]
+        if current:
+            sections.append(current)
+    return chunk_sections(tuple(section for section in sections if section))
+
+
 def chunk_sections(sections: tuple[str, ...]) -> tuple[str, ...]:
     """Pack whole sections into as few messages as the Telegram limit allows."""
     chunks: list[str] = []

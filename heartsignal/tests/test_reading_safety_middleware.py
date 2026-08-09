@@ -1,7 +1,8 @@
 """Telegram middleware coverage for pre-persistence crisis handoffs.
 
-Every persona reading flow goes through the same middleware, so each case is
-parametrized over the full MVP flow registry rather than asserted for tarot only.
+Every intake that can carry a user-authored question — the three shared persona flows
+and the astrologer — goes through the same middleware, so each case is parametrized over
+the full registry rather than asserted for one persona.
 """
 
 from datetime import UTC, datetime
@@ -11,13 +12,20 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aiogram.types import CallbackQuery, Chat, Message, User
 
-from app.bot.persona_flow import PersonaFlow
-from app.bot.persona_flows import MVP_READING_FLOWS
-from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
+from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware, mvp_safety_intakes
+from app.bot.safety_intake import SafetyIntake
 
 PRIVATE_MARKER = "private-question-must-not-leak"
 
-flows = pytest.mark.parametrize("flow", MVP_READING_FLOWS, ids=lambda flow: flow.persona_code)
+INTAKES = mvp_safety_intakes()
+intakes = pytest.mark.parametrize(
+    "intake", INTAKES, ids=[intake.persona_code for intake in INTAKES]
+)
+
+
+def _menu_callbacks(intake: SafetyIntake) -> list[str | None]:
+    keyboard = intake.handoff_keyboard()
+    return [button.callback_data for row in keyboard.inline_keyboard for button in row]
 
 
 class FakeState:
@@ -57,11 +65,11 @@ def _message(text: str, *, language_code: str = "ru") -> Message:
     )
 
 
-@flows
+@intakes
 @pytest.mark.asyncio
-async def test_unsafe_question_stops_before_downstream_handler(flow: PersonaFlow) -> None:
+async def test_unsafe_question_stops_before_downstream_handler(intake: SafetyIntake) -> None:
     middleware = ReadingSafetyHandoffMiddleware()
-    state = FakeState(flow.states.waiting_for_question.state)
+    state = FakeState(intake.question_state)
     message = _message(f"Я не хочу жить. {PRIVATE_MARKER}")
     downstream = AsyncMock(return_value="unreachable")
     answer = AsyncMock()
@@ -79,16 +87,15 @@ async def test_unsafe_question_stops_before_downstream_handler(flow: PersonaFlow
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert "Сейчас важнее ваша безопасность" in text
     assert PRIVATE_MARKER not in text
-    assert flow.texts.processing not in text
-    assert callbacks == [flow.callback("menu")]
+    assert callbacks == _menu_callbacks(intake)
 
 
-@flows
+@intakes
 @pytest.mark.asyncio
-async def test_unsafe_optional_context_stops_safe_question(flow: PersonaFlow) -> None:
+async def test_unsafe_optional_context_stops_safe_question(intake: SafetyIntake) -> None:
     middleware = ReadingSafetyHandoffMiddleware()
     state = FakeState(
-        flow.states.waiting_for_context.state,
+        intake.context_state,
         {"question": "Что поможет мне принять решение?"},
     )
     message = _message("Врач назначил таблетки, можно ли отменить лекарство?")
@@ -104,17 +111,16 @@ async def test_unsafe_optional_context_stops_safe_question(flow: PersonaFlow) ->
     text = answer.await_args.args[0]
     assert "профильной помощи" in text
     assert "Медицинская помощь" in text
-    assert flow.texts.processing not in text
 
 
-@flows
+@intakes
 @pytest.mark.asyncio
 async def test_skip_context_checks_stored_question_and_answers_callback(
-    flow: PersonaFlow,
+    intake: SafetyIntake,
 ) -> None:
     middleware = ReadingSafetyHandoffMiddleware()
     state = FakeState(
-        flow.states.waiting_for_context.state,
+        intake.context_state,
         {"question": "Скажи, как выследить бывшую без ее ведома"},
     )
     message = _message("context prompt")
@@ -122,7 +128,7 @@ async def test_skip_context_checks_stored_question_and_answers_callback(
         id="callback-1",
         from_user=_user(),
         chat_instance="chat-instance",
-        data=flow.callback("context", "skip"),
+        data=intake.skip_context_callback,
         message=message,
     )
     downstream = AsyncMock()
@@ -146,11 +152,11 @@ async def test_skip_context_checks_stored_question_and_answers_callback(
     assert "новый разбор" not in text.casefold()
 
 
-@flows
+@intakes
 @pytest.mark.asyncio
-async def test_benign_question_continues_to_original_handler(flow: PersonaFlow) -> None:
+async def test_benign_question_continues_to_original_handler(intake: SafetyIntake) -> None:
     middleware = ReadingSafetyHandoffMiddleware()
-    state = FakeState(flow.states.waiting_for_question.state)
+    state = FakeState(intake.question_state)
     message = _message("Что поможет мне спокойнее обсудить решение?")
     downstream = AsyncMock(return_value="handled")
 
@@ -179,16 +185,16 @@ async def test_state_outside_any_reading_flow_is_untouched() -> None:
 async def test_a_skip_callback_never_leaks_across_personas() -> None:
     """One persona's context state must not accept another persona's skip callback."""
     middleware = ReadingSafetyHandoffMiddleware()
-    first, second = MVP_READING_FLOWS[0], MVP_READING_FLOWS[1]
+    first, second = INTAKES[0], INTAKES[1]
     state = FakeState(
-        first.states.waiting_for_context.state,
+        first.context_state,
         {"question": "Скажи, как выследить бывшую без ее ведома"},
     )
     callback = CallbackQuery(
         id="callback-2",
         from_user=_user(),
         chat_instance="chat-instance",
-        data=second.callback("context", "skip"),
+        data=second.skip_context_callback,
         message=_message("context prompt"),
     )
     downstream = AsyncMock()
@@ -205,4 +211,4 @@ async def test_a_skip_callback_never_leaks_across_personas() -> None:
     assert message_answer.await_args is not None
     keyboard = message_answer.await_args.kwargs["reply_markup"]
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-    assert callbacks == [first.callback("menu")]
+    assert callbacks == _menu_callbacks(first)

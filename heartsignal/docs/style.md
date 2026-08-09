@@ -77,8 +77,25 @@ callback namespaces are short (`tarot`, `love`, `psy`) even though persona codes
 5. add the menu entry in `app/bot/keyboards.py`.
 
 No new use case, router, renderer or keyboard module is needed. A persona that needs a
-deterministic symbol set supplies a `SymbolDrawer`; one that needs a calculation engine
-(astrology) is not a `PersonaReadingUseCase` and keeps its own use case.
+deterministic symbol set supplies a `SymbolDrawer`.
+
+A persona that needs its own intake or a calculation engine — the astrologer is the only
+one today — keeps its own use case, router and renderer, but still reuses `ReadingFlow`
+for the shared transport surface (namespace, result keyboards, history) and **must**
+register a `SafetyIntake` so the crisis middleware covers it.
+
+## Time and place
+
+Anything derived from a birth moment is calculated, not guessed:
+
+- The UTC offset comes from the IANA timezone plus the local birth datetime, so a
+  historical birth uses the rules of its own era, not today's.
+- A local time inside a spring-forward gap never existed — refuse it.
+- A local time inside an autumn fall-back happened twice. Both offsets are one real hour
+  apart, which moves the ascendant and the houses, so **ask the user which hour it was**.
+  Letting `datetime` default to `fold=0` silently produces a different chart.
+- Reject an impossible birth date at the screen that collects it, before any external
+  lookup runs.
 
 ## Tests
 

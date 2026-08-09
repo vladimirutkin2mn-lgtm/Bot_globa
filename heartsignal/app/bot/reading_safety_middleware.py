@@ -1,7 +1,9 @@
 """Stop unsafe reading intake before any persona handler runs.
 
 Classification happens here, ahead of persistence and the LLM, so an unsafe question
-never reaches a prompt and never becomes stored ciphertext.
+never reaches a prompt and never becomes stored ciphertext. Every intake surface — the
+three shared persona flows and the astrologer — registers a `SafetyIntake` so none of
+them can be added without safety coverage.
 """
 
 import logging
@@ -11,8 +13,9 @@ from typing import Any, Protocol
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
-from app.bot.persona_flow import PersonaFlow
+from app.bot.horoscope_flow import horoscope_safety_intake
 from app.bot.persona_flows import MVP_READING_FLOWS
+from app.bot.safety_intake import SafetyIntake
 from app.domain.oracle_safety import OracleInputSafetyClassifier
 from app.services.oracle_crisis_handoff import OracleCrisisHandoffService
 
@@ -27,22 +30,26 @@ class _StateContext(Protocol):
     async def clear(self) -> None: ...
 
 
+def mvp_safety_intakes() -> tuple[SafetyIntake, ...]:
+    """Every intake surface that may carry a user-authored question."""
+    return (*(flow.safety_intake() for flow in MVP_READING_FLOWS), horoscope_safety_intake())
+
+
 class ReadingSafetyHandoffMiddleware(BaseMiddleware):
-    """Intercept unsafe question/context input for every persona reading flow."""
+    """Intercept unsafe question/context input for every reading intake."""
 
     def __init__(
         self,
-        flows: Iterable[PersonaFlow] = MVP_READING_FLOWS,
+        intakes: Iterable[SafetyIntake] | None = None,
         classifier: OracleInputSafetyClassifier | None = None,
         handoffs: OracleCrisisHandoffService | None = None,
     ) -> None:
+        resolved = tuple(intakes) if intakes is not None else mvp_safety_intakes()
         self._classifier = classifier or OracleInputSafetyClassifier()
         self._handoffs = handoffs or OracleCrisisHandoffService()
-        self._by_question_state = {flow.states.waiting_for_question.state: flow for flow in flows}
-        self._by_context_state = {flow.states.waiting_for_context.state: flow for flow in flows}
-        self._skip_context_callbacks = {
-            flow.callback("context", "skip") for flow in self._by_context_state.values()
-        }
+        self._by_question_state = {intake.question_state: intake for intake in resolved}
+        self._by_context_state = {intake.context_state: intake for intake in resolved}
+        self._skip_context_callbacks = {intake.skip_context_callback for intake in resolved}
 
     async def __call__(
         self,
@@ -56,8 +63,8 @@ class ReadingSafetyHandoffMiddleware(BaseMiddleware):
 
         state_context: _StateContext = state
         state_name = await state_context.get_state()
-        flow = self._by_question_state.get(state_name) or self._by_context_state.get(state_name)
-        if flow is None:
+        intake = self._intake_for(state_name)
+        if intake is None:
             return await handler(event, data)
 
         question, context = await self._input_for_state(event, state_context, state_name)
@@ -76,13 +83,13 @@ class ReadingSafetyHandoffMiddleware(BaseMiddleware):
         )
         logger.info(
             "oracle_crisis_handoff persona=%s action=%s categories=%s locale=%s",
-            flow.persona_code,
+            intake.persona_code,
             safety.action.value,
             ",".join(category.value for category in safety.categories),
             handoff.locale,
         )
         text = self._handoffs.render_text(handoff)
-        markup = flow.handoff_keyboard()
+        markup = intake.handoff_keyboard()
         if isinstance(event, CallbackQuery):
             await event.answer()
             if isinstance(event.message, Message):
@@ -90,6 +97,11 @@ class ReadingSafetyHandoffMiddleware(BaseMiddleware):
         elif isinstance(event, Message):
             await event.answer(text, reply_markup=markup)
         return None
+
+    def _intake_for(self, state_name: str | None) -> SafetyIntake | None:
+        if state_name is None:
+            return None
+        return self._by_question_state.get(state_name) or self._by_context_state.get(state_name)
 
     def _is_intake_event(self, event: TelegramObject) -> bool:
         if isinstance(event, Message):

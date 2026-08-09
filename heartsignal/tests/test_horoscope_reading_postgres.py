@@ -6,6 +6,7 @@ from datetime import date, time
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.bot.horoscope_renderer import HoroscopeRenderer
 from app.db.models import User
 from app.db.reading_models import Persona, Reading
 from app.domain.birth_profile import BirthProfileInput
@@ -23,7 +24,6 @@ from app.services.horoscope_reading import (
     HoroscopePreviewRequest,
     HoroscopeReadingUseCase,
 )
-from app.services.horoscope_renderer import HoroscopeRenderer
 from app.services.horoscope_storage import deserialize_horoscope
 from app.services.natal_chart import (
     AstronomyEngineNatalChartCalculator,
