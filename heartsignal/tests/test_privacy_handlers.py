@@ -18,8 +18,6 @@ from app.repositories.private_content import AnalysisSource, EncryptedAnalysisCo
 from app.repositories.users import SqlAlchemyUserRepository
 from app.services.data_deletion import DataDeletionOutcome, DataDeletionService
 from app.services.onboarding import OnboardingService, TelegramIdentity
-from app.services.report_renderer import ReportRenderer
-from app.services.report_service import ReportService, ReportStatus
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
 from tests.test_telegram_handlers import (
     Harness,
@@ -145,10 +143,9 @@ async def test_postgres_privacy_handler_tombstones_and_isolates_recreated_accoun
         assert tombstone is not None and tombstone.privacy_status == "deleted"
         assert tombstone.telegram_user_id is None
         assert await analyses.load_private_source(draft) is None
-        report_service = ReportService(analyses, ReportRenderer(), NoOpAnalyticsClient())
-        assert (
-            await report_service.retrieve(completed_id, original_user_id)
-        ).status is ReportStatus.DELETED
+        deleted_analysis = await analyses.get_owned(completed_id, original_user_id)
+        assert deleted_analysis is not None and deleted_analysis.status == "deleted"
+        assert await analyses.load_private_result(completed_id, original_user_id) is None
 
         await dispatcher.feed_update(bot, callback_update("privacy:confirm_all", 23), **common)
         await dispatcher.feed_update(bot, start_update(24), **common)

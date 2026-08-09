@@ -12,14 +12,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.db.base import Base
 from app.db.models import Analysis, CreditTransaction, User
-from app.providers.analytics import NoOpAnalyticsClient
-from app.services.analysis_service import AnalysisServiceResult
 from app.services.credits_service import CreditsService, RefundOutcome, SpendOutcome
-from app.services.monetized_analysis import AccessOutcome, MonetizedAnalysisService
+from app.services.legacy_analysis_access import (
+    LegacyAnalysisAccessOutcome,
+    LegacyAnalysisAccessService,
+)
 from app.services.preview_entitlement import PreviewEntitlementService, PreviewOutcome
-from tests.test_report_service import payload
 
 pytestmark = pytest.mark.postgres
+
+
+def _legacy_payload() -> dict[str, object]:
+    return {"legacy": "retained-for-financial-compatibility"}
 
 
 @pytest.fixture
@@ -117,7 +121,7 @@ async def test_preview_finalization_updates_entitlement_and_access_atomically(
         analysis = await session.get(Analysis, analyses[0])
         assert analysis is not None
         analysis.status = "completed"
-        analysis.result_json = payload()
+        analysis.result_json = _legacy_payload()
         analysis.completed_at = datetime.now(UTC)
     assert await service.finalize_preview(user_id, analyses[0]) is PreviewOutcome.CONSUMED
     async with billing_db() as session:
@@ -155,7 +159,7 @@ async def test_preview_completed_before_finalize_resumes_without_new_reservation
         analysis = await session.get(Analysis, analyses[0])
         assert analysis is not None
         analysis.status = "completed"
-        analysis.result_json = payload()
+        analysis.result_json = _legacy_payload()
         analysis.completed_at = datetime.now(UTC)
     assert (
         await service.reserve_preview(user_id, analyses[0])
@@ -169,7 +173,6 @@ async def test_refunded_spend_cannot_grant_full_access(
 ) -> None:
     user_id, analyses = await _user_and_analyses(billing_db, 1)
     credits = CreditsService(billing_db)
-    previews = PreviewEntitlementService(billing_db)
     await credits.grant(user_id, 1, "access-regression:grant")
     spent = await credits.spend(user_id, analyses[0], 1)
     assert spent.transaction_id is not None
@@ -180,18 +183,13 @@ async def test_refunded_spend_cannot_grant_full_access(
         analysis = await session.get(Analysis, analyses[0])
         assert analysis is not None
         analysis.status = "completed"
-        analysis.result_json = payload()
+        analysis.result_json = _legacy_payload()
         analysis.completed_at = datetime.now(UTC)
 
-    class NeverRun:
-        async def analyze(self, analysis_id: UUID, owner_id: UUID) -> AnalysisServiceResult:
-            raise AssertionError("LLM must not run")
-
-    monetized = MonetizedAnalysisService(
-        billing_db, credits, previews, NeverRun(), 1, NoOpAnalyticsClient()
+    outcome = await LegacyAnalysisAccessService(billing_db).grant_full_access(
+        analyses[0], user_id, 1, spent.transaction_id
     )
-    outcome = await monetized._set_access(analyses[0], user_id, "full", 1, spent.transaction_id)
-    assert outcome is AccessOutcome.TRANSACTION_MISMATCH
+    assert outcome is LegacyAnalysisAccessOutcome.TRANSACTION_MISMATCH
     async with billing_db() as session:
         analysis = await session.get(Analysis, analyses[0])
         assert analysis is not None and analysis.report_access == "none"
@@ -228,7 +226,6 @@ async def test_full_access_and_refund_are_mutually_exclusive_under_race(
     for iteration in range(25):
         user_id, analyses = await _user_and_analyses(billing_db, 1)
         credits = CreditsService(billing_db)
-        previews = PreviewEntitlementService(billing_db)
         await credits.grant(user_id, 1, f"race:{iteration}:grant")
         spent = await credits.spend(user_id, analyses[0], 1)
         assert spent.transaction_id is not None
@@ -236,18 +233,12 @@ async def test_full_access_and_refund_are_mutually_exclusive_under_race(
             analysis = await session.get(Analysis, analyses[0])
             assert analysis is not None
             analysis.status = "completed"
-            analysis.result_json = payload()
+            analysis.result_json = _legacy_payload()
             analysis.completed_at = datetime.now(UTC)
 
-        class NeverRun:
-            async def analyze(self, analysis_id: UUID, owner_id: UUID) -> AnalysisServiceResult:
-                raise AssertionError("not used")
-
-        service = MonetizedAnalysisService(
-            billing_db, credits, previews, NeverRun(), 1, NoOpAnalyticsClient()
-        )
+        access = LegacyAnalysisAccessService(billing_db)
         await asyncio.gather(
-            service._set_access(analyses[0], user_id, "full", 1, spent.transaction_id),
+            access.grant_full_access(analyses[0], user_id, 1, spent.transaction_id),
             credits.refund_if_not_full(user_id, analyses[0], spent.transaction_id, 1),
         )
         async with billing_db() as session:
@@ -266,7 +257,6 @@ async def test_public_unlock_and_refund_are_mutually_exclusive(
 ) -> None:
     user_id, analyses = await _user_and_analyses(billing_db, 1)
     credits = CreditsService(billing_db)
-    previews = PreviewEntitlementService(billing_db)
     await credits.grant(user_id, 1, "public-race:grant")
     spent = await credits.spend(user_id, analyses[0], 1)
     assert spent.transaction_id is not None
@@ -275,22 +265,12 @@ async def test_public_unlock_and_refund_are_mutually_exclusive(
         assert analysis is not None
         analysis.status = "completed"
         analysis.report_access = "preview"
-        analysis.result_json = payload()
+        analysis.result_json = _legacy_payload()
         analysis.completed_at = datetime.now(UTC)
 
-    class NeverRun:
-        calls = 0
-
-        async def analyze(self, analysis_id: UUID, owner_id: UUID) -> AnalysisServiceResult:
-            self.calls += 1
-            raise AssertionError("unlock must not invoke analysis")
-
-    runner = NeverRun()
-    service = MonetizedAnalysisService(
-        billing_db, credits, previews, runner, 1, NoOpAnalyticsClient()
-    )
+    access = LegacyAnalysisAccessService(billing_db)
     await asyncio.gather(
-        service.unlock_full(analyses[0], user_id),
+        access.grant_full_access(analyses[0], user_id, 1, spent.transaction_id),
         credits.refund_if_not_full(user_id, analyses[0], spent.transaction_id, 1),
     )
     async with billing_db() as session:
@@ -305,4 +285,3 @@ async def test_public_unlock_and_refund_are_mutually_exclusive(
         assert (analysis.report_access == "full" and refund_count == 0 and balance == 0) or (
             analysis.report_access == "preview" and refund_count == 1 and balance == 1
         )
-        assert runner.calls == 0

@@ -1,4 +1,4 @@
-"""Graceful periodic maintenance for retention and interrupted analyses."""
+"""Graceful periodic maintenance for retention cleanup."""
 
 import asyncio
 import contextlib
@@ -12,7 +12,6 @@ from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import DeploymentSettings, get_deployment_settings
 from app.logging import configure_logging
-from app.services.analysis_recovery import AnalysisRecoveryResult, requeue_stale_processing
 from app.services.retention import RetentionResult, cleanup_expired_source
 
 logger = logging.getLogger(__name__)
@@ -20,26 +19,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class MaintenanceResult:
-    analysis_recovery: AnalysisRecoveryResult
     retention: RetentionResult
 
 
 async def run_once(
     sessions: async_sessionmaker[AsyncSession], deployment: DeploymentSettings
 ) -> MaintenanceResult:
-    """Run one bounded iteration using separate transactions per maintenance concern."""
-    async with sessions() as session:
-        recovery = await requeue_stale_processing(
-            session,
-            stale_after_seconds=deployment.analysis_processing_stale_seconds,
-            batch_size=deployment.maintenance_batch_size,
-        )
+    """Run one bounded retention iteration."""
     async with sessions() as session:
         retention = await cleanup_expired_source(
             session,
             batch_size=deployment.maintenance_batch_size,
         )
-    return MaintenanceResult(recovery, retention)
+    return MaintenanceResult(retention)
 
 
 async def run(
@@ -63,11 +55,7 @@ async def run(
             try:
                 result = await run_once(sessions, runtime)
                 logger.info(
-                    "maintenance_iteration stale_examined=%s stale_requeued=%s "
-                    "stale_financially_closed=%s retention_examined=%s retention_cleared=%s",
-                    result.analysis_recovery.examined,
-                    result.analysis_recovery.requeued,
-                    result.analysis_recovery.financially_closed,
+                    "maintenance_iteration retention_examined=%s retention_cleared=%s",
                     result.retention.examined,
                     result.retention.cleared,
                 )
