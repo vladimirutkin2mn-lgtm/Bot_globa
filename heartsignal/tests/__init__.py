@@ -1,1 +1,0 @@
-"""HeartSignal test suite."""

@@ -1,1 +1,0 @@
-"""HeartSignal application package."""

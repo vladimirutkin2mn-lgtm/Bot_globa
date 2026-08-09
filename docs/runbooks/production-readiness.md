@@ -42,7 +42,7 @@ configuration. A half-configured production boot does not start.
 `GEOCODING_PROVIDER=opencage` sends the user's birth-place query to a third party. It is
 the single piece of user text that leaves the service. `stub` resolves offline from a
 bundled table and makes no network call. Switching is a deliberate privacy decision —
-see [`privacy-deletion-retention.md`](../../heartsignal/docs/privacy-deletion-retention.md).
+see [`privacy-deletion-retention.md`](../../bot_globa/docs/privacy-deletion-retention.md).
 
 ## 2. Five staging attestations
 
@@ -123,7 +123,6 @@ These are not configuration — they are outstanding work.
 | Staging environment with provider test keys | **Yes** | Without it none of the five attestations can be taken. |
 | Legacy HeartSignal vertical still present | No | «Разобрать переписку» still appears in the main menu next to the four oracle personas. Removal touches the credit ledger and needs its own reviewed change. |
 | Billing SKUs named `analysis_single` / `analysis_pack_5` | No | They sell credits that now unlock readings. Renaming them is a financial-identifier migration with immutable label snapshots — separate from removing the product. |
-| Project still named `heartsignal` | No | Directory, database, image and compose services. ORA-002. |
 
 ## 6. Definition of done before the first real payment
 

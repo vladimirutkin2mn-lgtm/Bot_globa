@@ -1,0 +1,1 @@
+"""Bot Globa test suite."""
