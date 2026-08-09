@@ -73,7 +73,10 @@ async def test_one_time_checkout_uses_server_price_and_canonical_sku_metadata() 
     assert params["mode"] == "payment"
     assert params["line_items"] == [{"price": "price_approved_single_eur", "quantity": 1}]
     assert params["client_reference_id"] == request.order_id
+    # The product marker lets one provider account serve several products without their
+    # webhooks reading each other's events.
     assert params["metadata"] == {
+        "product": "bot_globa",
         "order_id": request.order_id,
         "product_code": "astrology_forecast",
         "product_version": "2",

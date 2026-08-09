@@ -118,7 +118,7 @@ These are not configuration — they are outstanding work.
 
 | Gap | Blocks launch? | Note |
 |---|---|---|
-| **No deployment manifest** | **Yes** | `deployment-render.md` describes a `render.yaml` that was never carried over. Pick a platform and write the manifest. |
+| ~~No deployment manifest~~ | No | Resolved: [`shared-host-deployment.md`](shared-host-deployment.md) targets the existing multi-product host. |
 | Staging environment with provider test keys | **Yes** | Without it none of the five attestations can be taken. |
 | Legacy HeartSignal vertical still present | No | «Разобрать переписку» still appears in the main menu next to the four oracle personas. Removal touches the credit ledger and needs its own reviewed change. |
 | Billing SKUs named `analysis_single` / `analysis_pack_5` | No | They sell credits that now unlock readings. Renaming them is a financial-identifier migration with immutable label snapshots — separate from removing the product. |
