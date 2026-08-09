@@ -141,6 +141,8 @@ or loosening an assertion.
 | Subscriptions | [`docs/subscription-lifecycle.md`](docs/subscription-lifecycle.md) |
 | Refunds | [`docs/provider-refunds.md`](docs/provider-refunds.md) |
 | Release gates and verification | [`docs/release-gates.md`](docs/release-gates.md) |
+| **Production readiness** | [`../docs/runbooks/production-readiness.md`](../docs/runbooks/production-readiness.md) |
+| Rollout and rollback | [`../docs/runbooks/oracle-limited-release.md`](../docs/runbooks/oracle-limited-release.md) |
 
 `PRODUCT_SPEC.md` and `TASKS.md` describe the historical HeartSignal product. They are
 kept for the invariants they explain and do not define current or future scope.
