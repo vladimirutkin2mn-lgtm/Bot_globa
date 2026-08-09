@@ -1,5 +1,4 @@
 """Domain-neutral Telegram onboarding, account, privacy and credit routes."""
-# ruff: noqa: RUF001
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
@@ -22,7 +21,7 @@ from app.bot.keyboards import (
 from app.bot.states import OnboardingStates, PaymentStates
 from app.config import Settings
 from app.domain.products import ProductCatalog
-from app.services.checkout_service import CheckoutRejected, CheckoutService
+from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.data_deletion import DataDeletionService
 from app.services.onboarding import (
@@ -32,7 +31,7 @@ from app.services.onboarding import (
     TelegramIdentity,
 )
 from app.services.payment_service import CheckoutOutcome, PaymentService
-from app.services.receipt_contact import InvalidReceiptContact, validate_receipt_contact
+from app.services.receipt_contact import InvalidReceiptContactError, validate_receipt_contact
 
 router = Router(name="oracle_core")
 
@@ -184,7 +183,7 @@ async def balance_screen(
     balance = await credits.balance(user.id)
     await callback.message.answer(
         f"Ваш баланс: {balance} кредитов\n"
-        f"Полный персональный разбор: от {billing_settings.tarot_full_price_credits} кредита.\n\n"
+        f"Полный персональный разбор: от {billing_settings.reading_full_price_credits} кредита.\n\n"
         "Выберите пакет или продукт:",
         reply_markup=products_keyboard(catalog),
     )
@@ -258,7 +257,7 @@ async def create_production_checkout(
         return
     try:
         result = await checkout.create_one_time_checkout(user.id, product_code, market, currency)
-    except CheckoutRejected:
+    except CheckoutRejectedError:
         await callback.message.answer("Оплата сейчас недоступна. Попробуйте позже.")
         return
     if not result.url:
@@ -291,7 +290,7 @@ async def receive_receipt_contact(
         currency = str(data["currency"])
         user = await onboarding.current_user(message.from_user.id)
         if user is None:
-            raise CheckoutRejected("user not found")
+            raise CheckoutRejectedError("user not found")
         result = await checkout.create_one_time_checkout(
             user.id,
             product_code,
@@ -299,13 +298,13 @@ async def receive_receipt_contact(
             currency,
             receipt_contact=contact.value,
         )
-    except InvalidReceiptContact:
+    except InvalidReceiptContactError:
         await message.answer(
             "Некорректный email или телефон. Проверьте формат и отправьте ещё раз.",
             reply_markup=receipt_contact_keyboard(),
         )
         return
-    except (CheckoutRejected, KeyError):
+    except (CheckoutRejectedError, KeyError):
         await state.clear()
         await message.answer("Оплата сейчас недоступна. Попробуйте позже.")
         return
