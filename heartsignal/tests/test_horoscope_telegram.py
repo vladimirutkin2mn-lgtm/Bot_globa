@@ -1,7 +1,7 @@
 """Transport coverage for the astrologer: routing isolation, keyboards and privacy."""
 
 from collections.abc import Iterator
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import uuid4
 
 import pytest
@@ -10,7 +10,11 @@ from aiogram.types import CallbackQuery, Chat, Message, User
 
 from app.bot import horoscope_flow as flow
 from app.bot.horoscope_flow import HOROSCOPE_FLOW
-from app.bot.horoscope_handlers import _profile_summary, create_horoscope_router
+from app.bot.horoscope_handlers import (
+    _parse_date,
+    _profile_summary,
+    create_horoscope_router,
+)
 from app.bot.keyboards import main_menu_keyboard
 from app.bot.persona_flows import MVP_READING_FLOWS
 from app.bot.persona_handlers import create_persona_router
@@ -60,6 +64,7 @@ ASTRO_PAYLOADS = (
     flow.callback("place", "pick", "0"),
     flow.callback("place", "retry"),
     flow.callback("time", "unknown"),
+    flow.callback("offset", "pick", "120"),
     flow.callback("profile"),
     flow.callback("profile", "edit"),
     flow.callback("profile", "delete"),
@@ -178,3 +183,42 @@ def test_consent_screen_names_the_external_lookup_before_any_field_is_asked() ->
         for button in row
     ]
     assert callbacks == [flow.callback("consent", "grant"), flow.callback("consent", "decline")]
+
+
+def test_cancel_is_a_separate_handler_from_starting_over() -> None:
+    cancelled = {handler for _, handler in _matches(flow.callback("cancel"))}
+    restarted = {handler for _, handler in _matches(flow.callback("new"))}
+
+    assert cancelled == {"cancel"}
+    assert restarted == {"restart"}
+
+
+def test_a_future_birth_date_is_rejected_before_the_geocoder_is_called() -> None:
+    tomorrow = datetime.now(UTC).date() + timedelta(days=1)
+
+    assert _parse_date(tomorrow.strftime("%d.%m.%Y")) is None
+    assert _parse_date("12.07.1990") == date(1990, 7, 12)
+    assert _parse_date("не дата") is None
+
+
+def test_the_repeated_hour_screen_offers_both_offsets_and_an_escape() -> None:
+    keyboard = flow.time_choice_keyboard((60, 120), "02:30")
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    callbacks = [button.callback_data or "" for row in keyboard.inline_keyboard for button in row]
+
+    assert labels[0] == "02:30 — летнее время (UTC+2)"
+    assert labels[1] == "02:30 — зимнее время (UTC+1)"
+    assert flow.TIME_UNKNOWN_BUTTON in labels
+    assert callbacks[:2] == [
+        flow.callback("offset", "pick", "120"),
+        flow.callback("offset", "pick", "60"),
+    ]
+    assert all(len(callback.encode()) <= 64 for callback in callbacks)
+
+
+@pytest.mark.parametrize(
+    ("minutes", "expected"),
+    [(0, "UTC+0"), (180, "UTC+3"), (-300, "UTC−5"), (330, "UTC+5:30"), (-210, "UTC−3:30")],
+)
+def test_offsets_are_rendered_the_way_a_user_reads_them(minutes: int, expected: str) -> None:
+    assert flow.format_offset(minutes) == expected

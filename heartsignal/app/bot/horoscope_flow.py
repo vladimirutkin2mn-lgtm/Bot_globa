@@ -51,9 +51,14 @@ BIRTH_TIME_INVALID = "Не удалось разобрать время. Нуж�
 BIRTH_MOMENT_INVALID = (
     "Такого местного времени в этом часовом поясе не существует. Уточните время или место."
 )
+BIRTH_TIME_AMBIGUOUS = (
+    "В эту ночь часы переводили назад, поэтому {clock} было дважды. От выбора зависят дома "
+    "и асцендент — укажите, какой это был час."
+)
+TIME_SUMMER_BUTTON = "{clock} — летнее время ({offset})"
+TIME_WINTER_BUTTON = "{clock} — зимнее время ({offset})"
 PROFILE_SAVED = "Данные рождения сохранены. Выберите тему разбора."
 PROFILE_MISSING = "Данные рождения не найдены. Заполните их заново."
-CONSENT_REQUIRED = "Сначала нужно разрешить хранение данных рождения."
 PROFILE_TITLE = "Ваши данные рождения:"
 PROFILE_DELETED = "Данные рождения и согласие удалены."
 TIME_UNKNOWN_BUTTON = "Не знаю время"
@@ -150,6 +155,38 @@ def birth_time_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=callback("cancel"))],
         ]
     )
+
+
+def format_offset(minutes: int) -> str:
+    """Render a UTC offset the way a user reads it, not as a signed integer."""
+    sign = "+" if minutes >= 0 else "−"
+    hours, rest = divmod(abs(minutes), 60)
+    return f"UTC{sign}{hours}" if rest == 0 else f"UTC{sign}{hours}:{rest:02d}"
+
+
+def time_choice_keyboard(offsets: Sequence[int], clock: str) -> InlineKeyboardMarkup:
+    """One button per repeated hour; the larger offset is the summer one."""
+    ordered = sorted(offsets, reverse=True)
+    templates = [TIME_SUMMER_BUTTON, TIME_WINTER_BUTTON]
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=template.format(clock=clock, offset=format_offset(minutes)),
+                callback_data=callback("offset", "pick", str(minutes)),
+            )
+        ]
+        for template, minutes in zip(templates, ordered, strict=False)
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=TIME_UNKNOWN_BUTTON,
+                callback_data=callback("time", "unknown"),
+            )
+        ]
+    )
+    rows.append([InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=callback("cancel"))])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def profile_keyboard() -> InlineKeyboardMarkup:

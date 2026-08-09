@@ -43,6 +43,7 @@ class HoroscopeStates(StatesGroup):
     waiting_for_birth_place = State()
     waiting_for_place_choice = State()
     waiting_for_birth_time = State()
+    waiting_for_time_choice = State()
     waiting_for_question = State()
     waiting_for_context = State()
     generating = State()

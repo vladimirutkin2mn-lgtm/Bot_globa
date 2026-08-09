@@ -6,7 +6,7 @@ the service, and nothing here logs a date, a place or coordinates.
 """
 
 import logging
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from typing import Any
 from uuid import UUID
 
@@ -35,6 +35,7 @@ from app.domain.birth_profile import BirthProfileConsentStatus
 from app.domain.horoscope import HoroscopeScope
 from app.providers.geocoding.base import GeocodedPlace, GeocodingError
 from app.services.birth_place_lookup import (
+    AmbiguousBirthTimeError,
     BirthPlaceLookupService,
     InvalidBirthPlaceQueryError,
     UnresolvableBirthPlaceError,
@@ -52,7 +53,6 @@ logger = logging.getLogger(__name__)
 
 DATE_FORMAT = "%d.%m.%Y"
 TIME_FORMAT = "%H:%M"
-PLACE_QUERY_LIMIT = 200
 
 
 def create_horoscope_router() -> Router:
@@ -70,10 +70,8 @@ def create_horoscope_router() -> Router:
 
     callbacks = router.callback_query
     callbacks.register(handlers.start_from_menu, F.data == f"menu:{HOROSCOPE_FLOW.namespace}")
-    callbacks.register(
-        handlers.restart,
-        F.data.in_({flow.callback("new"), flow.callback("cancel")}),
-    )
+    callbacks.register(handlers.restart, F.data == flow.callback("new"))
+    callbacks.register(handlers.cancel, F.data == flow.callback("cancel"))
     callbacks.register(handlers.to_main_menu, F.data == flow.callback("menu"))
     callbacks.register(handlers.grant_consent, F.data == flow.callback("consent", "grant"))
     callbacks.register(handlers.decline_consent, F.data == flow.callback("consent", "decline"))
@@ -83,6 +81,10 @@ def create_horoscope_router() -> Router:
         F.data.startswith(flow.callback("place", "pick", "")),
     )
     callbacks.register(handlers.skip_birth_time, F.data == flow.callback("time", "unknown"))
+    callbacks.register(
+        handlers.choose_offset,
+        F.data.startswith(flow.callback("offset", "pick", "")),
+    )
     callbacks.register(handlers.show_profile, F.data == flow.callback("profile"))
     callbacks.register(handlers.edit_profile, F.data == flow.callback("profile", "edit"))
     callbacks.register(handlers.delete_profile, F.data == flow.callback("profile", "delete"))
@@ -147,6 +149,10 @@ class HoroscopeHandlers:
         birth_profile_service: BirthProfileService,
     ) -> None:
         await self.start_from_menu(callback, state, onboarding, birth_profile_service)
+
+    async def cancel(self, callback: CallbackQuery, state: FSMContext) -> None:
+        """Abandon the intake outright; consent stays granted so a retry is one step."""
+        await self.to_main_menu(callback, state)
 
     async def to_main_menu(self, callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
@@ -287,6 +293,41 @@ class HoroscopeHandlers:
                 birth_place_lookup,
                 birth_time=None,
             )
+
+    async def choose_offset(
+        self,
+        callback: CallbackQuery,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        birth_profile_service: BirthProfileService,
+        birth_place_lookup: BirthPlaceLookupService,
+    ) -> None:
+        await callback.answer()
+        if not isinstance(callback.message, Message):
+            return
+        raw = (callback.data or "").removeprefix(flow.callback("offset", "pick", ""))
+        data = await state.get_data()
+        birth_time = _stored_time(data.get("birth_time"))
+        try:
+            offset = int(raw)
+        except ValueError:
+            offset = None
+        if offset is None or offset not in _stored_offsets(data.get("offsets")):
+            await callback.message.answer(
+                flow.BIRTH_TIME_PROMPT, reply_markup=flow.birth_time_keyboard()
+            )
+            await state.set_state(HoroscopeStates.waiting_for_birth_time)
+            return
+        await self._save_profile(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            birth_profile_service,
+            birth_place_lookup,
+            birth_time=birth_time,
+            utc_offset_minutes=offset,
+        )
 
     # ---------------------------------------------------------------- profile ---
 
@@ -603,6 +644,7 @@ class HoroscopeHandlers:
         birth_place_lookup: BirthPlaceLookupService,
         *,
         birth_time: time | None,
+        utc_offset_minutes: int | None = None,
     ) -> None:
         user = await onboarding.current_user(telegram_user_id)
         data = await state.get_data()
@@ -615,7 +657,12 @@ class HoroscopeHandlers:
             )
             return
         try:
-            profile = birth_place_lookup.build_profile(place, birth_date, birth_time)
+            profile = birth_place_lookup.build_profile(
+                place, birth_date, birth_time, utc_offset_minutes
+            )
+        except AmbiguousBirthTimeError as ambiguous:
+            await self._ask_which_hour(message, state, birth_time, ambiguous.offsets)
+            return
         except UnresolvableBirthPlaceError:
             await message.answer(flow.BIRTH_MOMENT_INVALID, reply_markup=flow.birth_time_keyboard())
             return
@@ -626,6 +673,25 @@ class HoroscopeHandlers:
             return
         await state.clear()
         await message.answer(flow.PROFILE_SAVED, reply_markup=flow.topics_keyboard())
+
+    async def _ask_which_hour(
+        self,
+        message: Message,
+        state: FSMContext,
+        birth_time: time | None,
+        offsets: tuple[int, ...],
+    ) -> None:
+        """The clocks went back: one hour of guessing would move the ascendant."""
+        clock = birth_time.strftime(TIME_FORMAT) if birth_time is not None else "это время"
+        await state.update_data(
+            birth_time=None if birth_time is None else birth_time.isoformat(),
+            offsets=list(offsets),
+        )
+        await state.set_state(HoroscopeStates.waiting_for_time_choice)
+        await message.answer(
+            flow.BIRTH_TIME_AMBIGUOUS.format(clock=clock),
+            reply_markup=flow.time_choice_keyboard(offsets, clock),
+        )
 
     async def _show_history(
         self,
@@ -854,6 +920,21 @@ def _selected_place(stored: object, raw_index: str) -> GeocodedPlace | None:
     return _stored_place(stored[index])
 
 
+def _stored_time(value: object) -> time | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return time.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _stored_offsets(value: object) -> tuple[int, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, int) and not isinstance(item, bool))
+
+
 def _stored_date(value: object) -> date | None:
     if not isinstance(value, str):
         return None
@@ -864,12 +945,14 @@ def _stored_date(value: object) -> date | None:
 
 
 def _parse_date(value: str | None) -> date | None:
+    """Reject a future date here, before the place query reaches the geocoder."""
     if value is None:
         return None
     try:
-        return datetime.strptime(value.strip(), DATE_FORMAT).date()  # noqa: DTZ007
+        parsed = datetime.strptime(value.strip(), DATE_FORMAT).date()  # noqa: DTZ007
     except ValueError:
         return None
+    return None if parsed > datetime.now(UTC).date() else parsed
 
 
 def _parse_time(value: str | None) -> time | None:

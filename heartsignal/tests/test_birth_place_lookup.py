@@ -4,13 +4,14 @@ The UTC offset must come from the timezone rules that were in force at the momen
 birth, not from today's rules — the calculated chart depends on it.
 """
 
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 
 import pytest
 
 from app.providers.geocoding.base import GeocodedPlace
 from app.providers.geocoding.stub import StubGeocodingClient
 from app.services.birth_place_lookup import (
+    AmbiguousBirthTimeError,
     BirthPlaceLookupService,
     InvalidBirthPlaceQueryError,
     UnresolvableBirthPlaceError,
@@ -76,3 +77,45 @@ async def test_search_is_capped_at_the_candidate_limit() -> None:
     service = BirthPlaceLookupService(StubGeocodingClient(), max_candidates=2)
 
     assert len(await service.search("россия")) <= 2
+
+
+def test_a_repeated_hour_is_never_resolved_by_guessing() -> None:
+    """1991-09-29 02:30 happened twice in Paris; one hour moves the ascendant."""
+    with pytest.raises(AmbiguousBirthTimeError) as captured:
+        _service().build_profile(PARIS, date(1991, 9, 29), time(2, 30))
+
+    assert captured.value.offsets == (60, 120)
+
+
+def test_the_chosen_offset_decides_the_calculated_moment() -> None:
+    service = _service()
+
+    winter = service.build_profile(PARIS, date(1991, 9, 29), time(2, 30), 60)
+    summer = service.build_profile(PARIS, date(1991, 9, 29), time(2, 30), 120)
+
+    assert winter.utc_calculation_datetime().hour == 1
+    assert summer.utc_calculation_datetime().hour == 0
+
+
+def test_an_offset_that_never_applied_is_refused() -> None:
+    with pytest.raises(UnresolvableBirthPlaceError):
+        _service().build_profile(PARIS, date(1991, 9, 29), time(2, 30), 999)
+
+
+def test_candidate_offsets_reports_the_gap_the_repeat_and_the_ordinary_case() -> None:
+    service = _service()
+
+    assert service.candidate_offsets(MOSCOW, date(1981, 4, 1), time(0, 0)) == ()
+    assert service.candidate_offsets(PARIS, date(1991, 9, 29), time(2, 30)) == (60, 120)
+    assert service.candidate_offsets(MOSCOW, date(2020, 7, 12), time(14, 30)) == (180,)
+
+
+def test_a_future_birth_date_is_refused_before_anything_else() -> None:
+    future = date(datetime.now(UTC).year + 5, 7, 12)
+
+    with pytest.raises(UnresolvableBirthPlaceError, match="future"):
+        _service().build_profile(MOSCOW, future, time(14, 30))
+
+
+def test_an_unknown_time_stays_unambiguous_at_local_noon() -> None:
+    assert len(_service().candidate_offsets(PARIS, date(1991, 9, 29), None)) == 1
