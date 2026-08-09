@@ -11,8 +11,6 @@ from app.db.models import Analysis, AnalysisPrivateContent, CreditTransaction, U
 from app.providers.analytics import NoOpAnalyticsClient
 from app.repositories.analyses import LLMMetadata, SqlAlchemyAnalysisRepository
 from app.services.data_deletion import DataDeletionOutcome, DataDeletionService
-from app.services.report_renderer import ReportRenderer
-from app.services.report_service import ReportService, ReportStatus
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
 
 pytestmark = pytest.mark.postgres
@@ -100,7 +98,7 @@ async def test_delete_analysis_is_idempotent_and_enforces_owner(
         )
 
 
-async def test_simultaneous_deletion_releases_reserved_preview_and_blocks_report(
+async def test_simultaneous_deletion_releases_reserved_preview_and_purges_content(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     async with payment_db.begin() as session:
@@ -140,15 +138,15 @@ async def test_simultaneous_deletion_releases_reserved_preview_and_blocks_report
     }
     async with payment_db() as session:
         stored_user = await session.get(User, user_id)
+        stored_analysis = await session.get(Analysis, analysis_id)
+        private = await session.get(AnalysisPrivateContent, analysis_id)
         assert stored_user is not None
         assert stored_user.free_preview_status == "available"
         assert stored_user.free_preview_analysis_id is None
-        report = await ReportService(
-            SqlAlchemyAnalysisRepository(session),
-            ReportRenderer(),
-            NoOpAnalyticsClient(),
-        ).retrieve(analysis_id, user_id)
-        assert report.status is ReportStatus.DELETED
+        assert stored_analysis is not None and stored_analysis.status == "deleted"
+        assert stored_analysis.report_access == "none"
+        assert private is not None
+        assert private.source_ciphertext is None and private.result_ciphertext is None
 
 
 async def test_deletion_preserves_consumed_preview_and_financial_references(
