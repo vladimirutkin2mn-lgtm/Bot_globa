@@ -15,9 +15,6 @@ pytest \
   tests/test_product_catalog_financial_lifecycle_postgres.py::test_astrology_v2_completion_and_refund_use_order_not_current_label \
   tests/test_subscription_checkout_postgres.py::test_current_subscription_replays_unfinished_v1_snapshot_without_repricing \
   tests/test_yookassa_subscription_label_replay_postgres.py::test_later_renewal_uses_latest_terms_and_initial_receipt_label \
-  tests/test_followup_service_postgres.py::test_concurrent_requests_make_one_llm_call_and_consume_once \
-  tests/test_followup_service_postgres.py::test_technical_failure_releases_entitlement_for_retry \
-  tests/test_followup_service_postgres.py::test_soft_delete_purges_encrypted_followup_history \
   tests/test_reading_followup_postgres.py::test_concurrent_requests_make_one_llm_call_and_consume_once \
   tests/test_reading_followup_postgres.py::test_technical_failure_releases_entitlement_for_retry \
   tests/test_reading_followup_postgres.py::test_soft_delete_purges_encrypted_followup_history \
@@ -28,6 +25,7 @@ pytest \
   tests/test_reading_account_deletion_postgres.py::test_account_tombstone_purges_all_reading_ciphertext_and_symbols \
   tests/test_reading_account_deletion_postgres.py::test_draft_creation_waits_for_deletion_and_cannot_leave_private_data \
   tests/test_reading_account_deletion_postgres.py::test_generation_claim_waits_for_deletion_and_never_decrypts_source \
+  tests/test_reading_generation_store_postgres.py::test_claim_is_exactly_once_and_contains_decrypted_source \
   tests/test_monetized_reading_postgres.py::test_paid_reading_unlock_is_exactly_once_under_concurrency \
   tests/test_monetized_reading_postgres.py::test_technical_failure_refunds_reading_spend_exactly_once \
   tests/test_shared_preview_entitlement_postgres.py::test_reading_preview_consumes_shared_entitlement_and_blocks_analysis \
