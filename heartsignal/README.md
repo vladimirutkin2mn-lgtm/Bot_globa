@@ -87,9 +87,14 @@ operation and ledger write is therefore idempotent.
 
 Tarot, Love Oracle and Mystical Psychologist share one `PersonaReadingUseCase` and one
 router factory; they differ only by the data in `app/bot/persona_flows.py` and
-`app/domain/persona.py`. The astrologer needs a consented birth profile and a calculation
-engine, so it keeps its own use case. Adding a persona is a checklist in
+`app/domain/persona.py`. Adding one of those is a checklist in
 [`docs/style.md`](docs/style.md), not a new vertical.
+
+The astrologer keeps its own use case, router and renderer because it collects a consented
+birth profile and runs a calculation engine. Its birth-place lookup is the only thing in
+the product that sends user text to a third party — see
+[`docs/privacy-deletion-retention.md`](docs/privacy-deletion-retention.md). The default
+provider (`GEOCODING_PROVIDER=stub`) is offline and makes no network call.
 
 ## Non-negotiable contracts
 

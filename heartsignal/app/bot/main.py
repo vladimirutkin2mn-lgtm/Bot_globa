@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.bot.dependencies import OnboardingDependencyMiddleware
 from app.bot.followup_handlers import router as followup_router
 from app.bot.handlers import router
+from app.bot.horoscope_handlers import create_horoscope_router
+from app.bot.horoscope_renderer import HoroscopeRenderer
 from app.bot.memory_handlers import router as memory_router
 from app.bot.observability import TelegramObservabilityMiddleware
 from app.bot.persona_flow import PersonaReadingBundle
@@ -32,18 +34,20 @@ from app.observability.oracle_quality import (
 )
 from app.observability.settings import ObservabilitySettings, get_observability_settings
 from app.providers.analytics_postgres import create_analytics_client
+from app.providers.geocoding.base import close_geocoding_client
+from app.providers.geocoding.factory import create_geocoding_client
 from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
 from app.providers.payments.composition import create_payment_components
 from app.release_settings import OracleReleaseSettings, get_oracle_release_settings
 from app.repositories.reading_generation import SqlAlchemyReadingGenerationStore
+from app.services.birth_place_lookup import BirthPlaceLookupService
 from app.services.birth_profile import BirthProfileService
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.horoscope_facts import HoroscopeFactService
 from app.services.horoscope_generation import HoroscopeGenerationService
 from app.services.horoscope_reading import HoroscopeReadingUseCase
-from app.services.horoscope_renderer import HoroscopeRenderer
 from app.services.monetized_reading import MonetizedReadingService
 from app.services.natal_chart import (
     AstronomyEngineNatalChartCalculator,
@@ -153,6 +157,7 @@ def create_dispatcher(
     dispatcher.include_router(memory_router)
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
+    dispatcher.include_router(create_horoscope_router())
     dispatcher.include_router(router)
     dispatcher["database_engine"] = resolved_engine
     dispatcher["owns_database_engine"] = engine is None
@@ -214,7 +219,10 @@ def create_dispatcher(
         AstronomyEngineNatalChartCalculator(),
     )
     horoscope_facts = HoroscopeFactService(natal_charts)
+    geocoder = create_geocoding_client(settings)
+    dispatcher["geocoding_client"] = geocoder
     dispatcher["birth_profile_service"] = birth_profiles
+    dispatcher["birth_place_lookup"] = BirthPlaceLookupService(geocoder)
     dispatcher["horoscope_use_case"] = HoroscopeReadingUseCase.from_services(
         reading_service,
         HoroscopeGenerationService(
@@ -228,6 +236,7 @@ def create_dispatcher(
         entitlements=preview_entitlements,
     )
     dispatcher["horoscope_renderer"] = HoroscopeRenderer()
+    dispatcher["horoscope_monetized"] = monetized_readings
     dispatcher.startup.register(sync_persona_registry)
     return dispatcher
 
@@ -238,6 +247,10 @@ async def close_dispatcher(dispatcher: Dispatcher) -> None:
         await close_llm_client(dispatcher["llm_client"])
     except Exception:
         logger.warning("LLM client shutdown failed")
+    try:
+        await close_geocoding_client(dispatcher["geocoding_client"])
+    except Exception:
+        logger.warning("geocoding client shutdown failed")
     await dispatcher.fsm.close()
     if dispatcher["owns_database_engine"]:
         await dispatcher["database_engine"].dispose()

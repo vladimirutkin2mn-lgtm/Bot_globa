@@ -9,6 +9,39 @@ not automatically expire. Analysis deletion clears all content in every state. A
 removes Telegram/profile identity, analysis content and active checkout secrets while retaining an
 identity-free internal UUID.
 
+## Birth-place lookup leaves the service perimeter
+
+The astrologer is the only flow that sends user-supplied text to a third party. Everything
+else — questions, context, readings, memory, birth fields — stays inside the service and is
+encrypted at rest.
+
+What leaves, and only when `GEOCODING_PROVIDER=opencage`:
+
+| Sent | Never sent |
+|---|---|
+| The place string the user typed | Telegram or internal user id |
+| | Birth date or birth time |
+| | Any reading, question or memory content |
+
+Controls:
+
+- **Consent first.** The consent screen names the external lookup before the first birth
+  field is asked. Declining ends the flow; no birth field is collected.
+- **`GEOCODING_PROVIDER=stub`** resolves from a bundled offline table and makes no network
+  call at all. It is the default and the only provider used by tests and CI.
+- **`no_record=1`** is sent on every OpenCage request, asking the provider not to retain
+  the query.
+- **No logging.** The adapter, the lookup service and the handlers never log the query,
+  the resolved label or the coordinates. Geocoding errors carry no part of the query, and
+  `test_geocoding_errors_never_repeat_the_users_query` freezes that.
+- **Deletion unchanged.** Revoking birth-profile consent purges the stored ciphertext and
+  the profile row in the same transaction; the astrologer's "Удалить данные рождения"
+  button performs exactly that revoke.
+
+Switching provider is a privacy-relevant change: it must be an explicit deployment
+decision, not a default.
+
+
 ## Retained financial matrix
 
 Immutable credit transactions are never deleted or rewritten. Provider/order identifiers,

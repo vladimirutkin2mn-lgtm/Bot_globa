@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from app.bot.reading_renderer import chunk_text
 from app.domain.horoscope import (
     HOROSCOPE_RENDERER_VERSION,
     AstrologyReadingResult,
@@ -10,6 +11,8 @@ from app.domain.horoscope import (
     HoroscopeFactKind,
     HoroscopeLimitation,
 )
+
+PREVIEW_INTERPRETATIONS = 2
 
 _BODY_LABELS = {
     "sun": "Солнце",
@@ -70,6 +73,10 @@ class RenderedHoroscope:
     facts_digest: str
     renderer_version: str = HOROSCOPE_RENDERER_VERSION
 
+    def chunks(self) -> tuple[str, ...]:
+        """Split into Telegram-sized messages without breaking a paragraph."""
+        return chunk_text(self.text)
+
 
 class HoroscopeRenderer:
     """Combine model interpretation with exact labels derived only from calculated facts."""
@@ -79,19 +86,10 @@ class HoroscopeRenderer:
         result: AstrologyReadingResult,
         facts: HoroscopeFactBundle,
     ) -> RenderedHoroscope:
-        if result.scope is not facts.scope:
-            raise HoroscopeRenderError("Horoscope scope mismatch")
-        if result.facts_digest != facts.digest():
-            raise HoroscopeRenderError("Horoscope fact digest mismatch")
-        labels = {fact.fact_id: self._label(fact) for fact in facts.facts}
+        labels = self._verified_labels(result, facts)
         lines = [result.title, "", result.overview]
         lines.extend(("", "Расчётные опоры:"))
-        for interpretation in result.interpretations:
-            try:
-                references = "; ".join(labels[fact_id] for fact_id in interpretation.fact_ids)
-            except KeyError as exc:
-                raise HoroscopeRenderError("Horoscope references an unknown fact") from exc
-            lines.append(f"• {references}\n  {interpretation.text}")
+        lines.extend(self._interpretation_lines(result, labels))
         lines.extend(("", "Темы:"))
         lines.extend(f"• {theme}" for theme in result.themes)
         lines.extend(("", "Возможные сценарии:"))
@@ -102,13 +100,66 @@ class HoroscopeRenderer:
             lines.extend(("", "Вопросы для размышления:"))
             lines.extend(f"• {question}" for question in result.reflection_questions)
         lines.extend(("", f"Практический шаг: {result.practical_step}"))
-        lines.extend(("", "Ограничения расчёта:"))
-        lines.extend(f"• {_LIMITATION_LABELS[value]}" for value in result.limitations)
-        lines.extend(("", result.uncertainty_note))
+        lines.extend(self._closing_lines(result))
         return RenderedHoroscope(
             text="\n".join(lines),
             facts_digest=result.facts_digest,
         )
+
+    def render_preview(
+        self,
+        result: AstrologyReadingResult,
+        facts: HoroscopeFactBundle,
+    ) -> RenderedHoroscope:
+        """Show the calculation is real and useful while withholding the paid depth."""
+        labels = self._verified_labels(result, facts)
+        lines = [result.title, "", result.overview]
+        lines.extend(("", "Расчётные опоры:"))
+        lines.extend(self._interpretation_lines(result, labels, limit=PREVIEW_INTERPRETATIONS))
+        if result.themes:
+            lines.extend(("", "Темы:"))
+            lines.extend(f"• {theme}" for theme in result.themes)
+        lines.extend(("", f"Практический шаг: {result.practical_step}"))
+        lines.extend(self._closing_lines(result))
+        return RenderedHoroscope(
+            text="\n".join(lines),
+            facts_digest=result.facts_digest,
+        )
+
+    def _verified_labels(
+        self,
+        result: AstrologyReadingResult,
+        facts: HoroscopeFactBundle,
+    ) -> dict[str, str]:
+        if result.scope is not facts.scope:
+            raise HoroscopeRenderError("Horoscope scope mismatch")
+        if result.facts_digest != facts.digest():
+            raise HoroscopeRenderError("Horoscope fact digest mismatch")
+        return {fact.fact_id: self._label(fact) for fact in facts.facts}
+
+    @staticmethod
+    def _interpretation_lines(
+        result: AstrologyReadingResult,
+        labels: dict[str, str],
+        *,
+        limit: int | None = None,
+    ) -> list[str]:
+        selected = result.interpretations if limit is None else result.interpretations[:limit]
+        lines: list[str] = []
+        for interpretation in selected:
+            try:
+                references = "; ".join(labels[fact_id] for fact_id in interpretation.fact_ids)
+            except KeyError as exc:
+                raise HoroscopeRenderError("Horoscope references an unknown fact") from exc
+            lines.append(f"• {references}\n  {interpretation.text}")
+        return lines
+
+    @staticmethod
+    def _closing_lines(result: AstrologyReadingResult) -> list[str]:
+        lines = ["", "Ограничения расчёта:"]
+        lines.extend(f"• {_LIMITATION_LABELS[value]}" for value in result.limitations)
+        lines.extend(("", result.uncertainty_note))
+        return lines
 
     @staticmethod
     def share_text(result: AstrologyReadingResult) -> str:

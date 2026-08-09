@@ -35,5 +35,18 @@ class MysticalPsychologistStates(StatesGroup):
     generating = State()
 
 
+class HoroscopeStates(StatesGroup):
+    """The astrologer adds a consented birth-profile intake before the reading itself."""
+
+    waiting_for_consent = State()
+    waiting_for_birth_date = State()
+    waiting_for_birth_place = State()
+    waiting_for_place_choice = State()
+    waiting_for_birth_time = State()
+    waiting_for_question = State()
+    waiting_for_context = State()
+    generating = State()
+
+
 class MemoryStates(StatesGroup):
     waiting_for_correction = State()

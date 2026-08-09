@@ -13,6 +13,7 @@ from aiogram.fsm.state import State
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.reading_renderer import ReadingCopy
+from app.bot.safety_intake import SafetyIntake, state_name
 from app.services.monetized_reading import MonetizedReadingService
 from app.services.persona_reading import PersonaReadingUseCase
 
@@ -72,15 +73,28 @@ class PersonaFlowTexts:
 
 
 @dataclass(frozen=True, slots=True)
-class PersonaFlow:
-    """One persona's transport contract: namespace, states, copy and keyboards."""
+class ReadingFlow:
+    """The transport contract every reading persona shares: namespace, states, keyboards.
+
+    The astrologer reuses this without being a `PersonaFlow`: it has extra birth-profile
+    intake states and renders calculated facts instead of a structured reading result.
+    """
 
     persona_code: str
     namespace: str
     states: type[ReadingStates]
     topic_labels: Mapping[str, str]
     texts: PersonaFlowTexts
-    copy: ReadingCopy
+
+    def safety_intake(self) -> SafetyIntake:
+        """Register this flow with the crisis middleware."""
+        return SafetyIntake(
+            persona_code=self.persona_code,
+            question_state=state_name(self.states.waiting_for_question),
+            context_state=state_name(self.states.waiting_for_context),
+            skip_context_callback=self.callback("context", "skip"),
+            handoff_keyboard=self.handoff_keyboard,
+        )
 
     def callback(self, *parts: str) -> str:
         """Build a callback payload; Telegram allows 64 bytes, so namespaces stay short."""
@@ -226,6 +240,13 @@ class PersonaFlow:
     @property
     def _history(self) -> str:
         return self.callback("history")
+
+
+@dataclass(frozen=True, slots=True)
+class PersonaFlow(ReadingFlow):
+    """A reading flow whose result is a `reading-result-v1` structure."""
+
+    copy: ReadingCopy
 
 
 @dataclass(frozen=True, slots=True)

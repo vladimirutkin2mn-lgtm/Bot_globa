@@ -77,8 +77,12 @@ callback namespaces are short (`tarot`, `love`, `psy`) even though persona codes
 5. add the menu entry in `app/bot/keyboards.py`.
 
 No new use case, router, renderer or keyboard module is needed. A persona that needs a
-deterministic symbol set supplies a `SymbolDrawer`; one that needs a calculation engine
-(astrology) is not a `PersonaReadingUseCase` and keeps its own use case.
+deterministic symbol set supplies a `SymbolDrawer`.
+
+A persona that needs its own intake or a calculation engine — the astrologer is the only
+one today — keeps its own use case, router and renderer, but still reuses `ReadingFlow`
+for the shared transport surface (namespace, result keyboards, history) and **must**
+register a `SafetyIntake` so the crisis middleware covers it.
 
 ## Tests
 
