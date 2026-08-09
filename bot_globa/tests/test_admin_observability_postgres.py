@@ -118,7 +118,7 @@ async def _seed_metrics(engine: AsyncEngine) -> str:
                 id=payment_order_id,
                 user_id=user_id,
                 provider="stripe",
-                product_code="analysis_pack_5",
+                product_code="reading_pack_5",
                 status="completed",
                 credits=5,
                 amount_minor=69900,
@@ -139,7 +139,7 @@ async def _seed_metrics(engine: AsyncEngine) -> str:
                 amount=5,
                 idempotency_key=f"purchase:{payment_order_id}",
                 payment_order_id=payment_order_id,
-                product_code="analysis_pack_5",
+                product_code="reading_pack_5",
             )
         )
         session.add_all(

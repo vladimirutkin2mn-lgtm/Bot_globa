@@ -49,13 +49,13 @@ async def _billing_rows(
         order = PaymentOrder(
             user_id=user.id,
             provider="mock",
-            product_code="analysis_pack_5",
+            product_code="reading_pack_5",
             status="pending",
             credits=5,
             amount_minor=500,
             currency="RUB",
             commercial_snapshot={
-                "product_code": "analysis_pack_5",
+                "product_code": "reading_pack_5",
                 "product_version": 1,
                 "credits": 5,
                 "amount_minor": 500,

@@ -88,16 +88,8 @@ def test_llm_settings_reject_unsupported_or_unbounded_values(
         Settings.model_validate(values)
 
 
-def test_model_prompt_and_policy_are_configurable(settings: Settings) -> None:
+def test_model_and_repair_policy_are_configurable(settings: Settings) -> None:
     configured = settings.model_copy(
-        update={
-            "llm_model": "configured-model",
-            "llm_prompt_version": "analysis_v2",
-            "llm_max_repair_attempts": 0,
-        }
+        update={"llm_model": "configured-model", "llm_max_repair_attempts": 0}
     )
-    assert (
-        configured.llm_model,
-        configured.llm_prompt_version,
-        configured.llm_max_repair_attempts,
-    ) == ("configured-model", "analysis_v2", 0)
+    assert (configured.llm_model, configured.llm_max_repair_attempts) == ("configured-model", 0)

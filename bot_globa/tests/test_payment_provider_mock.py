@@ -30,10 +30,10 @@ async def test_checkout_url_contains_only_opaque_token() -> None:
     provider = MockPaymentProvider("http://localhost:8000", "secret")
     token, order = uuid4(), uuid4()
     checkout = await provider.create_checkout(
-        CheckoutRequest(order, token, "analysis_single", 19900, "RUB")
+        CheckoutRequest(order, token, "reading_single", 19900, "RUB")
     )
     assert checkout.url == f"http://localhost:8000/payments/mock/checkout/{token}"
-    assert str(order) not in checkout.url and "analysis_single" not in checkout.url
+    assert str(order) not in checkout.url and "reading_single" not in checkout.url
 
 
 async def test_valid_hmac_and_strict_values() -> None:

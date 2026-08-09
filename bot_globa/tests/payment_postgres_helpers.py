@@ -80,7 +80,7 @@ async def create_order(
         order = PaymentOrder(
             user_id=user.id,
             provider=provider,
-            product_code="analysis_single",
+            product_code="reading_single",
             status=status,
             credits=1,
             amount_minor=500,
@@ -92,7 +92,7 @@ async def create_order(
             provider_payment_id=payment_id,
             idempotency_key=f"checkout:create:{uuid4()}:v1",
             commercial_snapshot={
-                "product_code": "analysis_single",
+                "product_code": "reading_single",
                 "product_version": 1,
                 "credits": 1,
                 "amount_minor": 500,

@@ -65,7 +65,7 @@ async def test_ten_checkout_requests_create_one_order_and_provider_checkout(
     results = await asyncio.gather(
         *(
             service.create_one_time_checkout(
-                user.id, "analysis_single", "RU", "RUB", receipt_contact="buyer@example.com"
+                user.id, "reading_single", "RU", "RUB", receipt_contact="buyer@example.com"
             )
             for _ in range(10)
         )
@@ -91,7 +91,7 @@ async def test_ambiguous_checkout_recovers_with_same_key_and_encrypted_contact(
         payment_db, configured, BillingCatalog(configured), {PaymentProviderName.YOOKASSA: gateway}
     )
     first = await service.create_one_time_checkout(
-        user.id, "analysis_single", "RU", "RUB", receipt_contact="buyer@example.com"
+        user.id, "reading_single", "RU", "RUB", receipt_contact="buyer@example.com"
     )
     async with payment_db.begin() as session:
         order = await session.get(PaymentOrder, first.order_id)
@@ -100,7 +100,7 @@ async def test_ambiguous_checkout_recovers_with_same_key_and_encrypted_contact(
         assert "buyer@example.com" not in str(order.commercial_snapshot)
         order.checkout_creation_started_at = datetime.now(UTC) - timedelta(seconds=5)
     second = await service.create_one_time_checkout(
-        user.id, "analysis_single", "RU", "RUB", receipt_contact="buyer@example.com"
+        user.id, "reading_single", "RU", "RUB", receipt_contact="buyer@example.com"
     )
     assert second.url == "https://provider.test/one"
     assert gateway.keys[0] == gateway.keys[1]
