@@ -7,6 +7,9 @@ __pycache__/
 .ruff_cache/
 .DS_Store
 
+# JetBrains IDE workspace — personal, not shared.
+.idea/
+
 # Personal Claude Code permission allowlist — machine-local, not shared.
 .claude/settings.local.json
 
