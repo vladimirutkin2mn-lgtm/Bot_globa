@@ -9,7 +9,7 @@ import openai
 import pytest
 from openai import AsyncOpenAI
 
-from app.domain.analysis import AnalysisResult
+from app.domain.reading_result import ReadingResult
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMInvalidRequestError,
@@ -56,9 +56,9 @@ def request() -> LLMRequest:
     return LLMRequest(
         "system " + SECRET,
         "user " + SECRET,
-        AnalysisResult.model_json_schema(),
-        ("m1",),
-        ("A", "B"),
+        ReadingResult.model_json_schema(),
+        ("reading-1",),
+        (),
     )
 
 
@@ -99,7 +99,7 @@ async def test_missing_usage_is_safe() -> None:
 
 
 def test_provider_schema_removes_unsupported_keywords_recursively() -> None:
-    schema = cast_dict(openai_strict_schema(AnalysisResult.model_json_schema()))
+    schema = cast_dict(openai_strict_schema(ReadingResult.model_json_schema()))
     forbidden = {
         "default",
         "examples",
