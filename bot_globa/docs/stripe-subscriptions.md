@@ -42,16 +42,16 @@ Enable production Stripe subscriptions only with all regular Stripe production s
 
 ```dotenv
 SUBSCRIPTIONS_ENABLED=true
-STRIPE_PRICE_SUBSCRIPTION_MONTHLY_EUR=price_...
-STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_EUR_MINOR=990
-STRIPE_PRICE_SUBSCRIPTION_MONTHLY_USD=price_...
-STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_USD_MINOR=1090
+STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_EUR_MINOR=699
+STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_USD_MINOR=699
 BILLING_CONSENT_VERSION=billing-v1
 SUBSCRIPTION_GRACE_PERIOD_DAYS=3
 ```
 
-Every configured Price must have its exact expected amount in minor units. A missing half of a
-Price/Amount pair fails configuration validation. Test Stripe credentials remain forbidden in
+The recurring price is sent inline with the checkout as `price_data` with a monthly
+`recurring` interval, so no Price or Product object has to be created in the Stripe
+dashboard. The amounts above are the whole catalog; they carry defaults and are floored at
+the provider minimum of 50 minor units. Test Stripe credentials remain forbidden in
 production by the existing settings guard.
 
 The global billing kill switch blocks new checkout and user-requested renewal changes. It does

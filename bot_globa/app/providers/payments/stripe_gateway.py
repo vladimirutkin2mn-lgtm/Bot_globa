@@ -30,6 +30,30 @@ from app.providers.payments.subscription_gateway import (
 )
 
 
+def _inline_line_item(
+    *,
+    currency: str,
+    amount_minor: int,
+    label: str,
+    interval: str | None = None,
+) -> dict[str, object]:
+    """Describe the sale inline so the catalog stays in this repository.
+
+    Stripe accepts either a pre-created Price object or `price_data`. Sending the price
+    inline keeps a single source of truth for what things cost and means a deploy needs
+    no manual dashboard work.
+    """
+
+    price_data: dict[str, object] = {
+        "currency": currency.lower(),
+        "unit_amount": amount_minor,
+        "product_data": {"name": label},
+    }
+    if interval is not None:
+        price_data["recurring"] = {"interval": interval}
+    return {"price_data": price_data, "quantity": 1}
+
+
 class StripeGateway:
     def __init__(self, api_key: str, webhook_secret: str, timeout: float = 15) -> None:
         self._stripe = importlib.import_module("stripe")
@@ -53,7 +77,13 @@ class StripeGateway:
                     self._client.checkout.sessions.create,
                     {
                         "mode": "payment",
-                        "line_items": [{"price": request.price_reference, "quantity": 1}],
+                        "line_items": [
+                            _inline_line_item(
+                                currency=request.currency,
+                                amount_minor=request.amount_minor,
+                                label=request.receipt_label or request.product_code,
+                            )
+                        ],
                         "success_url": request.success_url,
                         "cancel_url": request.cancel_url,
                         "client_reference_id": request.order_id,
@@ -137,7 +167,14 @@ class StripeGateway:
                     self._client.checkout.sessions.create,
                     {
                         "mode": "subscription",
-                        "line_items": [{"price": request.price_reference, "quantity": 1}],
+                        "line_items": [
+                            _inline_line_item(
+                                currency=request.currency,
+                                amount_minor=request.amount_minor,
+                                label=request.receipt_label or request.product_code,
+                                interval="month",
+                            )
+                        ],
                         "success_url": request.success_url,
                         "cancel_url": request.cancel_url,
                         "client_reference_id": str(request.user_id),

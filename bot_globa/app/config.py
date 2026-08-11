@@ -63,18 +63,15 @@ class Settings(BaseSettings):
     yookassa_trusted_proxy_allowlist: str = ""
     stripe_secret_key: SecretStr = Field(default=SecretStr(""), repr=False)
     stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), repr=False)
-    stripe_price_reading_single_eur: str = ""
-    stripe_price_reading_single_usd: str = ""
-    stripe_price_reading_pack_5_eur: str = ""
-    stripe_price_reading_pack_5_usd: str = ""
-    stripe_amount_reading_single_eur_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_reading_single_usd_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_reading_pack_5_eur_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_reading_pack_5_usd_minor: int | None = Field(default=None, gt=0)
-    stripe_price_subscription_monthly_eur: str = ""
-    stripe_price_subscription_monthly_usd: str = ""
-    stripe_amount_subscription_monthly_eur_minor: int | None = Field(default=None, gt=0)
-    stripe_amount_subscription_monthly_usd_minor: int | None = Field(default=None, gt=0)
+    # Stripe prices are sent inline with each checkout, so the international catalog is
+    # defined here and nothing has to be pre-created in the Stripe dashboard. Stripe
+    # rejects any charge below 0.50 in both currencies, hence the floor.
+    stripe_amount_reading_single_eur_minor: int = Field(default=99, ge=50)
+    stripe_amount_reading_single_usd_minor: int = Field(default=99, ge=50)
+    stripe_amount_reading_pack_5_eur_minor: int = Field(default=449, ge=50)
+    stripe_amount_reading_pack_5_usd_minor: int = Field(default=449, ge=50)
+    stripe_amount_subscription_monthly_eur_minor: int = Field(default=699, ge=50)
+    stripe_amount_subscription_monthly_usd_minor: int = Field(default=699, ge=50)
     billing_worker_lease_seconds: int = Field(default=60, gt=0)
     billing_worker_max_attempts: int = Field(default=10, ge=1)
     billing_retry_base_seconds: int = Field(default=30, gt=0)
@@ -108,20 +105,6 @@ class Settings(BaseSettings):
             raise ValueError("refunds require billing")
         if self.refunds_enabled and not (self.stripe_enabled or self.yookassa_enabled):
             raise ValueError("refunds require an enabled production payment provider")
-        subscription_pairs = (
-            (
-                self.stripe_price_subscription_monthly_eur,
-                self.stripe_amount_subscription_monthly_eur_minor,
-            ),
-            (
-                self.stripe_price_subscription_monthly_usd,
-                self.stripe_amount_subscription_monthly_usd_minor,
-            ),
-        )
-        if any(bool(price) != (amount is not None) for price, amount in subscription_pairs):
-            raise ValueError(
-                "Stripe subscription Price and expected amount must be configured together"
-            )
         if self.app_env != "production":
             return self
         encryption_key = self.content_encryption_key.get_secret_value().strip()
@@ -174,32 +157,10 @@ class Settings(BaseSettings):
             stripe_key and self.stripe_webhook_secret.get_secret_value()
         ):
             raise ValueError("Stripe configuration is incomplete")
-        if self.stripe_enabled and not all(
-            (
-                self.stripe_price_reading_single_eur,
-                self.stripe_price_reading_single_usd,
-                self.stripe_price_reading_pack_5_eur,
-                self.stripe_price_reading_pack_5_usd,
-            )
-        ):
-            raise ValueError("Stripe one-time Price configuration is incomplete")
-        if self.stripe_enabled and not all(
-            amount is not None
-            for amount in (
-                self.stripe_amount_reading_single_eur_minor,
-                self.stripe_amount_reading_single_usd_minor,
-                self.stripe_amount_reading_pack_5_eur_minor,
-                self.stripe_amount_reading_pack_5_usd_minor,
-            )
-        ):
-            raise ValueError("Stripe one-time expected amounts are incomplete")
         if self.stripe_enabled and stripe_key.startswith(("sk_test_", "rk_test_")):
             raise ValueError("Stripe test credentials are forbidden in production")
-        configured_stripe_subscription = any(
-            bool(price) and amount is not None for price, amount in subscription_pairs
-        )
         if self.subscriptions_enabled and not (
-            configured_stripe_subscription or self.yookassa_recurring_enabled
+            self.stripe_enabled or self.yookassa_recurring_enabled
         ):
             raise ValueError("subscriptions require a complete configured offer")
         return self

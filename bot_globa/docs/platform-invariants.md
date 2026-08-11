@@ -11,6 +11,9 @@ This document defines the production-sensitive behavior inherited from the Heart
 - A refund reverses one exact spend and is itself exactly once.
 - A refunded spend cannot later grant full access.
 - Ownership is checked for spend, unlock and refund operations; identifiers from another user reveal no transaction or artifact details.
+- Purchased credits never expire. Credits granted by a subscription period lapse once that period has closed, through a compensating `expiry` transaction rather than any deletion, so the balance stays a plain sum of immutable rows.
+- Spending is charged against lapsing subscription credits before purchased ones, an expiry never removes more than its own period granted, and it can never drive a balance negative.
+- Settling a closed period is exactly once and is recorded on the period itself, so a period that had nothing left to expire is not swept again.
 
 ## 2. Access and delivery
 

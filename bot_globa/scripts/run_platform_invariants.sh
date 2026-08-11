@@ -8,6 +8,10 @@ pytest \
   tests/test_credits_repository_postgres.py::test_different_spends_never_make_balance_negative \
   tests/test_credits_repository_postgres.py::test_cross_user_spend_never_exposes_or_refunds_owner_transaction \
   tests/test_credits_repository_postgres.py::test_public_unlock_and_refund_are_mutually_exclusive \
+  tests/test_subscription_credit_expiry_postgres.py::test_purchased_credits_survive_a_subscription_expiry \
+  tests/test_subscription_credit_expiry_postgres.py::test_expiry_can_never_drive_a_balance_negative \
+  tests/test_subscription_credit_expiry_postgres.py::test_expiry_never_takes_more_than_the_period_lent \
+  tests/test_subscription_credit_expiry_postgres.py::test_concurrent_expiry_attempts_settle_the_period_once \
   tests/test_stripe_catalog_checkout.py::test_one_time_checkout_uses_server_price_and_canonical_sku_metadata \
   tests/test_yookassa_catalog_labels.py::test_one_time_checkout_uses_receipt_label_but_keeps_order_metadata \
   tests/test_product_catalog_checkout_postgres.py::test_checkout_creates_the_current_sku_with_an_immutable_label_snapshot \

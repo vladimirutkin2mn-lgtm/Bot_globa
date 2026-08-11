@@ -249,24 +249,10 @@ class ReleaseReadinessService:
                 blockers.append("stripe_test_credentials_required")
             if not settings.stripe_webhook_secret.get_secret_value():
                 blockers.append("stripe_webhook_secret_missing")
-        if gate_name is ReleaseGateName.STRIPE_SUBSCRIPTION:
-            if not settings.subscriptions_enabled:
-                blockers.append("subscriptions_disabled")
-            configured_offer = any(
-                bool(price) and amount is not None
-                for price, amount in (
-                    (
-                        settings.stripe_price_subscription_monthly_eur,
-                        settings.stripe_amount_subscription_monthly_eur_minor,
-                    ),
-                    (
-                        settings.stripe_price_subscription_monthly_usd,
-                        settings.stripe_amount_subscription_monthly_usd_minor,
-                    ),
-                )
-            )
-            if not configured_offer:
-                blockers.append("stripe_subscription_offer_missing")
+        # The subscription offer is priced inline from settings that always carry a value,
+        # so only the release switch itself can still be missing here.
+        if gate_name is ReleaseGateName.STRIPE_SUBSCRIPTION and not settings.subscriptions_enabled:
+            blockers.append("subscriptions_disabled")
         if gate_name in {
             ReleaseGateName.YOOKASSA_SUBSCRIPTION,
             ReleaseGateName.YOOKASSA_REFUND,

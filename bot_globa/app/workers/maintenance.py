@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import logging
 import signal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -12,7 +12,9 @@ from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import DeploymentSettings, get_deployment_settings
 from app.logging import configure_logging
+from app.services.credits_service import CreditsService
 from app.services.retention import RetentionResult, cleanup_expired_source
+from app.services.subscription_credit_expiry import ExpirySweepResult, expire_closed_periods
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +22,24 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class MaintenanceResult:
     retention: RetentionResult
+    expiry: ExpirySweepResult = field(default_factory=ExpirySweepResult)
 
 
 async def run_once(
     sessions: async_sessionmaker[AsyncSession], deployment: DeploymentSettings
 ) -> MaintenanceResult:
-    """Run one bounded retention iteration."""
+    """Run one bounded retention iteration and settle any closed subscription period."""
     async with sessions() as session:
         retention = await cleanup_expired_source(
             session,
             batch_size=deployment.maintenance_batch_size,
         )
-    return MaintenanceResult(retention)
+    expiry = await expire_closed_periods(
+        sessions,
+        CreditsService(sessions),
+        batch_size=deployment.maintenance_batch_size,
+    )
+    return MaintenanceResult(retention, expiry)
 
 
 async def run(
@@ -55,9 +63,12 @@ async def run(
             try:
                 result = await run_once(sessions, runtime)
                 logger.info(
-                    "maintenance_iteration retention_examined=%s retention_cleared=%s",
+                    "maintenance_iteration retention_examined=%s retention_cleared=%s "
+                    "expiry_examined=%s expiry_credits=%s",
                     result.retention.examined,
                     result.retention.cleared,
+                    result.expiry.examined,
+                    result.expiry.expired_credits,
                 )
             except asyncio.CancelledError:
                 raise

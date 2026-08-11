@@ -17,10 +17,6 @@ def production(**values: object) -> Settings:
         "stripe_enabled": True,
         "stripe_secret_key": "sk_live_redacted",
         "stripe_webhook_secret": "whsec_redacted",
-        "stripe_price_reading_single_eur": "price_eur_1",
-        "stripe_price_reading_single_usd": "price_usd_1",
-        "stripe_price_reading_pack_5_eur": "price_eur_5",
-        "stripe_price_reading_pack_5_usd": "price_usd_5",
         "stripe_amount_reading_single_eur_minor": 400,
         "stripe_amount_reading_single_usd_minor": 500,
         "stripe_amount_reading_pack_5_eur_minor": 1800,
@@ -42,7 +38,7 @@ def production(**values: object) -> Settings:
             "stripe_secret_key": "sk_test_redacted",
             "stripe_webhook_secret": "whsec_x",
         },
-        {"subscriptions_enabled": True},
+        {"subscriptions_enabled": True, "stripe_enabled": False},
     ],
 )
 def test_production_rejection_matrix(values: dict[str, object]) -> None:

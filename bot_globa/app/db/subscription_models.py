@@ -97,6 +97,10 @@ class SubscriptionPeriod(Base):
     )
     idempotency_key: Mapped[str] = mapped_column(String(255), unique=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set once this period's unused credits have been settled, whether or not any were
+    # left to expire. It is the idempotency anchor: a zero-credit expiry writes no ledger
+    # row, so the absence of one cannot be used to tell "not yet done" from "nothing due".
+    credits_expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

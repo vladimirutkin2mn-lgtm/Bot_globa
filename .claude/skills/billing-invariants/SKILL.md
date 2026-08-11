@@ -20,7 +20,9 @@ Treat them as laws, not as code you may refactor freely.
 - A refunded spend can never later grant full access.
 - Unlock and refund are mutually exclusive under concurrency.
 - Ownership is checked on spend, unlock and refund; another user's ID reveals nothing.
-- Credits do not fractionalize and do not expire.
+- Credits do not fractionalize. Purchased credits do not expire; credits granted by a
+  subscription period lapse when that period closes, via a compensating `expiry` row.
+  Spending is charged against the lapsing credits first.
 
 ## Webhooks are the source of truth
 

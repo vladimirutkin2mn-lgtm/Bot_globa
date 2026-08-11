@@ -61,6 +61,27 @@ M5B.3A records only provider-confirmed cancellation and resume facts:
 The provider API call itself belongs to M5B.3B. Local state must not claim cancellation before the
 provider confirms it.
 
+## Credit expiry
+
+A subscription lends credits for one period; it does not sell them. When a paid period's
+`period_end` has passed, the maintenance sweep settles it: the unused part of what that period
+granted is retired with a compensating `expiry` transaction, and `credits_expired_at` is stamped on
+the period so the sweep never runs twice — including when there was nothing left to retire.
+
+Three rules keep this safe to run against a live ledger:
+
+- Anything the user bought outright is untouched. Only what a subscription period granted can lapse.
+- Spending is charged against the lapsing credits first, so a subscriber never loses a purchase they
+  made during the month.
+- An expiry is bounded by its own period's grant and by the current balance, so it can neither
+  retire another period's credits nor drive a balance negative.
+
+Cancellation is not an expiry trigger. A cancelled subscription keeps its current period's credits
+until that period ends on its normal schedule.
+
+Without this, one month of a monthly plan would hand over a permanent balance, and a single
+subscribe-then-cancel would be the cheapest way to buy readings by a wide margin.
+
 ## Renewal scheduler handoff
 
 `enqueue_due_renewals` scans active or past-due subscriptions near their period boundary and
