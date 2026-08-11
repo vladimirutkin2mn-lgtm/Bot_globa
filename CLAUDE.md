@@ -29,29 +29,38 @@ Bot_globa/
 │   ├── FABRIC_BOT_ADAPTATION_PLAN.md
 │   ├── MVP_SCOPE_V2.md
 │   ├── MVP_BACKLOG.md            # the ORA-xxx ticket list + critical path
-│   └── runbooks/oracle-limited-release.md
-├── heartsignal/          # the application (imported HeartSignal production baseline)
+│   └── runbooks/
+│       ├── operating-production.md   # connect, deploy, verify — start here for the server
+│       ├── enabling-stripe.md
+│       ├── shared-host-deployment.md
+│       ├── production-readiness.md
+│       └── oracle-limited-release.md
+├── bot_globa/            # the application (imported HeartSignal production baseline)
 │   ├── AGENTS.md         # migration rules + definition of done — read this
 │   ├── app/  tests/  migrations/  scripts/  docs/
 │   └── Makefile
-└── Makefile              # thin wrapper: forwards every target into heartsignal/
+└── Makefile              # thin wrapper: forwards every target into bot_globa/
 ```
 
-The code lives in `heartsignal/`. `make` works from either directory.
+The code lives in `bot_globa/`. `make` works from either directory.
 
 ## Sources of truth (read before changing behavior)
 
-1. `heartsignal/AGENTS.md` — migration rules, safety rules, privacy defaults, definition of done
+1. `bot_globa/AGENTS.md` — migration rules, safety rules, privacy defaults, definition of done
 2. `docs/FABRIC_BOT_ADAPTATION_PLAN.md` — migration strategy
 3. `docs/MVP_BACKLOG.md` — the ticket you are implementing and its acceptance criteria
-4. `heartsignal/docs/platform-core-boundaries.md` — what may depend on what
-5. `heartsignal/docs/platform-invariants.md` — frozen production behavior
+4. `bot_globa/docs/platform-core-boundaries.md` — what may depend on what
+5. `bot_globa/docs/platform-invariants.md` — frozen production behavior
 6. existing code and tests
-7. `heartsignal/PRODUCT_SPEC.md`, `heartsignal/TASKS.md` — **legacy only**, historical
+7. `bot_globa/PRODUCT_SPEC.md`, `bot_globa/TASKS.md` — **legacy only**, historical
    HeartSignal behavior
 
 When documents conflict, the repository-level oracle plan wins over the legacy HeartSignal
 docs. Do not reverse-engineer a flow from code when a doc describes it.
+
+For anything touching the running deployment — connecting to the host, deploying, flipping
+a release switch, verifying afterwards — read `docs/runbooks/operating-production.md`
+first. It carries the failure modes that are expensive to rediscover.
 
 ## Stack
 
@@ -84,7 +93,7 @@ make help                            # every target
 Postgres-marked tests **silently skip** without `TEST_DATABASE_URL`, so a green run that
 skipped them proves nothing. The Makefile always exports it and fails fast when the database
 is unreachable — `make test-fast` is the explicit way to run without one. Dev and test
-databases are separate (`heartsignal` / `heartsignal_test`) exactly as in CI; `make db-verify`
+databases are separate (`bot_globa` / `bot_globa_test`) exactly as in CI; `make db-verify`
 and `make db-reset-test` only ever touch the test one.
 
 ## Architecture
@@ -145,11 +154,11 @@ PR description.
 ## Git / CI workflow
 
 Branch from `main` → one ORA ticket or one narrow vertical slice per PR → green
-`HeartSignal Baseline CI` → merge. Never combine code extraction, platform refactoring and
+`Bot Globa CI` → merge. Never combine code extraction, platform refactoring and
 product behavior changes in one PR. Run `make check` locally before pushing. Commit and push
 only when the user asks.
 
-CI (`.github/workflows/heartsignal-ci.yml`) runs: format, lint, strict mypy, the Alembic
+CI (`.github/workflows/bot-globa-ci.yml`) runs: format, lint, strict mypy, the Alembic
 chain, the five protected gates, the full suite, compose validation, production image build.
 
 ## Automation (`.claude/`)
@@ -203,11 +212,10 @@ After editing `.mcp.json`, restart Claude Code and approve the project servers w
 
 ## Known gaps in the imported baseline
 
-- `heartsignal/docs/deployment-render.md` references a repository-root `render.yaml` that was
-  not carried over. Recreate it (or pick a different target platform) before a production
-  deploy.
-- Product naming is still `heartsignal` in the compose file, database name, image names and
-  several docs, while `pyproject.toml` is already `bot-globa` — this is ORA-002.
+- `bot_globa/docs/deployment-render.md` describes a Render deployment that never happened
+  and references a `render.yaml` that does not exist. Production runs on a shared VPS via
+  `docker-compose.prod.yml` — see `docs/runbooks/operating-production.md`. That document is
+  stale and should be deleted or rewritten.
 - Following the README literally (`cp .env.example .env`) breaks host-side `pytest`:
   `.env.example` leaves several numeric variables empty, and pydantic-settings treats an
   empty value as a parse error where an absent one would fall back to its default. CI never
