@@ -15,8 +15,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY pyproject.toml uv.lock README.md ./
 COPY app ./app
 # --no-editable so the runtime stage can copy the venv without the source tree.
+# --reinstall-package because uv keys its built-wheel cache on name and version: the
+# version rarely changes between deploys, so without this a code change silently ships
+# the previously cached wheel. Dependencies still come from the cache mount untouched.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --no-editable --reinstall-package bot-globa
 
 FROM python:3.12-slim AS runtime
 
