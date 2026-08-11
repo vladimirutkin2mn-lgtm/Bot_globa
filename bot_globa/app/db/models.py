@@ -321,12 +321,12 @@ class CreditTransaction(Base):
         ),
         CheckConstraint("amount <> 0", name="ck_credit_transactions_nonzero"),
         CheckConstraint(
-            "type IN ('grant','purchase','spend','refund','adjustment','purchase_refund')",
+            "type IN ('grant','purchase','spend','refund','adjustment','purchase_refund','expiry')",
             name="ck_credit_transactions_type",
         ),
         CheckConstraint(
             "(type IN ('grant','purchase','refund') AND amount > 0) OR (type = 'purchase_refund' AND amount < 0) OR "
-            "(type = 'spend' AND amount < 0) OR "
+            "(type IN ('spend','expiry') AND amount < 0) OR "
             "(type = 'adjustment' AND amount <> 0)",
             name="ck_credit_transactions_sign",
         ),

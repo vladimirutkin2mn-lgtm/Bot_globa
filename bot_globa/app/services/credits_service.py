@@ -1,14 +1,16 @@
 """Transactional, append-only credit ledger operations."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.models import Analysis, CreditReservation, CreditTransaction, User
+from app.db.models import Analysis, CreditReservation, CreditTransaction, Subscription, User
 from app.db.reading_models import Reading
+from app.db.subscription_models import SubscriptionPeriod
 
 
 class SpendOutcome(StrEnum):
@@ -38,10 +40,26 @@ class GrantOutcome(StrEnum):
     INVALID_AMOUNT = "invalid_amount"
 
 
+class ExpiryOutcome(StrEnum):
+    EXPIRED = "expired"
+    NOTHING_TO_EXPIRE = "nothing_to_expire"
+    ALREADY_EXPIRED = "already_expired"
+    PERIOD_NOT_FOUND = "period_not_found"
+    PERIOD_NOT_PAID = "period_not_paid"
+    PERIOD_STILL_OPEN = "period_still_open"
+
+
 @dataclass(frozen=True)
 class SpendResult:
     outcome: SpendOutcome
     transaction_id: UUID | None = None
+    balance: int = 0
+
+
+@dataclass(frozen=True)
+class ExpiryResult:
+    outcome: ExpiryOutcome
+    expired: int = 0
     balance: int = 0
 
 
@@ -315,6 +333,83 @@ class CreditsService:
                 )
             )
             return RefundOutcome.REFUNDED
+
+    async def expire_subscription_period(self, period_id: UUID) -> ExpiryResult:
+        """Retire whatever a finished subscription period granted and nobody spent.
+
+        Purchased credits keep their old meaning and never expire. Spends are therefore
+        charged against subscription credits first: what a user still holds beyond their
+        permanent balance is exactly what this period lent them, so that difference —
+        capped by the period's own grant — is what lapses.
+        """
+
+        async with self._sessions.begin() as session:
+            period = await session.scalar(
+                select(SubscriptionPeriod)
+                .where(SubscriptionPeriod.id == period_id)
+                .with_for_update()
+            )
+            if period is None:
+                return ExpiryResult(ExpiryOutcome.PERIOD_NOT_FOUND)
+            if period.credits_expired_at is not None:
+                return ExpiryResult(ExpiryOutcome.ALREADY_EXPIRED)
+            if period.status != "paid" or period.purchase_transaction_id is None:
+                return ExpiryResult(ExpiryOutcome.PERIOD_NOT_PAID)
+            if period.period_end > datetime.now(UTC):
+                return ExpiryResult(ExpiryOutcome.PERIOD_STILL_OPEN)
+            user_id = await session.scalar(
+                select(Subscription.user_id).where(Subscription.id == period.subscription_id)
+            )
+            if user_id is None:
+                return ExpiryResult(ExpiryOutcome.PERIOD_NOT_FOUND)
+            # Take the same lock a spend does, so a concurrent purchase or unlock cannot
+            # settle between reading the balance and writing the compensating row.
+            if (
+                await session.scalar(select(User.id).where(User.id == user_id).with_for_update())
+                is None
+            ):
+                return ExpiryResult(ExpiryOutcome.PERIOD_NOT_FOUND)
+            balance = await self._sum(session, CreditTransaction.user_id == user_id)
+            lent_by_subscriptions = (
+                select(SubscriptionPeriod.purchase_transaction_id)
+                .join(Subscription, Subscription.id == SubscriptionPeriod.subscription_id)
+                .where(Subscription.user_id == user_id)
+            )
+            # What the user owns outright: every credit they were given other than by a
+            # subscription, less any purchase that was refunded. Debits are deliberately
+            # excluded, which is what charges spending to the borrowed credits first.
+            owned = await self._sum(
+                session,
+                CreditTransaction.user_id == user_id,
+                CreditTransaction.amount > 0,
+                CreditTransaction.id.not_in(lent_by_subscriptions),
+            ) + await self._sum(
+                session,
+                CreditTransaction.user_id == user_id,
+                CreditTransaction.type == "purchase_refund",
+            )
+            lapsing = min(max(0, balance - max(0, owned)), period.credits, max(0, balance))
+            period.credits_expired_at = datetime.now(UTC)
+            if lapsing == 0:
+                return ExpiryResult(ExpiryOutcome.NOTHING_TO_EXPIRE, balance=balance)
+            session.add(
+                CreditTransaction(
+                    user_id=user_id,
+                    type="expiry",
+                    amount=-lapsing,
+                    idempotency_key=f"subscription:expiry:{period.id}",
+                )
+            )
+            return ExpiryResult(ExpiryOutcome.EXPIRED, expired=lapsing, balance=balance - lapsing)
+
+    @staticmethod
+    async def _sum(session: AsyncSession, *conditions: ColumnElement[bool]) -> int:
+        return int(
+            await session.scalar(
+                select(func.coalesce(func.sum(CreditTransaction.amount), 0)).where(*conditions)
+            )
+            or 0
+        )
 
     async def grant(self, user_id: UUID, amount: int, key: str) -> GrantOutcome:
         if amount < 1:

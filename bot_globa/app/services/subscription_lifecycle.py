@@ -469,7 +469,12 @@ class SubscriptionLifecycleService:
         subscription_id: UUID,
         effective_at: datetime,
     ) -> CancellationOutcome:
-        """Persist provider-confirmed cancellation without removing paid credits."""
+        """Persist provider-confirmed cancellation without touching the ledger.
+
+        Cancelling takes nothing away. The credits the current period granted stay usable
+        until that period closes on its own schedule, when the expiry sweep settles it like
+        any other; anything bought outright is unaffected either way.
+        """
         cancel_at = _aware_utc(effective_at)
         async with self._sessions.begin() as session:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
