@@ -68,7 +68,6 @@ def settings() -> Settings:
         payment_provider="production",
         payment_public_base_url="https://pay.example",
         subscriptions_enabled=True,
-        stripe_price_subscription_monthly_eur="price_monthly_eur",
         stripe_amount_subscription_monthly_eur_minor=990,
         product_subscription_monthly_credits=30,
         checkout_creation_lease_seconds=1,

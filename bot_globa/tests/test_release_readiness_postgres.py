@@ -54,7 +54,6 @@ def _settings(url: str) -> Settings:
         stripe_enabled=True,
         stripe_secret_key=SecretStr("sk_test_release_gate"),
         stripe_webhook_secret=SecretStr("whsec_release_gate"),
-        stripe_price_subscription_monthly_eur="price_release_gate",
         stripe_amount_subscription_monthly_eur_minor=990,
         subscriptions_enabled=True,
         yookassa_enabled=True,

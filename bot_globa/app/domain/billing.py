@@ -46,20 +46,14 @@ class BillingCatalog:
                 f"catalog:{product.code.value}:rub:v{product.version}",
             )
             for currency in ("EUR", "USD"):
-                price_reference, amount_minor = _stripe_coordinates(
-                    settings,
-                    product.code,
-                    currency,
-                )
                 pricing_code = _stripe_pricing_code(product.code)
                 self._add(
                     product,
                     BillingMarket.INTERNATIONAL,
                     PaymentProviderName.STRIPE,
                     currency,
-                    amount_minor if amount_minor is not None else 1,
-                    price_reference
-                    or f"unconfigured:{pricing_code.value}:{currency.lower()}:v{product.version}",
+                    _stripe_amount_minor(settings, pricing_code, currency),
+                    f"catalog:{pricing_code.value}:{currency.lower()}:v{product.version}",
                 )
 
     def _add(
@@ -113,42 +107,19 @@ def _stripe_pricing_code(product_code: ProductCode) -> ProductCode:
     return product_code
 
 
-def _stripe_coordinates(
-    settings: Settings,
-    product_code: ProductCode,
-    currency: str,
-) -> tuple[str, int | None]:
-    """Reuse approved price coordinates until product-specific pricing is configured."""
+def _stripe_amount_minor(settings: Settings, pricing_code: ProductCode, currency: str) -> int:
+    """Price the international catalog from settings; Stripe needs no pre-created objects."""
 
     if currency == "EUR":
-        single = (
-            settings.stripe_price_reading_single_eur,
-            settings.stripe_amount_reading_single_eur_minor,
-        )
-        pack = (
-            settings.stripe_price_reading_pack_5_eur,
-            settings.stripe_amount_reading_pack_5_eur_minor,
-        )
-        subscription = (
-            settings.stripe_price_subscription_monthly_eur,
-            settings.stripe_amount_subscription_monthly_eur_minor,
-        )
+        single = settings.stripe_amount_reading_single_eur_minor
+        pack = settings.stripe_amount_reading_pack_5_eur_minor
+        subscription = settings.stripe_amount_subscription_monthly_eur_minor
     elif currency == "USD":
-        single = (
-            settings.stripe_price_reading_single_usd,
-            settings.stripe_amount_reading_single_usd_minor,
-        )
-        pack = (
-            settings.stripe_price_reading_pack_5_usd,
-            settings.stripe_amount_reading_pack_5_usd_minor,
-        )
-        subscription = (
-            settings.stripe_price_subscription_monthly_usd,
-            settings.stripe_amount_subscription_monthly_usd_minor,
-        )
+        single = settings.stripe_amount_reading_single_usd_minor
+        pack = settings.stripe_amount_reading_pack_5_usd_minor
+        subscription = settings.stripe_amount_subscription_monthly_usd_minor
     else:
         raise ValueError("Stripe catalog supports only EUR or USD")
-    pricing_code = _stripe_pricing_code(product_code)
     if pricing_code is ProductCode.READING_PACK_5:
         return pack
     if pricing_code is ProductCode.SUBSCRIPTION_MONTHLY:

@@ -176,7 +176,18 @@ async def test_subscription_checkout_uses_server_metadata_and_idempotency() -> N
     metadata = cast("dict[str, str]", params["metadata"])
     subscription_data = cast("dict[str, object]", params["subscription_data"])
     assert params["mode"] == "subscription"
-    assert params["line_items"] == [{"price": "price_monthly_eur", "quantity": 1}]
+    # A recurring price is described inline too, so a monthly plan needs no dashboard setup.
+    assert params["line_items"] == [
+        {
+            "price_data": {
+                "currency": "eur",
+                "unit_amount": 990,
+                "product_data": {"name": "subscription_monthly"},
+                "recurring": {"interval": "month"},
+            },
+            "quantity": 1,
+        }
+    ]
     assert metadata == subscription_data["metadata"]
     assert metadata["amount_minor"] == "990"
     assert options == {"idempotency_key": "subscription:checkout:1"}

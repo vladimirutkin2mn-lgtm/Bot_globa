@@ -58,7 +58,7 @@ async def test_one_time_checkout_uses_server_price_and_canonical_sku_metadata() 
         product_version=2,
         amount_minor=1_990,
         currency="EUR",
-        price_reference="price_approved_single_eur",
+        price_reference="catalog:reading_single:eur:v2",
         idempotency_key="checkout:catalog-v2:stripe",
         success_url="https://pay.example/success",
         cancel_url="https://pay.example/cancel",
@@ -71,7 +71,18 @@ async def test_one_time_checkout_uses_server_price_and_canonical_sku_metadata() 
     assert sessions.created is not None
     params, options = sessions.created
     assert params["mode"] == "payment"
-    assert params["line_items"] == [{"price": "price_approved_single_eur", "quantity": 1}]
+    # The amount travels with the request, so the price lives in this repository and no
+    # Price object has to exist in the provider dashboard for the sale to work.
+    assert params["line_items"] == [
+        {
+            "price_data": {
+                "currency": "eur",
+                "unit_amount": 1_990,
+                "product_data": {"name": "Персональный астрологический прогноз"},
+            },
+            "quantity": 1,
+        }
+    ]
     assert params["client_reference_id"] == request.order_id
     # The product marker lets one provider account serve several products without their
     # webhooks reading each other's events.

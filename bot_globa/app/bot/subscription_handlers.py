@@ -34,24 +34,18 @@ def subscription_market_keyboard(settings: Settings) -> InlineKeyboardMarkup:
                 )
             ]
         )
-    if settings.stripe_enabled and settings.stripe_price_subscription_monthly_eur:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="International · EUR",
-                    callback_data="credits:offer:subscription_monthly:INTERNATIONAL:EUR",
-                )
-            ]
-        )
-    if settings.stripe_enabled and settings.stripe_price_subscription_monthly_usd:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="International · USD",
-                    callback_data="credits:offer:subscription_monthly:INTERNATIONAL:USD",
-                )
-            ]
-        )
+    if settings.stripe_enabled:
+        for currency in ("EUR", "USD"):
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"International · {currency}",
+                        callback_data=(
+                            f"credits:offer:subscription_monthly:INTERNATIONAL:{currency}"
+                        ),
+                    )
+                ]
+            )
     rows.append([InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
