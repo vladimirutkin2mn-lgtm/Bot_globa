@@ -18,5 +18,6 @@ def create_llm_client(settings: Settings) -> LLMClient:
             settings.llm_model,
             settings.llm_timeout_seconds,
             settings.llm_max_transport_attempts,
+            base_url=settings.llm_base_url.strip() or None,
         )
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider!r}")

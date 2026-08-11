@@ -37,6 +37,9 @@ services:
     env_file:
       - .env.prod
     command: ["python", "-m", "app.workers.telegram"]
+    # The image healthcheck probes HTTP; a worker serves none, so it never passes.
+    healthcheck:
+      disable: true
     depends_on:
       api:
         condition: service_healthy
@@ -49,6 +52,9 @@ services:
     env_file:
       - .env.prod
     command: ["python", "-m", "app.workers.billing"]
+    # The image healthcheck probes HTTP; a worker serves none, so it never passes.
+    healthcheck:
+      disable: true
     depends_on:
       api:
         condition: service_healthy
@@ -61,6 +67,9 @@ services:
     env_file:
       - .env.prod
     command: ["python", "-m", "app.workers.maintenance"]
+    # The image healthcheck probes HTTP; a worker serves none, so it never passes.
+    healthcheck:
+      disable: true
     depends_on:
       api:
         condition: service_healthy
@@ -73,6 +82,9 @@ services:
     env_file:
       - .env.prod
     command: ["python", "-m", "app.workers.oracle_memory"]
+    # The image healthcheck probes HTTP; a worker serves none, so it never passes.
+    healthcheck:
+      disable: true
     depends_on:
       api:
         condition: service_healthy
