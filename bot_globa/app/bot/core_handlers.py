@@ -231,8 +231,11 @@ async def buy_credits(
         await answer_scene(
             callback.message,
             Scene.PAYMENT_MARKET,
-            "Выберите регион и валюту оплаты.",
-            reply_markup=payment_market_keyboard(product_code),
+            "Выберите способ оплаты.",
+            reply_markup=payment_market_keyboard(
+                product_code,
+                telegram_stars_enabled=billing_settings.telegram_stars_enabled,
+            ),
         )
         return
     outcome = await payments.create_checkout(user.id, product_code)
@@ -273,6 +276,13 @@ async def create_production_checkout(
     await callback.answer()
     user = await onboarding.current_user(callback.from_user.id)
     if user is None or not isinstance(callback.message, Message):
+        return
+    if billing_settings.telegram_stars_enabled:
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Для цифровых продуктов внутри Telegram используйте оплату звёздами.",
+        )
         return
     parts = _callback_parts(callback)
     if len(parts) != 5:
@@ -323,7 +333,16 @@ async def receive_receipt_contact(
     state: FSMContext,
     onboarding: OnboardingService,
     checkout: CheckoutService,
+    billing_settings: Settings | None = None,
 ) -> None:
+    if billing_settings is not None and billing_settings.telegram_stars_enabled:
+        await state.clear()
+        await answer_scene(
+            message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Для цифровых продуктов внутри Telegram используйте оплату звёздами.",
+        )
+        return
     data = await state.get_data()
     if message.from_user is None or not message.text:
         await state.clear()

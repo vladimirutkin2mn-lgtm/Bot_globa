@@ -8,9 +8,11 @@ from typing import Annotated, cast
 from aiogram import Bot
 from aiogram.types import Update
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from app.config import Settings
+from app.services.telegram_stars_service import TelegramStarsPaymentService
 from app.services.telegram_update_inbox import (
     TelegramAcceptOutcome,
     TelegramUpdateInboxService,
@@ -25,6 +27,10 @@ def _telegram_user_id(update: Update) -> int | None:
         return update.message.from_user.id
     if update.callback_query is not None:
         return update.callback_query.from_user.id
+    if update.pre_checkout_query is not None:
+        return update.pre_checkout_query.from_user.id
+    if update.subscription is not None:
+        return update.subscription.user.id
     return None
 
 
@@ -33,7 +39,7 @@ async def telegram_webhook(
     request: Request,
     telegram_secret: Annotated[str | None, Header(alias="X-Telegram-Bot-Api-Secret-Token")] = None,
 ) -> Response:
-    """Authenticate, validate, durably enqueue, and acknowledge without running handlers."""
+    """Authenticate updates; answer pre-checkout inline and durably enqueue the rest."""
     settings = cast("Settings", request.app.state.settings)
     if not settings.webhook_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
@@ -59,16 +65,16 @@ async def telegram_webhook(
                 detail="Payload too large",
             )
 
-    body = bytearray()
+    webhook_body = bytearray()
     async for chunk in request.stream():
-        if len(body) + len(chunk) > max_bytes:
+        if len(webhook_body) + len(chunk) > max_bytes:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail="Payload too large",
             )
-        body.extend(chunk)
+        webhook_body.extend(chunk)
     try:
-        raw_payload = json.loads(bytes(body))
+        raw_payload = json.loads(bytes(webhook_body))
         if not isinstance(raw_payload, dict):
             raise TypeError
         payload = cast("dict[str, object]", raw_payload)
@@ -78,6 +84,27 @@ async def telegram_webhook(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid update"
         ) from None
+
+    if update.pre_checkout_query is not None:
+        stars = cast(
+            "TelegramStarsPaymentService",
+            request.app.state.telegram_stars_service,
+        )
+        query = update.pre_checkout_query
+        decision = await stars.validate_pre_checkout(
+            query.from_user.id,
+            query.invoice_payload,
+            query.currency,
+            query.total_amount,
+        )
+        response_payload: dict[str, object] = {
+            "method": "answerPreCheckoutQuery",
+            "pre_checkout_query_id": query.id,
+            "ok": decision.approved,
+        }
+        if not decision.approved and decision.error_message is not None:
+            response_payload["error_message"] = decision.error_message
+        return JSONResponse(response_payload)
 
     inbox = cast("TelegramUpdateInboxService", request.app.state.telegram_update_inbox)
     accepted = await inbox.accept(update.update_id, _telegram_user_id(update), payload)

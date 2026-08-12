@@ -38,7 +38,7 @@ async def run(
         decode_configured_key(resolved.content_encryption_key.get_secret_value())
     )
     bot = Bot(token=resolved.telegram_bot_token.get_secret_value())
-    dispatcher = create_dispatcher(resolved, get_observability_settings(), engine)
+    dispatcher = create_dispatcher(resolved, get_observability_settings(), engine, bot=bot)
     inbox = TelegramUpdateInboxService(
         sessions,
         cipher,

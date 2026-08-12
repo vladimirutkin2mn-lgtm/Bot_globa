@@ -135,6 +135,7 @@ or loosening an assertion.
 | Analytics and admin metrics | [`docs/analytics-admin-observability.md`](docs/analytics-admin-observability.md) |
 | Payment state machines | [`docs/payment-state-machines.md`](docs/payment-state-machines.md) |
 | Payment operations | [`docs/payment-operations-runbook.md`](docs/payment-operations-runbook.md) |
+| Telegram Stars | [`docs/telegram-stars-payments.md`](docs/telegram-stars-payments.md) |
 | Subscriptions | [`docs/subscription-lifecycle.md`](docs/subscription-lifecycle.md) |
 | Refunds | [`docs/provider-refunds.md`](docs/provider-refunds.md) |
 | Release gates and verification | [`docs/release-gates.md`](docs/release-gates.md) |

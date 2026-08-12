@@ -1,0 +1,88 @@
+# Telegram Stars payments
+
+Telegram Stars are the Telegram-native production route for the bot's digital products. They
+have the provider identity `telegram_stars`, market `TELEGRAM`, and currency `XTR`. The
+implementation follows the official [Stars payments guide](https://core.telegram.org/bots/payments-stars)
+and [Bot API](https://core.telegram.org/bots/api#payments).
+
+Telegram requires digital goods and services sold inside its apps to use Stars. Therefore, when
+`TELEGRAM_STARS_ENABLED=true`, the Telegram keyboards expose only the Stars route and reject stale
+YooKassa or Stripe callback buttons from old messages. Those providers remain available to
+non-Telegram channels and while the Stars rollout flag is disabled.
+
+## Commercial configuration
+
+Stars are disabled and unpriced by default. Product owners must explicitly choose whole-Star
+prices before rollout; the application will not silently derive them from RUB, EUR, or USD.
+
+```dotenv
+BILLING_ENABLED=true
+PAYMENT_PROVIDER=production
+TELEGRAM_STARS_ENABLED=true
+TELEGRAM_STARS_AMOUNT_READING_SINGLE=75
+TELEGRAM_STARS_AMOUNT_READING_PACK_5=300
+TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY=450
+BILLING_TERMS_URL=https://example.com/terms
+BILLING_SUPPORT_URL=https://example.com/payment-support
+```
+
+The numbers above are examples, not approved production prices. Every enabled price must be from
+1 to 10,000 Stars. `BILLING_TERMS_URL` and `BILLING_SUPPORT_URL` must be public HTTPS pages; the
+bot exposes them through `/terms` and `/paysupport`.
+
+## Payment lifecycle
+
+1. The user chooses **Telegram Stars · ⭐**. The server creates or reuses one pending immutable
+   `PaymentOrder` and encodes only its UUID in the invoice payload.
+2. One-time products use `sendInvoice` with one `LabeledPrice`. The monthly product uses an
+   invoice link with `subscription_period=2592000` (30 days).
+3. In webhook mode, `pre_checkout_query` is validated and answered directly in the HTTP response,
+   outside the durable queue, so the bot can meet Telegram's ten-second deadline. User identity,
+   payload, order state, amount, and `XTR` currency must all match.
+4. `successful_payment` remains a durable Telegram inbox update. Credits are granted only from
+   that update, through the existing locked payment/subscription lifecycle.
+5. `telegram_payment_charge_id` is the provider payment identity. Replays and concurrent workers
+   produce one order completion and one append-only credit transaction.
+
+The billing kill switch rejects new invoices and pre-checkout confirmation. It deliberately does
+not discard successful-payment updates already issued by Telegram.
+
+## Subscriptions
+
+The monthly Stars invoice uses Telegram-managed 30-day renewal. The first payment charge ID is
+the stable subscription identity used by `editUserStarSubscription`; each successful renewal has
+its own charge ID and creates one new subscription period, payment order, and credit grant.
+
+Telegram's `subscription` update drives cancellation, re-enable, and failed-renewal state. Stars
+subscriptions are excluded from merchant-scheduled renewal jobs because Telegram owns the charge
+schedule. Canceling preserves the current paid period and already granted credits.
+
+## Refunds
+
+The Bot API supports a full `refundStarPayment` against the original charge ID; partial Stars
+refunds are not offered. The normal refund flow still reserves unused credits, executes provider
+I/O in the billing worker, and appends a negative ledger entry only after success.
+
+Telegram uses the original transaction ID for the outgoing refund. Internally the reversal gets
+the distinct identity `stars-refund:{charge_id}` so it cannot collide with the original purchase
+ledger row. If the network outcome is ambiguous, the worker searches recent `getStarTransactions`
+pages before retrying. Configure the bounded search with `TELEGRAM_STARS_RECONCILIATION_PAGES`.
+
+Refunding one subscription period does not cancel later renewals; the user must turn off
+autorenewal separately.
+
+## Staging acceptance
+
+- Confirm that zero-priced Stars fail startup; when Stars are disabled, no Stars button is shown.
+- Enable Stars and verify Telegram no longer shows or accepts YooKassa or Stripe checkout buttons.
+- Buy every one-time SKU and verify the invoice shows the exact configured whole-Star amount.
+- Replay the same `successful_payment` update and verify one completed order and one grant.
+- Try a mismatched user, payload, currency, and amount in pre-checkout; each must be rejected.
+- Buy a monthly subscription, replay its first payment, then process one renewal; verify exactly
+  two periods and two grants.
+- Cancel and resume renewal; verify Telegram and local subscription state agree.
+- Request a full refund with all credits unused; verify one reservation, one Bot API refund, one
+  reversal, and a consumed reservation. Verify partial refund is unavailable.
+- Force an ambiguous refund response and verify transaction reconciliation finds the existing
+  refund without issuing a second ledger reversal.
+- Test `/terms` and `/paysupport` from a fresh chat before enabling production traffic.

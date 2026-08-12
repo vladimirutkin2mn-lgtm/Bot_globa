@@ -55,6 +55,24 @@ def test_kill_switch_blocks_new_work_not_ingress() -> None:
     assert settings.permits_reconciliation()
 
 
+def test_production_can_use_telegram_stars_as_its_only_gateway() -> None:
+    settings = production(
+        billing_enabled=True,
+        payment_provider="production",
+        stripe_enabled=False,
+        stripe_secret_key="",
+        stripe_webhook_secret="",
+        telegram_stars_enabled=True,
+        telegram_stars_amount_reading_single=75,
+        telegram_stars_amount_reading_pack_5=300,
+        telegram_stars_amount_subscription_monthly=450,
+        billing_terms_url="https://example.com/terms",
+        billing_support_url="https://example.com/support",
+    )
+
+    assert settings.permits_new_checkout()
+
+
 @pytest.mark.parametrize(
     "key",
     [

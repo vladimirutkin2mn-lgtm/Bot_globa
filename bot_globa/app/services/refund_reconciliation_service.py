@@ -21,6 +21,7 @@ from app.providers.payments.refund_gateway import (
     CreateRefund,
     RefundGateway,
 )
+from app.providers.payments.telegram_stars import TELEGRAM_STARS_PROVIDER
 
 
 class RefundReconciliationService:
@@ -44,7 +45,8 @@ class RefundReconciliationService:
             if refund is None:
                 raise PermanentProviderError("refund_not_found")
             order = await session.get(PaymentOrder, refund.payment_order_id)
-            if order is None or order.provider_payment_id is None:
+            user = await session.get(User, refund.user_id)
+            if order is None or order.provider_payment_id is None or user is None:
                 raise PermanentProviderError("refund_payment_missing")
             if refund.status in {"succeeded", "failed"}:
                 return await self._complete_terminal_claim(job_id, claim_id, refund)
@@ -59,6 +61,11 @@ class RefundReconciliationService:
                 currency=refund.currency,
                 reason=refund.reason,
                 idempotency_key=refund.idempotency_key,
+                provider_customer_id=(
+                    str(user.telegram_user_id)
+                    if refund.provider == TELEGRAM_STARS_PROVIDER
+                    else None
+                ),
             )
         fact = (
             await gateway.fetch_refund(provider_refund_id)

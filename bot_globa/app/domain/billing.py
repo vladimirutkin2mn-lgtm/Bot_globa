@@ -55,6 +55,20 @@ class BillingCatalog:
                     _stripe_amount_minor(settings, pricing_code, currency),
                     f"catalog:{pricing_code.value}:{currency.lower()}:v{product.version}",
                 )
+            stars_pricing_code = _shared_pricing_code(product.code)
+            stars_amount = _telegram_stars_amount(settings, stars_pricing_code)
+            self._add(
+                product,
+                BillingMarket.TELEGRAM,
+                PaymentProviderName.TELEGRAM_STARS,
+                "XTR",
+                stars_amount,
+                (
+                    f"catalog:{stars_pricing_code.value}:xtr:v{product.version}"
+                    if stars_amount > 0
+                    else f"unconfigured:{stars_pricing_code.value}:xtr:v{product.version}"
+                ),
+            )
 
     def _add(
         self,
@@ -102,6 +116,10 @@ class BillingCatalog:
 
 
 def _stripe_pricing_code(product_code: ProductCode) -> ProductCode:
+    return _shared_pricing_code(product_code)
+
+
+def _shared_pricing_code(product_code: ProductCode) -> ProductCode:
     if product_code in {ProductCode.ASTROLOGY_NATAL, ProductCode.ASTROLOGY_FORECAST}:
         return ProductCode.READING_SINGLE
     return product_code
@@ -125,3 +143,11 @@ def _stripe_amount_minor(settings: Settings, pricing_code: ProductCode, currency
     if pricing_code is ProductCode.SUBSCRIPTION_MONTHLY:
         return subscription
     return single
+
+
+def _telegram_stars_amount(settings: Settings, pricing_code: ProductCode) -> int:
+    if pricing_code is ProductCode.READING_PACK_5:
+        return settings.telegram_stars_amount_reading_pack_5
+    if pricing_code is ProductCode.SUBSCRIPTION_MONTHLY:
+        return settings.telegram_stars_amount_subscription_monthly
+    return settings.telegram_stars_amount_reading_single

@@ -29,6 +29,8 @@ _STATUS_LABELS = {
 
 
 def _money(amount_minor: int, currency: str) -> str:
+    if currency == "XTR":
+        return f"{amount_minor} ⭐"
     return f"{Decimal(amount_minor) / Decimal(100):.2f} {currency}"
 
 

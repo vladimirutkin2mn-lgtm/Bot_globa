@@ -171,4 +171,6 @@ class SubscriptionEventProcessor:
         if fact.status in {"active", "trialing"} and stored_status == "cancel_at_period_end":
             await self._lifecycle.record_resumed(fact.user_id, subscription_id)
             return True
+        if fact.status in {"failed", "past_due"}:
+            return await self._lifecycle.record_past_due_state(fact.user_id, subscription_id)
         return False

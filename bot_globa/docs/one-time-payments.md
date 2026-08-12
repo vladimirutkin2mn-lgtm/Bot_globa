@@ -1,12 +1,16 @@
 # Production one-time payments
 
 Billing is disabled by default. `RU/RUB` routes to YooKassa; `INTERNATIONAL/EUR` and
-`INTERNATIONAL/USD` route to Stripe. The server catalog owns amount, credits, provider,
-currency, product version and Stripe Price ID. Subscription offers are rejected.
+`INTERNATIONAL/USD` route to Stripe; `TELEGRAM/XTR` routes to Telegram Stars when explicitly
+enabled and priced. The server catalog owns amount, credits, provider, currency, product version
+and price reference. Subscription offers are rejected by this one-time checkout path.
 
 Stripe uses hosted Checkout in `payment` mode. YooKassa uses a captured, one-stage
 redirect payment. Return and cancel URLs derive only from `PAYMENT_PUBLIC_BASE_URL`; the
 return page reads internal state and is never evidence of payment.
+
+Telegram Stars do not use the hosted-checkout gateway. Their invoice and exactly-once completion
+path is documented in [`telegram-stars-payments.md`](telegram-stars-payments.md).
 
 Each order receives `checkout:create:{order_id}:v1`. The snapshot and key commit before
 the network call. A timeout leaves `unknown`, queues reconciliation, and retries the same

@@ -7,6 +7,7 @@ from pydantic import SecretStr
 
 from app.api.telegram import router
 from app.config import Settings
+from app.services.telegram_stars_service import PreCheckoutDecision
 from app.services.telegram_update_inbox import (
     TelegramAcceptOutcome,
     TelegramAcceptResult,
@@ -27,18 +28,39 @@ class RecordingInbox:
         return TelegramAcceptResult(TelegramAcceptOutcome.ACCEPTED, "pending")
 
 
+class RecordingStarsService:
+    def __init__(self, approved: bool = True) -> None:
+        self.approved = approved
+        self.validated: list[tuple[int, str, str, int]] = []
+
+    async def validate_pre_checkout(
+        self,
+        telegram_user_id: int,
+        payload: str,
+        currency: str,
+        total_amount: int,
+    ) -> PreCheckoutDecision:
+        self.validated.append((telegram_user_id, payload, currency, total_amount))
+        return PreCheckoutDecision(
+            self.approved,
+            None if self.approved else "Счёт устарел.",
+        )
+
+
 def webhook_app(
     settings: Settings,
     inbox: RecordingInbox,
     bot: Bot,
     *,
     max_bytes: int = 4096,
+    stars: RecordingStarsService | None = None,
 ) -> FastAPI:
     app = FastAPI()
     app.state.settings = settings
     app.state.telegram_webhook_max_bytes = max_bytes
     app.state.telegram_bot = bot
     app.state.telegram_update_inbox = inbox
+    app.state.telegram_stars_service = stars or RecordingStarsService()
     app.include_router(router)
     return app
 
@@ -52,6 +74,19 @@ def update_payload(update_id: int = 101) -> dict[str, object]:
             "chat": {"id": 42, "type": "private"},
             "from": {"id": 42, "is_bot": False, "first_name": "Test"},
             "text": "/start",
+        },
+    }
+
+
+def pre_checkout_payload(update_id: int = 102) -> dict[str, object]:
+    return {
+        "update_id": update_id,
+        "pre_checkout_query": {
+            "id": "pre-checkout-one",
+            "from": {"id": 42, "is_bot": False, "first_name": "Test"},
+            "currency": "XTR",
+            "total_amount": 75,
+            "invoice_payload": "globa-stars-v1:00000000000000000000000000000001",
         },
     }
 
@@ -140,6 +175,75 @@ async def test_webhook_rejects_oversized_and_invalid_updates(settings: Settings)
             )
         assert oversized.status_code == 413
         assert invalid.status_code == 400
+        assert inbox.accepted == []
+    finally:
+        await bot.session.close()
+
+
+async def test_pre_checkout_is_answered_inline_without_waiting_for_worker(
+    settings: Settings,
+) -> None:
+    configured = settings.model_copy(
+        update={
+            "telegram_webhook_url": "https://example.com/telegram/webhook",
+            "telegram_webhook_secret": SecretStr("safe-webhook-secret"),
+        }
+    )
+    inbox = RecordingInbox()
+    stars = RecordingStarsService()
+    bot = Bot(token=configured.telegram_bot_token.get_secret_value())
+    try:
+        app = webhook_app(configured, inbox, bot, stars=stars)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/telegram/webhook",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "safe-webhook-secret"},
+                json=pre_checkout_payload(),
+            )
+        assert response.status_code == 200
+        assert response.json() == {
+            "method": "answerPreCheckoutQuery",
+            "pre_checkout_query_id": "pre-checkout-one",
+            "ok": True,
+        }
+        assert stars.validated == [
+            (
+                42,
+                "globa-stars-v1:00000000000000000000000000000001",
+                "XTR",
+                75,
+            )
+        ]
+        assert inbox.accepted == []
+    finally:
+        await bot.session.close()
+
+
+async def test_rejected_pre_checkout_returns_safe_error_inline(settings: Settings) -> None:
+    configured = settings.model_copy(
+        update={
+            "telegram_webhook_url": "https://example.com/telegram/webhook",
+            "telegram_webhook_secret": SecretStr("safe-webhook-secret"),
+        }
+    )
+    inbox = RecordingInbox()
+    stars = RecordingStarsService(approved=False)
+    bot = Bot(token=configured.telegram_bot_token.get_secret_value())
+    try:
+        app = webhook_app(configured, inbox, bot, stars=stars)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/telegram/webhook",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "safe-webhook-secret"},
+                json=pre_checkout_payload(),
+            )
+        assert response.status_code == 200
+        assert response.json() == {
+            "method": "answerPreCheckoutQuery",
+            "pre_checkout_query_id": "pre-checkout-one",
+            "ok": False,
+            "error_message": "Счёт устарел.",
+        }
         assert inbox.accepted == []
     finally:
         await bot.session.close()

@@ -549,10 +549,49 @@ class SubscriptionLifecycleService:
             )
             return CancellationOutcome.UPDATED
 
+    async def record_past_due_state(
+        self,
+        user_id: UUID,
+        subscription_id: UUID,
+    ) -> bool:
+        """Apply a provider's period-less renewal failure without granting value."""
+        async with self._sessions.begin() as session:
+            user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
+            subscription = await session.scalar(
+                select(Subscription).where(Subscription.id == subscription_id).with_for_update()
+            )
+            if (
+                user is None
+                or subscription is None
+                or subscription.user_id != user_id
+                or user.privacy_status != "active"
+                or subscription.status in {"canceled", "unpaid", "cancel_at_period_end"}
+            ):
+                return False
+            if subscription.status == "past_due":
+                return False
+            subscription.status = "past_due"
+            boundary = (
+                subscription.current_period_end.isoformat()
+                if subscription.current_period_end is not None
+                else "unknown"
+            )
+            session.add(
+                BillingOutboxEvent(
+                    aggregate_type="subscription",
+                    aggregate_id=str(subscription.id),
+                    event_type="subscription_payment_failed",
+                    payload={"product_code": subscription.product_code},
+                    idempotency_key=f"subscription_payment_failed:{subscription.id}:{boundary}",
+                )
+            )
+            return True
+
     async def enqueue_due_renewals(
         self,
         now: datetime | None = None,
         lookahead: timedelta = timedelta(minutes=15),
+        providers: set[str] | None = None,
     ) -> int:
         """Create one durable renewal/reconciliation job per upcoming period boundary."""
         current = _aware_utc(now or datetime.now(UTC))
@@ -561,15 +600,18 @@ class SubscriptionLifecycleService:
         cutoff = current + lookahead
         created = 0
         async with self._sessions.begin() as session:
+            conditions = [
+                Subscription.status.in_(("active", "past_due")),
+                Subscription.current_period_end.is_not(None),
+                Subscription.current_period_end <= cutoff,
+            ]
+            if providers is not None:
+                conditions.append(Subscription.provider.in_(providers))
             subscriptions = list(
                 (
                     await session.scalars(
                         select(Subscription)
-                        .where(
-                            Subscription.status.in_(("active", "past_due")),
-                            Subscription.current_period_end.is_not(None),
-                            Subscription.current_period_end <= cutoff,
-                        )
+                        .where(*conditions)
                         .order_by(Subscription.current_period_end, Subscription.id)
                         .with_for_update(skip_locked=True)
                     )

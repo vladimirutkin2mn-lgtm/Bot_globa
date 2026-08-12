@@ -21,6 +21,7 @@ from app.bot.reading_followup_handlers import create_reading_followup_router
 from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
+from app.bot.telegram_stars_handlers import router as telegram_stars_router
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
@@ -56,6 +57,7 @@ from app.services.natal_chart import (
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.oracle_release_controls import OracleReleaseControls
+from app.services.payment_completion_service import PaymentCompletionService
 from app.services.persona_reading import PersonaReadingUseCase, SymbolDrawer
 from app.services.persona_registry import PersonaRegistryService
 from app.services.preview_entitlement import PreviewEntitlementService
@@ -71,6 +73,7 @@ from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
 from app.services.subscription_management_service import SubscriptionManagementService
 from app.services.symbolic_engine import TarotSymbolDrawer
+from app.services.telegram_stars_service import TelegramStarsPaymentService
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +89,7 @@ def create_dispatcher(
     observability_settings: ObservabilitySettings | None = None,
     engine: AsyncEngine | None = None,
     release_settings: OracleReleaseSettings | None = None,
+    bot: Bot | None = None,
 ) -> Dispatcher:
     """Create the Oracle-only dispatcher over reusable platform infrastructure."""
 
@@ -102,7 +106,7 @@ def create_dispatcher(
         events_isolation=PostgresEventIsolation(resolved_engine),
     )
     raw_llm = create_llm_client(settings)
-    payments = create_payment_components(settings)
+    payments = create_payment_components(settings, bot)
     product_catalog = ProductCatalog(settings)
     billing_catalog = BillingCatalog(settings)
     analytics = create_analytics_client(sessions, resolved_observability)
@@ -127,6 +131,13 @@ def create_dispatcher(
     processor = SubscriptionEventProcessor(
         sessions, lifecycle, settings.subscription_grace_period_days
     )
+    telegram_stars = TelegramStarsPaymentService(
+        sessions,
+        settings,
+        billing_catalog,
+        PaymentCompletionService(sessions, settings.app_env == "production"),
+        processor,
+    )
     subscription_gateways = {
         name.value: gateway for name, gateway in payments.subscription_gateways.items()
     }
@@ -141,8 +152,15 @@ def create_dispatcher(
         SubscriptionCheckoutService(
             sessions, settings, billing_catalog, payments.subscription_gateways
         ),
-        SubscriptionManagementService(sessions, settings, subscription_gateways, processor),
+        SubscriptionManagementService(
+            sessions,
+            settings,
+            subscription_gateways,
+            processor,
+            payments.telegram_stars,
+        ),
         RefundService(sessions, settings, refund_gateways),
+        telegram_stars,
     )
     rate_middleware = RateLimitMiddleware(FixedWindowRateLimiter())
     safety_middleware = ReadingSafetyHandoffMiddleware()
@@ -153,6 +171,7 @@ def create_dispatcher(
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
 
+    dispatcher.include_router(telegram_stars_router)
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(memory_router)
@@ -272,7 +291,7 @@ async def configure_webhook(bot: Bot, settings: Settings) -> None:
     await bot.set_webhook(
         url=settings.telegram_webhook_url,
         secret_token=settings.telegram_webhook_secret.get_secret_value(),
-        allowed_updates=["message", "callback_query"],
+        allowed_updates=["message", "callback_query", "pre_checkout_query", "subscription"],
     )
 
 
@@ -283,7 +302,7 @@ async def run(settings: Settings | None = None) -> None:
         raise ValueError("webhook mode requires app.workers.telegram")
     configure_logging(resolved_settings.log_level)
     bot = Bot(token=resolved_settings.telegram_bot_token.get_secret_value())
-    dispatcher = create_dispatcher(resolved_settings)
+    dispatcher = create_dispatcher(resolved_settings, bot=bot)
     try:
         await bot.delete_webhook(drop_pending_updates=False)
         await dispatcher.start_polling(bot)
