@@ -101,15 +101,30 @@ Two things about that job worth knowing before you rely on it:
   queues the second run rather than interrupting the first (`cancel-in-progress` is off for
   `main` and for the `bot-globa-deploy-prod` concurrency group).
 
-Repository secrets the job needs — set them in **Settings → Secrets and variables →
-Actions**, never in a file:
+Secrets the job needs, in the `production` environment of this repository — the same four
+names sofi already uses for the same host, so nothing new has to be invented:
 
-| Secret | Value | Notes |
+| Secret | Where the value comes from | Notes |
 |---|---|---|
-| `DEPLOY_HOST` | `user@host` | An SSH alias like `sofi-prod` does not exist on the runner |
-| `DEPLOY_SSH_KEY` | private key, PEM | Its public half goes in the host's `authorized_keys` |
-| `DEPLOY_SSH_KNOWN_HOSTS` | `ssh-keyscan -H host` output | Pins the host key; without it the connection fails closed |
-| `DEPLOY_PATH` | `/opt/bot_globa` | Optional — the job defaults to this |
+| `DEPLOY_HOST` | `root@<HostName of the sofi-prod alias>` in `~/.ssh/config` | An SSH alias does not exist on the runner, so the literal `user@host` is required |
+| `DEPLOY_PATH` | `/opt/bot_globa` | This product's directory, **not** sofi's `/opt/sofi` |
+| `DEPLOY_SSH_KEY` | the private key the `sofi-prod` alias already uses (`IdentityFile`) | Already authorised on the host; must have no passphrase, since the runner cannot type one |
+| `DEPLOY_SSH_KNOWN_HOSTS` | `ssh-keyscan -H <host>` | Pins the host key; without it the connection fails closed |
+
+Set them without ever printing a value — the private key goes straight from the file into
+GitHub, and `gh` never echoes it:
+
+```bash
+gh api -X PUT repos/:owner/:repo/environments/production --silent
+gh secret set DEPLOY_SSH_KEY --env production < ~/.ssh/sofi_timeweb
+```
+
+`DEPLOY_HOST`, `DEPLOY_PATH` and `DEPLOY_SSH_KNOWN_HOSTS` carry no credential and can be
+set the same way from `ssh-keyscan` output and the alias's `HostName`.
+
+Both products share one host and one key, so a deploy of this stack can reach sofi's
+directory if `DEPLOY_PATH` is wrong. Check it before the first run: `rsync --delete` against
+`/opt/sofi` would delete a live product's files.
 
 `Bot Globa deploy prod` (`workflow_dispatch`) is the manual entry point: redeploy the
 current `main`, skip migrations when the schema is already current, or re-run only the smoke
