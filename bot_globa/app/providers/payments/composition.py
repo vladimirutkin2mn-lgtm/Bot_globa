@@ -10,6 +10,7 @@ from app.providers.payments.refund_gateway import RefundGateway
 from app.providers.payments.stripe_gateway import StripeGateway
 from app.providers.payments.stripe_refund_gateway import StripeRefundGateway
 from app.providers.payments.subscription_gateway import SubscriptionGateway
+from app.providers.payments.telegram_stars import TelegramStarsBot, TelegramStarsGateway
 from app.providers.payments.yookassa_gateway import YooKassaGateway
 from app.providers.payments.yookassa_refund_gateway import YooKassaRefundGateway
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
@@ -21,9 +22,13 @@ class PaymentComponents:
     gateways: dict[PaymentProviderName, OneTimePaymentGateway]
     subscription_gateways: dict[PaymentProviderName, SubscriptionGateway]
     refund_gateways: dict[PaymentProviderName, RefundGateway]
+    telegram_stars: TelegramStarsGateway | None
 
 
-def create_payment_components(settings: Settings) -> PaymentComponents:
+def create_payment_components(
+    settings: Settings,
+    telegram_bot: TelegramStarsBot | None = None,
+) -> PaymentComponents:
     """Build only enabled adapters; production never constructs the legacy mock."""
     legacy: PaymentProvider | None = None
     if settings.payment_provider == "mock":
@@ -37,6 +42,7 @@ def create_payment_components(settings: Settings) -> PaymentComponents:
     gateways: dict[PaymentProviderName, OneTimePaymentGateway] = {}
     subscription_gateways: dict[PaymentProviderName, SubscriptionGateway] = {}
     refund_gateways: dict[PaymentProviderName, RefundGateway] = {}
+    telegram_stars: TelegramStarsGateway | None = None
     if settings.stripe_enabled:
         stripe = StripeGateway(
             settings.stripe_secret_key.get_secret_value(),
@@ -69,4 +75,18 @@ def create_payment_components(settings: Settings) -> PaymentComponents:
                 settings.provider_request_timeout_seconds,
                 partial_refunds=not settings.yookassa_receipts_required,
             )
-    return PaymentComponents(legacy, gateways, subscription_gateways, refund_gateways)
+    if settings.telegram_stars_enabled and telegram_bot is not None:
+        telegram_stars = TelegramStarsGateway(
+            telegram_bot,
+            settings.provider_request_timeout_seconds,
+            settings.telegram_stars_reconciliation_pages,
+        )
+        if settings.refunds_enabled:
+            refund_gateways[PaymentProviderName.TELEGRAM_STARS] = telegram_stars
+    return PaymentComponents(
+        legacy,
+        gateways,
+        subscription_gateways,
+        refund_gateways,
+        telegram_stars,
+    )

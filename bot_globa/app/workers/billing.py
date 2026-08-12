@@ -7,6 +7,8 @@ import signal
 import socket
 from datetime import UTC, datetime, timedelta
 
+from aiogram import Bot
+
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.logging import configure_logging
@@ -32,7 +34,12 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
     configure_logging(resolved.log_level)
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
-    components = create_payment_components(resolved)
+    telegram_bot = (
+        Bot(token=resolved.telegram_bot_token.get_secret_value())
+        if resolved.telegram_stars_enabled and resolved.refunds_enabled
+        else None
+    )
+    components = create_payment_components(resolved, telegram_bot)
     gateways = {name.value: gateway for name, gateway in components.gateways.items()}
     subscription_gateways = {
         name.value: gateway for name, gateway in components.subscription_gateways.items()
@@ -91,7 +98,10 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
             if now >= next_sweep:
                 await sweeper.enqueue_stale()
                 if resolved.subscriptions_enabled:
-                    await lifecycle.enqueue_due_renewals(now=now)
+                    await lifecycle.enqueue_due_renewals(
+                        now=now,
+                        providers=set(subscription_gateways),
+                    )
                     await lifecycle.finalize_terminal_states(
                         now=now,
                         grace_period=timedelta(days=resolved.subscription_grace_period_days),
@@ -111,7 +121,11 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stopped.wait(), timeout=1.0)
     finally:
-        await engine.dispose()
+        try:
+            if telegram_bot is not None:
+                await telegram_bot.session.close()
+        finally:
+            await engine.dispose()
 
 
 def main() -> None:

@@ -1,6 +1,7 @@
 # Payment operations runbook
 
-Keep `BILLING_ENABLED`, `YOOKASSA_ENABLED`, and `STRIPE_ENABLED` false until HTTPS URLs,
+Keep `BILLING_ENABLED`, `YOOKASSA_ENABLED`, `STRIPE_ENABLED`, and `TELEGRAM_STARS_ENABLED` false
+until HTTPS URLs,
 live credentials, webhook secrets, provider prices, and IP/proxy CIDRs are independently
 verified. Production rejects HTTP public URLs, mock/test Stripe credentials, and
 provider test objects. No real credentials belong in source control.

@@ -12,11 +12,13 @@ class PaymentProviderName(StrEnum):
     MOCK = "mock"
     YOOKASSA = "yookassa"
     STRIPE = "stripe"
+    TELEGRAM_STARS = "telegram_stars"
 
 
 class BillingMarket(StrEnum):
     RU = "RU"
     INTERNATIONAL = "INTERNATIONAL"
+    TELEGRAM = "TELEGRAM"
 
 
 class PaymentMode(StrEnum):

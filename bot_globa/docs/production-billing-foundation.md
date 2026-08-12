@@ -8,7 +8,11 @@ Milestone 5B.1 defines durable, provider-neutral billing infrastructure only. Al
 
 ## Catalog and routing
 
-The versioned server catalog is authoritative: `RU/RUB` routes to YooKassa and `INTERNATIONAL/EUR|USD` to Stripe. It owns price references, credit units, provider, product version, purchase mode, and interval; API input must never supply commercial values or infer market from IP. Payment orders preserve an immutable JSON commercial snapshot so catalog changes cannot alter an existing order.
+The versioned server catalog is authoritative: `RU/RUB` routes to YooKassa,
+`INTERNATIONAL/EUR|USD` to Stripe, and explicitly configured `TELEGRAM/XTR` offers to Telegram
+Stars. It owns price references, credit units, provider, product version, purchase mode, and
+interval; API input must never supply commercial values or infer market from IP. Payment orders
+preserve an immutable JSON commercial snapshot so catalog changes cannot alter an existing order.
 
 ## Persistence
 

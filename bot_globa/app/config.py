@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     billing_kill_switch: bool = False
     yookassa_enabled: bool = False
     stripe_enabled: bool = False
+    telegram_stars_enabled: bool = False
     subscriptions_enabled: bool = False
     refunds_enabled: bool = False
     billing_refund_window_days: int = Field(default=14, ge=1, le=365)
@@ -72,6 +73,14 @@ class Settings(BaseSettings):
     stripe_amount_reading_pack_5_usd_minor: int = Field(default=449, ge=50)
     stripe_amount_subscription_monthly_eur_minor: int = Field(default=699, ge=50)
     stripe_amount_subscription_monthly_usd_minor: int = Field(default=699, ge=50)
+    # Telegram Stars are whole units. Zero keeps the route deliberately unconfigured;
+    # enabling the provider requires an explicit commercial decision for every SKU.
+    telegram_stars_amount_reading_single: int = Field(default=0, ge=0, le=10_000)
+    telegram_stars_amount_reading_pack_5: int = Field(default=0, ge=0, le=10_000)
+    telegram_stars_amount_subscription_monthly: int = Field(default=0, ge=0, le=10_000)
+    telegram_stars_reconciliation_pages: int = Field(default=10, ge=1, le=100)
+    billing_terms_url: str = ""
+    billing_support_url: str = ""
     billing_worker_lease_seconds: int = Field(default=60, gt=0)
     billing_worker_max_attempts: int = Field(default=10, ge=1)
     billing_retry_base_seconds: int = Field(default=30, gt=0)
@@ -101,9 +110,26 @@ class Settings(BaseSettings):
         """Fail closed without exposing any secret values in the error."""
         if self.yookassa_recurring_enabled and not self.yookassa_enabled:
             raise ValueError("YooKassa recurring requires YooKassa")
+        if self.telegram_stars_enabled:
+            if (
+                min(
+                    self.telegram_stars_amount_reading_single,
+                    self.telegram_stars_amount_reading_pack_5,
+                )
+                <= 0
+            ):
+                raise ValueError("Telegram Stars prices must be explicitly configured")
+            if self.subscriptions_enabled and self.telegram_stars_amount_subscription_monthly <= 0:
+                raise ValueError("Telegram Stars subscription price must be configured")
+            if not self.billing_terms_url.startswith("https://"):
+                raise ValueError("Telegram Stars require an HTTPS billing terms URL")
+            if not self.billing_support_url.startswith("https://"):
+                raise ValueError("Telegram Stars require an HTTPS billing support URL")
         if self.refunds_enabled and not self.billing_enabled:
             raise ValueError("refunds require billing")
-        if self.refunds_enabled and not (self.stripe_enabled or self.yookassa_enabled):
+        if self.refunds_enabled and not (
+            self.stripe_enabled or self.yookassa_enabled or self.telegram_stars_enabled
+        ):
             raise ValueError("refunds require an enabled production payment provider")
         if self.app_env != "production":
             return self
@@ -127,7 +153,7 @@ class Settings(BaseSettings):
         if (
             self.billing_enabled
             and self.payment_provider != "mock"
-            and not (self.yookassa_enabled or self.stripe_enabled)
+            and not (self.yookassa_enabled or self.stripe_enabled or self.telegram_stars_enabled)
         ):
             raise ValueError("production billing requires an enabled payment provider")
         if self.yookassa_enabled and not (
@@ -160,7 +186,7 @@ class Settings(BaseSettings):
         if self.stripe_enabled and stripe_key.startswith(("sk_test_", "rk_test_")):
             raise ValueError("Stripe test credentials are forbidden in production")
         if self.subscriptions_enabled and not (
-            self.stripe_enabled or self.yookassa_recurring_enabled
+            self.stripe_enabled or self.yookassa_recurring_enabled or self.telegram_stars_enabled
         ):
             raise ValueError("subscriptions require a complete configured offer")
         return self

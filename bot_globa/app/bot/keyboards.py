@@ -288,10 +288,27 @@ def checkout_keyboard(url: str) -> InlineKeyboardMarkup:
     )
 
 
-def payment_market_keyboard(product_code: str) -> InlineKeyboardMarkup:
-    """Require an explicit market/currency choice; never infer geography."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def payment_market_keyboard(
+    product_code: str,
+    *,
+    telegram_stars_enabled: bool = False,
+) -> InlineKeyboardMarkup:
+    """Offer the Telegram-native route exclusively when Stars are enabled."""
+    rows: list[list[InlineKeyboardButton]] = []
+    if telegram_stars_enabled:
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Telegram Stars · ⭐",
+                        callback_data=f"credits:stars:{product_code}",
+                    )
+                ],
+                [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
+            ]
+        )
+    rows.extend(
+        [
             [
                 InlineKeyboardButton(
                     text="Россия · RUB", callback_data=f"credits:offer:{product_code}:RU:RUB"
@@ -312,6 +329,7 @@ def payment_market_keyboard(product_code: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def receipt_contact_keyboard() -> InlineKeyboardMarkup:

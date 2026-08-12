@@ -23,6 +23,7 @@ from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
 from app.services.subscription_checkout_service import SubscriptionCheckoutService
 from app.services.subscription_management_service import SubscriptionManagementService
+from app.services.telegram_stars_service import TelegramStarsPaymentService
 
 
 class OracleDependencyMiddleware(BaseMiddleware):
@@ -39,6 +40,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
         subscription_checkout: SubscriptionCheckoutService | None = None,
         subscriptions: SubscriptionManagementService | None = None,
         refunds: RefundService | None = None,
+        telegram_stars: TelegramStarsPaymentService | None = None,
     ) -> None:
         self._sessions = sessions
         self._analytics = analytics
@@ -49,6 +51,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
         self._subscription_checkout = subscription_checkout
         self._subscriptions = subscriptions
         self._refunds = refunds
+        self._telegram_stars = telegram_stars
 
     async def __call__(
         self,
@@ -83,6 +86,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["subscription_checkout"] = self._subscription_checkout
             data["subscriptions"] = self._subscriptions
             data["refunds"] = self._refunds
+            data["telegram_stars"] = self._telegram_stars
             data["billing_settings"] = self._settings
             # Transitional handler coordinate only: value now comes from the Oracle price.
             data["analysis_price"] = self._settings.reading_full_price_credits

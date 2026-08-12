@@ -24,6 +24,7 @@ class CreateRefund:
     currency: str
     reason: str
     idempotency_key: str
+    provider_customer_id: str | None = None
 
 
 @dataclass(frozen=True)

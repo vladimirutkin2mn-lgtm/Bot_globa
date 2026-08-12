@@ -38,6 +38,7 @@ from app.services.subscription_checkout_service import SubscriptionCheckoutServi
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
 from app.services.subscription_management_service import SubscriptionManagementService
+from app.services.telegram_stars_service import TelegramStarsPaymentService
 from app.services.telegram_update_inbox import TelegramUpdateInboxService
 from app.services.webhook_inbox_service import WebhookInboxService
 
@@ -69,6 +70,16 @@ def create_app(
     subscription_lifecycle = SubscriptionLifecycleService(sessions)
     subscription_processor = SubscriptionEventProcessor(
         sessions, subscription_lifecycle, resolved_settings.subscription_grace_period_days
+    )
+    completion_service = PaymentCompletionService(
+        sessions, resolved_settings.app_env == "production"
+    )
+    telegram_stars_service = TelegramStarsPaymentService(
+        sessions,
+        resolved_settings,
+        billing_catalog,
+        completion_service,
+        subscription_processor,
     )
     subscription_gateways = {
         name.value: gateway for name, gateway in payments.subscription_gateways.items()
@@ -154,9 +165,8 @@ def create_app(
         subscription_gateways,
         subscription_processor,
     )
-    application.state.payment_completion_service = PaymentCompletionService(
-        sessions, resolved_settings.app_env == "production"
-    )
+    application.state.payment_completion_service = completion_service
+    application.state.telegram_stars_service = telegram_stars_service
     application.state.webhook_inbox = WebhookInboxService(sessions)
     application.include_router(health_router)
     application.include_router(admin_router)

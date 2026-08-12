@@ -1,6 +1,6 @@
 # Provider monetary refunds
 
-This runbook covers M5B.4 refunds for completed Stripe and YooKassa purchases.
+This runbook covers refunds for completed Stripe, YooKassa, and Telegram Stars purchases.
 Refunds are disabled by default and must remain disabled until the provider-specific staging
 checklists below pass.
 
@@ -37,6 +37,10 @@ Stripe supports full and partial refunds. YooKassa partial refunds are disabled 
 when receipt data would be required, because an itemized refund receipt is not stored in the
 billing database. Full YooKassa refunds remain supported through the provider's original-payment
 receipt data.
+
+Telegram Stars supports only a full refund of the original charge. Stars purchases are omitted
+from automatic eligibility unless the entire purchase remains unused and unrefunded. Provider
+details and staging checks are in [`telegram-stars-payments.md`](telegram-stars-payments.md).
 
 ## Configuration
 
