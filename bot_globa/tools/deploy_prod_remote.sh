@@ -51,7 +51,9 @@ run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} up -d --build"
 
 if [[ "${SKIP_MIGRATIONS}" != "1" ]]; then
   echo "==> Applying migrations under an advisory lock"
-  run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} run --rm api python -m app.cli.release"
+  # -T and </dev/null because `compose run` claims a TTY and reads stdin: without both it
+  # either refuses to start on a CI runner or silently swallows the rest of the script.
+  run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} run --rm -T api python -m app.cli.release </dev/null"
 fi
 
 if [[ "${RUN_SMOKE}" != "1" ]]; then

@@ -1,0 +1,71 @@
+name: Bot Globa deploy prod
+
+# Manual entry point for redeploying the current main, or for re-running only the smoke
+# checks after an incident. The automatic path lives in the `deploy` job of Bot Globa CI.
+on:
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: Skip `python -m app.cli.release` (schema already current)
+        type: boolean
+        default: false
+      smoke_only:
+        description: Verify the deployed release without syncing or rebuilding
+        type: boolean
+        default: false
+
+concurrency:
+  # Shares the group with the CI deploy job so the two can never touch the host together.
+  group: bot-globa-deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: bot_globa
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Load the deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Pin the host key
+        env:
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify the host answers before changing anything
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh -o BatchMode=yes "${DEPLOY_HOST}" 'echo remote-ok'
+
+      - name: Smoke the deployed release
+        if: inputs.smoke_only
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
+        run: bash tools/smoke_prod_remote.sh
+
+      - name: Deploy, migrate and smoke the production stack
+        if: ${{ !inputs.smoke_only }}
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
+          SKIP_MIGRATIONS: ${{ inputs.skip_migrations && '1' || '0' }}
+          RUN_SMOKE: "1"
+        run: bash tools/deploy_prod_remote.sh
