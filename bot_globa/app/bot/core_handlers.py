@@ -82,6 +82,7 @@ async def start(message: Message, state: FSMContext, onboarding: OnboardingServi
         )
     )
     if step is OnboardingStep.CONSENT:
+        # The intro explains the format before the terms; the consent screen follows it.
         await state.set_state(OnboardingStates.waiting_for_consent)
         await answer_scene(
             message,
@@ -99,9 +100,12 @@ async def continue_onboarding(
 ) -> None:
     if await onboarding.current_user(callback.from_user.id) is None:
         await onboarding.start(_identity(callback))
+    # A stale intro button must not push an already-onboarded user back into consent, so the
+    # durable step decides the screen rather than the button that was pressed.
+    step = await onboarding.current_step(callback.from_user.id)
     await callback.answer()
     if isinstance(callback.message, Message):
-        await _show_onboarding_step(callback.message, state, OnboardingStep.CONSENT)
+        await _show_onboarding_step(callback.message, state, step)
 
 
 @router.callback_query(F.data == "onboarding:consent")
@@ -235,7 +239,7 @@ async def buy_credits(
     if outcome.outcome is CheckoutOutcome.CREATING:
         await answer_scene(
             callback.message,
-            Scene.CHECKOUT_UNAVAILABLE,
+            Scene.CHECKOUT,
             "Тестовая оплата уже создаётся. Обновите экран через несколько секунд.",
             reply_markup=checkout_creating_keyboard(product_code),
         )
@@ -301,7 +305,7 @@ async def create_production_checkout(
     if not result.url:
         await answer_scene(
             callback.message,
-            Scene.CHECKOUT_UNAVAILABLE,
+            Scene.CHECKOUT,
             "Оплата создаётся. Попробуйте обновить через несколько секунд.",
         )
         return
@@ -371,7 +375,7 @@ async def receive_receipt_contact(
     else:
         await answer_scene(
             message,
-            Scene.CHECKOUT_UNAVAILABLE,
+            Scene.CHECKOUT,
             "Оплата создаётся. Попробуйте обновить через несколько секунд.",
         )
 

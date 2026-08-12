@@ -81,7 +81,7 @@ async def refund_menu(
             message,
             Scene.REFUND_UNAVAILABLE,
             "Сейчас нет покупок, подходящих для автоматического возврата. "
-            "Для возврата нужны неиспользованные кредиты и покупка в пределах срока политики."
+            "Для возврата нужны неиспользованные кредиты и покупка в пределах срока политики.",
         )
         return
     await answer_scene(
@@ -168,7 +168,7 @@ async def request_refund_callback(
             "Запрос принят. "
             f"Зарезервировано {result.refund.credit_units} кредитов; "
             f"сумма возврата — {_money(result.refund.amount_minor, result.refund.currency)}. "
-            "Статус можно проверить командой /refund_status."
+            "Статус можно проверить командой /refund_status.",
         )
         return
     messages = {

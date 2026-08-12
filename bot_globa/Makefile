@@ -17,7 +17,8 @@ PYTEST  := $(BIN)pytest
 ALEMBIC := $(BIN)alembic
 
 COMPOSE := docker compose
-SRC     := app tests migrations scripts
+# Same set CI formats and lints — a narrower one here lets a red pipeline pass locally.
+SRC     := app tests migrations scripts tools
 
 # Host-side connections to the Dockerised postgres from docker-compose.yml.
 # The dev database and the test database are separate, exactly like CI —

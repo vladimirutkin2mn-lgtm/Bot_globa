@@ -17,8 +17,7 @@ from app.bot.horoscope_flow import horoscope_safety_intake
 from app.bot.persona_flows import MVP_READING_FLOWS
 from app.bot.reading_followup_handlers import followup_safety_intake
 from app.bot.safety_intake import SafetyIntake
-from app.bot.scene_media import Scene, answer_scene
-from app.domain.oracle_safety import OracleInputSafetyClassifier, OracleRiskCategory
+from app.domain.oracle_safety import OracleInputSafetyClassifier
 from app.services.oracle_crisis_handoff import OracleCrisisHandoffService
 
 logger = logging.getLogger(__name__)
@@ -102,13 +101,15 @@ class ReadingSafetyHandoffMiddleware(BaseMiddleware):
         )
         text = self._handoffs.render_text(handoff)
         markup = intake.handoff_keyboard()
-        scene = _handoff_scene(safety.categories)
+        # Plain text on purpose: this screen carries the help contacts, so it must not depend
+        # on Telegram accepting a photo, and an illustration would decorate a hand-off whose
+        # whole job is to leave the mystical flow.
         if isinstance(event, CallbackQuery):
             await event.answer()
             if isinstance(event.message, Message):
-                await answer_scene(event.message, scene, text, reply_markup=markup)
+                await event.message.answer(text, reply_markup=markup)
         elif isinstance(event, Message):
-            await answer_scene(event, scene, text, reply_markup=markup)
+            await event.answer(text, reply_markup=markup)
         return None
 
     def _intake_for(self, state_name: str | None) -> SafetyIntake | None:
@@ -149,11 +150,3 @@ def _locale(event: TelegramObject) -> str | None:
     if isinstance(event, Message) and event.from_user is not None:
         return event.from_user.language_code
     return None
-
-
-def _handoff_scene(categories: tuple[OracleRiskCategory, ...]) -> Scene:
-    if OracleRiskCategory.SELF_HARM in categories:
-        return Scene.CRISIS
-    if OracleRiskCategory.VIOLENCE_OR_STALKING in categories:
-        return Scene.VIOLENCE
-    return Scene.HIGH_STAKES

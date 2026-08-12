@@ -268,7 +268,8 @@ class HoroscopeHandlers:
             await answer_scene(
                 callback.message,
                 Scene.ASTRO_BIRTH_PLACE,
-                flow.BIRTH_PLACE_PROMPT, reply_markup=flow.cancel_keyboard()
+                flow.BIRTH_PLACE_PROMPT,
+                reply_markup=flow.cancel_keyboard(),
             )
 
     async def choose_place(self, callback: CallbackQuery, state: FSMContext) -> None:
@@ -283,7 +284,8 @@ class HoroscopeHandlers:
             await answer_scene(
                 callback.message,
                 Scene.ASTRO_BIRTH_PLACE,
-                flow.BIRTH_PLACE_PROMPT, reply_markup=flow.cancel_keyboard()
+                flow.BIRTH_PLACE_PROMPT,
+                reply_markup=flow.cancel_keyboard(),
             )
             return
         await state.update_data(place=_place_payload(place))
@@ -291,7 +293,8 @@ class HoroscopeHandlers:
         await answer_scene(
             callback.message,
             Scene.ASTRO_BIRTH_TIME,
-            flow.BIRTH_TIME_PROMPT, reply_markup=flow.birth_time_keyboard()
+            flow.BIRTH_TIME_PROMPT,
+            reply_markup=flow.birth_time_keyboard(),
         )
 
     async def receive_birth_time(
@@ -365,7 +368,8 @@ class HoroscopeHandlers:
             await answer_scene(
                 callback.message,
                 Scene.ASTRO_BIRTH_TIME,
-                flow.BIRTH_TIME_PROMPT, reply_markup=flow.birth_time_keyboard()
+                flow.BIRTH_TIME_PROMPT,
+                reply_markup=flow.birth_time_keyboard(),
             )
             await state.set_state(HoroscopeStates.waiting_for_birth_time)
             return
@@ -406,7 +410,8 @@ class HoroscopeHandlers:
             await answer_scene(
                 callback.message,
                 Scene.ASTRO_PROFILE,
-                flow.PROFILE_MISSING, reply_markup=flow.profile_keyboard()
+                flow.PROFILE_MISSING,
+                reply_markup=flow.profile_keyboard(),
             )
             return
         await state.clear()
@@ -754,7 +759,8 @@ class HoroscopeHandlers:
             await answer_scene(
                 message,
                 Scene.ASTRO_PROFILE,
-                flow.PROFILE_MISSING, reply_markup=HOROSCOPE_FLOW.result_keyboard()
+                flow.PROFILE_MISSING,
+                reply_markup=HOROSCOPE_FLOW.result_keyboard(),
             )
             return
         try:

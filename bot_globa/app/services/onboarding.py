@@ -73,9 +73,7 @@ class OnboardingService:
     async def current_step(self, telegram_user_id: int) -> OnboardingStep:
         user = await self._users.get_by_telegram_id(telegram_user_id)
         return (
-            await self._synchronize_completion(user)
-            if user is not None
-            else OnboardingStep.CONSENT
+            await self._synchronize_completion(user) if user is not None else OnboardingStep.CONSENT
         )
 
     async def current_user(self, telegram_user_id: int) -> User | None:

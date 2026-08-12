@@ -1,10 +1,14 @@
 """Send the image assigned to a client-journey scene with its Telegram copy."""
 
+import logging
 from enum import StrEnum
 from pathlib import Path
 
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import InlineKeyboardMarkup, Message
 from aiogram.types.input_file import FSInputFile
+
+logger = logging.getLogger(__name__)
 
 TELEGRAM_CAPTION_LIMIT = 1024
 SCENE_ASSET_DIR = Path(__file__).parent / "assets" / "scenes"
@@ -80,9 +84,13 @@ class Scene(StrEnum):
     DELETE_ACCOUNT = "D-02"
     DELETE_CANCELLED = "D-03"
     ACCOUNT_DELETED = "D-04"
+    # Safety scenes exist in the CJM, but a safety hand-off is deliberately sent as plain
+    # text: it must reach the user even when Telegram refuses media, and an illustration
+    # would dress up a screen whose whole job is to stop the mystical flow.
     CRISIS = "S-01"
     VIOLENCE = "S-02"
     HIGH_STAKES = "S-03"
+    # Reserved for the daily horoscope digest (ORA-105 follow-up); no handler sends them yet.
     DAILY_ZODIAC = "E-01"
     DAILY_HOROSCOPE = "E-02"
     DAILY_PERSONAL_CTA = "E-03"
@@ -102,21 +110,69 @@ async def answer_scene(
     text: str,
     *,
     reply_markup: InlineKeyboardMarkup | None = None,
-) -> Message:
-    """Send one visual Telegram screen and preserve readable long-copy fallback."""
+) -> None:
+    """Send one visual Telegram screen and preserve readable long-copy fallback.
 
-    photo: str | FSInputFile = _telegram_file_ids.get(scene) or FSInputFile(
-        scene.asset_path,
-        filename=f"{scene.value}.jpg",
-    )
-    if len(text) <= TELEGRAM_CAPTION_LIMIT:
-        sent = await message.answer_photo(photo=photo, caption=text, reply_markup=reply_markup)
-    else:
-        photo_message = await message.answer_photo(photo=photo)
-        _remember_file_id(scene, photo_message)
-        return await message.answer(text, reply_markup=reply_markup)
-    _remember_file_id(scene, sent)
-    return sent
+    The copy is what the user needs; the illustration is decoration. Telegram can refuse a
+    photo for reasons the caller cannot control — a stale `file_id`, a media restriction in
+    the chat, a transport failure — so a media error degrades to the plain text instead of
+    losing the screen entirely.
+    """
+
+    caption_fits = len(text) <= TELEGRAM_CAPTION_LIMIT
+    if not await _send_photo(
+        message,
+        scene,
+        caption=text if caption_fits else None,
+        # A caption cannot hold long copy, so the keyboard belongs to the text that follows.
+        reply_markup=reply_markup if caption_fits else None,
+    ):
+        await message.answer(text, reply_markup=reply_markup)
+        return
+    if not caption_fits:
+        await message.answer(text, reply_markup=reply_markup)
+
+
+async def _send_photo(
+    message: Message,
+    scene: Scene,
+    *,
+    caption: str | None,
+    reply_markup: InlineKeyboardMarkup | None,
+) -> bool:
+    """Send the scene illustration, reporting whether the copy still needs a text message.
+
+    A cached `file_id` that Telegram refuses is dropped and the upload retried once —
+    otherwise a single invalidation would break that scene until the process restarts.
+    """
+
+    cached = _telegram_file_ids.get(scene)
+    if cached is not None:
+        try:
+            _remember_file_id(scene, await _photo(message, cached, caption, reply_markup))
+        except TelegramAPIError:
+            logger.warning("scene_file_id_rejected scene=%s", scene.value)
+            _telegram_file_ids.pop(scene, None)
+        else:
+            return True
+    asset = FSInputFile(scene.asset_path, filename=f"{scene.value}.jpg")
+    try:
+        _remember_file_id(scene, await _photo(message, asset, caption, reply_markup))
+    except TelegramAPIError:
+        logger.warning("scene_photo_unavailable scene=%s", scene.value)
+        return False
+    return True
+
+
+async def _photo(
+    message: Message,
+    photo: str | FSInputFile,
+    caption: str | None,
+    reply_markup: InlineKeyboardMarkup | None,
+) -> Message:
+    if caption is None:
+        return await message.answer_photo(photo=photo)
+    return await message.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
 
 
 def _remember_file_id(scene: Scene, message: object) -> None:

@@ -230,6 +230,23 @@ async def test_consent_acceptance_and_completed_start_show_menu(harness: Harness
     assert sent_texts(session)[-2:] == [texts.MAIN_MENU, texts.MAIN_MENU]
 
 
+async def test_a_stale_intro_button_does_not_reopen_consent_for_a_completed_user(
+    harness: Harness,
+) -> None:
+    local_dispatcher, bot, session, _, service = harness
+    await complete(service)
+
+    await local_dispatcher.feed_update(
+        bot,
+        callback_update("onboarding:intro"),
+        onboarding=service,
+    )
+
+    assert sent_texts(session)[-1] == texts.MAIN_MENU
+    context = local_dispatcher.fsm.get_context(bot=bot, chat_id=42, user_id=42)
+    assert await context.get_state() is None
+
+
 @pytest.mark.parametrize("data", ["onboarding:intro", "onboarding:consent"])
 async def test_onboarding_callback_without_prior_start_is_handled(
     harness: Harness,

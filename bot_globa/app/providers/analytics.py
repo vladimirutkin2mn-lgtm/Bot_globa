@@ -110,7 +110,6 @@ def _quality_properties(*values: str) -> frozenset[str]:
 _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     "bot_started": frozenset(),
     "main_menu_opened": frozenset(),
-    "age_confirmed": frozenset(),
     "consent_accepted": frozenset({"consent_version"}),
     "onboarding_completed": frozenset({"consent_version"}),
     "analysis_started": frozenset({"analysis_id", "source_type"}),
@@ -500,7 +499,6 @@ _QUALITY_REQUIRED: dict[str, frozenset[str]] = {
 
 _EVENT_SCOPES: dict[str, EventScope] = {
     "bot_started": EventScope.USER,
-    "age_confirmed": EventScope.USER,
     "consent_accepted": EventScope.USER,
     "onboarding_completed": EventScope.USER,
     "analysis_started": EventScope.ANALYSIS,
