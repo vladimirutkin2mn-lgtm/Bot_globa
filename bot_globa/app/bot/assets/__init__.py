@@ -1,0 +1,1 @@
+"""Versioned Telegram presentation assets."""

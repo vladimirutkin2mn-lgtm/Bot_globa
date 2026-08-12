@@ -5,6 +5,7 @@ from uuid import UUID
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.scene_media import Scene, answer_scene
 from app.config import Settings
 from app.db.models import User
 from app.domain.products import ProductCatalog
@@ -101,6 +102,16 @@ def _status_text(value: SubscriptionView) -> str:
     return f"Подписка: {labels.get(value.status, value.status)}.\n{suffix}"
 
 
+def _subscription_scene(value: SubscriptionView) -> Scene:
+    if value.status == "cancel_at_period_end":
+        return Scene.SUBSCRIPTION_CANCEL
+    if value.status == "past_due":
+        return Scene.SUBSCRIPTION_PAST_DUE
+    if value.status == "active":
+        return Scene.SUBSCRIPTION_ACTIVE
+    return Scene.SUBSCRIPTION_CHECKOUT
+
+
 async def _current_user_subscription(
     callback: CallbackQuery,
     onboarding: OnboardingService,
@@ -138,7 +149,9 @@ async def balance_and_subscription_screen(
             else ""
         )
     )
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        _subscription_scene(current) if current is not None else Scene.BALANCE,
         f"Ваш баланс: {balance} кредитов\n"
         f"Один полный разбор стоит: {analysis_price} кредитов"
         f"{subscription_note}",
@@ -181,18 +194,31 @@ async def choose_subscription_market(
     if user is None or not isinstance(callback.message, Message):
         return
     if current is not None:
-        await callback.message.answer(
-            _status_text(current), reply_markup=subscription_management_keyboard(current)
+        await answer_scene(
+            callback.message,
+            _subscription_scene(current),
+            _status_text(current),
+            reply_markup=subscription_management_keyboard(current),
         )
         return
     if not billing_settings.subscriptions_enabled:
-        await callback.message.answer("Подписка сейчас недоступна.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Подписка сейчас недоступна.",
+        )
         return
     keyboard = subscription_market_keyboard(billing_settings)
     if len(keyboard.inline_keyboard) == 1:
-        await callback.message.answer("Подписка сейчас недоступна.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Подписка сейчас недоступна.",
+        )
         return
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.SUBSCRIPTION_CHOICE,
         "Выберите рынок и валюту ежемесячной подписки. Провайдер покажет сумму, "
         "период и условия автопродления до подтверждения оплаты.",
         reply_markup=keyboard,
@@ -211,7 +237,11 @@ async def create_subscription_checkout(
         return
     parts = (callback.data or "").split(":")
     if len(parts) != 5:
-        await callback.message.answer("Этот вариант подписки недоступен.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Этот вариант подписки недоступен.",
+        )
         return
     _, _, product_code, market, currency = parts
     try:
@@ -219,13 +249,23 @@ async def create_subscription_checkout(
             user.id, product_code, market, currency
         )
     except SubscriptionCheckoutRejectedError:
-        await callback.message.answer("Подписка сейчас недоступна. Попробуйте позже.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Подписка сейчас недоступна. Попробуйте позже.",
+        )
         return
     if result.url is None:
-        await callback.message.answer("Подписка создаётся. Обновите статус через несколько секунд.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Подписка создаётся. Обновите статус через несколько секунд.",
+        )
         return
     provider = "YooKassa" if market == "RU" else "Stripe"
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.SUBSCRIPTION_CHECKOUT,
         f"{provider} покажет сумму, период и условия автопродления до подтверждения оплаты.",
         reply_markup=subscription_checkout_keyboard(result.url),
     )
@@ -280,15 +320,29 @@ async def _change_subscription(
             if resume
             else "Автопродление отключено. Уже начисленные кредиты сохраняются."
         )
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.SUBSCRIPTION_RESUME if resume else Scene.SUBSCRIPTION_CANCEL,
             text,
             reply_markup=(
                 subscription_management_keyboard(current) if current is not None else None
             ),
         )
     elif outcome is SubscriptionManagementOutcome.ALREADY_SET:
-        await callback.message.answer("Состояние подписки уже актуально.")
+        await answer_scene(
+            callback.message,
+            Scene.SUBSCRIPTION_RESUME if resume else Scene.SUBSCRIPTION_CANCEL,
+            "Состояние подписки уже актуально.",
+        )
     elif outcome is SubscriptionManagementOutcome.UNAVAILABLE:
-        await callback.message.answer("Управление подпиской временно недоступно.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Управление подпиской временно недоступно.",
+        )
     else:
-        await callback.message.answer("Подписка не найдена.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Подписка не найдена.",
+        )

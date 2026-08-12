@@ -7,17 +7,18 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot import texts
 from app.bot.keyboards import (
-    age_keyboard,
     checkout_creating_keyboard,
     checkout_keyboard,
     consent_keyboard,
     main_menu_keyboard,
+    onboarding_intro_keyboard,
     payment_market_keyboard,
     privacy_confirmation_keyboard,
     privacy_keyboard,
     products_keyboard,
     receipt_contact_keyboard,
 )
+from app.bot.scene_media import Scene, answer_scene
 from app.bot.states import OnboardingStates, PaymentStates
 from app.config import Settings
 from app.domain.products import ProductCatalog
@@ -47,19 +48,22 @@ def _identity(callback: CallbackQuery) -> TelegramIdentity:
 
 
 async def _show_onboarding_step(message: Message, state: FSMContext, step: OnboardingStep) -> None:
-    if step is OnboardingStep.AGE:
-        await state.set_state(OnboardingStates.waiting_for_age)
-        await message.answer(texts.WELCOME, reply_markup=age_keyboard())
-        return
     if step is OnboardingStep.CONSENT:
         await state.set_state(OnboardingStates.waiting_for_consent)
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.ONBOARDING_CONSENT,
             texts.CONSENT.format(version=CURRENT_CONSENT_VERSION),
             reply_markup=consent_keyboard(),
         )
         return
     await state.clear()
-    await message.answer(texts.MAIN_MENU, reply_markup=main_menu_keyboard())
+    await answer_scene(
+        message,
+        Scene.MAIN_MENU,
+        texts.MAIN_MENU,
+        reply_markup=main_menu_keyboard(),
+    )
 
 
 @router.message(CommandStart())
@@ -77,34 +81,34 @@ async def start(message: Message, state: FSMContext, onboarding: OnboardingServi
             language=telegram_user.language_code,
         )
     )
+    if step is OnboardingStep.CONSENT:
+        await state.set_state(OnboardingStates.waiting_for_consent)
+        await answer_scene(
+            message,
+            Scene.ONBOARDING_START,
+            texts.WELCOME,
+            reply_markup=onboarding_intro_keyboard(),
+        )
+        return
     await _show_onboarding_step(message, state, step)
 
 
-@router.callback_query(F.data == "onboarding:age:no")
-async def decline_age(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.clear()
-    await callback.answer()
-    if isinstance(callback.message, Message):
-        await callback.message.answer(texts.AGE_DECLINED)
-
-
-@router.callback_query(F.data == "onboarding:age:yes")
-async def confirm_age(
+@router.callback_query(F.data == "onboarding:intro")
+async def continue_onboarding(
     callback: CallbackQuery, state: FSMContext, onboarding: OnboardingService
 ) -> None:
-    if await onboarding.current_step(callback.from_user.id) is OnboardingStep.AGE:
+    if await onboarding.current_user(callback.from_user.id) is None:
         await onboarding.start(_identity(callback))
-    step = await onboarding.confirm_age(callback.from_user.id)
     await callback.answer()
     if isinstance(callback.message, Message):
-        await _show_onboarding_step(callback.message, state, step)
+        await _show_onboarding_step(callback.message, state, OnboardingStep.CONSENT)
 
 
 @router.callback_query(F.data == "onboarding:consent")
 async def accept_consent(
     callback: CallbackQuery, state: FSMContext, onboarding: OnboardingService
 ) -> None:
-    if await onboarding.current_step(callback.from_user.id) is OnboardingStep.AGE:
+    if await onboarding.current_user(callback.from_user.id) is None:
         await onboarding.start(_identity(callback))
     step = await onboarding.accept_consent(callback.from_user.id)
     await callback.answer()
@@ -119,14 +123,21 @@ async def return_to_menu(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     await state.clear()
     if isinstance(callback.message, Message):
-        await callback.message.answer(texts.MAIN_MENU, reply_markup=main_menu_keyboard())
+        await answer_scene(
+            callback.message,
+            Scene.MAIN_MENU,
+            texts.MAIN_MENU,
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == "menu:privacy")
 async def privacy_screen(callback: CallbackQuery, privacy_retention_days: int) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.PRIVACY,
             texts.PRIVACY_INFO.format(days=privacy_retention_days),
             reply_markup=privacy_keyboard(),
         )
@@ -136,7 +147,9 @@ async def privacy_screen(callback: CallbackQuery, privacy_retention_days: int) -
 async def delete_all_prompt(callback: CallbackQuery) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.DELETE_ACCOUNT,
             texts.DELETE_ALL_PROMPT,
             reply_markup=privacy_confirmation_keyboard(),
         )
@@ -146,8 +159,11 @@ async def delete_all_prompt(callback: CallbackQuery) -> None:
 async def delete_all_cancel(callback: CallbackQuery) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(
-            texts.DELETE_ALL_CANCELLED if callback.data == "privacy:cancel" else texts.MAIN_MENU,
+        cancelled = callback.data == "privacy:cancel"
+        await answer_scene(
+            callback.message,
+            Scene.DELETE_CANCELLED if cancelled else Scene.MAIN_MENU,
+            texts.DELETE_ALL_CANCELLED if cancelled else texts.MAIN_MENU,
             reply_markup=main_menu_keyboard(),
         )
 
@@ -165,7 +181,7 @@ async def delete_all_confirm(
     await state.clear()
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(texts.DELETE_ALL_DONE)
+        await answer_scene(callback.message, Scene.ACCOUNT_DELETED, texts.DELETE_ALL_DONE)
 
 
 @router.callback_query(F.data.in_({"menu:balance", "credits:refresh"}))
@@ -181,7 +197,9 @@ async def balance_screen(
     if user is None or not isinstance(callback.message, Message):
         return
     balance = await credits.balance(user.id)
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.BALANCE,
         f"Ваш баланс: {balance} кредитов\n"
         f"Полный персональный разбор: от {billing_settings.reading_full_price_credits} кредита.\n\n"
         "Выберите пакет или продукт:",
@@ -206,14 +224,18 @@ async def buy_credits(
         return
     product_code = _callback_parts(callback)[-1]
     if payments is None or billing_settings.billing_enabled:
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.PAYMENT_MARKET,
             "Выберите регион и валюту оплаты.",
             reply_markup=payment_market_keyboard(product_code),
         )
         return
     outcome = await payments.create_checkout(user.id, product_code)
     if outcome.outcome is CheckoutOutcome.CREATING:
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
             "Тестовая оплата уже создаётся. Обновите экран через несколько секунд.",
             reply_markup=checkout_creating_keyboard(product_code),
         )
@@ -222,9 +244,15 @@ async def buy_credits(
         outcome.outcome not in {CheckoutOutcome.CREATED, CheckoutOutcome.EXISTING}
         or outcome.checkout is None
     ):
-        await callback.message.answer("Не удалось создать тестовую оплату.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Не удалось создать тестовую оплату.",
+        )
         return
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.CHECKOUT,
         "Тестовая оплата — реальные деньги не списываются.",
         reply_markup=checkout_keyboard(outcome.checkout.url),
     )
@@ -244,13 +272,19 @@ async def create_production_checkout(
         return
     parts = _callback_parts(callback)
     if len(parts) != 5:
-        await callback.message.answer("Этот вариант оплаты недоступен.")
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Этот вариант оплаты недоступен.",
+        )
         return
     _, _, product_code, market, currency = parts
     if billing_settings.yookassa_receipts_required and market == "RU" and currency == "RUB":
         await state.set_state(PaymentStates.waiting_for_receipt_contact)
         await state.set_data({"product_code": product_code, "market": market, "currency": currency})
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.RECEIPT_CONTACT,
             "Отправьте email или телефон в международном формате для кассового чека.",
             reply_markup=receipt_contact_keyboard(),
         )
@@ -258,14 +292,22 @@ async def create_production_checkout(
     try:
         result = await checkout.create_one_time_checkout(user.id, product_code, market, currency)
     except CheckoutRejectedError:
-        await callback.message.answer("Оплата сейчас недоступна. Попробуйте позже.")
-        return
-    if not result.url:
-        await callback.message.answer(
-            "Оплата создаётся. Попробуйте обновить через несколько секунд."
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Оплата сейчас недоступна. Попробуйте позже.",
         )
         return
-    await callback.message.answer(
+    if not result.url:
+        await answer_scene(
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Оплата создаётся. Попробуйте обновить через несколько секунд.",
+        )
+        return
+    await answer_scene(
+        callback.message,
+        Scene.CHECKOUT,
         "Откройте защищённую страницу платёжного провайдера.",
         reply_markup=checkout_keyboard(result.url),
     )
@@ -281,7 +323,11 @@ async def receive_receipt_contact(
     data = await state.get_data()
     if message.from_user is None or not message.text:
         await state.clear()
-        await message.answer("Контакт для чека не получен. Оплата отменена.")
+        await answer_scene(
+            message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Контакт для чека не получен. Оплата отменена.",
+        )
         return
     try:
         contact = validate_receipt_contact(message.text)
@@ -299,23 +345,35 @@ async def receive_receipt_contact(
             receipt_contact=contact.value,
         )
     except InvalidReceiptContactError:
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.RECEIPT_CONTACT,
             "Некорректный email или телефон. Проверьте формат и отправьте ещё раз.",
             reply_markup=receipt_contact_keyboard(),
         )
         return
     except (CheckoutRejectedError, KeyError):
         await state.clear()
-        await message.answer("Оплата сейчас недоступна. Попробуйте позже.")
+        await answer_scene(
+            message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Оплата сейчас недоступна. Попробуйте позже.",
+        )
         return
     await state.clear()
     if result.url:
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.CHECKOUT,
             "Откройте защищённую страницу платёжного провайдера.",
             reply_markup=checkout_keyboard(result.url),
         )
     else:
-        await message.answer("Оплата создаётся. Попробуйте обновить через несколько секунд.")
+        await answer_scene(
+            message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Оплата создаётся. Попробуйте обновить через несколько секунд.",
+        )
 
 
 @router.callback_query(F.data == "credits:receipt:cancel")
@@ -323,4 +381,9 @@ async def cancel_receipt_contact(callback: CallbackQuery, state: FSMContext) -> 
     await state.clear()
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer("Оплата отменена.", reply_markup=main_menu_keyboard())
+        await answer_scene(
+            callback.message,
+            Scene.MAIN_MENU,
+            "Оплата отменена.",
+            reply_markup=main_menu_keyboard(),
+        )

@@ -50,7 +50,7 @@ async def test_clear_removes_empty_fsm_record(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     fsm = storage(payment_db)
-    await fsm.set_state(key(), "OnboardingStates:waiting_for_age")
+    await fsm.set_state(key(), "OnboardingStates:waiting_for_consent")
     await fsm.set_data(key(), {"temporary": True})
     await fsm.set_state(key(), None)
     await fsm.set_data(key(), {})

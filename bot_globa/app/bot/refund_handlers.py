@@ -7,6 +7,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.scene_media import Scene, answer_scene
 from app.services.onboarding import OnboardingService
 from app.services.refund_service import (
     RefundPurchaseView,
@@ -68,20 +69,24 @@ async def refund_menu(
     refunds: RefundService | None,
 ) -> None:
     if refunds is None or message.from_user is None:
-        await message.answer("Возвраты сейчас недоступны.")
+        await answer_scene(message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.")
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
-        await message.answer("Возвраты сейчас недоступны.")
+        await answer_scene(message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.")
         return
     purchases = await refunds.eligible_purchases(user.id)
     if not purchases:
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.REFUND_UNAVAILABLE,
             "Сейчас нет покупок, подходящих для автоматического возврата. "
             "Для возврата нужны неиспользованные кредиты и покупка в пределах срока политики."
         )
         return
-    await message.answer(
+    await answer_scene(
+        message,
+        Scene.REFUND_AVAILABLE,
         "Выберите покупку. После подтверждения соответствующие кредиты будут "
         "зарезервированы до окончательного ответа платёжной системы.\n\n"
         "Важно: возврат платежа за подписку не отключает будущие продления. "
@@ -97,13 +102,25 @@ async def refund_status_command(
     refunds: RefundService | None,
 ) -> None:
     if refunds is None or message.from_user is None:
-        await message.answer("История возвратов сейчас недоступна.")
+        await answer_scene(
+            message,
+            Scene.REFUND_HISTORY,
+            "История возвратов сейчас недоступна.",
+        )
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
-        await message.answer("История возвратов сейчас недоступна.")
+        await answer_scene(
+            message,
+            Scene.REFUND_HISTORY,
+            "История возвратов сейчас недоступна.",
+        )
         return
-    await message.answer(_history_text(await refunds.history(user.id)))
+    await answer_scene(
+        message,
+        Scene.REFUND_HISTORY,
+        _history_text(await refunds.history(user.id)),
+    )
 
 
 @router.callback_query(F.data == "refund:history")
@@ -116,7 +133,11 @@ async def refund_history_callback(
     user = await onboarding.current_user(callback.from_user.id)
     if user is None or refunds is None or not isinstance(callback.message, Message):
         return
-    await callback.message.answer(_history_text(await refunds.history(user.id)))
+    await answer_scene(
+        callback.message,
+        Scene.REFUND_HISTORY,
+        _history_text(await refunds.history(user.id)),
+    )
 
 
 @router.callback_query(F.data.startswith("refund:request:"))
@@ -141,7 +162,9 @@ async def request_refund_callback(
     if not isinstance(callback.message, Message):
         return
     if result.outcome is RefundRequestOutcome.CREATED and result.refund is not None:
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.REFUND_ACCEPTED,
             "Запрос принят. "
             f"Зарезервировано {result.refund.credit_units} кредитов; "
             f"сумма возврата — {_money(result.refund.amount_minor, result.refund.currency)}. "
@@ -167,4 +190,8 @@ async def request_refund_callback(
             "По этой покупке уже есть незавершённый запрос на возврат."
         ),
     }
-    await callback.message.answer(messages.get(result.outcome, "Возврат не удалось создать."))
+    await answer_scene(
+        callback.message,
+        Scene.REFUND_UNAVAILABLE,
+        messages.get(result.outcome, "Возврат не удалось создать."),
+    )

@@ -77,18 +77,18 @@ async def test_unsafe_question_stops_before_downstream_handler(intake: SafetyInt
     state = FakeState(intake.question_state)
     message = _message(f"Я не хочу жить. {PRIVATE_MARKER}")
     downstream = AsyncMock(return_value="unreachable")
-    answer = AsyncMock()
+    answer_photo = AsyncMock(return_value=object())
 
-    with patch.object(Message, "answer", answer):
+    with patch.object(Message, "answer_photo", answer_photo):
         result = await middleware(downstream, message, {"state": state})
 
     assert result is None
     downstream.assert_not_awaited()
     assert state.cleared
-    answer.assert_awaited_once()
-    assert answer.await_args is not None
-    text = answer.await_args.args[0]
-    keyboard = answer.await_args.kwargs["reply_markup"]
+    answer_photo.assert_awaited_once()
+    assert answer_photo.await_args is not None
+    text = answer_photo.await_args.kwargs["caption"]
+    keyboard = answer_photo.await_args.kwargs["reply_markup"]
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert "Сейчас важнее ваша безопасность" in text
     assert PRIVATE_MARKER not in text
@@ -105,15 +105,15 @@ async def test_unsafe_optional_context_stops_safe_question(intake: SafetyIntake)
     )
     message = _message("Врач назначил таблетки, можно ли отменить лекарство?")
     downstream = AsyncMock()
-    answer = AsyncMock()
+    answer_photo = AsyncMock(return_value=object())
 
-    with patch.object(Message, "answer", answer):
+    with patch.object(Message, "answer_photo", answer_photo):
         await middleware(downstream, message, {"state": state})
 
     downstream.assert_not_awaited()
     assert state.cleared
-    assert answer.await_args is not None
-    text = answer.await_args.args[0]
+    assert answer_photo.await_args is not None
+    text = answer_photo.await_args.kwargs["caption"]
     assert "профильной помощи" in text
     assert "Медицинская помощь" in text
 
@@ -138,11 +138,11 @@ async def test_skip_context_checks_stored_question_and_answers_callback(
     )
     downstream = AsyncMock()
     callback_answer = AsyncMock()
-    message_answer = AsyncMock()
+    message_answer = AsyncMock(return_value=object())
 
     with (
         patch.object(CallbackQuery, "answer", callback_answer),
-        patch.object(Message, "answer", message_answer),
+        patch.object(Message, "answer_photo", message_answer),
     ):
         await middleware(downstream, callback, {"state": state})
 
@@ -151,7 +151,7 @@ async def test_skip_context_checks_stored_question_and_answers_callback(
     message_answer.assert_awaited_once()
     assert state.cleared
     assert message_answer.await_args is not None
-    text = message_answer.await_args.args[0]
+    text = message_answer.await_args.kwargs["caption"]
     assert "не могу продолжить" in text
     assert "новый расклад" not in text.casefold()
     assert "новый разбор" not in text.casefold()
@@ -203,11 +203,11 @@ async def test_a_skip_callback_never_leaks_across_personas() -> None:
         message=_message("context prompt"),
     )
     downstream = AsyncMock()
-    message_answer = AsyncMock()
+    message_answer = AsyncMock(return_value=object())
 
     with (
         patch.object(CallbackQuery, "answer", AsyncMock()),
-        patch.object(Message, "answer", message_answer),
+        patch.object(Message, "answer_photo", message_answer),
     ):
         await middleware(downstream, callback, {"state": state})
 

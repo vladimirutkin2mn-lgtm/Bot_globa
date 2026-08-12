@@ -28,6 +28,7 @@ from app.bot.persona_flow import (
     PersonaReadingBundle,
 )
 from app.bot.reading_renderer import render_full, render_preview
+from app.bot.scene_media import Scene, answer_scene
 from app.services.monetized_reading import MonetizedReadingStatus
 from app.services.onboarding import OnboardingService
 from app.services.persona_reading import PersonaPreviewOutcome, PersonaPreviewRequest
@@ -122,7 +123,12 @@ class PersonaReadingHandlers:
         await callback.answer()
         await state.clear()
         if isinstance(callback.message, Message):
-            await callback.message.answer(MENU_BUTTON, reply_markup=main_menu_keyboard())
+            await answer_scene(
+                callback.message,
+                Scene.MAIN_MENU,
+                MENU_BUTTON,
+                reply_markup=main_menu_keyboard(),
+            )
 
     # ------------------------------------------------------------------ intake ---
 
@@ -132,22 +138,30 @@ class PersonaReadingHandlers:
             return
         topic = (callback.data or "").removeprefix(self._flow.callback("topic", ""))
         if topic not in self._flow.topic_labels:
-            await callback.message.answer(
-                TOPIC_UNAVAILABLE, reply_markup=self._flow.topics_keyboard()
+            await answer_scene(
+                callback.message,
+                self._entry_scene,
+                TOPIC_UNAVAILABLE,
+                reply_markup=self._flow.topics_keyboard(),
             )
             return
         await state.update_data(topic=topic)
         await state.set_state(self._flow.states.waiting_for_question)
-        await callback.message.answer(QUESTION_PROMPT)
+        await answer_scene(callback.message, Scene.QUESTION, QUESTION_PROMPT)
 
     async def receive_question(self, message: Message, state: FSMContext) -> None:
         text = _bounded_text(message, maximum=QUESTION_LIMIT)
         if text is None:
-            await message.answer(INVALID_TEXT)
+            await answer_scene(message, Scene.QUESTION_ERROR, INVALID_TEXT)
             return
         await state.update_data(question=text)
         await state.set_state(self._flow.states.waiting_for_context)
-        await message.answer(CONTEXT_PROMPT, reply_markup=self._flow.context_keyboard())
+        await answer_scene(
+            message,
+            Scene.CONTEXT,
+            CONTEXT_PROMPT,
+            reply_markup=self._flow.context_keyboard(),
+        )
 
     async def receive_context(
         self,
@@ -160,7 +174,12 @@ class PersonaReadingHandlers:
             return
         context = _bounded_text(message, maximum=CONTEXT_LIMIT)
         if context is None:
-            await message.answer(INVALID_TEXT, reply_markup=self._flow.context_keyboard())
+            await answer_scene(
+                message,
+                Scene.QUESTION_ERROR,
+                INVALID_TEXT,
+                reply_markup=self._flow.context_keyboard(),
+            )
             return
         await self._generate_new(
             message,
@@ -190,7 +209,11 @@ class PersonaReadingHandlers:
             )
 
     async def already_generating(self, message: Message) -> None:
-        await message.answer(self._flow.texts.already_processing)
+        await answer_scene(
+            message,
+            Scene.GENERATION_IN_PROGRESS,
+            self._flow.texts.already_processing,
+        )
 
     # ----------------------------------------------------------------- history ---
 
@@ -251,6 +274,7 @@ class PersonaReadingHandlers:
             persona_readings,
             prefix=self._flow.callback("history", "open", ""),
             notice=self._flow.texts.opening,
+            notice_scene=Scene.HISTORY_OPEN,
         )
 
     # ------------------------------------------------------------------ result ---
@@ -270,6 +294,7 @@ class PersonaReadingHandlers:
             persona_readings,
             prefix=self._flow.callback("retry", ""),
             notice=self._flow.texts.processing,
+            notice_scene=Scene.GENERATING,
         )
 
     async def unlock(
@@ -292,10 +317,12 @@ class PersonaReadingHandlers:
             await self._answer_unavailable(callback.message)
             return
         bundle = persona_readings[self._flow.persona_code]
-        await callback.message.answer(UNLOCKING)
+        await answer_scene(callback.message, Scene.UNLOCKING, UNLOCKING)
         unlocked = await bundle.monetized.unlock_full(reading_id, user.id)
         if unlocked.status is MonetizedReadingStatus.INSUFFICIENT_CREDITS:
-            await callback.message.answer(
+            await answer_scene(
+                callback.message,
+                Scene.INSUFFICIENT_CREDITS,
                 INSUFFICIENT.format(
                     price=bundle.monetized.price_credits,
                     balance=unlocked.balance or 0,
@@ -308,8 +335,11 @@ class PersonaReadingHandlers:
             if _is_complete(outcome):
                 await self._send_full(callback.message, outcome)
                 return
-        await callback.message.answer(
-            self._flow.texts.unlock_failed, reply_markup=self._flow.result_keyboard()
+        await answer_scene(
+            callback.message,
+            Scene.GENERATION_FAILED,
+            self._flow.texts.unlock_failed,
+            reply_markup=self._flow.result_keyboard(),
         )
 
     # ----------------------------------------------------------------- internal ---
@@ -329,7 +359,12 @@ class PersonaReadingHandlers:
 
     async def _show_topics(self, message: Message, state: FSMContext) -> None:
         await state.clear()
-        await message.answer(self._flow.texts.welcome, reply_markup=self._flow.topics_keyboard())
+        await answer_scene(
+            message,
+            self._entry_scene,
+            self._flow.texts.welcome,
+            reply_markup=self._flow.topics_keyboard(),
+        )
 
     async def _show_history(
         self,
@@ -355,7 +390,9 @@ class PersonaReadingHandlers:
             )
             for item in history_page.items
         ]
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.HISTORY if labels else Scene.HISTORY_EMPTY,
             self._flow.texts.history_title if labels else self._flow.texts.history_empty,
             reply_markup=self._flow.history_keyboard(
                 labels,
@@ -384,7 +421,7 @@ class PersonaReadingHandlers:
             return
         bundle = persona_readings[self._flow.persona_code]
         await state.set_state(self._flow.states.generating)
-        await message.answer(self._flow.texts.processing)
+        await answer_scene(message, Scene.GENERATING, self._flow.texts.processing)
         try:
             outcome = await bundle.use_case.create_preview(
                 user.id,
@@ -405,6 +442,7 @@ class PersonaReadingHandlers:
         *,
         prefix: str,
         notice: str,
+        notice_scene: Scene,
     ) -> None:
         if not isinstance(callback.message, Message):
             return
@@ -419,7 +457,7 @@ class PersonaReadingHandlers:
             return
         bundle = persona_readings[self._flow.persona_code]
         await state.set_state(self._flow.states.generating)
-        await callback.message.answer(notice)
+        await answer_scene(callback.message, notice_scene, notice)
         outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
         await self._deliver(callback.message, state, outcome, bundle)
 
@@ -441,9 +479,12 @@ class PersonaReadingHandlers:
                     message,
                     render_preview(outcome, self._flow.copy),
                     self._flow.result_keyboard(outcome.reading_id, price),
+                    Scene.PREVIEW,
                 )
                 return
-            await message.answer(
+            await answer_scene(
+                message,
+                Scene.PREVIEW_ALREADY_USED,
                 self._flow.texts.locked.format(price=price),
                 reply_markup=self._flow.result_keyboard(outcome.reading_id, price),
             )
@@ -451,13 +492,17 @@ class PersonaReadingHandlers:
 
         status = outcome.generation.status
         if status is ReadingGenerationStatus.ALREADY_PROCESSING:
-            await message.answer(
+            await answer_scene(
+                message,
+                Scene.GENERATION_IN_PROGRESS,
                 self._flow.texts.already_processing,
                 reply_markup=self._flow.retry_keyboard(outcome.reading_id),
             )
             return
         if status is ReadingGenerationStatus.FAILED:
-            await message.answer(
+            await answer_scene(
+                message,
+                Scene.GENERATION_FAILED,
                 self._flow.texts.failed,
                 reply_markup=self._flow.retry_keyboard(outcome.reading_id),
             )
@@ -475,12 +520,24 @@ class PersonaReadingHandlers:
             message,
             render_full(outcome, self._flow.copy),
             self._flow.full_result_keyboard(outcome.reading_id),
+            Scene.FULL_READING,
         )
 
     async def _answer_unavailable(self, message: Message) -> None:
-        await message.answer(
-            self._flow.texts.unavailable, reply_markup=self._flow.result_keyboard()
+        await answer_scene(
+            message,
+            Scene.GENERATION_FAILED,
+            self._flow.texts.unavailable,
+            reply_markup=self._flow.result_keyboard(),
         )
+
+    @property
+    def _entry_scene(self) -> Scene:
+        return {
+            "tarot_reader": Scene.TAROT_ENTRY,
+            "love_oracle": Scene.LOVE_ENTRY,
+            "mystical_psychologist": Scene.PSYCHOLOGIST_ENTRY,
+        }[self._flow.persona_code]
 
 
 def _is_complete(outcome: PersonaPreviewOutcome) -> bool:
@@ -494,10 +551,15 @@ async def _send_chunks(
     message: Message,
     chunks: tuple[str, ...],
     markup: InlineKeyboardMarkup,
+    scene: Scene,
 ) -> None:
     """Attach the keyboard only to the final chunk so a reading reads as one message."""
     for index, chunk in enumerate(chunks):
-        await message.answer(chunk, reply_markup=markup if index == len(chunks) - 1 else None)
+        reply_markup = markup if index == len(chunks) - 1 else None
+        if index == 0:
+            await answer_scene(message, scene, chunk, reply_markup=reply_markup)
+        else:
+            await message.answer(chunk, reply_markup=reply_markup)
 
 
 def _reading_id(data: str | None, prefix: str) -> UUID | None:

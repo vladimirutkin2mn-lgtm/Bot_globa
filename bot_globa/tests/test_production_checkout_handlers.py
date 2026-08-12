@@ -11,7 +11,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.methods import AnswerCallbackQuery, SendMessage, TelegramMethod
+from aiogram.methods import AnswerCallbackQuery, SendMessage, SendPhoto, TelegramMethod
 from aiogram.methods.base import TelegramType
 from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
@@ -131,8 +131,12 @@ async def handler_context() -> AsyncGenerator[
     await bot.session.close()
 
 
-def sent(session: RecordingSession) -> list[SendMessage]:
-    return [method for method in session.methods if isinstance(method, SendMessage)]
+def sent(session: RecordingSession) -> list[SendMessage | SendPhoto]:
+    return [method for method in session.methods if isinstance(method, (SendMessage, SendPhoto))]
+
+
+def sent_text(method: SendMessage | SendPhoto) -> str:
+    return method.text if isinstance(method, SendMessage) else method.caption or ""
 
 
 def with_data(callback: CallbackQuery, data: str) -> CallbackQuery:
@@ -281,4 +285,4 @@ async def test_rejection_and_pending_checkout_clear_state(
     ).as_(bot)
     await receive_receipt_contact(message, state, onboarding, checkout)
     assert await state.get_state() is None
-    assert expected in sent(session)[-1].text
+    assert expected in sent_text(sent(session)[-1])

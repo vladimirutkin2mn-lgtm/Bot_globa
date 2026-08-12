@@ -19,6 +19,7 @@ from app.bot.memory_keyboards import (
     memory_list_keyboard,
     memory_revoke_confirmation_keyboard,
 )
+from app.bot.scene_media import Scene, answer_scene
 from app.bot.states import MemoryStates
 from app.domain.oracle_memory import (
     MemoryClaimBasis,
@@ -31,7 +32,7 @@ from app.services.oracle_memory import MemoryConsentRequiredError, OracleMemoryS
 
 router = Router(name="oracle-memory")
 _PAGE_SIZE = 5
-_NOT_ONBOARDED = "Сначала отправьте /start и завершите подтверждение возраста и условий."
+_NOT_ONBOARDED = "Сначала отправьте /start и примите условия использования."
 _STALE = "Эта запись уже недоступна. Откройте список памяти заново."
 _INVALID_CORRECTION = "Отправьте непустой текст длиной до 2000 символов."
 
@@ -81,7 +82,12 @@ async def memory_menu(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     await state.clear()
     if isinstance(callback.message, Message):
-        await callback.message.answer("Главное меню", reply_markup=main_menu_keyboard())
+        await answer_scene(
+            callback.message,
+            Scene.MAIN_MENU,
+            "Главное меню",
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == "memory:grant")
@@ -102,7 +108,9 @@ async def grant_memory(
     await oracle_memory.grant_consent(user.id)
     await state.clear()
     items = await oracle_memory.list_active(user.id)
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_ENABLED,
         "Память включена. Бот сможет сохранять полезный контекст из готовых раскладов. "
         "Каждую запись можно посмотреть, исправить или удалить.",
         reply_markup=memory_enabled_keyboard(bool(items)),
@@ -149,7 +157,9 @@ async def open_memory_item(
     if item is None:
         await callback.message.answer(_STALE)
         return
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_ITEM,
         _render_detail(item),
         reply_markup=memory_item_keyboard(item.id, page),
     )
@@ -176,7 +186,9 @@ async def begin_memory_correction(
         return
     await state.update_data(memory_item_id=str(item_id), memory_page=page)
     await state.set_state(MemoryStates.waiting_for_correction)
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_EDIT,
         "Напишите корректную формулировку одним сообщением. Она будет сохранена как то, "
         "что вы сообщили напрямую, а прежнее зашифрованное значение будет удалено.",
         reply_markup=memory_edit_cancel_keyboard(page),
@@ -216,7 +228,7 @@ async def save_memory_correction(
         return
     value = (message.text or "").strip()
     if not value or len(value) > 2000:
-        await message.answer(_INVALID_CORRECTION)
+        await answer_scene(message, Scene.MEMORY_EDIT, _INVALID_CORRECTION)
         return
     data = await state.get_data()
     try:
@@ -234,7 +246,9 @@ async def save_memory_correction(
         replacement_id = await oracle_memory.correct_item(user.id, item_id, value)
     except MemoryConsentRequiredError:
         await state.clear()
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.MEMORY_DISABLED,
             "Память уже отключена. Исправление не сохранено.",
             reply_markup=memory_disabled_keyboard(),
         )
@@ -243,7 +257,9 @@ async def save_memory_correction(
     if replacement_id is None:
         await message.answer(_STALE, reply_markup=memory_enabled_keyboard(True))
         return
-    await message.answer(
+    await answer_scene(
+        message,
+        Scene.MEMORY_EDITED,
         "Запись исправлена. Новая версия отмечена как сообщённая вами напрямую.",
         reply_markup=memory_enabled_keyboard(True),
     )
@@ -267,7 +283,9 @@ async def prompt_memory_delete(
     if await _find_item(oracle_memory, user.id, item_id) is None:
         await callback.message.answer(_STALE)
         return
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_DELETE_ONE,
         "Удалить эту запись безвозвратно? Зашифрованное значение будет очищено.",
         reply_markup=memory_delete_confirmation_keyboard(item_id, page),
     )
@@ -291,7 +309,11 @@ async def confirm_memory_delete(
     item_id, page = parsed
     deleted = await oracle_memory.delete_item(user.id, item_id)
     await state.clear()
-    await callback.message.answer("Запись удалена." if deleted else _STALE)
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_DELETE_ONE,
+        "Запись удалена." if deleted else _STALE,
+    )
     await _show_list(
         callback.message,
         callback.from_user.id,
@@ -306,7 +328,9 @@ async def confirm_memory_delete(
 async def prompt_clear_memory(callback: CallbackQuery) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.MEMORY_DELETE_ALL,
             "Удалить все записи памяти? Память останется включённой для будущих раскладов.",
             reply_markup=memory_clear_confirmation_keyboard(),
         )
@@ -329,13 +353,17 @@ async def confirm_clear_memory(
     try:
         deleted = await oracle_memory.clear_all(user.id)
     except MemoryConsentRequiredError:
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.MEMORY_DISABLED,
             "Память уже отключена.",
             reply_markup=memory_disabled_keyboard(),
         )
         return
     await state.clear()
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_DELETE_ALL,
         f"Удалено записей: {deleted}. Память остаётся включённой.",
         reply_markup=memory_enabled_keyboard(False),
     )
@@ -345,7 +373,9 @@ async def confirm_clear_memory(
 async def prompt_revoke_memory(callback: CallbackQuery) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
-        await callback.message.answer(
+        await answer_scene(
+            callback.message,
+            Scene.MEMORY_DISABLE,
             "Отключить память и удалить все сохранённые значения безвозвратно?",
             reply_markup=memory_revoke_confirmation_keyboard(),
         )
@@ -367,7 +397,9 @@ async def confirm_revoke_memory(
         return
     await oracle_memory.revoke_consent(user.id)
     await state.clear()
-    await callback.message.answer(
+    await answer_scene(
+        callback.message,
+        Scene.MEMORY_DISABLE,
         "Память отключена, все сохранённые значения удалены.",
         reply_markup=memory_disabled_keyboard(),
     )
@@ -388,7 +420,9 @@ async def _show_home(
     consent = await oracle_memory.consent_state(user.id)
     enabled = bool(consent and consent.permits_memory)
     if not enabled:
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.MEMORY_DISABLED,
             "🧠 Память выключена.\n\nЕсли включить её, бот сможет сохранять полезный контекст "
             "из готовых раскладов. Вы сможете увидеть источник каждой записи, исправить её, "
             "удалить отдельно или отключить память с полной очисткой.",
@@ -396,7 +430,9 @@ async def _show_home(
         )
         return
     items = await oracle_memory.list_active(user.id)
-    await message.answer(
+    await answer_scene(
+        message,
+        Scene.MEMORY_HOME,
         f"🧠 Память включена. Сохранено записей: {len(items)}.\n\n"
         "То, что вы сообщили напрямую, и предположения бота помечаются по-разному.",
         reply_markup=memory_enabled_keyboard(bool(items)),
@@ -418,14 +454,18 @@ async def _show_list(
         return
     consent = await oracle_memory.consent_state(user.id)
     if consent is None or not consent.permits_memory:
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.MEMORY_DISABLED,
             "Память выключена.",
             reply_markup=memory_disabled_keyboard(),
         )
         return
     items = list(reversed(await oracle_memory.list_active(user.id)))
     if not items:
-        await message.answer(
+        await answer_scene(
+            message,
+            Scene.MEMORY_LIST,
             "Сохранённых записей пока нет.",
             reply_markup=memory_enabled_keyboard(False),
         )
@@ -440,7 +480,9 @@ async def _show_list(
         f"Источник: {_source_label(item)}"
         for index, item in enumerate(visible)
     ]
-    await message.answer(
+    await answer_scene(
+        message,
+        Scene.MEMORY_LIST,
         "🧠 Что бот помнит\n\n" + "\n\n".join(blocks),
         reply_markup=memory_list_keyboard(
             [(item.id, start + index + 1) for index, item in enumerate(visible)],

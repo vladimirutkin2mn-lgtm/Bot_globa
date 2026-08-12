@@ -61,7 +61,7 @@ HeartSignal уже содержит Telegram/FastAPI/PostgreSQL, LLM orchestrati
 
 ## 4. Основной пользовательский путь
 
-1. `/start`, 18+ gate и короткое объяснение формата.
+1. `/start`, короткое объяснение формата и явное согласие на обработку данных.
 2. Выбор одного из четырёх направлений.
 3. Выбор темы или периода прогноза.
 4. Ввод вопроса и контекста.
@@ -113,7 +113,7 @@ Telegram / future Web App
         │
         ▼
 Intake & Persona Router
-        ├── age / consent / safety pre-check
+        ├── consent / safety pre-check
         ├── topic classification
         ├── birth-data validation when needed
         └── memory retrieval

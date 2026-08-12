@@ -9,13 +9,10 @@ from app.bot import texts
 from app.domain.products import ProductCatalog
 
 
-def age_keyboard() -> InlineKeyboardMarkup:
+def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Мне есть 18", callback_data="onboarding:age:yes"),
-                InlineKeyboardButton(text="Мне нет 18", callback_data="onboarding:age:no"),
-            ]
+            [InlineKeyboardButton(text="Продолжить", callback_data="onboarding:intro")]
         ]
     )
 

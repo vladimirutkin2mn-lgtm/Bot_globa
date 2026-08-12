@@ -12,7 +12,6 @@ CURRENT_CONSENT_VERSION = "1.0"
 
 
 class OnboardingStep(StrEnum):
-    AGE = "age"
     CONSENT = "consent"
     COMPLETE = "complete"
 
@@ -34,8 +33,6 @@ class OnboardingService:
 
     @staticmethod
     def step_for(user: User) -> OnboardingStep:
-        if not user.age_confirmed:
-            return OnboardingStep.AGE
         if user.consent_version != CURRENT_CONSENT_VERSION:
             return OnboardingStep.CONSENT
         return OnboardingStep.COMPLETE
@@ -53,19 +50,8 @@ class OnboardingService:
             await self._analytics.track(str(user.id), "main_menu_opened")
         return user, step
 
-    async def confirm_age(self, telegram_user_id: int) -> OnboardingStep:
-        user = await self._required_user(telegram_user_id)
-        if not user.age_confirmed:
-            user.age_confirmed = True
-            user.age_confirmed_at = datetime.now(UTC)
-            await self._users.save(user)
-            await self._analytics.track(str(user.id), "age_confirmed")
-        return self.step_for(user)
-
     async def accept_consent(self, telegram_user_id: int) -> OnboardingStep:
         user = await self._required_user(telegram_user_id)
-        if not user.age_confirmed:
-            return OnboardingStep.AGE
         was_complete = self.step_for(user) is OnboardingStep.COMPLETE
         if user.consent_version != CURRENT_CONSENT_VERSION:
             user.consent_version = CURRENT_CONSENT_VERSION
@@ -86,7 +72,11 @@ class OnboardingService:
 
     async def current_step(self, telegram_user_id: int) -> OnboardingStep:
         user = await self._users.get_by_telegram_id(telegram_user_id)
-        return await self._synchronize_completion(user) if user is not None else OnboardingStep.AGE
+        return (
+            await self._synchronize_completion(user)
+            if user is not None
+            else OnboardingStep.CONSENT
+        )
 
     async def current_user(self, telegram_user_id: int) -> User | None:
         return await self._users.get_by_telegram_id(telegram_user_id)

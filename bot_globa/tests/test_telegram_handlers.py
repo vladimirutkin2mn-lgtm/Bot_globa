@@ -9,7 +9,7 @@ import pytest
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters import CommandStart
-from aiogram.methods import AnswerCallbackQuery, SendMessage, TelegramMethod
+from aiogram.methods import AnswerCallbackQuery, SendMessage, SendPhoto, TelegramMethod
 from aiogram.methods.base import TelegramType
 from aiogram.types import CallbackQuery, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TelegramUser
@@ -182,16 +182,19 @@ def message_update(text: str | None, update_id: int, user_id: int = 42) -> Updat
 
 
 def sent_texts(session: RecordingSession) -> list[str]:
-    return [method.text for method in session.methods if isinstance(method, SendMessage)]
+    return [
+        method.text if isinstance(method, SendMessage) else method.caption or ""
+        for method in session.methods
+        if isinstance(method, (SendMessage, SendPhoto))
+    ]
 
 
 async def complete(service: OnboardingService, user_id: int = 42) -> None:
     await service.start(TelegramIdentity(user_id, "anna", "Анна", "ru"))
-    await service.confirm_age(user_id)
     await service.accept_consent(user_id)
 
 
-async def test_new_and_repeated_start_ask_for_age_without_duplicate(harness: Harness) -> None:
+async def test_new_and_repeated_start_show_intro_without_duplicate(harness: Harness) -> None:
     local_dispatcher, bot, session, users, service = harness
     await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
     await local_dispatcher.feed_update(bot, start_update(2), onboarding=service)
@@ -199,28 +202,15 @@ async def test_new_and_repeated_start_ask_for_age_without_duplicate(harness: Har
     assert len(users.users) == 1
 
 
-async def test_age_confirmation_shows_consent(harness: Harness) -> None:
+async def test_intro_continuation_shows_consent(harness: Harness) -> None:
     local_dispatcher, bot, session, _, service = harness
     await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
     await local_dispatcher.feed_update(
         bot,
-        callback_update("onboarding:age:yes"),
+        callback_update("onboarding:intro"),
         onboarding=service,
     )
     assert sent_texts(session)[-1] == texts.CONSENT.format(version=CURRENT_CONSENT_VERSION)
-
-
-async def test_age_decline_clears_fsm_and_shows_restriction(harness: Harness) -> None:
-    local_dispatcher, bot, session, _, service = harness
-    await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
-    await local_dispatcher.feed_update(
-        bot,
-        callback_update("onboarding:age:no"),
-        onboarding=service,
-    )
-    context = local_dispatcher.fsm.get_context(bot=bot, chat_id=42, user_id=42)
-    assert await context.get_state() is None
-    assert sent_texts(session)[-1] == texts.AGE_DECLINED
 
 
 async def test_consent_acceptance_and_completed_start_show_menu(harness: Harness) -> None:
@@ -228,7 +218,7 @@ async def test_consent_acceptance_and_completed_start_show_menu(harness: Harness
     await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
     await local_dispatcher.feed_update(
         bot,
-        callback_update("onboarding:age:yes"),
+        callback_update("onboarding:intro"),
         onboarding=service,
     )
     await local_dispatcher.feed_update(
@@ -240,7 +230,7 @@ async def test_consent_acceptance_and_completed_start_show_menu(harness: Harness
     assert sent_texts(session)[-2:] == [texts.MAIN_MENU, texts.MAIN_MENU]
 
 
-@pytest.mark.parametrize("data", ["onboarding:age:yes", "onboarding:consent"])
+@pytest.mark.parametrize("data", ["onboarding:intro", "onboarding:consent"])
 async def test_onboarding_callback_without_prior_start_is_handled(
     harness: Harness,
     data: str,

@@ -1,12 +1,12 @@
 """Actual aiogram privacy callbacks with MemoryStorage and a recording session."""
 
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Sequence
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
 import pytest
-from aiogram.methods import SendMessage
+from aiogram.methods import SendMessage, SendPhoto
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -53,6 +53,14 @@ class RecordingDeletion:
         )
 
 
+def _rendered(methods: Sequence[object]) -> list[str]:
+    return [
+        method.text if isinstance(method, SendMessage) else method.caption or ""
+        for method in methods
+        if isinstance(method, (SendMessage, SendPhoto))
+    ]
+
+
 async def test_actual_privacy_screen_prompt_and_cancel(privacy_harness: Harness) -> None:
     dispatcher, bot, session, _, onboarding = privacy_harness
     common = {"onboarding": onboarding, "privacy_retention_days": 30}
@@ -60,7 +68,7 @@ async def test_actual_privacy_screen_prompt_and_cancel(privacy_harness: Harness)
     await dispatcher.feed_update(bot, callback_update("menu:privacy", 2), **common)
     await dispatcher.feed_update(bot, callback_update("privacy:delete_all", 3), **common)
     await dispatcher.feed_update(bot, callback_update("privacy:cancel", 4), **common)
-    rendered = [method.text for method in session.methods if isinstance(method, SendMessage)]
+    rendered = _rendered(session.methods)
     assert any("30" in value and "шифруются" in value and "памяти" in value for value in rendered)
     assert texts.DELETE_ALL_PROMPT in rendered
     assert texts.DELETE_ALL_CANCELLED in rendered
@@ -79,7 +87,7 @@ async def test_actual_confirmation_is_idempotent_and_clears_fsm(
     await dispatcher.feed_update(bot, start_update(), **common)
     await dispatcher.feed_update(bot, callback_update("privacy:confirm_all", 2), **common)
     await dispatcher.feed_update(bot, callback_update("privacy:confirm_all", 3), **common)
-    rendered = [method.text for method in session.methods if isinstance(method, SendMessage)]
+    rendered = _rendered(session.methods)
     assert rendered.count(texts.DELETE_ALL_DONE) == 2
     assert len(deletion.calls) == 2 and deletion.calls[0] == deletion.calls[1]
     assert 42 in users.users
@@ -97,7 +105,6 @@ async def test_postgres_privacy_handler_tombstones_and_isolates_recreated_accoun
         users = SqlAlchemyUserRepository(session)
         onboarding = OnboardingService(users, NoOpAnalyticsClient())
         user, _ = await onboarding.start(TelegramIdentity(42, "anna", "Анна", "ru"))
-        await onboarding.confirm_age(42)
         await onboarding.accept_consent(42)
         analyses = SqlAlchemyAnalysisRepository(session, cipher, 30)
         draft, _ = await analyses.create_or_resume(user.id)
@@ -162,5 +169,5 @@ async def test_postgres_privacy_handler_tombstones_and_isolates_recreated_accoun
             )
             == 0
         )
-        rendered = [method.text for method in telegram.methods if isinstance(method, SendMessage)]
+        rendered = _rendered(telegram.methods)
         assert all(sentinel not in value for value in rendered)

@@ -82,38 +82,25 @@ async def test_new_start_persists_user_and_repeated_start_is_idempotent(
     first, step = await service.start(identity)
     second, repeated_step = await service.start(identity)
 
-    assert step is OnboardingStep.AGE
-    assert repeated_step is OnboardingStep.AGE
+    assert step is OnboardingStep.CONSENT
+    assert repeated_step is OnboardingStep.CONSENT
     assert first.id == second.id
     assert len(users.users) == 1
 
 
-async def test_age_decline_does_not_change_durable_progress(
-    components: tuple[MemoryUsers, AnalyticsSpy, OnboardingService],
-    identity: TelegramIdentity,
-) -> None:
-    users, _, service = components
-    await service.start(identity)
-    # The decline handler intentionally does not call a mutating service method.
-    assert service.step_for(users.users[identity.telegram_user_id]) is OnboardingStep.AGE
-
-
-async def test_confirmation_and_consent_complete_onboarding(
+async def test_consent_completes_onboarding_without_an_age_gate(
     components: tuple[MemoryUsers, AnalyticsSpy, OnboardingService],
     identity: TelegramIdentity,
 ) -> None:
     users, analytics, service = components
     await service.start(identity)
-    assert await service.confirm_age(identity.telegram_user_id) is OnboardingStep.CONSENT
-    assert users.users[42].age_confirmed_at is not None
-
     assert await service.accept_consent(42) is OnboardingStep.COMPLETE
+    assert users.users[42].age_confirmed_at is None
     assert users.users[42].consent_version == CURRENT_CONSENT_VERSION
     assert users.users[42].consent_accepted_at is not None
     assert users.users[42].onboarding_completed
     assert [event for _, event, _ in analytics.events] == [
         "bot_started",
-        "age_confirmed",
         "consent_accepted",
         "onboarding_completed",
         "main_menu_opened",
@@ -126,7 +113,6 @@ async def test_returning_completed_user_opens_menu_and_restart_restores_database
 ) -> None:
     users, analytics, service = components
     await service.start(identity)
-    await service.confirm_age(42)
     await service.accept_consent(42)
 
     restarted_service = OnboardingService(users, analytics)
@@ -142,8 +128,6 @@ async def test_analysis_requires_current_consent(
     _, _, service = components
     await service.start(identity)
     assert not await service.analysis_allowed(42)
-    await service.confirm_age(42)
-    assert not await service.analysis_allowed(42)
     await service.accept_consent(42)
     assert await service.analysis_allowed(42)
 
@@ -155,7 +139,6 @@ async def test_changed_consent_version_requires_reacceptance(
 ) -> None:
     users, _, service = components
     await service.start(identity)
-    await service.confirm_age(42)
     await service.accept_consent(42)
 
     monkeypatch.setattr(onboarding_module, "CURRENT_CONSENT_VERSION", "2.0")

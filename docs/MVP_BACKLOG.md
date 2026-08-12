@@ -79,7 +79,7 @@ Backlog рассчитан на четыре MVP-направления: тар�
 
 ### ORA-105 · Telegram intake — P0 / L
 
-- [ ] Новый onboarding и 18+ gate.
+- [ ] Новый onboarding с явным согласием на обработку данных.
 - [ ] Выбор persona/topic.
 - [ ] Ввод вопроса и контекста.
 - [ ] Idempotency Telegram callbacks.
