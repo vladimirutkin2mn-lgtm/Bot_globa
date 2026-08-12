@@ -94,15 +94,18 @@ pipeline never reaches the host.
 
 Two things about that job worth knowing before you rely on it:
 
-- **Without the deploy secrets it skips instead of failing.** If `DEPLOY_HOST` is unset the
-  job emits a warning and stays green, so `main` is not permanently red before the secrets
-  exist. A run that shows "skipping deployment" did not deploy.
+- **Without the deploy secrets it skips instead of failing.** If `DEPLOY_HOST` or
+  `DEPLOY_SSH_KEY` is missing the job emits a warning and stays green, so `main` is not
+  permanently red before the secrets exist. A run that shows "skipping deployment" did not
+  deploy — check the four secrets before believing a green `main` shipped anything.
 - **A deploy in flight is never cancelled.** Pushing again to `main` while a deploy runs
   queues the second run rather than interrupting the first (`cancel-in-progress` is off for
   `main` and for the `bot-globa-deploy-prod` concurrency group).
 
-Secrets the job needs, in the `production` environment of this repository — the same four
-names sofi already uses for the same host, so nothing new has to be invented:
+Secrets the job needs — the same four names sofi already uses for the same host, so nothing
+new has to be invented. They currently live at repository level, which the `production`
+environment inherits; moving them into the environment itself (and adding required
+reviewers) needs admin rights on the repository:
 
 | Secret | Where the value comes from | Notes |
 |---|---|---|
@@ -111,16 +114,13 @@ names sofi already uses for the same host, so nothing new has to be invented:
 | `DEPLOY_SSH_KEY` | the private key the `sofi-prod` alias already uses (`IdentityFile`) | Already authorised on the host; must have no passphrase, since the runner cannot type one |
 | `DEPLOY_SSH_KNOWN_HOSTS` | `ssh-keyscan -H <host>` | Pins the host key; without it the connection fails closed |
 
-Set them without ever printing a value — the private key goes straight from the file into
-GitHub, and `gh` never echoes it:
+`DEPLOY_HOST`, `DEPLOY_PATH` and `DEPLOY_SSH_KNOWN_HOSTS` carry no credential and are
+already set. The key is loaded straight from the file so its value never appears in a
+command line, a log or a transcript:
 
 ```bash
-gh api -X PUT repos/:owner/:repo/environments/production --silent
-gh secret set DEPLOY_SSH_KEY --env production < ~/.ssh/sofi_timeweb
+gh secret set DEPLOY_SSH_KEY --repo vladimirutkin2mn-lgtm/Bot_globa < ~/.ssh/sofi_timeweb
 ```
-
-`DEPLOY_HOST`, `DEPLOY_PATH` and `DEPLOY_SSH_KNOWN_HOSTS` carry no credential and can be
-set the same way from `ssh-keyscan` output and the alias's `HostName`.
 
 Both products share one host and one key, so a deploy of this stack can reach sofi's
 directory if `DEPLOY_PATH` is wrong. Check it before the first run: `rsync --delete` against

@@ -153,10 +153,12 @@ jobs:
         id: config
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          # Only its presence is tested; the value never reaches a command line.
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
-          if [ -z "${DEPLOY_HOST}" ]; then
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_SSH_KEY}" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::DEPLOY_HOST is not set — skipping deployment. Add the deploy secrets described in docs/runbooks/operating-production.md."
+            echo "::warning::Deploy secrets are incomplete — skipping deployment. See docs/runbooks/operating-production.md."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
