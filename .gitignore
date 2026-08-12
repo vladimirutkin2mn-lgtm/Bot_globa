@@ -15,3 +15,7 @@ __pycache__/
 
 # oh-my-claudecode working state (plans, notepad, logs, sessions).
 .omc/
+
+# Operator notes that name real hosts and reach real credentials. Never committed:
+# a repository is cloned, and anything inside it leaves with every copy.
+*.local.md
