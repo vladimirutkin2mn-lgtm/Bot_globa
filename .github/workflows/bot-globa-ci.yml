@@ -14,7 +14,12 @@ on:
 
 concurrency:
   group: bot-globa-ci-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
+  # Superseded branch runs are cancelled, but a run on main may already be deploying:
+  # cancelling it mid-deploy leaves the host half-updated.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -129,3 +134,61 @@ jobs:
 
       - name: Build production image
         run: docker build --tag bot-globa:ci .
+
+  deploy:
+    # Everything the pipeline checks has to pass before the shared host is touched.
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    concurrency:
+      group: bot-globa-deploy-prod
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Decide whether deployment is configured
+        id: config
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          # Only its presence is tested; the value never reaches a command line.
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_SSH_KEY}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Deploy secrets are incomplete — skipping deployment. See docs/runbooks/operating-production.md."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Load the deploy key
+        if: steps.config.outputs.configured == 'true'
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Pin the host key
+        if: steps.config.outputs.configured == 'true'
+        env:
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify the host answers before changing anything
+        if: steps.config.outputs.configured == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh -o BatchMode=yes "${DEPLOY_HOST}" 'echo remote-ok'
+
+      - name: Deploy, migrate and smoke the production stack
+        if: steps.config.outputs.configured == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
+          RUN_SMOKE: "1"
+        run: bash tools/deploy_prod_remote.sh

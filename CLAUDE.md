@@ -160,6 +160,9 @@ only when the user asks.
 
 CI (`.github/workflows/bot-globa-ci.yml`) runs: format, lint, strict mypy, the Alembic
 chain, the five protected gates, the full suite, compose validation, production image build.
+A push to `main` that passes all of it then deploys to the shared host through the same
+`tools/deploy_prod_remote.sh` and smoke checks; `bot-globa-deploy-prod.yml` is the manual
+re-run. Secrets and failure modes: `docs/runbooks/operating-production.md`.
 
 ## Automation (`.claude/`)
 

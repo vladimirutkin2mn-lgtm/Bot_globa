@@ -86,7 +86,52 @@ never values. Anything you print lands in the transcript permanently.
 
 ## Deploying
 
-From a clean checkout of `main`, with `make check` and `make gates` already green locally:
+Merging into `main` deploys. The `deploy` job in `Bot Globa CI` runs after the whole
+pipeline is green — format, lint, strict mypy, the Alembic chain, the five protected gates,
+the full suite, compose validation and the production image build — and then runs the same
+`tools/deploy_prod_remote.sh` this section describes, followed by the smoke checks. A red
+pipeline never reaches the host.
+
+Two things about that job worth knowing before you rely on it:
+
+- **Without the deploy secrets it skips instead of failing.** If `DEPLOY_HOST` or
+  `DEPLOY_SSH_KEY` is missing the job emits a warning and stays green, so `main` is not
+  permanently red before the secrets exist. A run that shows "skipping deployment" did not
+  deploy — check the four secrets before believing a green `main` shipped anything.
+- **A deploy in flight is never cancelled.** Pushing again to `main` while a deploy runs
+  queues the second run rather than interrupting the first (`cancel-in-progress` is off for
+  `main` and for the `bot-globa-deploy-prod` concurrency group).
+
+Secrets the job needs — the same four names sofi already uses for the same host, so nothing
+new has to be invented. They currently live at repository level, which the `production`
+environment inherits; moving them into the environment itself (and adding required
+reviewers) needs admin rights on the repository:
+
+| Secret | Where the value comes from | Notes |
+|---|---|---|
+| `DEPLOY_HOST` | `root@<HostName of the sofi-prod alias>` in `~/.ssh/config` | An SSH alias does not exist on the runner, so the literal `user@host` is required |
+| `DEPLOY_PATH` | `/opt/bot_globa` | This product's directory, **not** sofi's `/opt/sofi` |
+| `DEPLOY_SSH_KEY` | the private key the `sofi-prod` alias already uses (`IdentityFile`) | Already authorised on the host; must have no passphrase, since the runner cannot type one |
+| `DEPLOY_SSH_KNOWN_HOSTS` | `ssh-keyscan -H <host>` | Pins the host key; without it the connection fails closed |
+
+`DEPLOY_HOST`, `DEPLOY_PATH` and `DEPLOY_SSH_KNOWN_HOSTS` carry no credential and are
+already set. The key is loaded straight from the file so its value never appears in a
+command line, a log or a transcript:
+
+```bash
+gh secret set DEPLOY_SSH_KEY --repo vladimirutkin2mn-lgtm/Bot_globa < ~/.ssh/sofi_timeweb
+```
+
+Both products share one host and one key, so a deploy of this stack can reach sofi's
+directory if `DEPLOY_PATH` is wrong. Check it before the first run: `rsync --delete` against
+`/opt/sofi` would delete a live product's files.
+
+`Bot Globa deploy prod` (`workflow_dispatch`) is the manual entry point: redeploy the
+current `main`, skip migrations when the schema is already current, or re-run only the smoke
+checks after an incident.
+
+To deploy by hand from a clean checkout of `main`, with `make check` and `make gates`
+already green locally:
 
 ```bash
 DEPLOY_HOST=sofi-prod bash bot_globa/tools/deploy_prod_remote.sh
