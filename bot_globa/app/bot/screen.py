@@ -87,10 +87,11 @@ async def show_screen(
 ) -> None:
     """Move the live screen to this scene, editing the existing message where possible.
 
-    `message` only says which chat to draw in — it is the incoming update, which for a
-    callback is whatever message carried the button. The pointer in FSM data is the only
-    authority on which message *is* the screen, because buttons also live under artifacts
-    and editing a finished reading would destroy what the user paid for.
+    `message` only says which chat to draw in and how far down the chat has moved — it is
+    the incoming update, which for a callback is whatever message carried the button. The
+    pointer in FSM data is the only authority on which message *is* the screen, because
+    buttons also live under artifacts and editing a finished reading would destroy what
+    the user paid for.
     """
 
     bot = message.bot
@@ -104,8 +105,10 @@ async def show_screen(
     if pointer is not None:
         # Telegram cannot turn a photo message into a text one or back, so a change of
         # form has to replace the message rather than edit it.
-        if pointer.has_photo == as_photo and await _edit(
-            bot, chat_id, pointer, scene, text, reply_markup
+        if (
+            _is_the_last_message(pointer, message)
+            and pointer.has_photo == as_photo
+            and await _edit(bot, chat_id, pointer, scene, text, reply_markup)
         ):
             await _store(state, ScreenPointer(pointer.message_id, scene, as_photo))
             return
@@ -198,6 +201,20 @@ async def _edit(
         logger.warning("screen_edit_failed scene=%s", scene.value)
         return False
     return True
+
+
+def _is_the_last_message(pointer: ScreenPointer, incoming: Message) -> bool:
+    """Whether the screen is still the bottom of the chat, or has been pushed up.
+
+    Telegram numbers messages per chat in order, so an incoming message with a higher id
+    than the screen means something newer sits below it — almost always the user's own
+    reply. Editing the screen then changes text the user has already scrolled past, which
+    is how an input error becomes invisible. In that case the screen follows them down
+    instead. A callback carries the message its button is attached to, which is at or
+    above the screen, so tapping a button keeps editing in place.
+    """
+
+    return incoming.message_id <= pointer.message_id
 
 
 async def _retire(bot: Bot, chat_id: int, message_id: int) -> None:

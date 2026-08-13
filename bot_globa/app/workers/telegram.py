@@ -6,8 +6,7 @@ import os
 import signal
 import socket
 
-from app.bot.commands import configure_commands
-from app.bot.main import close_dispatcher, create_dispatcher
+from app.bot.main import close_dispatcher, create_dispatcher, prepare_runtime
 from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
@@ -47,10 +46,7 @@ async def run(
         max_attempts=runtime.telegram_update_max_attempts,
     )
     worker = TelegramUpdateWorker(inbox, bot, dispatcher)
-    # The durable worker feeds updates straight into the dispatcher and never emits
-    # aiogram's startup event, so anything that has to reach Telegram at boot is
-    # called here explicitly.
-    await configure_commands(bot)
+    await prepare_runtime(bot, dispatcher["persona_registry"])
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     stopped = stop or asyncio.Event()
     loop = asyncio.get_running_loop()

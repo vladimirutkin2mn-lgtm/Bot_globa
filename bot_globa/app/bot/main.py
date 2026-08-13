@@ -82,10 +82,21 @@ from app.services.telegram_stars_service import TelegramStarsPaymentService
 logger = logging.getLogger(__name__)
 
 
-async def sync_persona_registry(persona_registry: PersonaRegistryService) -> None:
-    """Ensure all versioned MVP personas exist before Telegram updates are accepted."""
+async def prepare_runtime(bot: Bot, persona_registry: PersonaRegistryService) -> None:
+    """Do everything that must happen once before this process serves an update.
+
+    Deliberately explicit rather than registered on `dispatcher.startup`: production does
+    not poll. `app.workers.telegram` feeds updates straight into the dispatcher and never
+    emits aiogram's startup event, so a hook registered there runs locally, looks correct
+    in review, and silently never runs on the server. Personas are the case that matters —
+    without their rows `enabled_persona` finds nothing and every reading fails with
+    `PersonaUnavailableError`.
+
+    Both steps are idempotent, so every replica may run them at boot.
+    """
 
     await persona_registry.sync_mvp_personas()
+    await configure_commands(bot)
 
 
 def create_dispatcher(
@@ -280,7 +291,6 @@ def create_dispatcher(
         settings.llm_model,
         max_repair_attempts=settings.llm_max_repair_attempts,
     )
-    dispatcher.startup.register(sync_persona_registry)
     return dispatcher
 
 
@@ -318,7 +328,7 @@ async def run(settings: Settings | None = None) -> None:
     dispatcher = create_dispatcher(resolved_settings, bot=bot)
     try:
         await bot.delete_webhook(drop_pending_updates=False)
-        await configure_commands(bot)
+        await prepare_runtime(bot, dispatcher["persona_registry"])
         await dispatcher.start_polling(bot)
     finally:
         try:

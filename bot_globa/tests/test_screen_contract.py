@@ -192,6 +192,41 @@ async def test_a_screen_that_can_no_longer_be_edited_is_retired_and_sent_again(
     assert isinstance(session.methods[-1], SendMessage)
 
 
+def _typed(message: Message, message_id: int) -> Message:
+    """The user's own reply, which Telegram numbers after everything before it."""
+
+    return message.model_copy(update={"message_id": message_id}).as_(message.bot)
+
+
+async def test_a_screen_pushed_up_by_the_users_reply_follows_them_down(
+    chat: tuple[Message, FSMContext, RecordingSession],
+) -> None:
+    """An input error edited into a screen above the reply is an error nobody reads."""
+
+    message, state, session = chat
+    await show_screen(message, TEXT_SCENE, "Напишите вопрос", state=state)
+
+    await show_screen(_typed(message, 500), TEXT_SCENE, "Нужен обычный текст", state=state)
+
+    assert _kinds(session) == ["SendMessage", "DeleteMessage", "SendMessage"]
+    delivered = session.methods[-1]
+    assert isinstance(delivered, SendMessage)
+    assert delivered.text == "Нужен обычный текст"
+
+
+async def test_a_button_press_still_edits_the_screen_in_place(
+    chat: tuple[Message, FSMContext, RecordingSession],
+) -> None:
+    """A callback carries a message at or above the screen, so nothing has been pushed up."""
+
+    message, state, session = chat
+    await show_screen(message, TEXT_SCENE, "Главное меню", state=state)
+
+    await show_screen(_typed(message, 101), Scene.PRIVACY, "Приватность", state=state)
+
+    assert _kinds(session) == ["SendMessage", "EditMessageText"]
+
+
 async def test_an_artifact_is_sent_and_the_next_screen_lands_below_it(
     chat: tuple[Message, FSMContext, RecordingSession],
 ) -> None:

@@ -1,7 +1,9 @@
 """Telegram's own surfaces: the command menu and the links that skip it."""
 
+import inspect
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -17,13 +19,26 @@ from aiogram.methods.base import TelegramType
 from aiogram.types import Chat, Message, MessageEntity, Update
 from aiogram.types import User as TelegramUser
 
+from app.bot import main as app_main
 from app.bot.commands import BOT_COMMANDS, configure_commands
+from app.bot.main import prepare_runtime
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
 from app.services.onboarding import OnboardingService, TelegramIdentity
+from app.services.persona_registry import PersonaRegistryService, PersonaSyncResult
+from app.workers import telegram as telegram_worker
 from tests.telegram_doubles import sent, shown_texts
 
 RETENTION_DAYS = 30
+
+
+class RecordingPersonaRegistry:
+    def __init__(self) -> None:
+        self.syncs = 0
+
+    async def sync_mvp_personas(self) -> PersonaSyncResult:
+        self.syncs += 1
+        return PersonaSyncResult(created=4, updated=0, unchanged=0)
 
 
 class RecordingSession(AiohttpSession):
@@ -159,6 +174,39 @@ async def test_telegram_refusing_the_command_list_does_not_stop_the_bot(
     await configure_commands(instance)
 
     assert len(session.methods) == 1
+
+
+async def test_boot_seeds_the_persona_registry_and_publishes_the_menu(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    """Personas are seeded by the process that serves readings, not by an aiogram hook.
+
+    Production feeds updates straight into the dispatcher and never emits `startup`, so a
+    registry synced only from that hook stays empty on the server and every reading fails
+    with `PersonaUnavailableError`.
+    """
+
+    instance, session = bot
+    registry = RecordingPersonaRegistry()
+
+    await prepare_runtime(instance, cast("PersonaRegistryService", registry))
+
+    assert registry.syncs == 1
+    assert [type(method).__name__ for method in session.methods] == [
+        "SetMyCommands",
+        "SetChatMenuButton",
+    ]
+
+
+def test_neither_entry_point_relies_on_the_startup_event() -> None:
+    """A hook registered on `dispatcher.startup` runs locally and never on the server."""
+
+    sources = (
+        Path(inspect.getfile(app_main)).read_text(),
+        Path(inspect.getfile(telegram_worker)).read_text(),
+    )
+    assert all("dispatcher.startup.register" not in source for source in sources)
+    assert all("prepare_runtime" in source for source in sources)
 
 
 async def test_a_deep_link_lands_on_the_scenario_it_promised(
