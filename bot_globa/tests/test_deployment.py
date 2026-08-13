@@ -129,3 +129,16 @@ def test_production_compose_loads_the_approved_stars_rollout_after_secrets() -> 
     assert values["TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY"] == "280"
     assert values["SUBSCRIPTIONS_ENABLED"] == "true"
     assert compose.count("      - .env.prod\n      - production.public.env") == 6
+
+
+def test_remote_deploy_migrates_before_starting_the_application_stack() -> None:
+    script = (Path(__file__).parents[1] / "tools" / "deploy_prod_remote.sh").read_text()
+
+    build = script.index("${COMPOSE} build")
+    database = script.index("${COMPOSE} up -d --wait --wait-timeout 120 db")
+    migration = script.index("${COMPOSE} run --rm -T --no-deps api python -m app.cli.release")
+    application = script.index("${COMPOSE} up -d --no-build --wait --wait-timeout 180")
+
+    assert build < database < migration < application
+    assert "${COMPOSE} up -d --build" not in script
+    assert "${COMPOSE} logs --tail=200 api" in script
