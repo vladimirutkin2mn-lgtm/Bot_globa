@@ -270,7 +270,19 @@ class PersonaReadingHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         persona_readings: PersonaReadings,
+        privacy_retention_days: int,
     ) -> None:
+        if message.from_user is None:
+            return
+        if not await ensure_consent(
+            message,
+            message.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            destination=self._flow.namespace,
+        ):
+            return
         text = _bounded_text(message, maximum=QUESTION_LIMIT)
         if text is None:
             await answer_scene(
@@ -281,8 +293,6 @@ class PersonaReadingHandlers:
             )
             return
         await state.update_data(question=text)
-        if message.from_user is None:
-            return
         await self._generate_new(
             message,
             message.from_user.id,
@@ -298,8 +308,18 @@ class PersonaReadingHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         persona_readings: PersonaReadings,
+        privacy_retention_days: int,
     ) -> None:
         if message.from_user is None:
+            return
+        if not await ensure_consent(
+            message,
+            message.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            destination=self._flow.namespace,
+        ):
             return
         context = _bounded_text(message, maximum=CONTEXT_LIMIT)
         if context is None:
@@ -325,17 +345,28 @@ class PersonaReadingHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         persona_readings: PersonaReadings,
+        privacy_retention_days: int,
     ) -> None:
         await callback.answer()
-        if isinstance(callback.message, Message):
-            await self._generate_new(
-                callback.message,
-                callback.from_user.id,
-                state,
-                onboarding,
-                persona_readings,
-                context=None,
-            )
+        if not isinstance(callback.message, Message):
+            return
+        if not await ensure_consent(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            destination=self._flow.namespace,
+        ):
+            return
+        await self._generate_new(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            persona_readings,
+            context=None,
+        )
 
     async def already_generating(self, message: Message) -> None:
         await answer_scene(

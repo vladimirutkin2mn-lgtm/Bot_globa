@@ -18,6 +18,9 @@ from aiogram.types import User as TelegramUser
 
 from app.bot import texts
 from app.bot.core_handlers import balance_screen, buy_credits
+from app.bot.horoscope_handlers import HoroscopeHandlers
+from app.bot.persona_flows import TAROT_FLOW
+from app.bot.persona_handlers import PersonaReadingHandlers
 from app.bot.states import OnboardingStates
 from app.config import Settings
 from app.db.models import User
@@ -185,3 +188,45 @@ async def test_the_gate_states_the_configured_retention_window(
     )
 
     assert "7 дней" in texts_sent(session)[-1]
+
+
+async def test_a_stale_persona_question_state_cannot_store_personal_text(
+    context: tuple[RecordingSession, FSMContext, CallbackQuery, UnconsentedOnboarding],
+) -> None:
+    session, state, callback, onboarding = context
+    message = callback.message
+    assert isinstance(message, Message)
+    message = message.model_copy(update={"text": "Мой личный вопрос"}).as_(callback.bot)
+    await state.update_data(topic="decision")
+
+    await PersonaReadingHandlers(TAROT_FLOW).receive_question(
+        message,
+        state,
+        cast("Any", onboarding),
+        {},
+        RETENTION_DAYS,
+    )
+
+    assert "question" not in await state.get_data()
+    assert await state.get_state() == OnboardingStates.waiting_for_consent.state
+    assert texts_sent(session)[-1] == texts.CONSENT.format(days=RETENTION_DAYS)
+
+
+async def test_a_stale_birth_intake_state_cannot_store_birth_data(
+    context: tuple[RecordingSession, FSMContext, CallbackQuery, UnconsentedOnboarding],
+) -> None:
+    session, state, callback, onboarding = context
+    message = callback.message
+    assert isinstance(message, Message)
+    message = message.model_copy(update={"text": "12.07.1990"}).as_(callback.bot)
+
+    await HoroscopeHandlers().receive_birth_date(
+        message,
+        state,
+        cast("Any", onboarding),
+        RETENTION_DAYS,
+    )
+
+    assert "birth_date" not in await state.get_data()
+    assert await state.get_state() == OnboardingStates.waiting_for_consent.state
+    assert texts_sent(session)[-1] == texts.CONSENT.format(days=RETENTION_DAYS)

@@ -66,15 +66,11 @@ async def test_an_expired_lease_does_not_deliver_the_same_day_twice(
     )
     claim = await service.claim_due(now=due, lease_seconds=120)
     assert claim is not None
-    assert await service.complete(claim, now=datetime(2026, 8, 13, 5, 1, tzinfo=UTC))
 
-    # Simulate the crash: the row is due again while its delivery day is already recorded.
-    async with payment_db.begin() as session:
-        preference = await session.get(DailyHoroscopePreference, user.id)
-        assert preference is not None
-        preference.next_delivery_at = due
-        preference.claim_id = None
-        preference.lease_until = None
+    # Do not call complete(): this is the actual process-death window after Telegram may
+    # have accepted the message but before the worker acknowledged the claim.
+    reserved = await service.current(user.id)
+    assert reserved.next_delivery_at == datetime(2026, 8, 14, 5, 0, tzinfo=UTC)
 
     assert await service.claim_due(now=datetime(2026, 8, 13, 9, 0, tzinfo=UTC)) is None
 
