@@ -79,8 +79,6 @@ class Settings(BaseSettings):
     telegram_stars_amount_reading_pack_5: int = Field(default=0, ge=0, le=10_000)
     telegram_stars_amount_subscription_monthly: int = Field(default=0, ge=0, le=10_000)
     telegram_stars_reconciliation_pages: int = Field(default=10, ge=1, le=100)
-    billing_terms_url: str = ""
-    billing_support_url: str = ""
     billing_worker_lease_seconds: int = Field(default=60, gt=0)
     billing_worker_max_attempts: int = Field(default=10, ge=1)
     billing_retry_base_seconds: int = Field(default=30, gt=0)
@@ -121,10 +119,6 @@ class Settings(BaseSettings):
                 raise ValueError("Telegram Stars prices must be explicitly configured")
             if self.subscriptions_enabled and self.telegram_stars_amount_subscription_monthly <= 0:
                 raise ValueError("Telegram Stars subscription price must be configured")
-            if not self.billing_terms_url.startswith("https://"):
-                raise ValueError("Telegram Stars require an HTTPS billing terms URL")
-            if not self.billing_support_url.startswith("https://"):
-                raise ValueError("Telegram Stars require an HTTPS billing support URL")
         if self.refunds_enabled and not self.billing_enabled:
             raise ValueError("refunds require billing")
         if self.refunds_enabled and not (

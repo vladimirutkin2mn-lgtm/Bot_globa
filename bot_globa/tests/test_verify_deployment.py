@@ -29,6 +29,11 @@ def production_settings() -> Settings:
             "0123456789abcdefghijklmnopqrstuvwxyz-HEARTSIGNAL-production-key"
         ),
         payment_public_base_url="https://bot-globa.example",
+        telegram_stars_enabled=True,
+        subscriptions_enabled=True,
+        telegram_stars_amount_reading_single=40,
+        telegram_stars_amount_reading_pack_5=200,
+        telegram_stars_amount_subscription_monthly=280,
     )
 
 
@@ -77,9 +82,10 @@ async def test_verifier_passes_complete_release_contract() -> None:
     async with httpx.AsyncClient(transport=mock_transport()) as client:
         checks = await DeploymentVerifier(production_settings(), client, now=_NOW).verify()
 
-    assert len(checks) == 6
+    assert len(checks) == 7
     assert all(check.passed for check in checks)
     assert {check.name for check in checks} == {
+        "telegram_stars_configuration",
         "api_liveness",
         "api_readiness",
         "telegram_webhook_authentication",
@@ -87,6 +93,8 @@ async def test_verifier_passes_complete_release_contract() -> None:
         "telegram_update_backlog",
         "telegram_delivery_errors",
     }
+    stars = next(check for check in checks if check.name == "telegram_stars_configuration")
+    assert "single=40, pack_5=200, monthly=280" in stars.detail
 
 
 @pytest.mark.asyncio

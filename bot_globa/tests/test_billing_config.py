@@ -66,8 +66,6 @@ def test_production_can_use_telegram_stars_as_its_only_gateway() -> None:
         telegram_stars_amount_reading_single=75,
         telegram_stars_amount_reading_pack_5=300,
         telegram_stars_amount_subscription_monthly=450,
-        billing_terms_url="https://example.com/terms",
-        billing_support_url="https://example.com/support",
     )
 
     assert settings.permits_new_checkout()

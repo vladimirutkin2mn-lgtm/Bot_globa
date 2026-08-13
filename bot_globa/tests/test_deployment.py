@@ -1,5 +1,7 @@
 """Deployment policy, managed database URL, and release-command tests."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import SecretStr, ValidationError
 
@@ -105,3 +107,21 @@ def test_deployment_settings_reject_unbounded_values() -> None:
         DeploymentSettings(telegram_worker_idle_seconds=0)
     with pytest.raises(ValidationError):
         DeploymentSettings(maintenance_batch_size=10_001)
+
+
+def test_production_compose_loads_the_approved_stars_rollout_after_secrets() -> None:
+    root = Path(__file__).parents[1]
+    values = dict(
+        line.split("=", 1)
+        for line in (root / "production.public.env").read_text().splitlines()
+        if line and not line.startswith("#")
+    )
+    compose = (root / "docker-compose.prod.yml").read_text()
+
+    assert values["BILLING_KILL_SWITCH"] == "false"
+    assert values["TELEGRAM_STARS_ENABLED"] == "true"
+    assert values["TELEGRAM_STARS_AMOUNT_READING_SINGLE"] == "40"
+    assert values["TELEGRAM_STARS_AMOUNT_READING_PACK_5"] == "200"
+    assert values["TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY"] == "280"
+    assert values["SUBSCRIPTIONS_ENABLED"] == "true"
+    assert compose.count("      - .env.prod\n      - production.public.env") == 5

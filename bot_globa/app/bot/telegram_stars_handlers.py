@@ -28,6 +28,38 @@ from app.services.telegram_stars_service import (
 router = Router(name="telegram_stars")
 
 
+def payment_terms_text(settings: Settings) -> str:
+    """Return clear purchase terms without depending on an external web page."""
+    return (
+        "Условия оплаты\n\n"
+        "• Globa продаёт цифровые кредиты для функций бота. Это развлекательный и "
+        "рефлексивный сервис, а не медицинская, юридическая или финансовая консультация.\n"
+        "• Состав покупки и окончательная цена в ⭐ показываются до подтверждения платежа.\n"
+        "• Кредиты начисляются только после успешного подтверждения Telegram. Если начисление "
+        "задержалось, не платите повторно — откройте /paysupport.\n"
+        "• Подписка продлевается каждые 30 дней, пока вы её не отмените. Отмена отключает "
+        "следующее продление, но сохраняет уже оплаченный период.\n"
+        f"• Команда /refund покажет, доступен ли полный возврат в течение "
+        f"{settings.billing_refund_window_days} дней. Он возможен только для подходящей покупки, "
+        "если выданные за неё кредиты не использованы.\n\n"
+        "Оплачивая счёт, вы подтверждаете, что прочитали и принимаете эти условия."
+    )
+
+
+def payment_support_text() -> str:
+    """Return self-service payment support guidance directly in Telegram."""
+    return (
+        "Поддержка по платежам\n\n"
+        "• Звёзды списаны, а кредиты ещё не появились: не платите повторно. Обновите экран "
+        "баланса через меню бота.\n"
+        "• Бот сообщил о ручной сверке: повторная оплата не нужна. Сохраните сообщение-чек "
+        "Telegram до завершения сверки.\n"
+        "• Возврат: откройте /refund. Статус уже созданного запроса — /refund_status.\n"
+        "• Telegram Support не обрабатывает покупки в этом боте; вопросы по ним нужно "
+        "решать через команды бота."
+    )
+
+
 @router.callback_query(F.data.startswith("credits:stars:"))
 async def create_stars_invoice(
     callback: CallbackQuery,
@@ -63,7 +95,8 @@ async def create_stars_invoice(
             callback.message,
             Scene.SUBSCRIPTION_CHECKOUT,
             f"Подписка стоит {invoice.amount} ⭐ каждые 30 дней. "
-            "Telegram покажет условия автопродления до подтверждения.",
+            "Telegram покажет условия автопродления до подтверждения. "
+            "До оплаты прочитайте /terms; подтверждая счёт, вы принимаете условия.",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [InlineKeyboardButton(text=f"Оплатить {invoice.amount} ⭐", url=link)],
@@ -81,7 +114,8 @@ async def create_stars_invoice(
         callback.message,
         Scene.CHECKOUT,
         f"Счёт на {invoice.amount} ⭐ откроется следующим сообщением. "
-        "Кредиты начислятся только после подтверждения Telegram.",
+        "Кредиты начислятся только после подтверждения Telegram. "
+        "До оплаты прочитайте /terms; подтверждая счёт, вы принимаете условия.",
     )
     await bot.send_invoice(
         chat_id=callback.message.chat.id,
@@ -177,17 +211,9 @@ async def apply_stars_subscription_update(
 
 @router.message(Command("terms"))
 async def stars_terms(message: Message, billing_settings: Settings) -> None:
-    url = billing_settings.billing_terms_url
-    text = f"Условия покупок и подписок: {url}" if url else "Условия сейчас недоступны."
-    await message.answer(text)
+    await message.answer(payment_terms_text(billing_settings))
 
 
 @router.message(Command("paysupport"))
-async def stars_payment_support(message: Message, billing_settings: Settings) -> None:
-    url = billing_settings.billing_support_url
-    text = (
-        "Поддержка по платежам и возвратам: " + url
-        if url
-        else "Поддержка по платежам сейчас недоступна."
-    )
-    await message.answer(text)
+async def stars_payment_support(message: Message) -> None:
+    await message.answer(payment_support_text())
