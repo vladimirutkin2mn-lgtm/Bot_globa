@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from aiogram.types import StarTransactions
 from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -25,6 +26,7 @@ from app.providers.payments.refund_gateway import (
     CreateRefund,
     RefundCapabilities,
 )
+from app.providers.payments.telegram_stars import TelegramStarsGateway
 from app.services.billing_job_worker import BillingJobWorker
 from app.services.payment_completion_service import PaymentCompletionService
 from app.services.refund_reconciliation_service import RefundReconciliationService
@@ -279,3 +281,177 @@ async def test_provider_amount_mismatch_keeps_reservation_for_manual_review(
         assert reservation is not None and reservation.status == "active"
         assert job is not None and job.status == "manual_review"
     assert await ledger_refund_count(refund_db) == 0
+
+
+class FakeStarsBot:
+    """Records the Bot API arguments a Stars refund must be able to produce."""
+
+    def __init__(self) -> None:
+        self.refunded: list[tuple[int, str]] = []
+
+    async def refund_star_payment(
+        self,
+        user_id: int,
+        telegram_payment_charge_id: str,
+        request_timeout: int | None = None,
+    ) -> bool:
+        self.refunded.append((user_id, telegram_payment_charge_id))
+        return True
+
+    async def get_star_transactions(
+        self,
+        offset: int | None = None,
+        limit: int | None = None,
+        request_timeout: int | None = None,
+    ) -> StarTransactions:
+        return StarTransactions(transactions=[])
+
+    async def edit_user_star_subscription(
+        self,
+        user_id: int,
+        telegram_payment_charge_id: str,
+        is_canceled: bool,
+        request_timeout: int | None = None,
+    ) -> bool:
+        return True
+
+
+async def test_stars_refund_reaches_the_bot_api_with_the_buyer_telegram_id(
+    refund_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """`refundStarPayment` needs the buyer's Telegram id, which lives only on the user row."""
+    telegram_user_id = 990_001
+    charge_id = "stars-charge-refundable"
+    async with refund_db.begin() as session:
+        user = User(telegram_user_id=telegram_user_id, first_name="Stars")
+        session.add(user)
+        await session.flush()
+        order = PaymentOrder(
+            user_id=user.id,
+            provider="telegram_stars",
+            product_code="reading_pack_5",
+            status="completed",
+            credits=5,
+            amount_minor=300,
+            currency="XTR",
+            market="TELEGRAM",
+            provider_payment_id=charge_id,
+            provider_status="paid",
+            provider_live_mode=True,
+            completed_at=datetime.now(UTC),
+            commercial_snapshot={},
+        )
+        session.add(order)
+        await session.flush()
+        session.add(
+            CreditTransaction(
+                user_id=user.id,
+                type="purchase",
+                amount=5,
+                idempotency_key=f"purchase:{order.id}",
+                payment_order_id=order.id,
+                product_code=order.product_code,
+                external_payment_id=charge_id,
+                external_payment_provider="telegram_stars",
+            )
+        )
+        user_id, order_id = user.id, order.id
+
+    bot = FakeStarsBot()
+    stars = TelegramStarsGateway(bot, timeout_seconds=5, reconciliation_pages=1)
+    stars_settings = settings().model_copy(
+        update={
+            "payment_provider": "production",
+            "telegram_stars_enabled": True,
+            "telegram_stars_amount_reading_single": 75,
+            "telegram_stars_amount_reading_pack_5": 300,
+        }
+    )
+    requested = await RefundService(
+        refund_db, stars_settings, {"telegram_stars": stars}
+    ).request_refund(user_id, order_id, 5)
+    assert requested.outcome is RefundRequestOutcome.CREATED
+    assert requested.refund is not None
+    jobs = BillingJobWorker(
+        refund_db,
+        {},
+        PaymentCompletionService(refund_db),
+        lease_seconds=60,
+        retry_base_seconds=1,
+        max_attempts=3,
+        refund_gateways={"telegram_stars": stars},
+        refund_processor=RefundReconciliationService(refund_db, pending_retry_seconds=1),
+    )
+
+    assert await jobs.run_once("worker-1")
+
+    assert bot.refunded == [(telegram_user_id, charge_id)]
+    async with refund_db() as session:
+        refund = await session.get(RefundRequest, requested.refund.id)
+        ledger = await session.scalar(
+            select(CreditTransaction).where(
+                CreditTransaction.refund_request_id == requested.refund.id
+            )
+        )
+        assert refund is not None and refund.status == "succeeded"
+        assert refund.provider_refund_id == f"stars-refund:{charge_id}"
+        assert ledger is not None and ledger.amount == -5
+    assert await ledger_refund_count(refund_db) == 1
+
+
+async def test_partial_stars_refund_is_refused_before_any_provider_call(
+    refund_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """The Bot API can only reverse a whole charge, so a partial request must never start."""
+    async with refund_db.begin() as session:
+        user = User(telegram_user_id=990_002, first_name="Stars")
+        session.add(user)
+        await session.flush()
+        order = PaymentOrder(
+            user_id=user.id,
+            provider="telegram_stars",
+            product_code="reading_pack_5",
+            status="completed",
+            credits=5,
+            amount_minor=300,
+            currency="XTR",
+            market="TELEGRAM",
+            provider_payment_id="stars-charge-partial",
+            provider_status="paid",
+            provider_live_mode=True,
+            completed_at=datetime.now(UTC),
+            commercial_snapshot={},
+        )
+        session.add(order)
+        await session.flush()
+        session.add(
+            CreditTransaction(
+                user_id=user.id,
+                type="purchase",
+                amount=5,
+                idempotency_key=f"purchase:{order.id}",
+                payment_order_id=order.id,
+                product_code=order.product_code,
+                external_payment_id=order.provider_payment_id,
+                external_payment_provider="telegram_stars",
+            )
+        )
+        user_id, order_id = user.id, order.id
+
+    bot = FakeStarsBot()
+    stars = TelegramStarsGateway(bot, timeout_seconds=5, reconciliation_pages=1)
+    stars_settings = settings().model_copy(
+        update={
+            "payment_provider": "production",
+            "telegram_stars_enabled": True,
+            "telegram_stars_amount_reading_single": 75,
+            "telegram_stars_amount_reading_pack_5": 300,
+        }
+    )
+
+    result = await RefundService(
+        refund_db, stars_settings, {"telegram_stars": stars}
+    ).request_refund(user_id, order_id, 2)
+
+    assert result.outcome is RefundRequestOutcome.PARTIAL_UNSUPPORTED
+    assert bot.refunded == []
