@@ -138,13 +138,14 @@ DEPLOY_HOST=sofi-prod bash bot_globa/tools/deploy_prod_remote.sh
 ```
 
 It syncs sources with `rsync --delete` (excluding `.env` and `.env.prod`, which are never
-overwritten), rebuilds the images, and brings the stack up.
+overwritten), builds the images, starts PostgreSQL, applies migrations, and only then starts
+the API and workers. The order is deliberate: readiness requires the current schema.
 
 ### The two failure modes you will hit
 
 **1. `dependency failed to start: container bot_globa-api-1 is unhealthy`, and the logs
-show a schema error.** The health check calls `/health/ready`, which requires the schema to
-be current, but migrations have not run yet. Apply them, then bring the stack up:
+show a schema error.** Current automation migrates before starting the API, so this usually
+means an older deploy script was used. Apply the migration, then bring the stack up:
 
 ```bash
 cd /opt/bot_globa

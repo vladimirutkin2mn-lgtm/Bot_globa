@@ -46,14 +46,24 @@ run_remote "test -f ${DEPLOY_PATH}/.env.prod"
 echo "==> Ensuring the proxy network exists"
 run_remote "docker network inspect web >/dev/null 2>&1 || docker network create web"
 
-echo "==> Building and starting the stack"
-run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} up -d --build"
+echo "==> Building release images"
+run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} build"
+
+echo "==> Starting the database"
+run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} up -d --wait --wait-timeout 120 db"
 
 if [[ "${SKIP_MIGRATIONS}" != "1" ]]; then
   echo "==> Applying migrations under an advisory lock"
   # -T and </dev/null because `compose run` claims a TTY and reads stdin: without both it
   # either refuses to start on a CI runner or silently swallows the rest of the script.
-  run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} run --rm -T api python -m app.cli.release </dev/null"
+  run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} run --rm -T --no-deps api python -m app.cli.release </dev/null"
+fi
+
+echo "==> Starting the application stack"
+if ! run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} up -d --no-build --wait --wait-timeout 180"; then
+  echo "==> Stack failed to become healthy; collecting safe diagnostics"
+  run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} ps && ${COMPOSE} logs --tail=200 api"
+  exit 1
 fi
 
 if [[ "${RUN_SMOKE}" != "1" ]]; then
