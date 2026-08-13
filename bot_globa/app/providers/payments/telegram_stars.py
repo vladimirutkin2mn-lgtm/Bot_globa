@@ -1,7 +1,9 @@
 """Telegram Bot API adapters for Stars refunds and subscription controls."""
 
+import logging
 from typing import Protocol
 
+from aiogram.enums import BotSubscriptionUpdatedState
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.types import StarTransactions, TransactionPartnerUser
 
@@ -15,8 +17,18 @@ from app.providers.payments.refund_gateway import (
     RefundCapabilities,
 )
 
+logger = logging.getLogger(__name__)
+
 TELEGRAM_STARS_PROVIDER = "telegram_stars"
 TELEGRAM_STARS_CURRENCY = "XTR"
+# The complete set of `BotSubscriptionUpdated.state` values this integration understands.
+TELEGRAM_STARS_SUBSCRIPTION_STATES = frozenset(
+    {
+        BotSubscriptionUpdatedState.ACTIVE.value,
+        BotSubscriptionUpdatedState.CANCELED.value,
+        BotSubscriptionUpdatedState.FAILED.value,
+    }
+)
 _REFUND_ID_PREFIX = "stars-refund:"
 
 
@@ -189,7 +201,15 @@ class TelegramStarsGateway:
                     raise PermanentProviderError("telegram_stars_refund_fractional_amount")
                 return abs(transaction.amount), receiver.user.id
             if len(result.transactions) < page_size:
-                break
+                return None
+        # The scan is bounded on purpose, so exhausting it is not proof of absence: the caller
+        # keeps the reservation and retries, and this is the only signal that the window is
+        # too small for the current transaction volume.
+        logger.warning(
+            "telegram_stars_refund_scan_exhausted pages=%s page_size=%s",
+            self._pages,
+            page_size,
+        )
         return None
 
     @staticmethod

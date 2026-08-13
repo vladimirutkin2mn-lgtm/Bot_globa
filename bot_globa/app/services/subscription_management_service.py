@@ -19,8 +19,7 @@ from app.providers.payments.telegram_stars import (
     TelegramStarsSubscriptionControl,
 )
 from app.services.subscription_event_processor import SubscriptionEventProcessor
-
-_ACTIVE = ("incomplete", "active", "past_due", "cancel_at_period_end", "paused")
+from app.services.subscription_lifecycle import ACTIVE_SUBSCRIPTION_STATUSES
 
 
 class SubscriptionManagementOutcome(StrEnum):
@@ -58,7 +57,10 @@ class SubscriptionManagementService:
         async with self._sessions() as session:
             value = await session.scalar(
                 select(Subscription)
-                .where(Subscription.user_id == user_id, Subscription.status.in_(_ACTIVE))
+                .where(
+                    Subscription.user_id == user_id,
+                    Subscription.status.in_(ACTIVE_SUBSCRIPTION_STATUSES),
+                )
                 .order_by(Subscription.created_at.desc())
             )
             return None if value is None else self._view(value)
@@ -173,7 +175,7 @@ class SubscriptionManagementService:
                 select(Subscription).where(
                     Subscription.id == subscription_id,
                     Subscription.user_id == user_id,
-                    Subscription.status.in_(_ACTIVE),
+                    Subscription.status.in_(ACTIVE_SUBSCRIPTION_STATUSES),
                 )
             )
             return None if value is None else (value, user.telegram_user_id)

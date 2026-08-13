@@ -55,20 +55,23 @@ class BillingCatalog:
                     _stripe_amount_minor(settings, pricing_code, currency),
                     f"catalog:{pricing_code.value}:{currency.lower()}:v{product.version}",
                 )
-            stars_pricing_code = _shared_pricing_code(product.code)
-            stars_amount = _telegram_stars_amount(settings, stars_pricing_code)
-            self._add(
-                product,
-                BillingMarket.TELEGRAM,
-                PaymentProviderName.TELEGRAM_STARS,
-                "XTR",
-                stars_amount,
-                (
-                    f"catalog:{stars_pricing_code.value}:xtr:v{product.version}"
-                    if stars_amount > 0
-                    else f"unconfigured:{stars_pricing_code.value}:xtr:v{product.version}"
-                ),
-            )
+            # A disabled rail is not a route: without this guard a client-supplied
+            # `TELEGRAM/XTR` coordinate resolves an offer nobody can settle.
+            if settings.telegram_stars_enabled:
+                stars_pricing_code = _shared_pricing_code(product.code)
+                stars_amount = _telegram_stars_amount(settings, stars_pricing_code)
+                self._add(
+                    product,
+                    BillingMarket.TELEGRAM,
+                    PaymentProviderName.TELEGRAM_STARS,
+                    "XTR",
+                    stars_amount,
+                    (
+                        f"catalog:{stars_pricing_code.value}:xtr:v{product.version}"
+                        if stars_amount > 0
+                        else f"unconfigured:{stars_pricing_code.value}:xtr:v{product.version}"
+                    ),
+                )
 
     def _add(
         self,

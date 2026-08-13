@@ -31,16 +31,17 @@ class RecordingInbox:
 class RecordingStarsService:
     def __init__(self, approved: bool = True) -> None:
         self.approved = approved
-        self.validated: list[tuple[int, str, str, int]] = []
+        self.validated: list[tuple[int, str, str, str, int]] = []
 
     async def validate_pre_checkout(
         self,
         telegram_user_id: int,
+        query_id: str,
         payload: str,
         currency: str,
         total_amount: int,
     ) -> PreCheckoutDecision:
-        self.validated.append((telegram_user_id, payload, currency, total_amount))
+        self.validated.append((telegram_user_id, query_id, payload, currency, total_amount))
         return PreCheckoutDecision(
             self.approved,
             None if self.approved else "Счёт устарел.",
@@ -209,6 +210,7 @@ async def test_pre_checkout_is_answered_inline_without_waiting_for_worker(
         assert stars.validated == [
             (
                 42,
+                "pre-checkout-one",
                 "globa-stars-v1:00000000000000000000000000000001",
                 "XTR",
                 75,

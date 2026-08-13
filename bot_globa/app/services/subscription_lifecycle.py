@@ -20,7 +20,8 @@ from app.db.models import (
 )
 from app.db.subscription_models import SubscriptionPeriod
 
-_ACTIVE_LIKE = (
+# The one definition of "this subscription still entitles the user to something".
+ACTIVE_SUBSCRIPTION_STATUSES = (
     "incomplete",
     "active",
     "past_due",
@@ -175,7 +176,7 @@ class SubscriptionLifecycleService:
                     .where(
                         Subscription.user_id == user_id,
                         Subscription.product_code == value.product_code,
-                        Subscription.status.in_(_ACTIVE_LIKE),
+                        Subscription.status.in_(ACTIVE_SUBSCRIPTION_STATUSES),
                     )
                     .with_for_update()
                 )
@@ -554,7 +555,12 @@ class SubscriptionLifecycleService:
         user_id: UUID,
         subscription_id: UUID,
     ) -> bool:
-        """Apply a provider's period-less renewal failure without granting value."""
+        """Apply a period-less renewal failure from a provider-managed schedule.
+
+        Used when the provider owns the charge schedule and reports only a state change, so no
+        boundary is available: the already paid period and its granted credits stay untouched and
+        `finalize_terminal_states` still expires the subscription after the grace period.
+        """
         async with self._sessions.begin() as session:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
             subscription = await session.scalar(
@@ -591,9 +597,14 @@ class SubscriptionLifecycleService:
         self,
         now: datetime | None = None,
         lookahead: timedelta = timedelta(minutes=15),
-        providers: set[str] | None = None,
+        exclude_providers: set[str] | None = None,
     ) -> int:
-        """Create one durable renewal/reconciliation job per upcoming period boundary."""
+        """Create one durable renewal/reconciliation job per upcoming period boundary.
+
+        `exclude_providers` names the rails whose charge schedule belongs to the provider, so a
+        merchant-scheduled renewal job would be meaningless there. Every other provider is always
+        enqueued: scheduling must never depend on which adapters happened to be constructed.
+        """
         current = _aware_utc(now or datetime.now(UTC))
         if lookahead < timedelta(0):
             raise SubscriptionLifecycleError("renewal lookahead cannot be negative")
@@ -605,8 +616,8 @@ class SubscriptionLifecycleService:
                 Subscription.current_period_end.is_not(None),
                 Subscription.current_period_end <= cutoff,
             ]
-            if providers is not None:
-                conditions.append(Subscription.provider.in_(providers))
+            if exclude_providers:
+                conditions.append(Subscription.provider.not_in(exclude_providers))
             subscriptions = list(
                 (
                     await session.scalars(

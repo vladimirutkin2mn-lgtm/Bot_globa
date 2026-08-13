@@ -73,6 +73,19 @@ class CheckoutService:
         )
         self._cipher = ReceiptContactCipher(settings.content_encryption_key.get_secret_value())
 
+    def _provider_enabled(self, provider: PaymentProviderName) -> bool:
+        """Gate every hosted-checkout provider on its own flag; unknown rails stay closed.
+
+        Telegram Stars deliberately return False: they are sold through the Telegram-native
+        invoice flow, never through a hosted redirect, so a client-supplied `TELEGRAM/XTR`
+        coordinate can never create an order here.
+        """
+        if provider is PaymentProviderName.YOOKASSA:
+            return self._settings.yookassa_enabled
+        if provider is PaymentProviderName.STRIPE:
+            return self._settings.stripe_enabled
+        return False
+
     async def order_by_token(self, token: UUID) -> PaymentOrder | None:
         async with self._sessions() as session:
             return cast(
@@ -98,12 +111,7 @@ class CheckoutService:
             raise CheckoutRejectedError("unsupported offer") from exc
         if offer.purchase_mode is not PurchaseMode.ONE_TIME:
             raise CheckoutRejectedError("subscriptions unavailable")
-        enabled = (
-            self._settings.yookassa_enabled
-            if offer.provider is PaymentProviderName.YOOKASSA
-            else self._settings.stripe_enabled
-        )
-        if not enabled or offer.provider not in self._gateways:
+        if not self._provider_enabled(offer.provider) or offer.provider not in self._gateways:
             raise CheckoutRejectedError("provider unavailable")
         if (
             offer.provider is PaymentProviderName.YOOKASSA

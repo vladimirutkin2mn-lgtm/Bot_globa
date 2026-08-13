@@ -148,6 +148,7 @@ async def approve_stars_checkout(
 ) -> None:
     decision = await telegram_stars.validate_pre_checkout(
         query.from_user.id,
+        query.id,
         query.invoice_payload,
         query.currency,
         query.total_amount,

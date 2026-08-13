@@ -295,6 +295,10 @@ class PaymentOrder(Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(255), unique=True)
     provider_request_id: Mapped[str | None] = mapped_column(String(255))
     failure_code: Mapped[str | None] = mapped_column(String(64))
+    # Single in-flight payment authorization for provider-hosted invoices (Telegram Stars).
+    # One order may back several invoice messages, but only one of them may be charged.
+    pre_checkout_query_id: Mapped[str | None] = mapped_column(String(64))
+    pre_checkout_authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     commercial_snapshot: Mapped[dict[str, object]] = mapped_column(
         JSONB, default=dict, server_default="{}"
     )

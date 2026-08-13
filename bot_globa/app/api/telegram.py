@@ -93,6 +93,7 @@ async def telegram_webhook(
         query = update.pre_checkout_query
         decision = await stars.validate_pre_checkout(
             query.from_user.id,
+            query.id,
             query.invoice_payload,
             query.currency,
             query.total_amount,
