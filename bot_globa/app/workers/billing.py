@@ -7,8 +7,7 @@ import signal
 import socket
 from datetime import UTC, datetime, timedelta
 
-from aiogram import Bot
-
+from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.logging import configure_logging
@@ -36,7 +35,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
     telegram_bot = (
-        Bot(token=resolved.telegram_bot_token.get_secret_value())
+        create_bot(resolved.telegram_bot_token.get_secret_value())
         if resolved.telegram_stars_enabled and resolved.refunds_enabled
         else None
     )

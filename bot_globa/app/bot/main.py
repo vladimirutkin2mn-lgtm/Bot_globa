@@ -6,6 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
 from app.bot.horoscope_handlers import create_horoscope_router
 from app.bot.horoscope_renderer import HoroscopeRenderer
@@ -24,6 +25,7 @@ from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
 from app.bot.telegram_stars_handlers import router as telegram_stars_router
+from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
@@ -312,10 +314,11 @@ async def run(settings: Settings | None = None) -> None:
     if resolved_settings.webhook_enabled:
         raise ValueError("webhook mode requires app.workers.telegram")
     configure_logging(resolved_settings.log_level)
-    bot = Bot(token=resolved_settings.telegram_bot_token.get_secret_value())
+    bot = create_bot(resolved_settings.telegram_bot_token.get_secret_value())
     dispatcher = create_dispatcher(resolved_settings, bot=bot)
     try:
         await bot.delete_webhook(drop_pending_updates=False)
+        await configure_commands(bot)
         await dispatcher.start_polling(bot)
     finally:
         try:

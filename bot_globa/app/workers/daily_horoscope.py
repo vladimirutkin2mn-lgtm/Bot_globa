@@ -5,12 +5,12 @@ import contextlib
 import logging
 import signal
 
-from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 
 from app.bot.daily_horoscope import render_daily_horoscope
 from app.bot.keyboards import daily_horoscope_keyboard
 from app.bot.scene_media import Scene, send_scene_photo
+from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import DeploymentSettings, get_deployment_settings
@@ -34,7 +34,7 @@ async def run(
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
     preferences = DailyHoroscopePreferenceService(sessions)
-    bot = Bot(token=resolved.telegram_bot_token.get_secret_value())
+    bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     stopped = stop or asyncio.Event()
     loop = asyncio.get_running_loop()
     if stop is None:

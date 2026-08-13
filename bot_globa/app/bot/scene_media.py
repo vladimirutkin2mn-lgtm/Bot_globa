@@ -1,12 +1,13 @@
 """Send the image assigned to a client-journey scene with its Telegram copy."""
 
 import logging
+from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from pathlib import Path
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
-from aiogram.types import InlineKeyboardMarkup, Message
+from aiogram.types import InlineKeyboardMarkup, InputMediaPhoto, Message
 from aiogram.types.input_file import FSInputFile
 
 logger = logging.getLogger(__name__)
@@ -174,40 +175,75 @@ async def send_scene_photo(
     recipient would send the same picture over the wire once per delivery.
     """
 
-    cached = _telegram_file_ids.get(scene)
-    if cached is not None:
-        try:
-            _remember_file_id(
-                scene,
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=cached,
-                    caption=caption,
-                    reply_markup=reply_markup,
-                ),
-            )
-        except TelegramForbiddenError:
-            raise
-        except TelegramAPIError:
-            logger.warning("scene_file_id_rejected scene=%s", scene.value)
-            _telegram_file_ids.pop(scene, None)
-        else:
-            return
-    try:
-        _remember_file_id(
-            scene,
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=FSInputFile(scene.asset_path, filename=f"{scene.value}.jpg"),
-                caption=caption,
-                reply_markup=reply_markup,
-            ),
-        )
-    except TelegramForbiddenError:
-        raise
-    except TelegramAPIError:
-        logger.warning("scene_photo_unavailable scene=%s", scene.value)
+    if await _photo_to_chat(bot, chat_id, scene, caption, reply_markup) is None:
         await bot.send_message(chat_id=chat_id, text=caption, reply_markup=reply_markup)
+
+
+async def send_scene(
+    bot: Bot,
+    chat_id: int,
+    scene: Scene,
+    text: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> Message:
+    """Deliver one scene as exactly one message, and report which message that became.
+
+    The live screen has to stay editable, so it may never be split across a photo and a
+    follow-up text the way a long artifact is: copy that outgrows a caption is delivered
+    as text instead of losing the ability to be edited in place.
+    """
+
+    if scene in MEDIA_SCENES and len(text) <= TELEGRAM_CAPTION_LIMIT:
+        sent = await _photo_to_chat(bot, chat_id, scene, text, reply_markup)
+        if sent is not None:
+            return sent
+    return await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+
+
+async def edit_scene_photo(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    scene: Scene,
+    caption: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> bool:
+    """Swap the illustration on an existing photo screen, reporting whether it worked.
+
+    Telegram refuses to replace media on a message it no longer considers editable, and
+    the caller has to be able to fall back to a fresh screen rather than leave the user
+    looking at the previous step.
+    """
+
+    async def swap(photo: str | FSInputFile) -> Message | bool:
+        return await bot.edit_message_media(
+            chat_id=chat_id,
+            message_id=message_id,
+            media=InputMediaPhoto(media=photo, caption=caption),
+            reply_markup=reply_markup,
+        )
+
+    return await _cached_photo(scene, swap) is not None
+
+
+async def _photo_to_chat(
+    bot: Bot,
+    chat_id: int,
+    scene: Scene,
+    caption: str | None,
+    reply_markup: InlineKeyboardMarkup | None,
+) -> Message | None:
+    async def send(photo: str | FSInputFile) -> Message:
+        return await bot.send_photo(
+            chat_id=chat_id,
+            photo=photo,
+            caption=caption,
+            reply_markup=reply_markup,
+        )
+
+    return await _cached_photo(scene, send)
 
 
 async def _send_photo(
@@ -217,39 +253,48 @@ async def _send_photo(
     caption: str | None,
     reply_markup: InlineKeyboardMarkup | None,
 ) -> bool:
-    """Send the scene illustration, reporting whether the copy still needs a text message.
+    """Send the scene illustration, reporting whether the copy still needs a text message."""
 
-    A cached `file_id` that Telegram refuses is dropped and the upload retried once —
-    otherwise a single invalidation would break that scene until the process restarts.
+    async def send(photo: str | FSInputFile) -> Message:
+        if caption is None:
+            return await message.answer_photo(photo=photo)
+        return await message.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+
+    return await _cached_photo(scene, send) is not None
+
+
+async def _cached_photo[T](
+    scene: Scene,
+    send: Callable[[str | FSInputFile], Awaitable[T]],
+) -> T | None:
+    """Run one photo request against the cached `file_id`, falling back to the asset once.
+
+    A cached `file_id` that Telegram refuses is dropped and the upload retried — otherwise
+    a single invalidation would break that scene until the process restarts. A refusal the
+    caller cannot control is reported rather than raised: every screen has a text form.
     """
 
     cached = _telegram_file_ids.get(scene)
     if cached is not None:
         try:
-            _remember_file_id(scene, await _photo(message, cached, caption, reply_markup))
+            sent = await send(cached)
+        except TelegramForbiddenError:
+            raise
         except TelegramAPIError:
             logger.warning("scene_file_id_rejected scene=%s", scene.value)
             _telegram_file_ids.pop(scene, None)
         else:
-            return True
-    asset = FSInputFile(scene.asset_path, filename=f"{scene.value}.jpg")
+            _remember_file_id(scene, sent)
+            return sent
     try:
-        _remember_file_id(scene, await _photo(message, asset, caption, reply_markup))
+        sent = await send(FSInputFile(scene.asset_path, filename=f"{scene.value}.jpg"))
+    except TelegramForbiddenError:
+        raise
     except TelegramAPIError:
         logger.warning("scene_photo_unavailable scene=%s", scene.value)
-        return False
-    return True
-
-
-async def _photo(
-    message: Message,
-    photo: str | FSInputFile,
-    caption: str | None,
-    reply_markup: InlineKeyboardMarkup | None,
-) -> Message:
-    if caption is None:
-        return await message.answer_photo(photo=photo)
-    return await message.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+        return None
+    _remember_file_id(scene, sent)
+    return sent
 
 
 def _remember_file_id(scene: Scene, message: object) -> None:

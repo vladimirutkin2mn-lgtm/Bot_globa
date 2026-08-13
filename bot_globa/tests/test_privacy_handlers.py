@@ -2,11 +2,10 @@
 
 from collections.abc import AsyncGenerator, Callable, Sequence
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
-from aiogram.methods import SendMessage, SendPhoto
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -19,6 +18,7 @@ from app.repositories.users import SqlAlchemyUserRepository
 from app.services.data_deletion import DataDeletionOutcome, DataDeletionService
 from app.services.onboarding import OnboardingService, TelegramIdentity
 from app.services.sensitive_content import AESGCMSensitiveContentCipher
+from tests.telegram_doubles import shown_texts
 from tests.test_telegram_handlers import (
     Harness,
     callback_update,
@@ -53,12 +53,8 @@ class RecordingDeletion:
         )
 
 
-def _rendered(methods: Sequence[object]) -> list[str]:
-    return [
-        method.text if isinstance(method, SendMessage) else method.caption or ""
-        for method in methods
-        if isinstance(method, SendMessage | SendPhoto)
-    ]
+def _rendered(methods: Sequence[Any]) -> list[str]:
+    return shown_texts(methods)
 
 
 async def test_actual_privacy_screen_prompt_and_cancel(privacy_harness: Harness) -> None:

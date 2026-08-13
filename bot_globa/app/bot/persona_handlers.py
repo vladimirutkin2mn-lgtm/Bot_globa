@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from uuid import UUID
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
@@ -30,6 +30,7 @@ from app.bot.persona_flow import (
 )
 from app.bot.reading_renderer import render_full, render_micro_preview, render_preview
 from app.bot.scene_media import Scene, answer_scene
+from app.bot.screen import forget_screen, show_screen, show_thinking
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.providers.analytics import OracleProductEvent
@@ -54,6 +55,12 @@ def create_persona_router(flow: PersonaFlow) -> Router:
     router = Router(name=flow.namespace)
 
     router.message.register(handlers.start_from_command, Command(flow.namespace))
+    # A shared or advertised link promises one scenario; landing on the menu instead
+    # makes the reader navigate to what they already chose.
+    router.message.register(
+        handlers.start_from_command,
+        CommandStart(deep_link=True, magic=F.args == flow.namespace),
+    )
     router.message.register(handlers.receive_question, flow.states.waiting_for_question)
     router.message.register(handlers.receive_context, flow.states.waiting_for_context)
     router.message.register(handlers.already_generating, flow.states.generating)
@@ -185,10 +192,11 @@ class PersonaReadingHandlers:
         await callback.answer()
         await state.clear()
         if isinstance(callback.message, Message):
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.MAIN_MENU,
                 texts.MAIN_MENU,
+                state=state,
                 reply_markup=main_menu_keyboard(),
             )
 
@@ -216,10 +224,11 @@ class PersonaReadingHandlers:
             return
         topic = (callback.data or "").removeprefix(self._flow.callback("topic", ""))
         if topic not in self._flow.topic_labels:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 self._entry_scene,
                 TOPIC_UNAVAILABLE,
+                state=state,
                 reply_markup=self._flow.topics_keyboard(),
             )
             return
@@ -235,10 +244,11 @@ class PersonaReadingHandlers:
             )
         await state.update_data(topic=topic)
         await state.set_state(self._flow.states.waiting_for_question)
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.QUESTION,
             QUESTION_PROMPT,
+            state=state,
             reply_markup=self._flow.question_keyboard(),
         )
 
@@ -250,17 +260,19 @@ class PersonaReadingHandlers:
         topic = data.get("topic")
         example = self._flow.topic_examples.get(str(topic))
         if example is None:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.QUESTION_ERROR,
                 TOPIC_UNAVAILABLE,
+                state=state,
                 reply_markup=self._flow.topics_keyboard(),
             )
             return
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.QUESTION,
             QUESTION_EXAMPLE.format(example=example),
+            state=state,
             reply_markup=self._flow.question_keyboard(),
         )
 
@@ -285,10 +297,11 @@ class PersonaReadingHandlers:
             return
         text = _bounded_text(message, maximum=QUESTION_LIMIT)
         if text is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.QUESTION_ERROR,
                 INVALID_TEXT,
+                state=state,
                 reply_markup=self._flow.question_keyboard(),
             )
             return
@@ -323,10 +336,11 @@ class PersonaReadingHandlers:
             return
         context = _bounded_text(message, maximum=CONTEXT_LIMIT)
         if context is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.QUESTION_ERROR,
                 INVALID_TEXT,
+                state=state,
                 reply_markup=self._flow.context_keyboard(),
             )
             return
@@ -368,11 +382,12 @@ class PersonaReadingHandlers:
             context=None,
         )
 
-    async def already_generating(self, message: Message) -> None:
-        await answer_scene(
+    async def already_generating(self, message: Message, state: FSMContext) -> None:
+        await show_screen(
             message,
             Scene.GENERATION_IN_PROGRESS,
             self._flow.texts.already_processing,
+            state=state,
         )
 
     # ----------------------------------------------------------------- history ---
@@ -476,16 +491,18 @@ class PersonaReadingHandlers:
             return
         reading_id = _reading_id(callback.data, self._flow.callback("unlock", ""))
         if reading_id is None:
-            await self._answer_unavailable(callback.message)
+            await self._answer_unavailable(callback.message, state)
             return
         bundle = persona_readings[self._flow.persona_code]
-        await answer_scene(callback.message, Scene.UNLOCKING, UNLOCKING)
+        await show_screen(callback.message, Scene.UNLOCKING, UNLOCKING, state=state)
+        await show_thinking(callback.message)
         unlocked = await bundle.monetized.unlock_full(reading_id, user.id)
         if unlocked.status is MonetizedReadingStatus.INSUFFICIENT_CREDITS:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.INSUFFICIENT_CREDITS,
                 texts.PAYWALL.format(price=bundle.full_price_label),
+                state=state,
                 reply_markup=products_keyboard(
                     billing_catalog,
                     billing_settings,
@@ -496,12 +513,13 @@ class PersonaReadingHandlers:
         if unlocked.status is MonetizedReadingStatus.FULL_COMPLETED:
             outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
             if _is_complete(outcome):
-                await self._send_full(callback.message, outcome, bundle, user.id)
+                await self._send_full(callback.message, state, outcome, bundle, user.id)
                 return
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.GENERATION_FAILED,
             self._flow.texts.unlock_failed,
+            state=state,
             reply_markup=self._flow.result_keyboard(),
         )
 
@@ -541,10 +559,11 @@ class PersonaReadingHandlers:
 
     async def _show_topics(self, message: Message, state: FSMContext) -> None:
         await state.clear()
-        await answer_scene(
+        await show_screen(
             message,
             self._entry_scene,
             self._flow.texts.welcome,
+            state=state,
             reply_markup=self._flow.topics_keyboard(),
         )
 
@@ -572,10 +591,11 @@ class PersonaReadingHandlers:
             )
             for item in history_page.items
         ]
-        await answer_scene(
+        await show_screen(
             message,
             Scene.HISTORY if labels else Scene.HISTORY_EMPTY,
             self._flow.texts.history_title if labels else self._flow.texts.history_empty,
+            state=state,
             reply_markup=self._flow.history_keyboard(
                 labels,
                 page=history_page.page,
@@ -599,11 +619,12 @@ class PersonaReadingHandlers:
         question = data.get("question")
         if user is None or not isinstance(topic, str) or not isinstance(question, str):
             await state.clear()
-            await self._answer_unavailable(message)
+            await self._answer_unavailable(message, state)
             return
         bundle = persona_readings[self._flow.persona_code]
         await state.set_state(self._flow.states.generating)
-        await answer_scene(message, Scene.GENERATING, self._flow.texts.processing)
+        await show_screen(message, Scene.GENERATING, self._flow.texts.processing, state=state)
+        await show_thinking(message)
         try:
             outcome = await bundle.use_case.create_preview(
                 user.id,
@@ -611,7 +632,7 @@ class PersonaReadingHandlers:
             )
         except (LookupError, ValueError):
             await state.clear()
-            await self._answer_unavailable(message)
+            await self._answer_unavailable(message, state)
             return
         await self._deliver(message, state, outcome, bundle, user.id)
 
@@ -635,11 +656,12 @@ class PersonaReadingHandlers:
             return
         reading_id = _reading_id(callback.data, prefix)
         if reading_id is None:
-            await self._answer_unavailable(callback.message)
+            await self._answer_unavailable(callback.message, state)
             return
         bundle = persona_readings[self._flow.persona_code]
         await state.set_state(self._flow.states.generating)
-        await answer_scene(callback.message, notice_scene, notice)
+        await show_screen(callback.message, notice_scene, notice, state=state)
+        await show_thinking(callback.message)
         outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
         await self._deliver(callback.message, state, outcome, bundle, user.id)
 
@@ -654,11 +676,12 @@ class PersonaReadingHandlers:
         await state.clear()
         if _is_complete(outcome):
             if outcome.visibility is ReadingPreviewVisibility.FULL:
-                await self._send_full(message, outcome, bundle, user_id)
+                await self._send_full(message, state, outcome, bundle, user_id)
                 return
             if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
                 await _send_chunks(
                     message,
+                    state,
                     render_preview(outcome, self._flow.copy),
                     self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
                     Scene.PREVIEW,
@@ -666,6 +689,7 @@ class PersonaReadingHandlers:
                 return
             await _send_chunks(
                 message,
+                state,
                 render_micro_preview(outcome, self._flow.copy),
                 self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
                 Scene.PREVIEW_ALREADY_USED,
@@ -674,22 +698,24 @@ class PersonaReadingHandlers:
 
         status = outcome.generation.status
         if status is ReadingGenerationStatus.ALREADY_PROCESSING:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.GENERATION_IN_PROGRESS,
                 self._flow.texts.already_processing,
+                state=state,
                 reply_markup=self._flow.retry_keyboard(outcome.reading_id),
             )
             return
         if status is ReadingGenerationStatus.FAILED:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.GENERATION_FAILED,
                 self._flow.texts.failed,
+                state=state,
                 reply_markup=self._flow.retry_keyboard(outcome.reading_id),
             )
             return
-        await self._answer_unavailable(message)
+        await self._answer_unavailable(message, state)
         logger.warning(
             "persona_delivery_unavailable persona=%s reading_id=%s status=%s",
             self._flow.persona_code,
@@ -700,6 +726,7 @@ class PersonaReadingHandlers:
     async def _send_full(
         self,
         message: Message,
+        state: FSMContext,
         outcome: PersonaPreviewOutcome,
         bundle: PersonaReadingBundle,
         user_id: UUID,
@@ -711,25 +738,28 @@ class PersonaReadingHandlers:
             offer_memory = False
         await _send_chunks(
             message,
+            state,
             render_full(outcome, self._flow.copy),
             self._flow.full_result_keyboard(outcome.reading_id),
             Scene.FULL_READING,
         )
         if offer_memory:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.MEMORY_DISABLED,
                 "Хотите, чтобы Globa помнил важный контекст для следующих разборов? "
                 "Память включается только с вашего согласия, а записи можно удалить "
                 "в любой момент.",
+                state=state,
                 reply_markup=memory_disabled_keyboard(),
             )
 
-    async def _answer_unavailable(self, message: Message) -> None:
-        await answer_scene(
+    async def _answer_unavailable(self, message: Message, state: FSMContext) -> None:
+        await show_screen(
             message,
             Scene.GENERATION_FAILED,
             self._flow.texts.unavailable,
+            state=state,
             reply_markup=self._flow.result_keyboard(),
         )
 
@@ -751,17 +781,24 @@ def _is_complete(outcome: PersonaPreviewOutcome) -> bool:
 
 async def _send_chunks(
     message: Message,
+    state: FSMContext,
     chunks: tuple[str, ...],
     markup: InlineKeyboardMarkup,
     scene: Scene,
 ) -> None:
-    """Attach the keyboard only to the final chunk so a reading reads as one message."""
+    """Deliver a reading as an artifact: never edited away, keyboard on the last chunk.
+
+    Retiring the screen pointer afterwards is what keeps the next navigation screen below
+    the reading instead of silently overwriting the step above it.
+    """
+
     for index, chunk in enumerate(chunks):
         reply_markup = markup if index == len(chunks) - 1 else None
         if index == 0:
             await answer_scene(message, scene, chunk, reply_markup=reply_markup)
         else:
             await message.answer(chunk, reply_markup=reply_markup)
+    await forget_screen(state)
 
 
 def _reading_id(data: str | None, prefix: str) -> UUID | None:

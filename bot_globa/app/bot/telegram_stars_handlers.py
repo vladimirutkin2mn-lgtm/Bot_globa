@@ -16,7 +16,8 @@ from aiogram.types import (
 )
 
 from app.bot.consent import ensure_consent
-from app.bot.scene_media import Scene, answer_scene
+from app.bot.scene_media import Scene
+from app.bot.screen import show_screen
 from app.config import Settings
 from app.services.credits_service import CreditsService
 from app.services.onboarding import OnboardingService
@@ -89,10 +90,11 @@ async def create_stars_invoice(
     try:
         invoice = await telegram_stars.create_invoice(user.id, product_code)
     except TelegramStarsRejectedError:
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Оплата звёздами сейчас недоступна. Попробуйте позже.",
+            state=state,
         )
         return
 
@@ -105,7 +107,7 @@ async def create_stars_invoice(
             prices=[LabeledPrice(label=invoice.price_label, amount=invoice.amount)],
             subscription_period=invoice.subscription_period,
         )
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.SUBSCRIPTION_CHECKOUT,
             f"Подписка стоит {invoice.amount} ⭐ каждые 30 дней. "
@@ -121,15 +123,17 @@ async def create_stars_invoice(
                     ],
                 ]
             ),
+            state=state,
         )
         return
 
-    await answer_scene(
+    await show_screen(
         callback.message,
         Scene.CHECKOUT,
         f"Счёт на {invoice.amount} ⭐ откроется следующим сообщением. "
         "Кредиты начислятся только после подтверждения Telegram. "
         "До оплаты прочитайте /terms; подтверждая счёт, вы принимаете условия.",
+        state=state,
     )
     await bot.send_invoice(
         chat_id=callback.message.chat.id,
@@ -162,6 +166,7 @@ async def approve_stars_checkout(
 @router.message(F.successful_payment)
 async def complete_stars_payment(
     message: Message,
+    state: FSMContext,
     onboarding: OnboardingService,
     telegram_stars: TelegramStarsPaymentService,
     credits: CreditsService,
@@ -188,27 +193,30 @@ async def complete_stars_payment(
             ),
         )
     except TelegramStarsStateError:
-        await answer_scene(
+        await show_screen(
             message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Платёж получен, но требует ручной сверки. Откройте /paysupport — "
             "повторно платить не нужно.",
+            state=state,
         )
         return
     if completed.outcome not in {"completed", "already_completed"}:
-        await answer_scene(
+        await show_screen(
             message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Платёж получен и передан на сверку. Откройте /paysupport — повторно платить не нужно.",
+            state=state,
         )
         return
     user = await onboarding.current_user(message.from_user.id)
     balance = None if user is None else await credits.balance(user.id)
     balance_copy = "" if balance is None else f" Текущий баланс: {balance} кредитов."
-    await answer_scene(
+    await show_screen(
         message,
         Scene.SUBSCRIPTION_ACTIVE if completed.subscription else Scene.BALANCE,
         f"Оплата {completed.credits} кредитов подтверждена.{balance_copy}",
+        state=state,
     )
 
 

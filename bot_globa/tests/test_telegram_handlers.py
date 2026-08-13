@@ -23,6 +23,7 @@ from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.bot.states import OnboardingStates
 from app.db.models import User
 from app.services.onboarding import OnboardingService, TelegramIdentity
+from tests.telegram_doubles import sent_photo, shown_texts
 
 RETENTION_DAYS = 30
 
@@ -55,6 +56,8 @@ class RecordingSession(AiohttpSession):
                     text=method.text,
                 ),
             )
+        if isinstance(method, SendPhoto):
+            return cast("TelegramType", sent_photo(method, len(self.methods) + 100))
         return cast("TelegramType", True)
 
     async def stream_content(
@@ -188,11 +191,7 @@ def message_update(text: str | None, update_id: int, user_id: int = 42) -> Updat
 
 
 def sent_texts(session: RecordingSession) -> list[str]:
-    return [
-        method.text if isinstance(method, SendMessage) else method.caption or ""
-        for method in session.methods
-        if isinstance(method, SendMessage | SendPhoto)
-    ]
+    return shown_texts(session.methods)
 
 
 async def complete(service: OnboardingService, user_id: int = 42) -> None:

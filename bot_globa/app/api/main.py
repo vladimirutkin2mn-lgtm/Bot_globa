@@ -13,6 +13,7 @@ from app.api.payments import router as payments_router
 from app.api.telegram import router as telegram_router
 from app.api.webhooks import router as webhooks_router
 from app.bot.main import configure_webhook
+from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import (
@@ -90,8 +91,8 @@ def create_app(
     owns_bot = False
     if resolved_settings.webhook_enabled:
         validate_telegram_webhook(resolved_settings)
-        resolved_bot = telegram_bot or Bot(
-            token=resolved_settings.telegram_bot_token.get_secret_value()
+        resolved_bot = telegram_bot or create_bot(
+            resolved_settings.telegram_bot_token.get_secret_value()
         )
         owns_bot = telegram_bot is None
         cipher = AESGCMSensitiveContentCipher(

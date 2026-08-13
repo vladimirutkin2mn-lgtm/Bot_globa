@@ -5,9 +5,11 @@ from uuid import UUID
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot.scene_media import Scene, answer_scene
+from app.bot.scene_media import Scene
+from app.bot.screen import send_artifact, show_screen
 from app.services.onboarding import OnboardingService
 from app.services.refund_service import (
     RefundPurchaseView,
@@ -67,26 +69,32 @@ def _history_text(rows: tuple[RefundView, ...]) -> str:
 @router.message(Command("refund"))
 async def refund_menu(
     message: Message,
+    state: FSMContext,
     onboarding: OnboardingService,
     refunds: RefundService | None,
 ) -> None:
     if refunds is None or message.from_user is None:
-        await answer_scene(message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.")
+        await show_screen(
+            message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.", state=state
+        )
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
-        await answer_scene(message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.")
+        await show_screen(
+            message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.", state=state
+        )
         return
     purchases = await refunds.eligible_purchases(user.id)
     if not purchases:
-        await answer_scene(
+        await show_screen(
             message,
             Scene.REFUND_UNAVAILABLE,
             "Сейчас нет покупок, подходящих для автоматического возврата. "
             "Для возврата нужны неиспользованные кредиты и покупка в пределах срока политики.",
+            state=state,
         )
         return
-    await answer_scene(
+    await show_screen(
         message,
         Scene.REFUND_AVAILABLE,
         "Выберите покупку. После подтверждения соответствующие кредиты будут "
@@ -94,40 +102,37 @@ async def refund_menu(
         "Важно: возврат платежа за подписку не отключает будущие продления. "
         "Автопродление управляется отдельно в разделе подписки.",
         reply_markup=_purchase_keyboard(purchases),
+        state=state,
     )
 
 
 @router.message(Command("refund_status"))
 async def refund_status_command(
     message: Message,
+    state: FSMContext,
     onboarding: OnboardingService,
     refunds: RefundService | None,
 ) -> None:
     if refunds is None or message.from_user is None:
-        await answer_scene(
-            message,
-            Scene.REFUND_HISTORY,
-            "История возвратов сейчас недоступна.",
+        await show_screen(
+            message, Scene.REFUND_HISTORY, "История возвратов сейчас недоступна.", state=state
         )
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
-        await answer_scene(
-            message,
-            Scene.REFUND_HISTORY,
-            "История возвратов сейчас недоступна.",
+        await show_screen(
+            message, Scene.REFUND_HISTORY, "История возвратов сейчас недоступна.", state=state
         )
         return
-    await answer_scene(
-        message,
-        Scene.REFUND_HISTORY,
-        _history_text(await refunds.history(user.id)),
+    await show_screen(
+        message, Scene.REFUND_HISTORY, _history_text(await refunds.history(user.id)), state=state
     )
 
 
 @router.callback_query(F.data == "refund:history")
 async def refund_history_callback(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     refunds: RefundService | None,
 ) -> None:
@@ -135,16 +140,18 @@ async def refund_history_callback(
     user = await onboarding.current_user(callback.from_user.id)
     if user is None or refunds is None or not isinstance(callback.message, Message):
         return
-    await answer_scene(
+    await show_screen(
         callback.message,
         Scene.REFUND_HISTORY,
         _history_text(await refunds.history(user.id)),
+        state=state,
     )
 
 
 @router.callback_query(F.data.startswith("refund:request:"))
 async def request_refund_callback(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     refunds: RefundService | None,
 ) -> None:
@@ -164,13 +171,14 @@ async def request_refund_callback(
     if not isinstance(callback.message, Message):
         return
     if result.outcome is RefundRequestOutcome.CREATED and result.refund is not None:
-        await answer_scene(
+        await send_artifact(
             callback.message,
             Scene.REFUND_ACCEPTED,
             "Запрос принят. "
             f"Зарезервировано {result.refund.credit_units} кредитов; "
             f"сумма возврата — {_money(result.refund.amount_minor, result.refund.currency)}. "
             "Статус можно проверить командой /refund_status.",
+            state=state,
         )
         return
     messages = {
@@ -192,8 +200,9 @@ async def request_refund_callback(
             "По этой покупке уже есть незавершённый запрос на возврат."
         ),
     }
-    await answer_scene(
+    await show_screen(
         callback.message,
         Scene.REFUND_UNAVAILABLE,
         messages.get(result.outcome, "Возврат не удалось создать."),
+        state=state,
     )
