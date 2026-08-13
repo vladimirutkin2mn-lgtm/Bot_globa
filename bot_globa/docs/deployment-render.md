@@ -15,6 +15,8 @@ This runbook describes the first supported production topology for HeartSignal. 
 - `bot-globa-telegram-worker` claims encrypted Telegram updates, decrypts one update in memory, runs the aiogram dispatcher, and erases the payload after completion or terminal failure. aiogram FSM state is stored durably in PostgreSQL and event handling for one FSM key is serialized with PostgreSQL advisory locks.
 - `bot-globa-billing-worker` processes durable billing jobs, payment reconciliation and the billing outbox. Billing remains disabled until provider credentials and product configuration are complete.
 - `bot-globa-maintenance-worker` runs the periodic retention and recovery passes.
+- `bot-globa-daily-horoscope-worker` leases and delivers only explicitly enabled common
+  morning/evening digests; delivery preferences remain in PostgreSQL.
 - `bot-globa-db` is the source of truth for product, billing, deletion, analytics, Telegram inbox and FSM state.
 
 The image runs as a non-root user, exposes `/health/live` and `/health/ready`, and handles `SIGTERM` with a bounded graceful-shutdown window.
@@ -124,7 +126,7 @@ For webhook mode, set a non-empty `TELEGRAM_WEBHOOK_URL` and secret in `.env`, t
 ```bash
 cp .env.example .env
 docker compose --profile webhook build
-docker compose --profile webhook up postgres migrate api telegram-worker maintenance-worker
+docker compose --profile webhook up postgres migrate api telegram-worker maintenance-worker daily-horoscope-worker
 curl --fail http://localhost:8000/health/ready
 ```
 

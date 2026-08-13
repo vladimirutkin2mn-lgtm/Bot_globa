@@ -6,21 +6,33 @@ from uuid import UUID
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot import texts
-from app.domain.products import ProductCatalog
+from app.config import Settings
+from app.domain.billing import BillingCatalog
+from app.domain.products import (
+    READING_PURCHASE_CODES,
+    ProductCatalog,
+    ProductCode,
+    format_user_price,
+)
+from app.providers.payments.base import BillingMarket
 
 
 def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Продолжить", callback_data="onboarding:intro")]
+            [InlineKeyboardButton(text="Выбрать тему", callback_data="onboarding:intro")]
         ]
     )
 
 
-def consent_keyboard() -> InlineKeyboardMarkup:
+def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
+    callback = "onboarding:consent"
+    if destination is not None:
+        callback = f"{callback}:{destination}"
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Принять условия", callback_data="onboarding:consent")]
+            [InlineKeyboardButton(text="Принять и продолжить", callback_data=callback)],
+            [InlineKeyboardButton(text="Подробнее", callback_data="menu:privacy")],
         ]
     )
 
@@ -28,13 +40,70 @@ def consent_keyboard() -> InlineKeyboardMarkup:
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔮 Таролог", callback_data="menu:tarot")],
-            [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="menu:love")],
-            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="menu:psy")],
-            [InlineKeyboardButton(text="🪐 Астролог", callback_data="menu:astro")],
+            [InlineKeyboardButton(text="💞 Отношения", callback_data="menu:love")],
+            [
+                InlineKeyboardButton(
+                    text="🔮 Выбор и ближайшие сценарии",
+                    callback_data="menu:tarot",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🌙 Повторяющаяся ситуация",
+                    callback_data="menu:psy",
+                )
+            ],
+            [InlineKeyboardButton(text="🪐 Натальная карта", callback_data="menu:astro")],
+            [
+                InlineKeyboardButton(text="☀️ Гороскоп на сегодня", callback_data="menu:daily"),
+                InlineKeyboardButton(text="📚 Мои разборы", callback_data="menu:readings"),
+            ],
+            [InlineKeyboardButton(text="⋯ Ещё", callback_data="menu:more")],
+        ]
+    )
+
+
+def more_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
             [InlineKeyboardButton(text="🧠 Память", callback_data="menu:memory")],
             [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
             [InlineKeyboardButton(text=texts.PRIVACY, callback_data="menu:privacy")],
+            [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
+        ]
+    )
+
+
+def readings_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔮 Расклады", callback_data="tarot:history")],
+            [InlineKeyboardButton(text="💞 Отношения", callback_data="love:history")],
+            [InlineKeyboardButton(text="🌙 Сценарии", callback_data="psy:history")],
+            [InlineKeyboardButton(text="🪐 Астрология", callback_data="astro:history")],
+            [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
+        ]
+    )
+
+
+def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Мой персональный прогноз", callback_data="menu:astro")],
+            [InlineKeyboardButton(text="Задать вопрос Globa", callback_data="menu:home")],
+            [InlineKeyboardButton(text="Получать каждый день", callback_data="daily:settings")],
+        ]
+    )
+
+
+def daily_settings_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Да, утром", callback_data="daily:set:morning")],
+            [InlineKeyboardButton(text="Да, вечером", callback_data="daily:set:evening")],
+            [InlineKeyboardButton(text="Только по запросу", callback_data="daily:set:on_request")],
+            [InlineKeyboardButton(text="Не присылать", callback_data="daily:set:disabled")],
+            [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
         ]
     )
 
@@ -260,30 +329,60 @@ def billing_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def products_keyboard(catalog: ProductCatalog) -> InlineKeyboardMarkup:
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=f"{product.title} — {product.credits} кр.",
-                callback_data=f"credits:buy:{product.code.value}",
+def products_keyboard(
+    catalog: ProductCatalog,
+    settings: Settings,
+    *,
+    resume_callback: str | None = None,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for code in READING_PURCHASE_CODES:
+        product = catalog.get(code)
+        if product is None:
+            continue
+        reading_count = max(product.credits // settings.reading_full_price_credits, 1)
+        if code is ProductCode.READING_SINGLE:
+            choice = "1 полный разбор"
+        elif code is ProductCode.READING_PACK_5:
+            choice = f"{reading_count} полных разборов"
+        else:
+            choice = (
+                f"{reading_count} разборов в месяц"
+                if settings.subscriptions_enabled
+                else f"{reading_count} разборов"
             )
-        ]
-        for product in catalog.all()
-    ]
-    rows.extend(
-        [
-            [InlineKeyboardButton(text="Обновить баланс", callback_data="credits:refresh")],
-            [InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")],
-        ]
-    )
+        label = f"{choice} — {format_user_price(product.amount_minor, product.currency)}"
+        stars = _stars_amount(settings, code)
+        if settings.telegram_stars_enabled and stars > 0:
+            label = f"{label} / {stars} ⭐"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"credits:buy:{product.code.value}",
+                )
+            ]
+        )
+    if resume_callback is not None:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="После оплаты открыть разбор",
+                    callback_data=resume_callback,
+                )
+            ]
+        )
+    else:
+        rows.append([InlineKeyboardButton(text="Обновить доступ", callback_data="credits:refresh")])
+    rows.append([InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def checkout_keyboard(url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Открыть тестовую оплату", url=url)],
-            [InlineKeyboardButton(text="Обновить баланс", callback_data="credits:refresh")],
+            [InlineKeyboardButton(text="Открыть оплату", url=url)],
+            [InlineKeyboardButton(text="Обновить доступ", callback_data="credits:refresh")],
         ]
     )
 
@@ -291,43 +390,54 @@ def checkout_keyboard(url: str) -> InlineKeyboardMarkup:
 def payment_market_keyboard(
     product_code: str,
     *,
-    telegram_stars_enabled: bool = False,
+    settings: Settings,
+    recurring: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Offer every enabled payment route in one Telegram screen."""
+    """Offer every usable payment route in one Telegram screen."""
+    catalog = BillingCatalog(settings)
+    ru = catalog.resolve_product_offer(product_code, BillingMarket.RU, "RUB")
+    eur = catalog.resolve_product_offer(product_code, BillingMarket.INTERNATIONAL, "EUR")
+    usd = catalog.resolve_product_offer(product_code, BillingMarket.INTERNATIONAL, "USD")
     rows: list[list[InlineKeyboardButton]] = []
-    if telegram_stars_enabled:
+    if settings.telegram_stars_enabled:
+        stars = catalog.resolve_product_offer(product_code, BillingMarket.TELEGRAM, "XTR")
         rows.extend(
             [
                 [
                     InlineKeyboardButton(
-                        text="Telegram Stars · ⭐",
+                        text=f"Telegram Stars · {stars.amount_minor} ⭐",
                         callback_data=f"credits:stars:{product_code}",
                     )
                 ]
             ]
         )
-    rows.extend(
-        [
+    if not recurring or (settings.yookassa_enabled and settings.yookassa_recurring_enabled):
+        rows.append(
             [
                 InlineKeyboardButton(
-                    text="Россия · RUB", callback_data=f"credits:offer:{product_code}:RU:RUB"
+                    text=f"Россия · {format_user_price(ru.amount_minor, ru.currency)}",
+                    callback_data=f"credits:offer:{product_code}:RU:RUB",
                 )
-            ],
+            ]
+        )
+    if not recurring or settings.stripe_enabled:
+        rows.extend(
             [
-                InlineKeyboardButton(
-                    text="International · EUR",
-                    callback_data=f"credits:offer:{product_code}:INTERNATIONAL:EUR",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="International · USD",
-                    callback_data=f"credits:offer:{product_code}:INTERNATIONAL:USD",
-                )
-            ],
-            [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
-        ]
-    )
+                [
+                    InlineKeyboardButton(
+                        text=f"International · {format_user_price(eur.amount_minor, eur.currency)}",
+                        callback_data=f"credits:offer:{product_code}:INTERNATIONAL:EUR",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text=f"International · {format_user_price(usd.amount_minor, usd.currency)}",
+                        callback_data=f"credits:offer:{product_code}:INTERNATIONAL:USD",
+                    )
+                ],
+            ]
+        )
+    rows.append([InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -342,11 +452,47 @@ def receipt_contact_keyboard() -> InlineKeyboardMarkup:
 def checkout_creating_keyboard(product_code: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Обновить баланс", callback_data="credits:refresh")],
-            [InlineKeyboardButton(text="Повторить", callback_data=f"credits:buy:{product_code}")],
-            [InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")],
+            [
+                InlineKeyboardButton(
+                    text="Обновить статус",
+                    callback_data=f"credits:buy:{product_code}",
+                )
+            ],
+            [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
         ]
     )
+
+
+def checkout_unavailable_keyboard(
+    product_code: str,
+    market: str,
+    currency: str,
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Повторить",
+                    callback_data=f"credits:offer:{product_code}:{market}:{currency}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Другой способ",
+                    callback_data=f"credits:buy:{product_code}",
+                )
+            ],
+            [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
+        ]
+    )
+
+
+def _stars_amount(settings: Settings, code: ProductCode) -> int:
+    if code is ProductCode.READING_PACK_5:
+        return settings.telegram_stars_amount_reading_pack_5
+    if code is ProductCode.SUBSCRIPTION_MONTHLY:
+        return settings.telegram_stars_amount_subscription_monthly
+    return settings.telegram_stars_amount_reading_single
 
 
 def paywall_keyboard(analysis_id: UUID, preview_available: bool) -> InlineKeyboardMarkup:

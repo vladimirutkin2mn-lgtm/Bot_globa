@@ -13,24 +13,29 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
-from app.bot.keyboards import main_menu_keyboard
+from app.bot import texts
+from app.bot.keyboards import consent_keyboard, main_menu_keyboard, products_keyboard
+from app.bot.memory_keyboards import memory_disabled_keyboard
 from app.bot.persona_flow import (
     CONTEXT_LIMIT,
-    CONTEXT_PROMPT,
-    INSUFFICIENT,
     INVALID_TEXT,
-    MENU_BUTTON,
     NOT_ONBOARDED,
+    QUESTION_EXAMPLE,
     QUESTION_LIMIT,
     QUESTION_PROMPT,
     UNLOCKING,
     PersonaFlow,
     PersonaReadingBundle,
 )
-from app.bot.reading_renderer import render_full, render_preview
+from app.bot.reading_renderer import render_full, render_micro_preview, render_preview
 from app.bot.scene_media import Scene, answer_scene
+from app.bot.states import OnboardingStates
+from app.config import Settings
+from app.domain.products import ProductCatalog
+from app.providers.analytics import OracleProductEvent
 from app.services.monetized_reading import MonetizedReadingStatus
-from app.services.onboarding import OnboardingService
+from app.services.onboarding import OnboardingService, TelegramIdentity
+from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.persona_reading import PersonaPreviewOutcome, PersonaPreviewRequest
 from app.services.preview_entitlement import ReadingPreviewVisibility
 from app.services.reading_generation import ReadingGenerationStatus
@@ -56,6 +61,10 @@ def create_persona_router(flow: PersonaFlow) -> Router:
     callbacks = router.callback_query
     callbacks.register(handlers.start_from_menu, F.data == f"menu:{flow.namespace}")
     callbacks.register(
+        handlers.accept_onboarding_consent,
+        F.data == f"onboarding:consent:{flow.namespace}",
+    )
+    callbacks.register(
         handlers.restart,
         F.data.in_({flow.callback("new"), flow.callback("cancel")}),
     )
@@ -70,6 +79,11 @@ def create_persona_router(flow: PersonaFlow) -> Router:
         F.data.startswith(flow.callback("history", "open", "")),
     )
     callbacks.register(handlers.select_topic, F.data.startswith(flow.callback("topic", "")))
+    callbacks.register(
+        handlers.show_example,
+        flow.states.waiting_for_question,
+        F.data == flow.callback("example"),
+    )
     callbacks.register(
         handlers.skip_context,
         flow.states.waiting_for_context,
@@ -93,13 +107,51 @@ class PersonaReadingHandlers:
         message: Message,
         state: FSMContext,
         onboarding: OnboardingService,
+        privacy_retention_days: int = 30,
     ) -> None:
         if message.from_user is None:
             return
-        if await self._onboarded(message.from_user.id, state, message, onboarding):
+        if await self._ready_for_persona(
+            message,
+            message.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            TelegramIdentity(
+                telegram_user_id=message.from_user.id,
+                username=message.from_user.username,
+                first_name=message.from_user.first_name,
+                language=message.from_user.language_code,
+            ),
+        ):
             await self._show_topics(message, state)
 
     async def start_from_menu(
+        self,
+        callback: CallbackQuery,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        privacy_retention_days: int = 30,
+    ) -> None:
+        await callback.answer()
+        if not isinstance(callback.message, Message):
+            return
+        if await self._ready_for_persona(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            TelegramIdentity(
+                telegram_user_id=callback.from_user.id,
+                username=callback.from_user.username,
+                first_name=callback.from_user.first_name,
+                language=callback.from_user.language_code,
+            ),
+        ):
+            await self._show_topics(callback.message, state)
+
+    async def accept_onboarding_consent(
         self,
         callback: CallbackQuery,
         state: FSMContext,
@@ -108,8 +160,17 @@ class PersonaReadingHandlers:
         await callback.answer()
         if not isinstance(callback.message, Message):
             return
-        if await self._onboarded(callback.from_user.id, state, callback.message, onboarding):
-            await self._show_topics(callback.message, state)
+        if await onboarding.current_user(callback.from_user.id) is None:
+            await onboarding.start(
+                TelegramIdentity(
+                    telegram_user_id=callback.from_user.id,
+                    username=callback.from_user.username,
+                    first_name=callback.from_user.first_name,
+                    language=callback.from_user.language_code,
+                )
+            )
+        await onboarding.accept_consent(callback.from_user.id)
+        await self._show_topics(callback.message, state)
 
     async def restart(
         self,
@@ -126,15 +187,29 @@ class PersonaReadingHandlers:
             await answer_scene(
                 callback.message,
                 Scene.MAIN_MENU,
-                MENU_BUTTON,
+                texts.MAIN_MENU,
                 reply_markup=main_menu_keyboard(),
             )
 
     # ------------------------------------------------------------------ intake ---
 
-    async def select_topic(self, callback: CallbackQuery, state: FSMContext) -> None:
+    async def select_topic(
+        self,
+        callback: CallbackQuery,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        oracle_analytics: OracleProductAnalytics | None = None,
+        privacy_retention_days: int = 30,
+    ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
+            return
+        if not await onboarding.analysis_allowed(callback.from_user.id):
+            await self._request_consent(
+                callback.message,
+                state,
+                privacy_retention_days,
+            )
             return
         topic = (callback.data or "").removeprefix(self._flow.callback("topic", ""))
         if topic not in self._flow.topic_labels:
@@ -145,22 +220,73 @@ class PersonaReadingHandlers:
                 reply_markup=self._flow.topics_keyboard(),
             )
             return
+        user = await onboarding.current_user(callback.from_user.id)
+        if user is not None and oracle_analytics is not None:
+            await oracle_analytics.track(
+                user.id,
+                OracleProductEvent.PERSONA_SELECTED,
+                {
+                    "persona_code": self._flow.persona_code,
+                    "topic_code": topic,
+                },
+            )
         await state.update_data(topic=topic)
         await state.set_state(self._flow.states.waiting_for_question)
-        await answer_scene(callback.message, Scene.QUESTION, QUESTION_PROMPT)
+        await answer_scene(
+            callback.message,
+            Scene.QUESTION,
+            QUESTION_PROMPT,
+            reply_markup=self._flow.question_keyboard(),
+        )
 
-    async def receive_question(self, message: Message, state: FSMContext) -> None:
+    async def show_example(self, callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        if not isinstance(callback.message, Message):
+            return
+        data = await state.get_data()
+        topic = data.get("topic")
+        example = self._flow.topic_examples.get(str(topic))
+        if example is None:
+            await answer_scene(
+                callback.message,
+                Scene.QUESTION_ERROR,
+                TOPIC_UNAVAILABLE,
+                reply_markup=self._flow.topics_keyboard(),
+            )
+            return
+        await answer_scene(
+            callback.message,
+            Scene.QUESTION,
+            QUESTION_EXAMPLE.format(example=example),
+            reply_markup=self._flow.question_keyboard(),
+        )
+
+    async def receive_question(
+        self,
+        message: Message,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        persona_readings: PersonaReadings,
+    ) -> None:
         text = _bounded_text(message, maximum=QUESTION_LIMIT)
         if text is None:
-            await answer_scene(message, Scene.QUESTION_ERROR, INVALID_TEXT)
+            await answer_scene(
+                message,
+                Scene.QUESTION_ERROR,
+                INVALID_TEXT,
+                reply_markup=self._flow.question_keyboard(),
+            )
             return
         await state.update_data(question=text)
-        await state.set_state(self._flow.states.waiting_for_context)
-        await answer_scene(
+        if message.from_user is None:
+            return
+        await self._generate_new(
             message,
-            Scene.CONTEXT,
-            CONTEXT_PROMPT,
-            reply_markup=self._flow.context_keyboard(),
+            message.from_user.id,
+            state,
+            onboarding,
+            persona_readings,
+            context=None,
         )
 
     async def receive_context(
@@ -303,6 +429,8 @@ class PersonaReadingHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         persona_readings: PersonaReadings,
+        catalog: ProductCatalog,
+        billing_settings: Settings,
     ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
@@ -323,17 +451,18 @@ class PersonaReadingHandlers:
             await answer_scene(
                 callback.message,
                 Scene.INSUFFICIENT_CREDITS,
-                INSUFFICIENT.format(
-                    price=bundle.monetized.price_credits,
-                    balance=unlocked.balance or 0,
+                texts.PAYWALL.format(price=bundle.full_price_label),
+                reply_markup=products_keyboard(
+                    catalog,
+                    billing_settings,
+                    resume_callback=self._flow.callback("unlock", str(reading_id)),
                 ),
-                reply_markup=self._flow.insufficient_keyboard(reading_id),
             )
             return
         if unlocked.status is MonetizedReadingStatus.FULL_COMPLETED:
             outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
             if _is_complete(outcome):
-                await self._send_full(callback.message, outcome)
+                await self._send_full(callback.message, outcome, bundle, user.id)
                 return
         await answer_scene(
             callback.message,
@@ -344,18 +473,35 @@ class PersonaReadingHandlers:
 
     # ----------------------------------------------------------------- internal ---
 
-    async def _onboarded(
+    async def _ready_for_persona(
         self,
+        message: Message,
         telegram_user_id: int,
         state: FSMContext,
-        message: Message,
         onboarding: OnboardingService,
+        privacy_retention_days: int,
+        identity: TelegramIdentity,
     ) -> bool:
-        if await onboarding.analysis_allowed(telegram_user_id):
-            return True
-        await state.clear()
-        await message.answer(NOT_ONBOARDED)
-        return False
+        if await onboarding.current_user(telegram_user_id) is None:
+            await onboarding.start(identity)
+        if not await onboarding.analysis_allowed(telegram_user_id):
+            await self._request_consent(message, state, privacy_retention_days)
+            return False
+        return True
+
+    async def _request_consent(
+        self,
+        message: Message,
+        state: FSMContext,
+        privacy_retention_days: int,
+    ) -> None:
+        await state.set_state(OnboardingStates.waiting_for_consent)
+        await answer_scene(
+            message,
+            Scene.ONBOARDING_CONSENT,
+            texts.CONSENT.format(days=privacy_retention_days),
+            reply_markup=consent_keyboard(self._flow.namespace),
+        )
 
     async def _show_topics(self, message: Message, state: FSMContext) -> None:
         await state.clear()
@@ -431,7 +577,7 @@ class PersonaReadingHandlers:
             await state.clear()
             await self._answer_unavailable(message)
             return
-        await self._deliver(message, state, outcome, bundle)
+        await self._deliver(message, state, outcome, bundle, user.id)
 
     async def _regenerate(
         self,
@@ -459,7 +605,7 @@ class PersonaReadingHandlers:
         await state.set_state(self._flow.states.generating)
         await answer_scene(callback.message, notice_scene, notice)
         outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
-        await self._deliver(callback.message, state, outcome, bundle)
+        await self._deliver(callback.message, state, outcome, bundle, user.id)
 
     async def _deliver(
         self,
@@ -467,26 +613,26 @@ class PersonaReadingHandlers:
         state: FSMContext,
         outcome: PersonaPreviewOutcome,
         bundle: PersonaReadingBundle,
+        user_id: UUID,
     ) -> None:
         await state.clear()
-        price = bundle.monetized.price_credits
         if _is_complete(outcome):
             if outcome.visibility is ReadingPreviewVisibility.FULL:
-                await self._send_full(message, outcome)
+                await self._send_full(message, outcome, bundle, user_id)
                 return
             if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
                 await _send_chunks(
                     message,
                     render_preview(outcome, self._flow.copy),
-                    self._flow.result_keyboard(outcome.reading_id, price),
+                    self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
                     Scene.PREVIEW,
                 )
                 return
-            await answer_scene(
+            await _send_chunks(
                 message,
+                render_micro_preview(outcome, self._flow.copy),
+                self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
                 Scene.PREVIEW_ALREADY_USED,
-                self._flow.texts.locked.format(price=price),
-                reply_markup=self._flow.result_keyboard(outcome.reading_id, price),
             )
             return
 
@@ -515,13 +661,33 @@ class PersonaReadingHandlers:
             status.value,
         )
 
-    async def _send_full(self, message: Message, outcome: PersonaPreviewOutcome) -> None:
+    async def _send_full(
+        self,
+        message: Message,
+        outcome: PersonaPreviewOutcome,
+        bundle: PersonaReadingBundle,
+        user_id: UUID,
+    ) -> None:
+        try:
+            offer_memory = await bundle.memory.should_offer_consent(user_id)
+        except Exception:
+            logger.warning("memory_offer_check_failed")
+            offer_memory = False
         await _send_chunks(
             message,
             render_full(outcome, self._flow.copy),
             self._flow.full_result_keyboard(outcome.reading_id),
             Scene.FULL_READING,
         )
+        if offer_memory:
+            await answer_scene(
+                message,
+                Scene.MEMORY_DISABLED,
+                "Хотите, чтобы Globa помнил важный контекст для следующих разборов? "
+                "Память включается только с вашего согласия, а записи можно удалить "
+                "в любой момент.",
+                reply_markup=memory_disabled_keyboard(),
+            )
 
     async def _answer_unavailable(self, message: Message) -> None:
         await answer_scene(

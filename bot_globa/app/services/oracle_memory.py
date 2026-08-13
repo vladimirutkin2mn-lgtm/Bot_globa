@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.memory_models import (
@@ -56,6 +56,25 @@ class OracleMemoryService:
         async with self._sessions() as session:
             row = await session.get(OracleMemoryConsent, user_id)
             return self._view(row) if row is not None else None
+
+    async def should_offer_consent(self, user_id: UUID) -> bool:
+        """Offer memory only after two full readings, and never nag after a revocation."""
+
+        async with self._sessions() as session:
+            consent = await session.get(OracleMemoryConsent, user_id)
+            if consent is not None:
+                if consent.status == MemoryConsentStatus.REVOKED.value:
+                    return False
+                if self._permits_memory(consent):
+                    return False
+            count = await session.scalar(
+                select(func.count(Reading.id)).where(
+                    Reading.user_id == user_id,
+                    Reading.status == ReadingStatus.FULL_READY.value,
+                    Reading.deleted_at.is_(None),
+                )
+            )
+            return int(count or 0) >= 2
 
     async def grant_consent(self, user_id: UUID) -> MemoryConsentView:
         now = datetime.now(UTC)

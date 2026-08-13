@@ -16,6 +16,17 @@ class ProductCode(StrEnum):
     SUBSCRIPTION_MONTHLY = "subscription_monthly"
 
 
+# These are the three choices a person buys. Astrology-specific SKUs remain in the
+# authoritative catalog for receipts and reconciliation, but showing them beside the
+# same one-reading offer would make the Telegram paywall look like five different
+# products.
+READING_PURCHASE_CODES = (
+    ProductCode.READING_SINGLE,
+    ProductCode.READING_PACK_5,
+    ProductCode.SUBSCRIPTION_MONTHLY,
+)
+
+
 # An order keeps the label it was created with, so a later catalog reprice or rename
 # cannot change what an existing order is completed or refunded as.
 _HISTORICAL_LABELS = {
@@ -136,3 +147,12 @@ def format_minor(amount: int, currency: str) -> str:
     """Format integer minor units without binary floating point."""
 
     return f"{amount // 100},{amount % 100:02d} {currency}"
+
+
+def format_user_price(amount: int, currency: str) -> str:
+    """Render a compact customer-facing amount without binary floating point."""
+
+    whole, fraction = divmod(amount, 100)
+    number = str(whole) if fraction == 0 else f"{whole},{fraction:02d}"
+    symbol = {"RUB": "₽", "EUR": "€", "USD": "$"}.get(currency)
+    return f"{number} {symbol or currency}"

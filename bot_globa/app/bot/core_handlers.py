@@ -1,36 +1,45 @@
 """Domain-neutral Telegram onboarding, account, privacy and credit routes."""
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot import texts
+from app.bot.daily_horoscope import render_daily_horoscope
 from app.bot.keyboards import (
     checkout_creating_keyboard,
     checkout_keyboard,
+    checkout_unavailable_keyboard,
     consent_keyboard,
+    daily_horoscope_keyboard,
+    daily_settings_keyboard,
     main_menu_keyboard,
+    more_menu_keyboard,
     onboarding_intro_keyboard,
     payment_market_keyboard,
     privacy_confirmation_keyboard,
     privacy_keyboard,
     products_keyboard,
+    readings_menu_keyboard,
     receipt_contact_keyboard,
 )
 from app.bot.scene_media import Scene, answer_scene
 from app.bot.states import OnboardingStates, PaymentStates
 from app.config import Settings
+from app.domain.daily_horoscope import (
+    DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+    DailyHoroscopeMode,
+)
 from app.domain.products import ProductCatalog
 from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.credits_service import CreditsService
+from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionService
-from app.services.onboarding import (
-    CURRENT_CONSENT_VERSION,
-    OnboardingService,
-    OnboardingStep,
-    TelegramIdentity,
-)
+from app.services.onboarding import OnboardingService, OnboardingStep, TelegramIdentity
 from app.services.payment_service import CheckoutOutcome, PaymentService
 from app.services.receipt_contact import InvalidReceiptContactError, validate_receipt_contact
 
@@ -47,13 +56,19 @@ def _identity(callback: CallbackQuery) -> TelegramIdentity:
     )
 
 
-async def _show_onboarding_step(message: Message, state: FSMContext, step: OnboardingStep) -> None:
+async def _show_onboarding_step(
+    message: Message,
+    state: FSMContext,
+    step: OnboardingStep,
+    *,
+    privacy_retention_days: int = 30,
+) -> None:
     if step is OnboardingStep.CONSENT:
         await state.set_state(OnboardingStates.waiting_for_consent)
         await answer_scene(
             message,
             Scene.ONBOARDING_CONSENT,
-            texts.CONSENT.format(version=CURRENT_CONSENT_VERSION),
+            texts.CONSENT.format(days=privacy_retention_days),
             reply_markup=consent_keyboard(),
         )
         return
@@ -67,7 +82,12 @@ async def _show_onboarding_step(message: Message, state: FSMContext, step: Onboa
 
 
 @router.message(CommandStart())
-async def start(message: Message, state: FSMContext, onboarding: OnboardingService) -> None:
+async def start(
+    message: Message,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    privacy_retention_days: int = 30,
+) -> None:
     """Enter the oracle product without reviving legacy relationship-analysis drafts."""
 
     if message.from_user is None:
@@ -82,7 +102,7 @@ async def start(message: Message, state: FSMContext, onboarding: OnboardingServi
         )
     )
     if step is OnboardingStep.CONSENT:
-        # The intro explains the format before the terms; the consent screen follows it.
+        # CJM v2 lets a new user choose an intention before just-in-time consent.
         await state.set_state(OnboardingStates.waiting_for_consent)
         await answer_scene(
             message,
@@ -91,7 +111,12 @@ async def start(message: Message, state: FSMContext, onboarding: OnboardingServi
             reply_markup=onboarding_intro_keyboard(),
         )
         return
-    await _show_onboarding_step(message, state, step)
+    await _show_onboarding_step(
+        message,
+        state,
+        step,
+        privacy_retention_days=privacy_retention_days,
+    )
 
 
 @router.callback_query(F.data == "onboarding:intro")
@@ -100,12 +125,15 @@ async def continue_onboarding(
 ) -> None:
     if await onboarding.current_user(callback.from_user.id) is None:
         await onboarding.start(_identity(callback))
-    # A stale intro button must not push an already-onboarded user back into consent, so the
-    # durable step decides the screen rather than the button that was pressed.
-    step = await onboarding.current_step(callback.from_user.id)
     await callback.answer()
+    await state.clear()
     if isinstance(callback.message, Message):
-        await _show_onboarding_step(callback.message, state, step)
+        await answer_scene(
+            callback.message,
+            Scene.MAIN_MENU,
+            texts.MAIN_MENU,
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == "onboarding:consent")
@@ -118,6 +146,94 @@ async def accept_consent(
     await callback.answer()
     if isinstance(callback.message, Message):
         await _show_onboarding_step(callback.message, state, step)
+
+
+@router.callback_query(F.data == "menu:more")
+async def more_screen(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await answer_scene(
+            callback.message,
+            Scene.MAIN_MENU,
+            texts.MORE_MENU,
+            reply_markup=more_menu_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "menu:readings")
+async def readings_screen(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await answer_scene(
+            callback.message,
+            Scene.HISTORY,
+            texts.READINGS_MENU,
+            reply_markup=readings_menu_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "menu:daily")
+async def daily_horoscope_screen(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await answer_scene(
+            callback.message,
+            Scene.DAILY_HOROSCOPE,
+            render_daily_horoscope(datetime.now(ZoneInfo(DEFAULT_DAILY_HOROSCOPE_TIMEZONE)).date()),
+            reply_markup=daily_horoscope_keyboard(),
+        )
+
+
+@router.callback_query(F.data == "daily:settings")
+async def daily_horoscope_settings(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if isinstance(callback.message, Message):
+        await answer_scene(
+            callback.message,
+            Scene.DAILY_SETTINGS,
+            "Присылать короткий общий гороскоп каждый день? "
+            "Утро — около 08:00, вечер — около 20:00 по московскому времени.",
+            reply_markup=daily_settings_keyboard(),
+        )
+
+
+@router.callback_query(F.data.startswith("daily:set:"))
+async def set_daily_horoscope(
+    callback: CallbackQuery,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None:
+        await callback.message.answer("Сначала отправьте /start.")
+        return
+    try:
+        mode = DailyHoroscopeMode((callback.data or "").removeprefix("daily:set:"))
+        await daily_horoscopes.configure(user.id, mode)
+    except (LookupError, ValueError):
+        await callback.message.answer("Не удалось сохранить настройку. Попробуйте ещё раз.")
+        return
+    message = {
+        DailyHoroscopeMode.MORNING: (
+            "Готово. Буду присылать общий гороскоп около 08:00 по московскому времени."
+        ),
+        DailyHoroscopeMode.EVENING: (
+            "Готово. Буду присылать общий гороскоп около 20:00 по московскому времени."
+        ),
+        DailyHoroscopeMode.ON_REQUEST: (
+            "Готово. Автоматическая доставка выключена — гороскоп останется доступен в меню."
+        ),
+        DailyHoroscopeMode.DISABLED: "Готово. Гороскопы автоматически приходить не будут.",
+    }[mode]
+    await answer_scene(
+        callback.message,
+        Scene.DAILY_SETTINGS,
+        message,
+        reply_markup=main_menu_keyboard(),
+    )
 
 
 @router.callback_query(F.data.in_({"report:menu", "menu:home"}))
@@ -204,10 +320,10 @@ async def balance_screen(
     await answer_scene(
         callback.message,
         Scene.BALANCE,
-        f"Ваш баланс: {balance} кредитов\n"
-        f"Полный персональный разбор: от {billing_settings.reading_full_price_credits} кредита.\n\n"
-        "Выберите пакет или продукт:",
-        reply_markup=products_keyboard(catalog),
+        f"Доступно полных разборов: "
+        f"{balance // billing_settings.reading_full_price_credits}.\n\n"
+        "Выберите вариант:",
+        reply_markup=products_keyboard(catalog, billing_settings),
     )
 
 
@@ -232,10 +348,7 @@ async def buy_credits(
             callback.message,
             Scene.PAYMENT_MARKET,
             "Выберите способ оплаты.",
-            reply_markup=payment_market_keyboard(
-                product_code,
-                telegram_stars_enabled=billing_settings.telegram_stars_enabled,
-            ),
+            reply_markup=payment_market_keyboard(product_code, settings=billing_settings),
         )
         return
     outcome = await payments.create_checkout(user.id, product_code)
@@ -243,7 +356,7 @@ async def buy_credits(
         await answer_scene(
             callback.message,
             Scene.CHECKOUT,
-            "Тестовая оплата уже создаётся. Обновите экран через несколько секунд.",
+            texts.CHECKOUT_CREATING,
             reply_markup=checkout_creating_keyboard(product_code),
         )
         return
@@ -254,7 +367,8 @@ async def buy_credits(
         await answer_scene(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
-            "Не удалось создать тестовую оплату.",
+            texts.CHECKOUT_UNAVAILABLE,
+            reply_markup=payment_market_keyboard(product_code, settings=billing_settings),
         )
         return
     await answer_scene(
@@ -292,7 +406,7 @@ async def create_production_checkout(
         await answer_scene(
             callback.message,
             Scene.RECEIPT_CONTACT,
-            "Отправьте email или телефон в международном формате для кассового чека.",
+            texts.RECEIPT_CONTACT,
             reply_markup=receipt_contact_keyboard(),
         )
         return
@@ -302,14 +416,16 @@ async def create_production_checkout(
         await answer_scene(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
-            "Оплата сейчас недоступна. Попробуйте позже.",
+            texts.CHECKOUT_UNAVAILABLE,
+            reply_markup=checkout_unavailable_keyboard(product_code, market, currency),
         )
         return
     if not result.url:
         await answer_scene(
             callback.message,
             Scene.CHECKOUT,
-            "Оплата создаётся. Попробуйте обновить через несколько секунд.",
+            texts.CHECKOUT_CREATING,
+            reply_markup=checkout_creating_keyboard(product_code),
         )
         return
     await answer_scene(
@@ -365,7 +481,14 @@ async def receive_receipt_contact(
         await answer_scene(
             message,
             Scene.CHECKOUT_UNAVAILABLE,
-            "Оплата сейчас недоступна. Попробуйте позже.",
+            texts.CHECKOUT_UNAVAILABLE,
+            reply_markup=(
+                checkout_unavailable_keyboard(
+                    str(data.get("product_code", "reading_single")),
+                    str(data.get("market", "RU")),
+                    str(data.get("currency", "RUB")),
+                )
+            ),
         )
         return
     await state.clear()
@@ -380,7 +503,8 @@ async def receive_receipt_contact(
         await answer_scene(
             message,
             Scene.CHECKOUT,
-            "Оплата создаётся. Попробуйте обновить через несколько секунд.",
+            texts.CHECKOUT_CREATING,
+            reply_markup=checkout_creating_keyboard(product_code),
         )
 
 

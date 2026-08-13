@@ -134,7 +134,6 @@ def test_callbacks_carry_only_codes_or_reading_id_within_the_telegram_limit(
     assert callbacks
     assert all(PRIVATE_MARKER not in callback for callback in callbacks)
     assert all(len(callback.encode()) <= 64 for callback in callbacks)
-    assert flow.callback("history") in callbacks
     assert flow.callback("retry", str(reading_id)) in callbacks
     assert flow.callback("unlock", str(reading_id)) in callbacks
     assert flow.callback("history", "open", str(reading_id)) in callbacks

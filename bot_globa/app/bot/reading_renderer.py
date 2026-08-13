@@ -30,7 +30,7 @@ class ReadingCopy:
 
 
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Show enough value to be worth reading without claiming factual prediction."""
+    """Show a meaningful first preview and an honest outline of the paid depth."""
     result = _completed_result(outcome)
     sections = [f"{copy.emoji} {result.title}"]
     if outcome.symbols:
@@ -42,12 +42,36 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
     pattern = result.patterns[0] if result.patterns else "Явный общий паттерн не выделен."
     sections.extend(
         [
-            result.opening,
-            f"Главный паттерн:\n{pattern}",
+            f"Главная тема: {pattern}\n\n{result.opening}",
             f"Практический шаг:\n{result.practical_step}",
+            (
+                "В полном разборе:\n"
+                "• почему это повторяется;\n"
+                "• два возможных сценария;\n"
+                "• что можно сделать в ближайшие 7 дней."
+            ),
             f"Важно:\n{result.uncertainty_note}",
             DISCLAIMER,
         ]
+    )
+    return chunk_sections(tuple(sections))
+
+
+def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
+    """Give every later reading a short personal signal instead of a blind lock."""
+
+    result = _completed_result(outcome)
+    insight = result.patterns[0] if result.patterns else result.opening
+    sections = [f"{copy.emoji} Разбор готов"]
+    if outcome.symbols:
+        drawn = ", ".join(context.display_name for context in outcome.symbols)
+        sections.append(f"Зафиксированные карты: {drawn}")
+    sections.extend(
+        (
+            f"Главная тема — {insight}",
+            ("Полная версия покажет возможные сценарии и практический следующий шаг."),
+            DISCLAIMER,
+        )
     )
     return chunk_sections(tuple(sections))
 
@@ -88,6 +112,10 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
             f"Практический шаг:\n{result.practical_step}",
             f"Границы интерпретации:\n{result.uncertainty_note}",
             DISCLAIMER,
+            (
+                "Разбор сохранён в «Моих разборах». Хотите уточнить один момент? "
+                "Этот вопрос уже включён в покупку."
+            ),
         ]
     )
     return chunk_sections(tuple(sections))

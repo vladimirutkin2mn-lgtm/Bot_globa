@@ -15,6 +15,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.bot.reading_renderer import ReadingCopy
 from app.bot.safety_intake import SafetyIntake, state_name
 from app.services.monetized_reading import MonetizedReadingService
+from app.services.oracle_memory import OracleMemoryService
 from app.services.persona_reading import PersonaReadingUseCase
 
 MENU_BUTTON = "Главное меню"
@@ -25,13 +26,15 @@ BUY_CREDITS_BUTTON = "Купить кредиты"
 CHECK_BALANCE_BUTTON = "Проверить баланс и открыть"
 FOLLOWUP_BUTTON = "Задать уточняющий вопрос"
 FOLLOWUP_NAMESPACE = "rfu"
+FEEDBACK_NAMESPACE = "rfb"
 
 NOT_ONBOARDED = "Сначала отправьте /start и примите условия использования."
 INVALID_TEXT = "Нужно обычное текстовое сообщение допустимой длины."
 QUESTION_PROMPT = (
-    "Напишите один конкретный вопрос. Лучше спрашивать о возможных сценариях, своих решениях "
-    "и следующем шаге, а не о гарантированном будущем или чужих тайных мыслях."
+    "Опишите ситуацию одним сообщением: что происходит, что хотите понять и что уже "
+    "пробовали — если это важно. Можно написать коротко."
 )
+QUESTION_EXAMPLE = "Например: {example}"
 CONTEXT_PROMPT = (
     "Можно добавить короткий контекст ситуации одним сообщением или продолжить без него."
 )
@@ -86,6 +89,7 @@ class ReadingFlow:
     namespace: str
     states: type[ReadingStates]
     topic_labels: Mapping[str, str]
+    topic_examples: Mapping[str, str]
     texts: PersonaFlowTexts
 
     def safety_intake(self) -> SafetyIntake:
@@ -107,11 +111,21 @@ class ReadingFlow:
             [InlineKeyboardButton(text=label, callback_data=self.callback("topic", code))]
             for code, label in self.topic_labels.items()
         ]
-        rows.append(
-            [InlineKeyboardButton(text=self.texts.history_button, callback_data=self._history)]
-        )
-        rows.append([InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=self._cancel)])
+        rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    def question_keyboard(self) -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Показать пример",
+                        callback_data=self.callback("example"),
+                    )
+                ],
+                [InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=self._cancel)],
+            ]
+        )
 
     def context_keyboard(self) -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(
@@ -134,7 +148,10 @@ class ReadingFlow:
             ]
         )
 
-    def full_result_keyboard(self, reading_id: UUID) -> InlineKeyboardMarkup:
+    def full_result_keyboard(
+        self,
+        reading_id: UUID,
+    ) -> InlineKeyboardMarkup:
         """The paid view is the only place the included follow-up is offered."""
         rows = [
             [
@@ -142,27 +159,39 @@ class ReadingFlow:
                     text=FOLLOWUP_BUTTON,
                     callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
                 )
-            ]
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Попало",
+                    callback_data=f"{FEEDBACK_NAMESPACE}:hit:{reading_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Не откликнулось",
+                    callback_data=f"{FEEDBACK_NAMESPACE}:miss:{reading_id}",
+                ),
+            ],
         ]
-        rows.extend(self._navigation_rows())
+        rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
     def result_keyboard(
         self,
         reading_id: UUID | None = None,
-        price_credits: int | None = None,
+        price: str | int | None = None,
     ) -> InlineKeyboardMarkup:
         rows: list[list[InlineKeyboardButton]] = []
-        if reading_id is not None and price_credits is not None:
+        if reading_id is not None and price is not None:
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=self.texts.unlock_button.format(price=price_credits),
+                        text=self.texts.unlock_button.format(price=price),
                         callback_data=self.callback("unlock", str(reading_id)),
                     )
                 ]
             )
-        rows.extend(self._navigation_rows())
+            rows.append([InlineKeyboardButton(text="Пока оставить", callback_data=self._menu)])
+        else:
+            rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
     def insufficient_keyboard(self, reading_id: UUID) -> InlineKeyboardMarkup:
@@ -175,7 +204,6 @@ class ReadingFlow:
                         callback_data=self.callback("unlock", str(reading_id)),
                     )
                 ],
-                [InlineKeyboardButton(text=self.texts.history_button, callback_data=self._history)],
                 [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
             ]
         )
@@ -235,8 +263,6 @@ class ReadingFlow:
 
     def _navigation_rows(self) -> list[list[InlineKeyboardButton]]:
         return [
-            [InlineKeyboardButton(text=self.texts.new_button, callback_data=self._new)],
-            [InlineKeyboardButton(text=self.texts.history_button, callback_data=self._history)],
             [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
         ]
 
@@ -270,3 +296,5 @@ class PersonaReadingBundle:
 
     use_case: PersonaReadingUseCase
     monetized: MonetizedReadingService
+    full_price_label: str
+    memory: OracleMemoryService

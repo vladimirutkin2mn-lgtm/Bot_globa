@@ -17,6 +17,7 @@ from app.bot.persona_flows import MVP_READING_FLOWS, TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
+from app.bot.reading_feedback_handlers import router as reading_feedback_router
 from app.bot.reading_followup_handlers import create_reading_followup_router
 from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
 from app.bot.refund_handlers import router as refund_router
@@ -25,7 +26,7 @@ from app.bot.telegram_stars_handlers import router as telegram_stars_router
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
-from app.domain.products import ProductCatalog
+from app.domain.products import ProductCatalog, ProductCode, format_user_price
 from app.logging import configure_logging
 from app.observability.errors import LoggingErrorReporter, NoOpErrorReporter
 from app.observability.oracle_quality import (
@@ -108,6 +109,17 @@ def create_dispatcher(
     raw_llm = create_llm_client(settings)
     payments = create_payment_components(settings, bot)
     product_catalog = ProductCatalog(settings)
+    reading_product = product_catalog.get(ProductCode.READING_SINGLE)
+    if reading_product is None:  # pragma: no cover - a corrupt static catalog cannot run
+        raise RuntimeError("reading product is missing")
+    reading_full_price_label = format_user_price(
+        reading_product.amount_minor,
+        reading_product.currency,
+    )
+    if settings.telegram_stars_enabled:
+        reading_full_price_label = (
+            f"{reading_full_price_label} / {settings.telegram_stars_amount_reading_single} ⭐"
+        )
     billing_catalog = BillingCatalog(settings)
     analytics = create_analytics_client(sessions, resolved_observability)
     oracle_analytics = OracleProductAnalytics(analytics)
@@ -178,6 +190,7 @@ def create_dispatcher(
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
     dispatcher.include_router(create_horoscope_router())
+    dispatcher.include_router(reading_feedback_router)
     dispatcher.include_router(create_reading_followup_router())
     dispatcher.include_router(core_router)
     dispatcher["database_engine"] = resolved_engine
@@ -231,6 +244,8 @@ def create_dispatcher(
                 entitlements=preview_entitlements,
             ),
             monetized=monetized_readings,
+            full_price_label=reading_full_price_label,
+            memory=oracle_memory,
         )
         for flow in MVP_READING_FLOWS
     }
@@ -258,6 +273,7 @@ def create_dispatcher(
     )
     dispatcher["horoscope_renderer"] = HoroscopeRenderer()
     dispatcher["horoscope_monetized"] = monetized_readings
+    dispatcher["reading_full_price_label"] = reading_full_price_label
     dispatcher["reading_followups"] = ReadingFollowUpService(
         sessions,
         cipher,

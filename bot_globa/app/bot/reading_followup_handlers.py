@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 QUESTION_LIMIT = 1000
 
 PROMPT = (
-    "Задайте один уточняющий вопрос по этому разбору. Ответ опирается только на уже "
-    "созданный разбор — новый расклад не делается и повторно списаний не будет."
+    "Задайте один вопрос по этому разбору. Он уже включён в покупку: новый расклад "
+    "не создаётся, списаний не будет."
 )
 NOT_ELIGIBLE = "Уточняющий вопрос доступен только для оплаченного полного разбора."
 ALREADY_USED = "Уточняющий вопрос по этому разбору уже задан. Вот сохранённый ответ:"
@@ -61,6 +61,10 @@ def create_reading_followup_router() -> Router:
     router.callback_query.register(
         handlers.start,
         F.data.startswith(f"{FOLLOWUP_NAMESPACE}:ask:"),
+    )
+    router.callback_query.register(
+        handlers.cancel,
+        F.data == f"{FOLLOWUP_NAMESPACE}:cancel",
     )
     return router
 
@@ -122,7 +126,20 @@ class ReadingFollowUpHandlers:
             return
         await state.set_state(ReadingFollowUpStates.waiting_for_question)
         await state.update_data(reading_id=str(reading_id))
-        await answer_scene(callback.message, Scene.FOLLOW_UP_QUESTION, PROMPT)
+        await answer_scene(
+            callback.message,
+            Scene.FOLLOW_UP_QUESTION,
+            PROMPT,
+            reply_markup=_cancel_keyboard(),
+        )
+
+    async def cancel(self, callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        await state.clear()
+        if isinstance(callback.message, Message):
+            await callback.message.answer(
+                "Уточняющий вопрос отменён.", reply_markup=main_menu_keyboard()
+            )
 
     async def receive_question(
         self,
@@ -135,7 +152,12 @@ class ReadingFollowUpHandlers:
             return
         question = _bounded_text(message)
         if question is None:
-            await answer_scene(message, Scene.FOLLOW_UP_QUESTION, INVALID)
+            await answer_scene(
+                message,
+                Scene.FOLLOW_UP_QUESTION,
+                INVALID,
+                reply_markup=_cancel_keyboard(),
+            )
             return
         data = await state.get_data()
         reading_id = _stored_reading_id(data.get("reading_id"))
@@ -209,6 +231,19 @@ async def _send(
 def _handoff_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=MENU_BUTTON, callback_data="report:menu")]]
+    )
+
+
+def _cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Отмена",
+                    callback_data=f"{FOLLOWUP_NAMESPACE}:cancel",
+                )
+            ]
+        ]
     )
 
 

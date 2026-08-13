@@ -96,8 +96,9 @@ race the schema. `verify_deployment` checks API liveness and readiness, Telegram
 configuration and authentication, delivery errors and the update backlog.
 
 Processes to run: the API (webhook ingress), the Telegram worker, the billing worker, the
-maintenance worker and the oracle-memory worker. Telegram ingress is at-least-once, so
-every worker must be idempotent — they are, but a fork must stay that way.
+maintenance worker, the oracle-memory worker and the daily-horoscope worker. The daily
+worker only claims explicit morning/evening opt-ins. Telegram ingress is at-least-once,
+so every worker must be idempotent — they are, but a fork must stay that way.
 
 ## 4. First traffic
 

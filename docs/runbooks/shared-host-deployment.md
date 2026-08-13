@@ -17,7 +17,7 @@ the process running.
                                     docker network `web` (external)
                                            │
         ┌──────────────────────────────────┴───────────────────────────────┐
-        │ bot_globa stack: api · 4 workers · its own postgres              │
+        │ bot_globa stack: api · 5 workers · its own postgres              │
         └──────────────────────────────────────────────────────────────────┘
 ```
 

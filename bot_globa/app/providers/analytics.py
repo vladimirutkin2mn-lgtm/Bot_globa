@@ -73,6 +73,7 @@ class OracleProductEvent(StrEnum):
     READING_PREVIEW_READY = "reading_preview_ready"
     READING_FULL_UNLOCKED = "reading_full_unlocked"
     READING_REOPENED = "reading_reopened"
+    READING_FEEDBACK_SUBMITTED = "reading_feedback_submitted"
     READING_FAILED = "reading_failed"
     BIRTH_PROFILE_CONSENT_GRANTED = "birth_profile_consent_granted"
     BIRTH_PROFILE_CONSENT_REVOKED = "birth_profile_consent_revoked"
@@ -241,6 +242,9 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     OracleProductEvent.READING_REOPENED.value: _oracle_properties(
         "reading_id", "persona_code", "access_level"
     ),
+    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: _oracle_properties(
+        "reading_id", "reaction_code"
+    ),
     OracleProductEvent.READING_FAILED.value: _oracle_properties(
         "reading_id",
         "persona_code",
@@ -369,6 +373,9 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
     ),
     OracleProductEvent.READING_REOPENED.value: frozenset(
         {"event_version", "reading_id", "persona_code", "access_level"}
+    ),
+    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: frozenset(
+        {"event_version", "reading_id", "reaction_code"}
     ),
     OracleProductEvent.READING_FAILED.value: frozenset(
         {"event_version", "reading_id", "persona_code", "failure_code"}
@@ -530,6 +537,7 @@ _EVENT_SCOPES: dict[str, EventScope] = {
     OracleProductEvent.READING_PREVIEW_READY.value: EventScope.READING,
     OracleProductEvent.READING_FULL_UNLOCKED.value: EventScope.READING,
     OracleProductEvent.READING_REOPENED.value: EventScope.ACTION,
+    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: EventScope.READING,
     OracleProductEvent.READING_FAILED.value: EventScope.READING,
     OracleProductEvent.BIRTH_PROFILE_CONSENT_GRANTED.value: EventScope.ACTION,
     OracleProductEvent.BIRTH_PROFILE_CONSENT_REVOKED.value: EventScope.ACTION,

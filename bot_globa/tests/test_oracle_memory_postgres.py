@@ -12,7 +12,7 @@ from app.db.memory_models import (
     OracleMemoryItem,
     OracleMemoryPrivateContent,
 )
-from app.db.models import User
+from app.db.models import CreditTransaction, User
 from app.db.reading_models import Persona, Reading
 from app.domain.oracle_memory import (
     MemoryClaimBasis,
@@ -83,6 +83,60 @@ async def test_memory_requires_explicit_consent_and_encrypts_value_at_rest(
     assert active[0].value == secret
     assert active[0].kind is MemoryKind.PERSONAL_GOAL
     assert active[0].claim_basis is MemoryClaimBasis.USER_STATED
+
+
+async def test_memory_consent_is_off_by_default_and_offered_after_second_full_reading(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 930010)
+    service = OracleMemoryService(
+        payment_db,
+        AESGCMSensitiveContentCipher("oracle-memory-contextual-offer-key"),
+    )
+    async with payment_db.begin() as session:
+        persona = Persona(
+            code="contextual_offer",
+            display_name="Contextual Offer",
+            prompt_version="offer-v1",
+            schema_version="reading-result-v1",
+        )
+        session.add(persona)
+        await session.flush()
+
+    assert not await service.should_offer_consent(user.id)
+    for expected in (False, True):
+        async with payment_db.begin() as session:
+            reading = Reading(
+                user_id=user.id,
+                persona_id=persona.id,
+                topic="decision",
+                status="draft",
+                access_level="none",
+                cost_units=0,
+                engine_version="reading-v1",
+                prompt_version="offer-v1",
+                schema_version="reading-result-v1",
+            )
+            session.add(reading)
+            await session.flush()
+            spend = CreditTransaction(
+                user_id=user.id,
+                type="spend",
+                amount=-1,
+                idempotency_key=f"contextual-offer:{reading.id}",
+                reading_id=reading.id,
+            )
+            session.add(spend)
+            await session.flush()
+            reading.status = "full_ready"
+            reading.access_level = "full"
+            reading.cost_units = 1
+            reading.full_access_transaction_id = spend.id
+            reading.generated_at = datetime.now(UTC)
+        assert await service.should_offer_consent(user.id) is expected
+
+    await service.revoke_consent(user.id)
+    assert not await service.should_offer_consent(user.id)
 
 
 async def test_revoking_consent_purges_all_values_and_blocks_new_memory(

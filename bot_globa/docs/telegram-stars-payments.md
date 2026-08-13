@@ -77,7 +77,8 @@ autorenewal separately.
 ## Staging acceptance
 
 - Confirm that zero-priced Stars fail startup; when Stars are disabled, no Stars button is shown.
-- Enable Stars and verify Telegram no longer shows or accepts YooKassa or Stripe checkout buttons.
+- Enable Stars and verify the bot still shows every configured YooKassa and Stripe route alongside
+  the Stars button; each callback must open the matching checkout flow.
 - Buy every one-time SKU and verify the invoice shows the exact configured whole-Star amount.
 - Replay the same `successful_payment` update and verify one completed order and one grant.
 - Try a mismatched user, payload, currency, and amount in pre-checkout; each must be rejected.

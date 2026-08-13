@@ -105,7 +105,7 @@ class DeploymentVerifier:
     def _check_telegram_payment_routes(self) -> VerificationCheck:
         keyboard = payment_market_keyboard(
             "reading_single",
-            telegram_stars_enabled=self._settings.telegram_stars_enabled,
+            settings=self._settings,
         )
         callbacks = {
             button.callback_data

@@ -106,6 +106,10 @@ def test_deployment_settings_reject_unbounded_values() -> None:
     with pytest.raises(ValidationError):
         DeploymentSettings(telegram_worker_idle_seconds=0)
     with pytest.raises(ValidationError):
+        DeploymentSettings(daily_horoscope_lease_seconds=29)
+    with pytest.raises(ValidationError):
+        DeploymentSettings(daily_horoscope_worker_idle_seconds=0)
+    with pytest.raises(ValidationError):
         DeploymentSettings(maintenance_batch_size=10_001)
 
 
@@ -124,4 +128,4 @@ def test_production_compose_loads_the_approved_stars_rollout_after_secrets() -> 
     assert values["TELEGRAM_STARS_AMOUNT_READING_PACK_5"] == "200"
     assert values["TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY"] == "280"
     assert values["SUBSCRIPTIONS_ENABLED"] == "true"
-    assert compose.count("      - .env.prod\n      - production.public.env") == 5
+    assert compose.count("      - .env.prod\n      - production.public.env") == 6

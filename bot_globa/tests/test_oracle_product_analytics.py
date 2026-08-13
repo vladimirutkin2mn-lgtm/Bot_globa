@@ -97,6 +97,30 @@ async def test_facade_rejects_content_and_caller_managed_version() -> None:
         )
 
 
+async def test_reading_feedback_records_only_an_owned_reading_id_and_reaction_code() -> None:
+    recording = RecordingAnalytics()
+    analytics = OracleProductAnalytics(recording)
+    user_id, reading_id = uuid4(), uuid4()
+
+    await analytics.track(
+        user_id,
+        OracleProductEvent.READING_FEEDBACK_SUBMITTED,
+        {"reading_id": reading_id, "reaction_code": "hit"},
+    )
+
+    assert recording.calls == [
+        (
+            str(user_id),
+            "reading_feedback_submitted",
+            {
+                "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
+                "reading_id": str(reading_id),
+                "reaction_code": "hit",
+            },
+        )
+    ]
+
+
 @pytest.mark.parametrize(
     "payload",
     [
