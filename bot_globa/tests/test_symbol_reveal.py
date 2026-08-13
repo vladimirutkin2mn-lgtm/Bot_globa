@@ -12,11 +12,13 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.methods import TelegramMethod
+from aiogram.methods import EditMessageMedia, SendPhoto, TelegramMethod
 from aiogram.methods.base import TelegramType
 from aiogram.types import Chat, Message
 from aiogram.types import User as TelegramUser
+from aiogram.types.input_file import FSInputFile
 
+from app.bot import scene_media
 from app.bot.persona_flow import PersonaReadingBundle
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.persona_handlers import PersonaReadingHandlers
@@ -168,8 +170,8 @@ async def test_the_spread_is_revealed_while_the_interpretation_is_still_being_wr
     assert revealed_while_pending
     symbols = TarotSymbolDrawer().draw(READING_ID)
     shown = shown_texts(session.methods)
-    # The waiting screen is illustrated, so the first symbol arrives as a new photo screen
-    # and every later one rewrites its caption: one message per symbol, no more.
+    # One message for the whole reveal: the first card opens a photo screen and each
+    # later card replaces its picture, so nothing accumulates in the chat.
     assert len(session.methods) == len(symbols)
     assert shown == [
         render_reveal(TAROT_FLOW.copy, symbols, revealed) for revealed in range(1, len(symbols) + 1)
@@ -188,3 +190,36 @@ async def test_a_persona_without_symbols_simply_waits(
     await handlers._reveal_spread(message, state, READING_ID, _bundle(Wordy()))
 
     assert session.methods == []
+
+
+async def test_each_step_turns_over_the_card_that_was_drawn(
+    revealing: tuple[PersonaReadingHandlers, Message, FSMContext, RecordingSession, SlowUseCase],
+) -> None:
+    """The picture has to be the card, not a generic waiting illustration."""
+
+    handlers, message, state, session, use_case = revealing
+    scene_media._telegram_file_ids.clear()
+
+    await handlers._reveal_spread(message, state, READING_ID, _bundle(use_case))
+
+    symbols = TarotSymbolDrawer().draw(READING_ID)
+    # The first card arrives as a new photo screen; every later one swaps the media,
+    # because a different card is a different picture rather than a new caption.
+    assert [type(method).__name__ for method in session.methods] == [
+        "SendPhoto",
+        *["EditMessageMedia"] * (len(symbols) - 1),
+    ]
+    assert _photo_names(session) == [f"{context.symbol.symbol_id}.jpg" for context in symbols]
+
+
+def _photo_names(session: RecordingSession) -> list[str]:
+    names: list[str] = []
+    for method in session.methods:
+        if isinstance(method, EditMessageMedia):
+            photo = method.media.media
+        else:
+            assert isinstance(method, SendPhoto)
+            photo = method.photo
+        assert isinstance(photo, FSInputFile)
+        names.append(photo.filename or "")
+    return names

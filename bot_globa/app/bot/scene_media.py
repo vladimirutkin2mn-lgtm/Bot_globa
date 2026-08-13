@@ -1,7 +1,13 @@
-"""Send the image assigned to a client-journey scene with its Telegram copy."""
+"""Send the image a screen shows, with its Telegram copy.
+
+Most images belong to a client-journey scene, but not all: a tarot reveal shows the
+card that was drawn. Both go through the same `file_id` cache and the same graceful
+degradation, so `Art` is the unit here rather than `Scene`.
+"""
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
@@ -102,8 +108,25 @@ class Scene(StrEnum):
     def asset_path(self) -> Path:
         return SCENE_ASSET_DIR / f"{self.value}.jpg"
 
+    @property
+    def art(self) -> "Art":
+        return Art(key=self.value, path=self.asset_path)
 
-_telegram_file_ids: dict[Scene, str] = {}
+
+@dataclass(frozen=True, slots=True)
+class Art:
+    """One image the bot can show, and the key its Telegram `file_id` is cached under.
+
+    The key is what makes a second delivery cheap, so it has to identify the picture
+    rather than the screen: two screens showing the same card share one upload.
+    """
+
+    key: str
+    path: Path
+
+
+# Keyed by `Art.key` rather than by scene: cards are cached the same way pictures are.
+_telegram_file_ids: dict[str, str] = {}
 
 # CJM v2 uses full-width art as punctuation, not chrome. Utility, payment, privacy,
 # settings, errors and safety hand-offs stay fast plain-text messages even though their
@@ -175,37 +198,43 @@ async def send_scene_photo(
     recipient would send the same picture over the wire once per delivery.
     """
 
-    if await _photo_to_chat(bot, chat_id, scene, caption, reply_markup) is None:
+    if await _photo_to_chat(bot, chat_id, scene.art, caption, reply_markup) is None:
         await bot.send_message(chat_id=chat_id, text=caption, reply_markup=reply_markup)
 
 
-async def send_scene(
+def scene_art(scene: Scene) -> Art | None:
+    """The illustration a scene carries, or None for the screens CJM v2 keeps plain."""
+
+    return scene.art if scene in MEDIA_SCENES else None
+
+
+async def send_art(
     bot: Bot,
     chat_id: int,
-    scene: Scene,
+    art: Art | None,
     text: str,
     *,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> Message:
-    """Deliver one scene as exactly one message, and report which message that became.
+    """Deliver one screen as exactly one message, and report which message that became.
 
     The live screen has to stay editable, so it may never be split across a photo and a
     follow-up text the way a long artifact is: copy that outgrows a caption is delivered
     as text instead of losing the ability to be edited in place.
     """
 
-    if scene in MEDIA_SCENES and len(text) <= TELEGRAM_CAPTION_LIMIT:
-        sent = await _photo_to_chat(bot, chat_id, scene, text, reply_markup)
+    if art is not None and len(text) <= TELEGRAM_CAPTION_LIMIT:
+        sent = await _photo_to_chat(bot, chat_id, art, text, reply_markup)
         if sent is not None:
             return sent
     return await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
-async def edit_scene_photo(
+async def edit_art(
     bot: Bot,
     chat_id: int,
     message_id: int,
-    scene: Scene,
+    art: Art,
     caption: str,
     *,
     reply_markup: InlineKeyboardMarkup | None = None,
@@ -225,13 +254,13 @@ async def edit_scene_photo(
             reply_markup=reply_markup,
         )
 
-    return await _cached_photo(scene, swap) is not None
+    return await _cached_photo(art, swap) is not None
 
 
 async def _photo_to_chat(
     bot: Bot,
     chat_id: int,
-    scene: Scene,
+    art: Art,
     caption: str | None,
     reply_markup: InlineKeyboardMarkup | None,
 ) -> Message | None:
@@ -243,7 +272,7 @@ async def _photo_to_chat(
             reply_markup=reply_markup,
         )
 
-    return await _cached_photo(scene, send)
+    return await _cached_photo(art, send)
 
 
 async def _send_photo(
@@ -260,11 +289,11 @@ async def _send_photo(
             return await message.answer_photo(photo=photo)
         return await message.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
 
-    return await _cached_photo(scene, send) is not None
+    return await _cached_photo(scene.art, send) is not None
 
 
 async def _cached_photo[T](
-    scene: Scene,
+    art: Art,
     send: Callable[[str | FSInputFile], Awaitable[T]],
 ) -> T | None:
     """Run one photo request against the cached `file_id`, falling back to the asset once.
@@ -274,29 +303,29 @@ async def _cached_photo[T](
     caller cannot control is reported rather than raised: every screen has a text form.
     """
 
-    cached = _telegram_file_ids.get(scene)
+    cached = _telegram_file_ids.get(art.key)
     if cached is not None:
         try:
             sent = await send(cached)
         except TelegramForbiddenError:
             raise
         except TelegramAPIError:
-            logger.warning("scene_file_id_rejected scene=%s", scene.value)
-            _telegram_file_ids.pop(scene, None)
+            logger.warning("art_file_id_rejected key=%s", art.key)
+            _telegram_file_ids.pop(art.key, None)
         else:
-            _remember_file_id(scene, sent)
+            _remember_file_id(art.key, sent)
             return sent
     try:
-        sent = await send(FSInputFile(scene.asset_path, filename=f"{scene.value}.jpg"))
+        sent = await send(FSInputFile(art.path, filename=art.path.name))
     except TelegramForbiddenError:
         raise
     except TelegramAPIError:
-        logger.warning("scene_photo_unavailable scene=%s", scene.value)
+        logger.warning("art_unavailable key=%s", art.key)
         return None
-    _remember_file_id(scene, sent)
+    _remember_file_id(art.key, sent)
     return sent
 
 
-def _remember_file_id(scene: Scene, message: object) -> None:
+def _remember_file_id(key: str, message: object) -> None:
     if isinstance(message, Message) and message.photo:
-        _telegram_file_ids[scene] = message.photo[-1].file_id
+        _telegram_file_ids[key] = message.photo[-1].file_id

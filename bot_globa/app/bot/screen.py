@@ -22,12 +22,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, Message
 
 from app.bot.scene_media import (
-    MEDIA_SCENES,
     TELEGRAM_CAPTION_LIMIT,
+    Art,
     Scene,
     answer_scene,
-    edit_scene_photo,
-    send_scene,
+    edit_art,
+    scene_art,
+    send_art,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,34 +45,39 @@ SCREEN_DESTINY = "screen"
 
 @dataclass(frozen=True, slots=True)
 class ScreenPointer:
-    """Where the live screen currently is, and in which form it can be edited."""
+    """Where the live screen is, and which picture it is currently showing.
+
+    `art_key` is `None` for a text screen. It identifies the picture rather than the
+    scene, because the tarot reveal shows a different card on every step of one scene:
+    the same key means the caption can be rewritten, a different key means the media has
+    to be swapped, and `None` on one side means the message has to be replaced entirely.
+    """
 
     message_id: int
-    scene: Scene
-    has_photo: bool
+    art_key: str | None
+
+    @property
+    def has_photo(self) -> bool:
+        return self.art_key is not None
 
     def as_data(self) -> dict[str, Any]:
-        return {
-            "message_id": self.message_id,
-            "scene": self.scene.value,
-            "has_photo": self.has_photo,
-        }
+        return {"message_id": self.message_id, "art_key": self.art_key}
 
     @classmethod
     def restore(cls, raw: Any) -> "ScreenPointer | None":
         """Rebuild a pointer written by an older release, or report that there is none.
 
-        FSM data outlives deployments: a pointer whose shape or scene no longer exists is
-        treated as absent, which costs one extra message instead of an unhandled error.
+        FSM data outlives deployments: a pointer whose shape no longer matches is treated
+        as absent, which costs one extra message instead of an unhandled error.
         """
 
-        if not isinstance(raw, dict):
+        if not isinstance(raw, dict) or "art_key" not in raw:
             return None
         try:
+            key = raw["art_key"]
             return cls(
                 message_id=int(raw["message_id"]),
-                scene=Scene(str(raw["scene"])),
-                has_photo=bool(raw["has_photo"]),
+                art_key=None if key is None else str(key),
             )
         except (KeyError, TypeError, ValueError):
             return None
@@ -84,6 +90,7 @@ async def show_screen(
     *,
     state: FSMContext,
     reply_markup: InlineKeyboardMarkup | None = None,
+    art: Art | None = None,
 ) -> None:
     """Move the live screen to this scene, editing the existing message where possible.
 
@@ -92,6 +99,10 @@ async def show_screen(
     pointer in FSM data is the only authority on which message *is* the screen, because
     buttons also live under artifacts and editing a finished reading would destroy what
     the user paid for.
+
+    `art` overrides the scene's own illustration for screens whose picture is not fixed
+    by the scene — the drawn card during a tarot reveal. Passing nothing keeps the scene's
+    own image, which is also what happens when a deck is not installed.
     """
 
     bot = message.bot
@@ -99,7 +110,9 @@ async def show_screen(
         logger.warning("screen_without_bot scene=%s", scene.value)
         return
     chat_id = message.chat.id
-    as_photo = scene in MEDIA_SCENES and len(text) <= TELEGRAM_CAPTION_LIMIT
+    shown = art if art is not None else scene_art(scene)
+    if shown is not None and len(text) > TELEGRAM_CAPTION_LIMIT:
+        shown = None
     screen = _screen_state(state)
     pointer = ScreenPointer.restore((await screen.get_data()).get(SCREEN_KEY))
     if pointer is not None:
@@ -107,14 +120,14 @@ async def show_screen(
         # form has to replace the message rather than edit it.
         if (
             _is_the_last_message(pointer, message)
-            and pointer.has_photo == as_photo
-            and await _edit(bot, chat_id, pointer, scene, text, reply_markup)
+            and pointer.has_photo == (shown is not None)
+            and await _edit(bot, chat_id, pointer, shown, text, reply_markup)
         ):
-            await _store(state, ScreenPointer(pointer.message_id, scene, as_photo))
+            await _store(state, ScreenPointer(pointer.message_id, _key(shown)))
             return
         await _retire(bot, chat_id, pointer.message_id)
-    sent = await send_scene(bot, chat_id, scene, text, reply_markup=reply_markup)
-    await _store(state, ScreenPointer(sent.message_id, scene, bool(sent.photo)))
+    sent = await send_art(bot, chat_id, shown, text, reply_markup=reply_markup)
+    await _store(state, ScreenPointer(sent.message_id, _key(shown) if sent.photo else None))
 
 
 async def send_artifact(
@@ -160,16 +173,20 @@ def _screen_state(state: FSMContext) -> FSMContext:
     return FSMContext(storage=state.storage, key=replace(state.key, destiny=SCREEN_DESTINY))
 
 
+def _key(art: Art | None) -> str | None:
+    return None if art is None else art.key
+
+
 async def _edit(
     bot: Bot,
     chat_id: int,
     pointer: ScreenPointer,
-    scene: Scene,
+    shown: Art | None,
     text: str,
     reply_markup: InlineKeyboardMarkup | None,
 ) -> bool:
     try:
-        if not pointer.has_photo:
+        if shown is None:
             await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=pointer.message_id,
@@ -177,12 +194,12 @@ async def _edit(
                 reply_markup=reply_markup,
             )
             return True
-        if pointer.scene is not scene:
-            return await edit_scene_photo(
+        if pointer.art_key != shown.key:
+            return await edit_art(
                 bot,
                 chat_id,
                 pointer.message_id,
-                scene,
+                shown,
                 text,
                 reply_markup=reply_markup,
             )
@@ -198,7 +215,7 @@ async def _edit(
         # user nothing is wrong, and sending a duplicate would be the actual defect.
         return "message is not modified" in str(error).lower()
     except TelegramAPIError:
-        logger.warning("screen_edit_failed scene=%s", scene.value)
+        logger.warning("screen_edit_failed message_id=%s", pointer.message_id)
         return False
     return True
 

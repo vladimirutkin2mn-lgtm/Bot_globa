@@ -11,6 +11,7 @@ from typing import Any
 
 from aiogram.methods import (
     EditMessageCaption,
+    EditMessageMedia,
     EditMessageText,
     SendMessage,
     SendPhoto,
@@ -32,6 +33,10 @@ def shown_texts(methods: Iterable[TelegramMethod[Any]]) -> list[str]:
             shown.append(method.text or "")
         elif isinstance(method, SendPhoto | EditMessageCaption):
             shown.append(method.caption or "")
+        elif isinstance(method, EditMessageMedia):
+            # Swapping the picture carries its own caption, and that is what the user
+            # reads during a tarot reveal.
+            shown.append(method.media.caption or "")
     return shown
 
 

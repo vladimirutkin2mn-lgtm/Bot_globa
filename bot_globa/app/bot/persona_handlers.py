@@ -38,6 +38,7 @@ from app.bot.reading_renderer import (
 )
 from app.bot.scene_media import Scene, answer_scene
 from app.bot.screen import forget_screen, show_screen, show_thinking
+from app.bot.tarot_art import card_art
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.providers.analytics import OracleProductEvent
@@ -678,6 +679,9 @@ class PersonaReadingHandlers:
                     Scene.GENERATING,
                     render_reveal(self._flow.copy, symbols, revealed),
                     state=state,
+                    # The card just turned over becomes the screen. Without a deck this is
+                    # None and the waiting illustration stays, which is the older reveal.
+                    art=card_art(symbols[revealed - 1].symbol.symbol_id),
                 )
         except TelegramAPIError:
             logger.info("symbol_reveal_interrupted persona=%s", self._flow.persona_code)
