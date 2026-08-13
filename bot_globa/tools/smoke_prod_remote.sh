@@ -5,6 +5,7 @@ set -euo pipefail
 DEPLOY_HOST="${DEPLOY_HOST:?Set DEPLOY_HOST, for example root@example.host}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/bot_globa}"
 DEPLOY_SSH_OPTS="${DEPLOY_SSH_OPTS:-}"
+PUBLIC_ORACLE_URL="${PUBLIC_ORACLE_URL:-}"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
 SSH_ARGS=()
@@ -35,3 +36,13 @@ for path in ('/health/live', '/health/ready'):
 
 echo "==> Deployment verification (webhook configuration, delivery, backlog)"
 run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} exec -T api python -m app.cli.verify_deployment"
+
+if [[ -n "${PUBLIC_ORACLE_URL}" ]]; then
+  PUBLIC_ORACLE_URL="${PUBLIC_ORACLE_URL%/}"
+  echo "==> Public HTTPS liveness and readiness"
+  for path in /health/live /health/ready; do
+    curl --fail --silent --show-error --location --max-time 15 \
+      "${PUBLIC_ORACLE_URL}${path}" >/dev/null
+    echo "${PUBLIC_ORACLE_URL}${path} OK"
+  done
+fi
