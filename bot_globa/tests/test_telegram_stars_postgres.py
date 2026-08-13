@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
 from app.db.models import (
+    BillingCustomer,
     CreditTransaction,
     PaymentOrder,
     ProviderWebhookEvent,
@@ -18,6 +19,7 @@ from app.db.models import (
 )
 from app.db.subscription_models import SubscriptionPeriod
 from app.domain.billing import BillingCatalog
+from app.providers.payments.subscription_gateway import SubscriptionStateFact
 from app.services.payment_completion_service import PaymentCompletionService
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
@@ -75,9 +77,11 @@ async def test_one_time_stars_payment_grants_once_under_replay(
     user = await _user(payment_db, 700_001)
     service = _service(payment_db)
     invoice = await service.create_invoice(user.id, "reading_single")
-    decision = await service.validate_pre_checkout(700_001, invoice.payload, "XTR", invoice.amount)
+    decision = await service.validate_pre_checkout(
+        700_001, "query-one", invoice.payload, "XTR", invoice.amount
+    )
     mismatch = await service.validate_pre_checkout(
-        700_001, invoice.payload, "XTR", invoice.amount + 1
+        700_001, "query-two", invoice.payload, "XTR", invoice.amount + 1
     )
     fact = TelegramStarsPaymentFact(
         currency="XTR",
@@ -176,3 +180,101 @@ async def test_mismatched_successful_payment_enters_durable_manual_review(
         assert event is not None and event.status == "manual_review"
         assert event.payload_hash is not None and len(event.payload_hash) == 64
         assert await session.scalar(select(func.count()).select_from(CreditTransaction)) == 0
+
+
+async def test_concurrent_pre_checkout_authorizes_one_charge_per_order(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """One order can back several invoice messages; only one of them may be charged."""
+    user = await _user(payment_db, 700_004)
+    service = _service(payment_db)
+    invoice = await service.create_invoice(user.id, "reading_single")
+
+    decisions = await asyncio.gather(
+        *(
+            service.validate_pre_checkout(
+                700_004, f"query-{index}", invoice.payload, "XTR", invoice.amount
+            )
+            for index in range(6)
+        )
+    )
+    replay = await service.validate_pre_checkout(
+        700_004, "query-0", invoice.payload, "XTR", invoice.amount
+    )
+
+    assert sum(decision.approved for decision in decisions) == 1
+    rejected = next(decision for decision in decisions if not decision.approved)
+    assert rejected.error_message is not None and "оплачивается" in rejected.error_message
+    async with payment_db() as session:
+        order = await session.get(PaymentOrder, invoice.order_id)
+        assert order is not None
+        assert order.pre_checkout_authorized_at is not None
+        # Telegram retries the same query when our answer is lost: that must stay idempotent.
+        assert replay.approved == (order.pre_checkout_query_id == "query-0")
+
+
+async def test_period_less_renewal_failure_applies_only_to_provider_managed_schedules(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """Stripe and YooKassa report a boundary, and their own path owns their past_due move."""
+    # One active subscription per user and product, so each rail needs its own owner.
+    stripe_owner = await _user(payment_db, 700_005)
+    stars_owner = await _user(payment_db, 700_006)
+    lifecycle = SubscriptionLifecycleService(payment_db)
+    processor = SubscriptionEventProcessor(payment_db, lifecycle, grace_period_days=3)
+    period_start = datetime(2026, 8, 1, tzinfo=UTC)
+    period_end = datetime(2026, 9, 1, tzinfo=UTC)
+    async with payment_db.begin() as session:
+        for owner, provider, subscription_id in (
+            (stripe_owner, "stripe", "sub_stripe"),
+            (stars_owner, "telegram_stars", "stars-charge-initial"),
+        ):
+            customer = BillingCustomer(
+                user_id=owner.id,
+                provider=provider,
+                provider_customer_id=f"customer-{provider}",
+            )
+            session.add(customer)
+            await session.flush()
+            session.add(
+                Subscription(
+                    user_id=owner.id,
+                    billing_customer_id=customer.id,
+                    provider=provider,
+                    provider_subscription_id=subscription_id,
+                    product_code="subscription_monthly",
+                    product_version=1,
+                    status="active",
+                    current_period_start=period_start,
+                    current_period_end=period_end,
+                    consent_version="v1",
+                    consented_at=period_start,
+                )
+            )
+
+    def fact(
+        owner: User, provider: str, subscription_id: str, status: str
+    ) -> SubscriptionStateFact:
+        return SubscriptionStateFact(
+            user_id=owner.id,
+            provider=provider,
+            provider_subscription_id=subscription_id,
+            status=status,
+            current_period_start=period_start,
+            current_period_end=period_end,
+            cancel_at_period_end=False,
+        )
+
+    stripe_applied = await processor.apply(fact(stripe_owner, "stripe", "sub_stripe", "past_due"))
+    stars_applied = await processor.apply(
+        fact(stars_owner, "telegram_stars", "stars-charge-initial", "failed")
+    )
+
+    assert not stripe_applied
+    assert stars_applied
+    async with payment_db() as session:
+        statuses = {
+            value.provider: value.status
+            for value in (await session.scalars(select(Subscription))).all()
+        }
+    assert statuses == {"stripe": "active", "telegram_stars": "past_due"}

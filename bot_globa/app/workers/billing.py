@@ -15,6 +15,7 @@ from app.logging import configure_logging
 from app.providers.analytics import DiscardingAnalyticsClient
 from app.providers.payments.base import PaymentProviderName
 from app.providers.payments.composition import create_payment_components
+from app.providers.payments.telegram_stars import TELEGRAM_STARS_PROVIDER
 from app.providers.payments.yookassa_gateway import YooKassaGateway
 from app.providers.payments.yookassa_subscription_gateway import YooKassaSubscriptionGateway
 from app.services.billing_job_worker import BillingJobWorker
@@ -100,7 +101,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
                 if resolved.subscriptions_enabled:
                     await lifecycle.enqueue_due_renewals(
                         now=now,
-                        providers=set(subscription_gateways),
+                        exclude_providers={TELEGRAM_STARS_PROVIDER},
                     )
                     await lifecycle.finalize_terminal_states(
                         now=now,

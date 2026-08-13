@@ -42,10 +42,18 @@ pages or placeholder URLs. Checkout screens ask the user to read `/terms` before
 3. In webhook mode, `pre_checkout_query` is validated and answered directly in the HTTP response,
    outside the durable queue, so the bot can meet Telegram's ten-second deadline. User identity,
    payload, order state, amount, and `XTR` currency must all match.
-4. `successful_payment` remains a durable Telegram inbox update. Credits are granted only from
+4. That answer is also the charge authorization. One order can back several invoice messages, and
+   Telegram charges as soon as the answer is `ok`, so the order row is locked and
+   `pre_checkout_query_id` / `pre_checkout_authorized_at` record the single in-flight
+   authorization (revision `20260813_28`). A different query for the same order is refused for
+   120 seconds; a Telegram retry of the same query id is idempotent, and an abandoned
+   confirmation frees the order once the lease expires.
+5. `successful_payment` remains a durable Telegram inbox update. Credits are granted only from
    that update, through the existing locked payment/subscription lifecycle.
-5. `telegram_payment_charge_id` is the provider payment identity. Replays and concurrent workers
-   produce one order completion and one append-only credit transaction.
+6. `telegram_payment_charge_id` is the provider payment identity. Replays and concurrent workers
+   produce one order completion and one append-only credit transaction. A second distinct charge
+   against a completed order is never granted twice: it lands in `manual_review` with its own
+   `provider_webhook_events` row so support can refund it.
 
 The billing kill switch rejects new invoices and pre-checkout confirmation. It deliberately does
 not discard successful-payment updates already issued by Telegram.
@@ -56,8 +64,14 @@ The monthly Stars invoice uses Telegram-managed 30-day renewal. The first paymen
 the stable subscription identity used by `editUserStarSubscription`; each successful renewal has
 its own charge ID and creates one new subscription period, payment order, and credit grant.
 
-Telegram's `subscription` update drives cancellation, re-enable, and failed-renewal state. Stars
-subscriptions are excluded from merchant-scheduled renewal jobs because Telegram owns the charge
+Telegram's `subscription` update drives cancellation, re-enable, and failed-renewal state; the
+only understood states are `active`, `canceled` and `failed`, and anything else is logged rather
+than silently dropped. A `failed` renewal moves the local subscription to `past_due` without
+touching the already paid period — that transition is reserved for provider-managed schedules,
+because Stripe and YooKassa report an exact period boundary and their own path owns it.
+
+Stars subscriptions are excluded by name from merchant-scheduled renewal jobs because Telegram
+owns the charge
 schedule. Canceling preserves the current paid period and already granted credits.
 
 ## Refunds
@@ -76,12 +90,18 @@ autorenewal separately.
 
 ## Staging acceptance
 
+Stars have no sandbox: `refundStarPayment` and every invoice move real Stars even from a test bot,
+and orders are always recorded with `provider_live_mode=true`. Run this checklist on a dedicated
+staging bot with a funded account and expect the spend to be real.
+
 - Confirm that zero-priced Stars fail startup; when Stars are disabled, no Stars button is shown.
 - Enable Stars and verify the bot still shows every configured YooKassa and Stripe route alongside
   the Stars button; each callback must open the matching checkout flow.
 - Buy every one-time SKU and verify the invoice shows the exact configured whole-Star amount.
 - Replay the same `successful_payment` update and verify one completed order and one grant.
 - Try a mismatched user, payload, currency, and amount in pre-checkout; each must be rejected.
+- Tap **Buy** twice to get two invoice messages for the same order, then pay both: the second
+  pre-checkout must be refused and no second charge may occur.
 - Buy a monthly subscription, replay its first payment, then process one renewal; verify exactly
   two periods and two grants.
 - Cancel and resume renewal; verify Telegram and local subscription state agree.

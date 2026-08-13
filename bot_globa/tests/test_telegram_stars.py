@@ -1,6 +1,7 @@
 """Telegram Stars catalog, payload, refund, and presentation contracts."""
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -13,6 +14,7 @@ from aiogram.types import (
     User as TelegramUser,
 )
 from pydantic import SecretStr, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot.keyboards import payment_market_keyboard
 from app.bot.subscription_handlers import subscription_market_keyboard
@@ -21,6 +23,7 @@ from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.providers.payments.refund_gateway import CreateRefund
 from app.providers.payments.telegram_stars import TelegramStarsGateway
+from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.telegram_stars_service import parse_stars_payload, stars_payload
 
 
@@ -84,6 +87,28 @@ def test_catalog_exposes_xtr_without_changing_existing_routes() -> None:
     assert stars.currency == "XTR"
     assert stars.price_reference == "catalog:reading_single:xtr:v2"
     assert rub.provider.value == "yookassa"
+
+
+def test_disabled_stars_expose_no_telegram_route_at_all() -> None:
+    """A rail nobody can settle must not be resolvable from client-supplied coordinates."""
+    catalog = BillingCatalog(configured(telegram_stars_enabled=False))
+
+    with pytest.raises(LookupError):
+        catalog.resolve_product_offer("reading_single", "TELEGRAM", "XTR")
+
+
+async def test_hosted_checkout_never_serves_a_client_supplied_telegram_coordinate() -> None:
+    """A crafted `credits:offer:...:TELEGRAM:XTR` callback must never create an order."""
+    settings = configured(billing_enabled=True, stripe_enabled=True)
+    service = CheckoutService(
+        cast("async_sessionmaker[AsyncSession]", None),
+        settings,
+        BillingCatalog(settings),
+        {},
+    )
+
+    with pytest.raises(CheckoutRejectedError):
+        await service.create_one_time_checkout(uuid4(), "reading_single", "TELEGRAM", "XTR")
 
 
 def test_stars_payload_is_compact_and_strict() -> None:

@@ -13,6 +13,7 @@ from app.providers.payments.subscription_gateway import (
     SubscriptionProviderFact,
     SubscriptionStateFact,
 )
+from app.providers.payments.telegram_stars import TELEGRAM_STARS_PROVIDER
 from app.services.subscription_lifecycle import (
     PaidSubscriptionPeriod,
     PastDueSubscriptionPeriod,
@@ -171,6 +172,10 @@ class SubscriptionEventProcessor:
         if fact.status in {"active", "trialing"} and stored_status == "cancel_at_period_end":
             await self._lifecycle.record_resumed(fact.user_id, subscription_id)
             return True
-        if fact.status in {"failed", "past_due"}:
+        # Only provider-managed schedules report a renewal failure without a period: Stripe and
+        # YooKassa deliver a PastDueSubscriptionFact with the exact boundary instead, and that
+        # path owns their local past_due transition. Widening this branch to every provider would
+        # duplicate their payment-failure events under a second idempotency key.
+        if fact.provider == TELEGRAM_STARS_PROVIDER and fact.status in {"failed", "past_due"}:
             return await self._lifecycle.record_past_due_state(fact.user_id, subscription_id)
         return False

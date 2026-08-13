@@ -1,6 +1,7 @@
 """Server-authoritative Telegram Stars invoices and payment application."""
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -28,20 +29,22 @@ from app.providers.payments.subscription_gateway import (
 from app.providers.payments.telegram_stars import (
     TELEGRAM_STARS_CURRENCY,
     TELEGRAM_STARS_PROVIDER,
+    TELEGRAM_STARS_SUBSCRIPTION_STATES,
 )
 from app.services.payment_completion_service import PaymentCompletionService
 from app.services.subscription_event_processor import SubscriptionEventProcessor
-from app.services.subscription_lifecycle import SubscriptionLifecycleError
+from app.services.subscription_lifecycle import (
+    ACTIVE_SUBSCRIPTION_STATUSES,
+    SubscriptionLifecycleError,
+)
+
+logger = logging.getLogger(__name__)
 
 STARS_PAYLOAD_PREFIX = "globa-stars-v1:"
 STARS_SUBSCRIPTION_PERIOD_SECONDS = 2_592_000
-_ACTIVE_SUBSCRIPTIONS = (
-    "incomplete",
-    "active",
-    "past_due",
-    "cancel_at_period_end",
-    "paused",
-)
+# Telegram gives the user seconds to confirm and then charges immediately. A short lease lets an
+# abandoned confirmation be retried while a concurrent second invoice message is still refused.
+STARS_PRE_CHECKOUT_LEASE = timedelta(seconds=120)
 
 
 class TelegramStarsRejectedError(RuntimeError):
@@ -135,7 +138,7 @@ class TelegramStarsPaymentService:
                     select(Subscription.id).where(
                         Subscription.user_id == user_id,
                         Subscription.product_code == offer.product_code.value,
-                        Subscription.status.in_(_ACTIVE_SUBSCRIPTIONS),
+                        Subscription.status.in_(ACTIVE_SUBSCRIPTION_STATUSES),
                     )
                 )
                 if active is not None:
@@ -225,18 +228,43 @@ class TelegramStarsPaymentService:
     async def validate_pre_checkout(
         self,
         telegram_user_id: int,
+        query_id: str,
         payload: str,
         currency: str,
         total_amount: int,
     ) -> PreCheckoutDecision:
+        """Authorize at most one in-flight charge per order, under a row lock.
+
+        One order can back several invoice messages, and Telegram charges as soon as this answer
+        is `ok`. Approving two concurrent queries would take the user's Stars twice for a single
+        grant, so the authorization is recorded here while the order row is locked. Telegram's own
+        retry of the same query id stays idempotent.
+        """
         if not self._settings.permits_new_checkout() or not self._settings.telegram_stars_enabled:
             return PreCheckoutDecision(False, "Оплата звёздами временно недоступна.")
         order_id = parse_stars_payload(payload)
         if order_id is None:
             return PreCheckoutDecision(False, "Счёт не найден. Создайте его заново в боте.")
-        async with self._sessions() as session:
-            order = await session.get(PaymentOrder, order_id)
-            user = None if order is None else await session.get(User, order.user_id)
+        async with self._sessions.begin() as session:
+            # Global lock order: User -> PaymentOrder.
+            initial = await session.get(PaymentOrder, order_id)
+            if initial is None:
+                return PreCheckoutDecision(
+                    False,
+                    "Параметры счёта изменились. Создайте новый счёт в боте.",
+                )
+            user = await session.scalar(
+                select(User).where(User.id == initial.user_id).with_for_update()
+            )
+            # The discovery read above already populated this row in the identity map; without
+            # populate_existing the locked read would return those stale attributes and two
+            # concurrent queries could both see an unauthorized order.
+            order = await session.scalar(
+                select(PaymentOrder)
+                .where(PaymentOrder.id == order_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
             if (
                 order is None
                 or user is None
@@ -255,6 +283,19 @@ class TelegramStarsPaymentService:
                 )
             if order.mode == "subscription_initial" and not self._settings.subscriptions_enabled:
                 return PreCheckoutDecision(False, "Подписка временно недоступна.")
+            if order.pre_checkout_query_id == query_id:
+                return PreCheckoutDecision(True)
+            authorized_at = order.pre_checkout_authorized_at
+            now = datetime.now(UTC)
+            if authorized_at is not None and now - _aware_utc(authorized_at) < (
+                STARS_PRE_CHECKOUT_LEASE
+            ):
+                return PreCheckoutDecision(
+                    False,
+                    "Этот счёт уже оплачивается. Дождитесь результата, повторно платить не нужно.",
+                )
+            order.pre_checkout_query_id = query_id[:64]
+            order.pre_checkout_authorized_at = now
         return PreCheckoutDecision(True)
 
     async def complete_successful(
@@ -408,7 +449,10 @@ class TelegramStarsPaymentService:
                     select(User).where(User.id == initial.user_id).with_for_update()
                 )
                 order = await session.scalar(
-                    select(PaymentOrder).where(PaymentOrder.id == initial.id).with_for_update()
+                    select(PaymentOrder)
+                    .where(PaymentOrder.id == initial.id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
                 if order is not None and order.status in {"creating", "pending"}:
                     order.status = "manual_review"
@@ -454,7 +498,12 @@ class TelegramStarsPaymentService:
         state: str,
     ) -> bool:
         order_id = parse_stars_payload(payload)
-        if order_id is None or state not in {"active", "canceled", "failed"}:
+        if order_id is None:
+            return False
+        if state not in TELEGRAM_STARS_SUBSCRIPTION_STATES:
+            # A state Telegram adds later must be visible, not silently dropped: an unapplied
+            # cancellation would keep a local subscription entitled after the provider stopped.
+            logger.warning("telegram_stars_subscription_state_unhandled state=%r", state[:32])
             return False
         async with self._sessions() as session:
             order = await session.get(PaymentOrder, order_id)
