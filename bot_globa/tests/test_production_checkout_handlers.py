@@ -16,6 +16,7 @@ from aiogram.methods.base import TelegramType
 from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
 
+from app.bot import texts
 from app.bot.core_handlers import (
     buy_credits,
     cancel_receipt_contact,
@@ -23,6 +24,7 @@ from app.bot.core_handlers import (
     receive_receipt_contact,
 )
 from app.bot.states import PaymentStates
+from app.bot.subscription_handlers import choose_subscription_market
 from app.config import Settings
 from app.db.models import User
 from app.domain.billing import BillingCatalog
@@ -232,6 +234,129 @@ async def test_billing_enabled_with_stars_keeps_every_payment_route_visible(
         "credits:offer:reading_single:INTERNATIONAL:USD",
         "menu:balance",
     ]
+
+
+class FakeSubscriptions:
+    async def current(self, user_id: UUID) -> None:
+        return None
+
+
+async def test_paused_subscription_keeps_one_time_products_reachable(
+    handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
+    settings: Settings,
+) -> None:
+    """Only the recurring rail is off here, so the other products are a real way forward."""
+    _, session, state, callback, onboarding = handler_context
+    callback = with_data(callback, "credits:buy:subscription_monthly")
+    shop_open = settings.model_copy(
+        update={
+            "billing_enabled": True,
+            "yookassa_enabled": True,
+            "subscriptions_enabled": False,
+        }
+    )
+
+    await choose_subscription_market(
+        callback,
+        state,
+        onboarding,
+        cast("Any", FakeSubscriptions()),
+        BillingCatalog(shop_open),
+        shop_open,
+        RETENTION_DAYS,
+    )
+
+    message = sent(session)[-1]
+    assert sent_text(message) == texts.SUBSCRIPTION_PAUSED
+    markup = cast("InlineKeyboardMarkup", message.reply_markup)
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    assert any(value is not None and value.startswith("credits:buy:") for value in callbacks)
+
+
+async def test_paused_shop_does_not_offer_products_that_cannot_be_bought(
+    handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
+    settings: Settings,
+) -> None:
+    """When nothing can be settled, a product list is a dead end, not a way forward."""
+    _, session, state, callback, onboarding = handler_context
+    callback = with_data(callback, "credits:buy:subscription_monthly")
+    paused = settings.model_copy(
+        update={
+            "billing_enabled": True,
+            "billing_kill_switch": True,
+            "yookassa_enabled": True,
+            "subscriptions_enabled": True,
+            "yookassa_recurring_enabled": True,
+        }
+    )
+
+    await choose_subscription_market(
+        callback,
+        state,
+        onboarding,
+        cast("Any", FakeSubscriptions()),
+        BillingCatalog(paused),
+        paused,
+        RETENTION_DAYS,
+    )
+
+    message = sent(session)[-1]
+    assert sent_text(message) == texts.PURCHASES_PAUSED
+    markup = cast("InlineKeyboardMarkup", message.reply_markup)
+    assert [button.callback_data for row in markup.inline_keyboard for button in row] == [
+        "menu:balance"
+    ]
+
+
+async def test_paused_shop_says_so_instead_of_offering_a_retry(
+    handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
+    settings: Settings,
+) -> None:
+    """With no route to offer, the screen must not promise a retry or another method."""
+    _, session, state, callback, onboarding = handler_context
+    callback = with_data(callback, "credits:buy:reading_single")
+    paused = settings.model_copy(
+        update={"billing_enabled": True, "billing_kill_switch": True, "yookassa_enabled": True}
+    )
+
+    await buy_credits(
+        callback,
+        state,
+        onboarding,
+        None,
+        BillingCatalog(paused),
+        paused,
+        RETENTION_DAYS,
+    )
+
+    message = sent(session)[-1]
+    assert sent_text(message) == texts.PURCHASES_PAUSED
+    markup = cast("InlineKeyboardMarkup", message.reply_markup)
+    assert [button.callback_data for row in markup.inline_keyboard for button in row] == [
+        "menu:balance"
+    ]
+
+
+async def test_stale_payment_button_explains_itself_and_leads_back(
+    handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
+    settings: Settings,
+) -> None:
+    """A button from an old message carries incomplete coordinates; say that, don't stall."""
+    _, session, state, callback, onboarding = handler_context
+    callback = with_data(callback, "credits:offer:reading_single")
+    checkout = FakeCheckout()
+
+    await create_production_checkout(
+        callback, state, onboarding, checkout, settings, RETENTION_DAYS
+    )
+
+    message = sent(session)[-1]
+    assert sent_text(message) == texts.CHECKOUT_STALE_BUTTON
+    markup = cast("InlineKeyboardMarkup", message.reply_markup)
+    assert [button.callback_data for row in markup.inline_keyboard for button in row] == [
+        "menu:balance"
+    ]
+    assert checkout.calls == []
 
 
 async def test_receipts_disabled_starts_direct_checkout_and_returns_button(

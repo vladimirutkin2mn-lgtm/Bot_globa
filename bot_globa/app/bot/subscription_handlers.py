@@ -6,8 +6,14 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot import texts
 from app.bot.consent import ensure_consent
-from app.bot.keyboards import has_payment_routes, payment_market_keyboard, products_keyboard
+from app.bot.keyboards import (
+    back_to_balance_keyboard,
+    has_payment_routes,
+    payment_market_keyboard,
+    products_keyboard,
+)
 from app.bot.scene_media import Scene, answer_scene
 from app.config import Settings
 from app.db.models import User
@@ -195,13 +201,18 @@ async def choose_subscription_market(
         return
     keyboard = subscription_market_keyboard(billing_catalog, billing_settings)
     if not billing_settings.subscriptions_enabled or not has_payment_routes(keyboard):
-        # Leave a way forward: the other products stay buyable when only the recurring
-        # route is unavailable.
+        # Distinguish "only the recurring rail is off" from "the shop is off": offering the
+        # other products is a way forward in the first case and a dead end in the second.
+        shop_open = billing_settings.permits_new_checkout()
         await answer_scene(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
-            "Подписка сейчас недоступна.",
-            reply_markup=products_keyboard(billing_catalog, billing_settings),
+            texts.SUBSCRIPTION_PAUSED if shop_open else texts.PURCHASES_PAUSED,
+            reply_markup=(
+                products_keyboard(billing_catalog, billing_settings)
+                if shop_open
+                else back_to_balance_keyboard()
+            ),
         )
         return
     await answer_scene(
@@ -241,7 +252,8 @@ async def create_subscription_checkout(
         await answer_scene(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
-            "Этот вариант подписки недоступен.",
+            texts.CHECKOUT_STALE_BUTTON,
+            reply_markup=back_to_balance_keyboard(),
         )
         return
     _, _, product_code, market, currency = parts
@@ -259,8 +271,10 @@ async def create_subscription_checkout(
     if result.url is None:
         await answer_scene(
             callback.message,
-            Scene.CHECKOUT_UNAVAILABLE,
-            "Подписка создаётся. Обновите статус через несколько секунд.",
+            # Not a failure: the provider page is still being created, so this keeps the
+            # checkout scene instead of the unavailable one.
+            Scene.SUBSCRIPTION_CHECKOUT,
+            "Подписка создаётся — покупка не потеряна. Обновите статус через несколько секунд.",
         )
         return
     provider = "YooKassa" if market == "RU" else "Stripe"

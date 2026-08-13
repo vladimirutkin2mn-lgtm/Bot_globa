@@ -31,6 +31,20 @@ CHECKOUT_UNAVAILABLE = (
     "Сейчас не удалось открыть оплату. Деньги не списаны. "
     "Попробуйте ещё раз или выберите другой способ."
 )
+# Three different situations used to share the copy above, which offered retries and other
+# routes even when none existed. Each state now says what it is and what the user can do.
+PURCHASES_PAUSED = (
+    "Покупки сейчас отключены — ничего не списано. "
+    "Как только оплата снова заработает, способы появятся в этом разделе."
+)
+SUBSCRIPTION_PAUSED = (
+    "Ежемесячная подписка сейчас отключена — ничего не списано. "
+    "Разовые покупки ниже работают как обычно."
+)
+CHECKOUT_STALE_BUTTON = (
+    "Эта кнопка из старого сообщения больше не действует. "
+    "Откройте «Баланс и покупки» заново — актуальные цены и способы оплаты там."
+)
 
 BALANCE = "💳 Баланс и покупки"
 PRIVACY = "🛡 Приватность и удаление"
