@@ -1,29 +1,43 @@
 """Keyboard labels and callback contracts."""
 
 from app.bot import texts
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard, readings_menu_keyboard
 
 
 def test_main_menu_contains_required_sections() -> None:
     keyboard = main_menu_keyboard()
-    assert [row[0].text for row in keyboard.inline_keyboard] == [
-        "🔮 Таролог",
-        "💞 Любовный оракул",
-        "🌙 Мистический психолог",
-        "🪐 Астролог",
-        "🧠 Память",
-        texts.BALANCE,
-        texts.PRIVACY,
+    assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
+        ["💞 Отношения"],
+        ["🔮 Выбор и ближайшие сценарии"],
+        ["🌙 Повторяющаяся ситуация"],
+        ["🪐 Натальная карта"],
+        ["☀️ Гороскоп на сегодня", "📚 Мои разборы"],
+        ["⋯ Ещё"],
     ]
-    assert [row[0].callback_data for row in keyboard.inline_keyboard] == [
-        "menu:tarot",
-        "menu:love",
-        "menu:psy",
-        "menu:astro",
-        "menu:memory",
-        "menu:balance",
-        "menu:privacy",
+    assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
+        ["menu:love"],
+        ["menu:tarot"],
+        ["menu:psy"],
+        ["menu:astro"],
+        ["menu:daily", "menu:readings"],
+        ["menu:more"],
     ]
+
+
+def test_secondary_navigation_keeps_history_settings_and_privacy_reachable() -> None:
+    more = {button.callback_data for row in more_menu_keyboard().inline_keyboard for button in row}
+    readings = {
+        button.callback_data for row in readings_menu_keyboard().inline_keyboard for button in row
+    }
+
+    assert {"menu:memory", "menu:balance", "menu:privacy", "menu:home"} == more
+    assert {
+        "tarot:history",
+        "love:history",
+        "psy:history",
+        "astro:history",
+        "menu:home",
+    } == readings
 
 
 def test_unimplemented_section_copy_is_exact() -> None:

@@ -85,6 +85,47 @@ async def test_memory_requires_explicit_consent_and_encrypts_value_at_rest(
     assert active[0].claim_basis is MemoryClaimBasis.USER_STATED
 
 
+async def test_memory_consent_is_off_by_default_and_offered_after_second_full_reading(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 930010)
+    service = OracleMemoryService(
+        payment_db,
+        AESGCMSensitiveContentCipher("oracle-memory-contextual-offer-key"),
+    )
+    async with payment_db.begin() as session:
+        persona = Persona(
+            code="contextual_offer",
+            display_name="Contextual Offer",
+            prompt_version="offer-v1",
+            schema_version="reading-result-v1",
+        )
+        session.add(persona)
+        await session.flush()
+
+    assert not await service.should_offer_consent(user.id)
+    for expected in (False, True):
+        async with payment_db.begin() as session:
+            session.add(
+                Reading(
+                    user_id=user.id,
+                    persona_id=persona.id,
+                    topic="decision",
+                    status="full_ready",
+                    access_level="full",
+                    cost_units=1,
+                    engine_version="reading-v1",
+                    prompt_version="offer-v1",
+                    schema_version="reading-result-v1",
+                    generated_at=datetime.now(UTC),
+                )
+            )
+        assert await service.should_offer_consent(user.id) is expected
+
+    await service.revoke_consent(user.id)
+    assert not await service.should_offer_consent(user.id)
+
+
 async def test_revoking_consent_purges_all_values_and_blocks_new_memory(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:

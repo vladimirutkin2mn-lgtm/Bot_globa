@@ -16,9 +16,13 @@ from aiogram.types import User as TelegramUser
 
 from app.bot import texts
 from app.bot.core_handlers import privacy_screen, router, start
+from app.bot.persona_flow import QUESTION_EXAMPLE, QUESTION_PROMPT
+from app.bot.persona_flows import TAROT_FLOW
+from app.bot.persona_handlers import create_persona_router
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
+from app.bot.states import OnboardingStates
 from app.db.models import User
-from app.services.onboarding import CURRENT_CONSENT_VERSION, OnboardingService, TelegramIdentity
+from app.services.onboarding import OnboardingService, TelegramIdentity
 
 type Harness = tuple[Dispatcher, Bot, "RecordingSession", "MemoryUsers", OnboardingService]
 
@@ -202,7 +206,7 @@ async def test_new_and_repeated_start_show_intro_without_duplicate(harness: Harn
     assert len(users.users) == 1
 
 
-async def test_intro_continuation_shows_consent(harness: Harness) -> None:
+async def test_intro_continuation_shows_intent_menu_before_consent(harness: Harness) -> None:
     local_dispatcher, bot, session, _, service = harness
     await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
     await local_dispatcher.feed_update(
@@ -210,7 +214,8 @@ async def test_intro_continuation_shows_consent(harness: Harness) -> None:
         callback_update("onboarding:intro"),
         onboarding=service,
     )
-    assert sent_texts(session)[-1] == texts.CONSENT.format(version=CURRENT_CONSENT_VERSION)
+    assert sent_texts(session)[-1] == texts.MAIN_MENU
+    assert not await service.analysis_allowed(42)
 
 
 async def test_consent_acceptance_and_completed_start_show_menu(harness: Harness) -> None:
@@ -245,6 +250,52 @@ async def test_a_stale_intro_button_does_not_reopen_consent_for_a_completed_user
     assert sent_texts(session)[-1] == texts.MAIN_MENU
     context = local_dispatcher.fsm.get_context(bot=bot, chat_id=42, user_id=42)
     assert await context.get_state() is None
+
+
+async def test_selected_persona_requests_just_in_time_consent_then_resumes_that_flow() -> None:
+    local_dispatcher = Dispatcher()
+    local_dispatcher.include_router(create_persona_router(TAROT_FLOW))
+    session = RecordingSession()
+    bot = Bot("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", session=session)
+    users = MemoryUsers()
+    service = OnboardingService(users, NoOpAnalytics())
+    await service.start(TelegramIdentity(42, "anna", "Анна", "ru"))
+    try:
+        await local_dispatcher.feed_update(
+            bot,
+            callback_update("menu:tarot"),
+            onboarding=service,
+            privacy_retention_days=30,
+        )
+        context = local_dispatcher.fsm.get_context(bot=bot, chat_id=42, user_id=42)
+        assert await context.get_state() == OnboardingStates.waiting_for_consent.state
+        assert sent_texts(session)[-1] == texts.CONSENT.format(days=30)
+        assert not await service.analysis_allowed(42)
+
+        await local_dispatcher.feed_update(
+            bot,
+            callback_update("onboarding:consent:tarot", 3),
+            onboarding=service,
+        )
+        assert await service.analysis_allowed(42)
+        assert sent_texts(session)[-1] == TAROT_FLOW.texts.welcome
+
+        await local_dispatcher.feed_update(
+            bot,
+            callback_update("tarot:topic:decision", 4),
+            onboarding=service,
+        )
+        assert sent_texts(session)[-1] == QUESTION_PROMPT
+        await local_dispatcher.feed_update(
+            bot,
+            callback_update("tarot:example", 5),
+            onboarding=service,
+        )
+        assert sent_texts(session)[-1] == QUESTION_EXAMPLE.format(
+            example=TAROT_FLOW.topic_examples["decision"]
+        )
+    finally:
+        await bot.session.close()
 
 
 @pytest.mark.parametrize("data", ["onboarding:intro", "onboarding:consent"])

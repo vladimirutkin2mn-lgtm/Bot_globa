@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from aiogram.types import InlineKeyboardMarkup
 
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard
 from app.bot.memory_handlers import _parse_item_page, _source_label
 from app.bot.memory_keyboards import (
     memory_clear_confirmation_keyboard,
@@ -83,6 +83,7 @@ def test_memory_controls_are_discoverable_and_fit_telegram_callback_limit() -> N
     item_id = uuid4()
     keyboards = (
         main_menu_keyboard(),
+        more_menu_keyboard(),
         memory_disabled_keyboard(),
         memory_enabled_keyboard(True),
         memory_list_keyboard(

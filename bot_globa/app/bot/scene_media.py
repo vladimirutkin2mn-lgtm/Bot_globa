@@ -90,7 +90,7 @@ class Scene(StrEnum):
     CRISIS = "S-01"
     VIOLENCE = "S-02"
     HIGH_STAKES = "S-03"
-    # Reserved for the daily horoscope digest (ORA-105 follow-up); no handler sends them yet.
+    # Common daily digest and its opt-in settings.
     DAILY_ZODIAC = "E-01"
     DAILY_HOROSCOPE = "E-02"
     DAILY_PERSONAL_CTA = "E-03"
@@ -102,6 +102,28 @@ class Scene(StrEnum):
 
 
 _telegram_file_ids: dict[Scene, str] = {}
+
+# CJM v2 uses full-width art as punctuation, not chrome. Utility, payment, privacy,
+# settings, errors and safety hand-offs stay fast plain-text messages even though their
+# legacy scene assets remain available for design reference.
+MEDIA_SCENES = frozenset(
+    {
+        Scene.ONBOARDING_START,
+        Scene.TAROT_ENTRY,
+        Scene.LOVE_ENTRY,
+        Scene.PSYCHOLOGIST_ENTRY,
+        Scene.ASTRO_CONSENT,
+        Scene.ASTRO_PROFILE_SAVED,
+        Scene.GENERATING,
+        Scene.GENERATION_IN_PROGRESS,
+        Scene.PREVIEW,
+        Scene.PREVIEW_ALREADY_USED,
+        Scene.FULL_READING,
+        Scene.FOLLOW_UP_RESULT,
+        Scene.DAILY_ZODIAC,
+        Scene.DAILY_HOROSCOPE,
+    }
+)
 
 
 async def answer_scene(
@@ -118,6 +140,10 @@ async def answer_scene(
     the chat, a transport failure — so a media error degrades to the plain text instead of
     losing the screen entirely.
     """
+
+    if scene not in MEDIA_SCENES:
+        await message.answer(text, reply_markup=reply_markup)
+        return
 
     caption_fits = len(text) <= TELEGRAM_CAPTION_LIMIT
     if not await _send_photo(

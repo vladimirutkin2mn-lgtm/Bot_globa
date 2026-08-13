@@ -95,6 +95,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  daily-horoscope-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.prod
+      - production.public.env
+    command: ["python", "-m", "app.workers.daily_horoscope"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   db:
     image: public.ecr.aws/docker/library/postgres:17-alpine
     environment:

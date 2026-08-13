@@ -16,24 +16,27 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from app.bot import horoscope_flow as flow
+from app.bot import texts
 from app.bot.horoscope_flow import HOROSCOPE_FLOW
 from app.bot.horoscope_renderer import HoroscopeRenderer
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import consent_keyboard, main_menu_keyboard, products_keyboard
+from app.bot.memory_keyboards import memory_disabled_keyboard
 from app.bot.persona_flow import (
     CONTEXT_LIMIT,
-    CONTEXT_PROMPT,
-    INSUFFICIENT,
     INVALID_TEXT,
-    MENU_BUTTON,
     NOT_ONBOARDED,
+    QUESTION_EXAMPLE,
     QUESTION_LIMIT,
     QUESTION_PROMPT,
     UNLOCKING,
 )
 from app.bot.scene_media import Scene, answer_scene
-from app.bot.states import HoroscopeStates
+from app.bot.states import HoroscopeStates, OnboardingStates
+from app.config import Settings
 from app.domain.birth_profile import BirthProfileConsentStatus
 from app.domain.horoscope import HoroscopeScope
+from app.domain.products import ProductCatalog
+from app.providers.analytics import OracleProductEvent
 from app.providers.geocoding.base import GeocodedPlace, GeocodingError
 from app.services.birth_place_lookup import (
     AmbiguousBirthTimeError,
@@ -46,7 +49,9 @@ from app.services.horoscope_generation import HoroscopeGenerationStatus
 from app.services.horoscope_reading import HoroscopePreviewOutcome, HoroscopePreviewRequest
 from app.services.horoscope_reading import HoroscopeReadingUseCase as UseCase
 from app.services.monetized_reading import MonetizedReadingService, MonetizedReadingStatus
-from app.services.onboarding import OnboardingService
+from app.services.onboarding import OnboardingService, TelegramIdentity
+from app.services.oracle_memory import OracleMemoryService
+from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.preview_entitlement import ReadingPreviewVisibility
 from app.services.reading_history import ReadingHistoryService
 
@@ -71,6 +76,10 @@ def create_horoscope_router() -> Router:
 
     callbacks = router.callback_query
     callbacks.register(handlers.start_from_menu, F.data == f"menu:{HOROSCOPE_FLOW.namespace}")
+    callbacks.register(
+        handlers.accept_onboarding_consent,
+        F.data == f"onboarding:consent:{HOROSCOPE_FLOW.namespace}",
+    )
     callbacks.register(handlers.restart, F.data == flow.callback("new"))
     callbacks.register(handlers.cancel, F.data == flow.callback("cancel"))
     callbacks.register(handlers.to_main_menu, F.data == flow.callback("menu"))
@@ -100,6 +109,11 @@ def create_horoscope_router() -> Router:
     )
     callbacks.register(handlers.select_topic, F.data.startswith(flow.callback("topic", "")))
     callbacks.register(
+        handlers.show_example,
+        HoroscopeStates.waiting_for_question,
+        F.data == flow.callback("example"),
+    )
+    callbacks.register(
         handlers.skip_context,
         HoroscopeStates.waiting_for_context,
         F.data == flow.callback("context", "skip"),
@@ -120,10 +134,24 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
+        privacy_retention_days: int = 30,
     ) -> None:
         if message.from_user is None:
             return
-        await self._start(message, message.from_user.id, state, onboarding, birth_profile_service)
+        await self._start(
+            message,
+            message.from_user.id,
+            state,
+            onboarding,
+            birth_profile_service,
+            TelegramIdentity(
+                telegram_user_id=message.from_user.id,
+                username=message.from_user.username,
+                first_name=message.from_user.first_name,
+                language=message.from_user.language_code,
+            ),
+            privacy_retention_days,
+        )
 
     async def start_from_menu(
         self,
@@ -131,6 +159,7 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
+        privacy_retention_days: int = 30,
     ) -> None:
         await callback.answer()
         if isinstance(callback.message, Message):
@@ -140,7 +169,44 @@ class HoroscopeHandlers:
                 state,
                 onboarding,
                 birth_profile_service,
+                TelegramIdentity(
+                    telegram_user_id=callback.from_user.id,
+                    username=callback.from_user.username,
+                    first_name=callback.from_user.first_name,
+                    language=callback.from_user.language_code,
+                ),
+                privacy_retention_days,
             )
+
+    async def accept_onboarding_consent(
+        self,
+        callback: CallbackQuery,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        birth_profile_service: BirthProfileService,
+        privacy_retention_days: int = 30,
+    ) -> None:
+        await callback.answer()
+        if not isinstance(callback.message, Message):
+            return
+        identity = TelegramIdentity(
+            telegram_user_id=callback.from_user.id,
+            username=callback.from_user.username,
+            first_name=callback.from_user.first_name,
+            language=callback.from_user.language_code,
+        )
+        if await onboarding.current_user(callback.from_user.id) is None:
+            await onboarding.start(identity)
+        await onboarding.accept_consent(callback.from_user.id)
+        await self._start(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            birth_profile_service,
+            identity,
+            privacy_retention_days,
+        )
 
     async def restart(
         self,
@@ -162,7 +228,7 @@ class HoroscopeHandlers:
             await answer_scene(
                 callback.message,
                 Scene.MAIN_MENU,
-                MENU_BUTTON,
+                texts.MAIN_MENU,
                 reply_markup=main_menu_keyboard(),
             )
 
@@ -459,9 +525,25 @@ class HoroscopeHandlers:
 
     # ---------------------------------------------------------- reading intake ---
 
-    async def select_topic(self, callback: CallbackQuery, state: FSMContext) -> None:
+    async def select_topic(
+        self,
+        callback: CallbackQuery,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        oracle_analytics: OracleProductAnalytics | None = None,
+        privacy_retention_days: int = 30,
+    ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
+            return
+        if not await onboarding.analysis_allowed(callback.from_user.id):
+            await state.set_state(OnboardingStates.waiting_for_consent)
+            await answer_scene(
+                callback.message,
+                Scene.ONBOARDING_CONSENT,
+                texts.CONSENT.format(days=privacy_retention_days),
+                reply_markup=consent_keyboard(HOROSCOPE_FLOW.namespace),
+            )
             return
         topic = (callback.data or "").removeprefix(flow.callback("topic", ""))
         if topic not in flow.HOROSCOPE_TOPIC_LABELS:
@@ -472,22 +554,75 @@ class HoroscopeHandlers:
                 reply_markup=flow.topics_keyboard(),
             )
             return
+        user = await onboarding.current_user(callback.from_user.id)
+        if user is not None and oracle_analytics is not None:
+            await oracle_analytics.track(
+                user.id,
+                OracleProductEvent.PERSONA_SELECTED,
+                {"persona_code": HOROSCOPE_FLOW.persona_code, "topic_code": topic},
+            )
         await state.update_data(topic=topic)
         await state.set_state(HoroscopeStates.waiting_for_question)
-        await answer_scene(callback.message, Scene.QUESTION, QUESTION_PROMPT)
+        await answer_scene(
+            callback.message,
+            Scene.QUESTION,
+            QUESTION_PROMPT,
+            reply_markup=HOROSCOPE_FLOW.question_keyboard(),
+        )
 
-    async def receive_question(self, message: Message, state: FSMContext) -> None:
+    async def show_example(self, callback: CallbackQuery, state: FSMContext) -> None:
+        await callback.answer()
+        if not isinstance(callback.message, Message):
+            return
+        data = await state.get_data()
+        example = flow.HOROSCOPE_TOPIC_EXAMPLES.get(str(data.get("topic")))
+        if example is None:
+            await answer_scene(
+                callback.message,
+                Scene.QUESTION_ERROR,
+                "Эта тема недоступна.",
+                reply_markup=flow.topics_keyboard(),
+            )
+            return
+        await answer_scene(
+            callback.message,
+            Scene.QUESTION,
+            QUESTION_EXAMPLE.format(example=example),
+            reply_markup=HOROSCOPE_FLOW.question_keyboard(),
+        )
+
+    async def receive_question(
+        self,
+        message: Message,
+        state: FSMContext,
+        onboarding: OnboardingService,
+        horoscope_use_case: UseCase,
+        horoscope_renderer: HoroscopeRenderer,
+        reading_full_price_label: str,
+        oracle_memory: OracleMemoryService | None = None,
+    ) -> None:
         text = _bounded_text(message, maximum=QUESTION_LIMIT)
         if text is None:
-            await answer_scene(message, Scene.QUESTION_ERROR, INVALID_TEXT)
+            await answer_scene(
+                message,
+                Scene.QUESTION_ERROR,
+                INVALID_TEXT,
+                reply_markup=HOROSCOPE_FLOW.question_keyboard(),
+            )
             return
         await state.update_data(question=text)
-        await state.set_state(HoroscopeStates.waiting_for_context)
-        await answer_scene(
+        if message.from_user is None:
+            return
+        await self._generate(
             message,
-            Scene.CONTEXT,
-            CONTEXT_PROMPT,
-            reply_markup=HOROSCOPE_FLOW.context_keyboard(),
+            message.from_user.id,
+            state,
+            onboarding,
+            horoscope_use_case,
+            horoscope_renderer,
+            context=None,
+            price_label=reading_full_price_label,
+            oracle_memory=oracle_memory,
         )
 
     async def receive_context(
@@ -496,8 +631,9 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         horoscope_use_case: UseCase,
-        horoscope_monetized: MonetizedReadingService,
         horoscope_renderer: HoroscopeRenderer,
+        reading_full_price_label: str,
+        oracle_memory: OracleMemoryService | None = None,
     ) -> None:
         if message.from_user is None:
             return
@@ -516,9 +652,10 @@ class HoroscopeHandlers:
             state,
             onboarding,
             horoscope_use_case,
-            horoscope_monetized,
             horoscope_renderer,
             context=context,
+            price_label=reading_full_price_label,
+            oracle_memory=oracle_memory,
         )
 
     async def skip_context(
@@ -527,8 +664,9 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         horoscope_use_case: UseCase,
-        horoscope_monetized: MonetizedReadingService,
         horoscope_renderer: HoroscopeRenderer,
+        reading_full_price_label: str,
+        oracle_memory: OracleMemoryService | None = None,
     ) -> None:
         await callback.answer()
         if isinstance(callback.message, Message):
@@ -538,9 +676,10 @@ class HoroscopeHandlers:
                 state,
                 onboarding,
                 horoscope_use_case,
-                horoscope_monetized,
                 horoscope_renderer,
                 context=None,
+                price_label=reading_full_price_label,
+                oracle_memory=oracle_memory,
             )
 
     async def already_generating(self, message: Message) -> None:
@@ -595,8 +734,9 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         horoscope_use_case: UseCase,
-        horoscope_monetized: MonetizedReadingService,
         horoscope_renderer: HoroscopeRenderer,
+        reading_full_price_label: str,
+        oracle_memory: OracleMemoryService | None = None,
     ) -> None:
         await callback.answer()
         await self._regenerate(
@@ -604,8 +744,9 @@ class HoroscopeHandlers:
             state,
             onboarding,
             horoscope_use_case,
-            horoscope_monetized,
             horoscope_renderer,
+            price_label=reading_full_price_label,
+            oracle_memory=oracle_memory,
             prefix=flow.callback("history", "open", ""),
             notice=HOROSCOPE_FLOW.texts.opening,
             notice_scene=Scene.HISTORY_OPEN,
@@ -619,8 +760,9 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         horoscope_use_case: UseCase,
-        horoscope_monetized: MonetizedReadingService,
         horoscope_renderer: HoroscopeRenderer,
+        reading_full_price_label: str,
+        oracle_memory: OracleMemoryService | None = None,
     ) -> None:
         await callback.answer()
         await self._regenerate(
@@ -628,8 +770,9 @@ class HoroscopeHandlers:
             state,
             onboarding,
             horoscope_use_case,
-            horoscope_monetized,
             horoscope_renderer,
+            price_label=reading_full_price_label,
+            oracle_memory=oracle_memory,
             prefix=flow.callback("retry", ""),
             notice=HOROSCOPE_FLOW.texts.processing,
             notice_scene=Scene.GENERATING,
@@ -643,6 +786,10 @@ class HoroscopeHandlers:
         horoscope_use_case: UseCase,
         horoscope_monetized: MonetizedReadingService,
         horoscope_renderer: HoroscopeRenderer,
+        catalog: ProductCatalog,
+        billing_settings: Settings,
+        reading_full_price_label: str,
+        oracle_memory: OracleMemoryService | None = None,
     ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
@@ -662,17 +809,25 @@ class HoroscopeHandlers:
             await answer_scene(
                 callback.message,
                 Scene.INSUFFICIENT_CREDITS,
-                INSUFFICIENT.format(
-                    price=horoscope_monetized.price_credits,
-                    balance=unlocked.balance or 0,
+                texts.PAYWALL.format(price=reading_full_price_label),
+                reply_markup=products_keyboard(
+                    catalog,
+                    billing_settings,
+                    resume_callback=flow.callback("unlock", str(reading_id)),
                 ),
-                reply_markup=HOROSCOPE_FLOW.insufficient_keyboard(reading_id),
             )
             return
         if unlocked.status is MonetizedReadingStatus.FULL_COMPLETED:
             outcome = await horoscope_use_case.generate_existing_preview(reading_id, user.id)
             if _renderable(outcome):
-                await self._send(callback.message, outcome, horoscope_renderer, full=True)
+                await self._send(
+                    callback.message,
+                    outcome,
+                    horoscope_renderer,
+                    full=True,
+                    user_id=user.id,
+                    oracle_memory=oracle_memory,
+                )
                 return
         await answer_scene(
             callback.message,
@@ -690,10 +845,19 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
+        identity: TelegramIdentity,
+        privacy_retention_days: int,
     ) -> None:
+        if await onboarding.current_user(telegram_user_id) is None:
+            await onboarding.start(identity)
         if not await onboarding.analysis_allowed(telegram_user_id):
-            await state.clear()
-            await message.answer(NOT_ONBOARDED)
+            await state.set_state(OnboardingStates.waiting_for_consent)
+            await answer_scene(
+                message,
+                Scene.ONBOARDING_CONSENT,
+                texts.CONSENT.format(days=privacy_retention_days),
+                reply_markup=consent_keyboard(HOROSCOPE_FLOW.namespace),
+            )
             return
         user = await onboarding.current_user(telegram_user_id)
         if user is None:
@@ -851,10 +1015,11 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         use_case: UseCase,
-        monetized: MonetizedReadingService,
         renderer: HoroscopeRenderer,
         *,
         context: str | None,
+        price_label: str,
+        oracle_memory: OracleMemoryService | None,
     ) -> None:
         user = await onboarding.current_user(telegram_user_id)
         data = await state.get_data()
@@ -879,7 +1044,15 @@ class HoroscopeHandlers:
             await state.clear()
             await self._answer_unavailable(message)
             return
-        await self._deliver(message, state, outcome, monetized, renderer)
+        await self._deliver(
+            message,
+            state,
+            outcome,
+            renderer,
+            price_label,
+            user_id=user.id,
+            oracle_memory=oracle_memory,
+        )
 
     async def _regenerate(
         self,
@@ -887,9 +1060,10 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         use_case: UseCase,
-        monetized: MonetizedReadingService,
         renderer: HoroscopeRenderer,
         *,
+        price_label: str,
+        oracle_memory: OracleMemoryService | None,
         prefix: str,
         notice: str,
         notice_scene: Scene,
@@ -908,21 +1082,38 @@ class HoroscopeHandlers:
         await state.set_state(HoroscopeStates.generating)
         await answer_scene(callback.message, notice_scene, notice)
         outcome = await use_case.generate_existing_preview(reading_id, user.id)
-        await self._deliver(callback.message, state, outcome, monetized, renderer)
+        await self._deliver(
+            callback.message,
+            state,
+            outcome,
+            renderer,
+            price_label,
+            user_id=user.id,
+            oracle_memory=oracle_memory,
+        )
 
     async def _deliver(
         self,
         message: Message,
         state: FSMContext,
         outcome: HoroscopePreviewOutcome,
-        monetized: MonetizedReadingService,
         renderer: HoroscopeRenderer,
+        price_label: str,
+        *,
+        user_id: UUID,
+        oracle_memory: OracleMemoryService | None,
     ) -> None:
         await state.clear()
-        price = monetized.price_credits
         if _renderable(outcome):
             if outcome.visibility is ReadingPreviewVisibility.FULL:
-                await self._send(message, outcome, renderer, full=True)
+                await self._send(
+                    message,
+                    outcome,
+                    renderer,
+                    full=True,
+                    user_id=user_id,
+                    oracle_memory=oracle_memory,
+                )
                 return
             if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
                 await self._send(
@@ -930,14 +1121,16 @@ class HoroscopeHandlers:
                     outcome,
                     renderer,
                     full=False,
-                    markup=HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price),
+                    markup=HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price_label),
                 )
                 return
-            await answer_scene(
+            await self._send(
                 message,
-                Scene.PREVIEW_ALREADY_USED,
-                HOROSCOPE_FLOW.texts.locked.format(price=price),
-                reply_markup=HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price),
+                outcome,
+                renderer,
+                full=False,
+                micro=True,
+                markup=HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price_label),
             )
             return
 
@@ -972,33 +1165,56 @@ class HoroscopeHandlers:
         renderer: HoroscopeRenderer,
         *,
         full: bool,
+        micro: bool = False,
         markup: InlineKeyboardMarkup | None = None,
+        user_id: UUID | None = None,
+        oracle_memory: OracleMemoryService | None = None,
     ) -> None:
         result = outcome.generation.result
         facts = outcome.generation.facts
         if result is None or facts is None:
             await self._answer_unavailable(message)
             return
-        rendered = (
-            renderer.render(result, facts) if full else renderer.render_preview(result, facts)
-        )
+        if full:
+            rendered = renderer.render(result, facts)
+        elif micro:
+            rendered = renderer.render_micro_preview(result, facts)
+        else:
+            rendered = renderer.render_preview(result, facts)
         chunks = rendered.chunks()
-        final = (
-            markup
-            if markup is not None
-            else HOROSCOPE_FLOW.full_result_keyboard(outcome.reading_id)
-        )
+        offer_memory = False
+        if full and user_id is not None and oracle_memory is not None:
+            try:
+                offer_memory = await oracle_memory.should_offer_consent(user_id)
+            except Exception:
+                logger.warning("memory_offer_check_failed")
+        final = markup or HOROSCOPE_FLOW.full_result_keyboard(outcome.reading_id)
         for index, chunk in enumerate(chunks):
             reply_markup = final if index == len(chunks) - 1 else None
             if index == 0:
                 await answer_scene(
                     message,
-                    Scene.FULL_READING if full else Scene.PREVIEW,
+                    (
+                        Scene.FULL_READING
+                        if full
+                        else Scene.PREVIEW_ALREADY_USED
+                        if micro
+                        else Scene.PREVIEW
+                    ),
                     chunk,
                     reply_markup=reply_markup,
                 )
             else:
                 await message.answer(chunk, reply_markup=reply_markup)
+        if offer_memory:
+            await answer_scene(
+                message,
+                Scene.MEMORY_DISABLED,
+                "Хотите, чтобы Globa помнил важный контекст для следующих разборов? "
+                "Память включается только с вашего согласия, а записи можно удалить "
+                "в любой момент.",
+                reply_markup=memory_disabled_keyboard(),
+            )
 
     async def _answer_unavailable(self, message: Message) -> None:
         await answer_scene(

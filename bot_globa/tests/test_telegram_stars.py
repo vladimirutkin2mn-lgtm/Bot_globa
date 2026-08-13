@@ -97,8 +97,9 @@ def test_stars_payload_is_compact_and_strict() -> None:
 
 
 def test_payment_choice_shows_stars_and_card_routes_together() -> None:
-    keyboard = payment_market_keyboard("reading_single", telegram_stars_enabled=True)
+    keyboard = payment_market_keyboard("reading_single", settings=configured())
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
 
     assert callbacks == [
         "credits:stars:reading_single",
@@ -106,6 +107,13 @@ def test_payment_choice_shows_stars_and_card_routes_together() -> None:
         "credits:offer:reading_single:INTERNATIONAL:EUR",
         "credits:offer:reading_single:INTERNATIONAL:USD",
         "menu:balance",
+    ]
+    assert labels == [
+        "Telegram Stars · 75 ⭐",
+        "Россия · 199 ₽",
+        "International · 0,99 €",
+        "International · 0,99 $",
+        "Вернуться",
     ]
 
 
@@ -123,6 +131,21 @@ def test_subscription_choice_shows_every_enabled_route_together() -> None:
         "credits:offer:subscription_monthly:RU:RUB",
         "credits:offer:subscription_monthly:INTERNATIONAL:EUR",
         "credits:offer:subscription_monthly:INTERNATIONAL:USD",
+        "menu:balance",
+    ]
+
+
+def test_subscription_choice_hides_card_providers_without_recurring_support() -> None:
+    keyboard = subscription_market_keyboard(
+        configured(
+            yookassa_enabled=True,
+            yookassa_recurring_enabled=False,
+            stripe_enabled=False,
+        )
+    )
+
+    assert [button.callback_data for row in keyboard.inline_keyboard for button in row] == [
+        "credits:stars:subscription_monthly",
         "menu:balance",
     ]
 

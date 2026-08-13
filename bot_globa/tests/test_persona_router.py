@@ -54,6 +54,7 @@ def _payloads(flow: PersonaFlow) -> list[str]:
     topic = next(iter(flow.topic_labels))
     return [
         f"menu:{flow.namespace}",
+        f"onboarding:consent:{flow.namespace}",
         flow.callback("new"),
         flow.callback("cancel"),
         flow.callback("menu"),
@@ -61,6 +62,7 @@ def _payloads(flow: PersonaFlow) -> list[str]:
         flow.callback("history", "page", "1"),
         flow.callback("history", "open", reading_id),
         flow.callback("topic", topic),
+        flow.callback("example"),
         flow.callback("context", "skip"),
         flow.callback("retry", reading_id),
         flow.callback("unlock", reading_id),

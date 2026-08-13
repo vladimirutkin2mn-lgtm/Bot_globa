@@ -14,6 +14,7 @@ from app.providers.payments.base import PaymentProvider
 from app.repositories.users import SqlAlchemyUserRepository
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
+from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionService
 from app.services.onboarding import OnboardingService
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
@@ -92,5 +93,6 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["analysis_price"] = self._settings.reading_full_price_credits
             data["analytics"] = self._analytics
             data["data_deletion"] = DataDeletionService(session, self._analytics)
+            data["daily_horoscopes"] = DailyHoroscopePreferenceService(self._sessions)
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
             return await handler(event, data)

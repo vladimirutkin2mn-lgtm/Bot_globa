@@ -101,6 +101,13 @@ class HoroscopeRenderer:
             lines.extend(f"• {question}" for question in result.reflection_questions)
         lines.extend(("", f"Практический шаг: {result.practical_step}"))
         lines.extend(self._closing_lines(result))
+        lines.extend(
+            (
+                "",
+                "Разбор сохранён в «Моих разборах». Хотите уточнить один момент? "
+                "Этот вопрос уже включён в покупку.",
+            )
+        )
         return RenderedHoroscope(
             text="\n".join(lines),
             facts_digest=result.facts_digest,
@@ -120,6 +127,37 @@ class HoroscopeRenderer:
             lines.extend(("", "Темы:"))
             lines.extend(f"• {theme}" for theme in result.themes)
         lines.extend(("", f"Практический шаг: {result.practical_step}"))
+        lines.extend(
+            (
+                "",
+                "В полном разборе: возможные сценарии, дополнительные расчётные опоры "
+                "и следующий шаг.",
+            )
+        )
+        lines.extend(self._closing_lines(result))
+        return RenderedHoroscope(
+            text="\n".join(lines),
+            facts_digest=result.facts_digest,
+        )
+
+    def render_micro_preview(
+        self,
+        result: AstrologyReadingResult,
+        facts: HoroscopeFactBundle,
+    ) -> RenderedHoroscope:
+        """Show one calculated personal signal after the first free preview is used."""
+
+        labels = self._verified_labels(result, facts)
+        lines = ["Разбор готов.", "", f"Главная тема — {result.overview}"]
+        interpretations = self._interpretation_lines(result, labels, limit=1)
+        if interpretations:
+            lines.extend(("", "Одна расчётная опора:", *interpretations))
+        lines.extend(
+            (
+                "",
+                "Полная версия покажет возможные сценарии и практический следующий шаг.",
+            )
+        )
         lines.extend(self._closing_lines(result))
         return RenderedHoroscope(
             text="\n".join(lines),

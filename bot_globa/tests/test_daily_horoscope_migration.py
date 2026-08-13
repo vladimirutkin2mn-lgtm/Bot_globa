@@ -1,4 +1,4 @@
-"""Migration coverage for paid oracle reading access linkage."""
+"""Migration safety for voluntary daily-horoscope delivery settings."""
 
 import asyncio
 import os
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
 _HEAD = "20260813_27"
-_PARENT = "20260805_17"
+_PARENT = "20260811_26"
 
 
 async def _execute(url: str, schema: str, statement: str) -> None:
@@ -46,18 +46,18 @@ def _environment(url: str, schema: str) -> dict[str, str]:
         "DATABASE_URL": url,
         "MIGRATION_SCHEMA": schema,
         "TELEGRAM_BOT_TOKEN": "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "CONTENT_ENCRYPTION_KEY": "paid-reading-migration-key-material",
+        "CONTENT_ENCRYPTION_KEY": "daily-horoscope-migration-key",
         "APP_ENV": "test",
     }
 
 
 def _schema(url: str) -> str:
-    schema = f"paid_reading_{uuid4().hex}"
+    schema = f"daily_horoscope_{uuid4().hex}"
     asyncio.run(_execute(url, "public", f'CREATE SCHEMA "{schema}"'))
     return schema
 
 
-def test_paid_reading_migration_round_trip_when_unlinked() -> None:
+def test_daily_horoscope_migration_round_trip_when_empty() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
@@ -69,9 +69,9 @@ def test_paid_reading_migration_round_trip_when_unlinked() -> None:
                 _scalar(
                     url,
                     schema,
-                    "SELECT count(*) FROM information_schema.columns "
-                    "WHERE table_schema=current_schema() AND table_name='credit_transactions' "
-                    "AND column_name='reading_id'",
+                    "SELECT count(*) FROM information_schema.tables "
+                    "WHERE table_schema=current_schema() "
+                    "AND table_name='daily_horoscope_preferences'",
                 )
             )
             == 1
@@ -85,11 +85,11 @@ def test_paid_reading_migration_round_trip_when_unlinked() -> None:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
 
 
-def test_paid_reading_migration_refuses_downgrade_with_ledger_link() -> None:
+def test_daily_horoscope_migration_refuses_data_losing_downgrade() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
-    user_id, persona_id, reading_id, transaction_id = uuid4(), uuid4(), uuid4(), uuid4()
+    user_id = uuid4()
     try:
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
         asyncio.run(
@@ -97,36 +97,15 @@ def test_paid_reading_migration_refuses_downgrade_with_ledger_link() -> None:
                 url,
                 schema,
                 "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) "
-                f"VALUES ('{user_id}',{uuid4().int % 10**12},'Paid Migration','active')",
+                f"VALUES ('{user_id}',975100,'Daily Migration','active')",
             )
         )
         asyncio.run(
             _execute(
                 url,
                 schema,
-                "INSERT INTO personas (id,code,display_name,prompt_version,schema_version,enabled) "
-                f"VALUES ('{persona_id}','paid_tarot','Tarot','tarot-v1','result-v1',true)",
-            )
-        )
-        asyncio.run(
-            _execute(
-                url,
-                schema,
-                "INSERT INTO readings "
-                "(id,user_id,persona_id,topic,status,access_level,cost_units,engine_version,"
-                "prompt_version,schema_version,generated_at) "
-                f"VALUES ('{reading_id}','{user_id}','{persona_id}','decision','preview_ready',"
-                "'preview',0,'reading-v1','tarot-v1','result-v1',now())",
-            )
-        )
-        asyncio.run(
-            _execute(
-                url,
-                schema,
-                "INSERT INTO credit_transactions "
-                "(id,user_id,type,amount,idempotency_key,reading_id) "
-                f"VALUES ('{transaction_id}','{user_id}','spend',-1,'reading-full:{reading_id}',"
-                f"'{reading_id}')",
+                "INSERT INTO daily_horoscope_preferences (user_id,mode) "
+                f"VALUES ('{user_id}','disabled')",
             )
         )
         failed = subprocess.run(

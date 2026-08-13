@@ -304,8 +304,8 @@ async def test_missing_text_and_cancel_callback_clear_state(
 @pytest.mark.parametrize(
     ("checkout", "expected"),
     [
-        (FakeCheckout(reject=True), "Оплата сейчас недоступна"),
-        (FakeCheckout(url=None), "Оплата создаётся"),
+        (FakeCheckout(reject=True), "Сейчас не удалось открыть оплату"),
+        (FakeCheckout(url=None), "Платёжная страница создаётся"),
     ],
 )
 async def test_rejection_and_pending_checkout_clear_state(

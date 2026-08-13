@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
 _PRIVACY_PARENT = "20260803_07"
-_HEAD_REVISION = "20260811_26"
+_HEAD_REVISION = "20260813_27"
 
 
 async def _execute(url: str, schema: str, statement: str) -> None:

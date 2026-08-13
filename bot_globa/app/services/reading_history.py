@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.reading_models import Persona, Reading
@@ -70,3 +70,20 @@ class ReadingHistoryService:
             page_size=page_size,
             has_next=has_next,
         )
+
+    async def owns_full(self, user_id: UUID, reading_id: UUID) -> bool:
+        """Authorize a result action using metadata only, without decrypting the reading."""
+
+        async with self._sessions() as session:
+            return bool(
+                await session.scalar(
+                    select(
+                        exists().where(
+                            Reading.id == reading_id,
+                            Reading.user_id == user_id,
+                            Reading.status == ReadingStatus.FULL_READY.value,
+                            Reading.deleted_at.is_(None),
+                        )
+                    )
+                )
+            )

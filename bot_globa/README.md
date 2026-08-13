@@ -128,6 +128,7 @@ or loosening an assertion.
 
 | Topic | Document |
 |---|---|
+| Telegram journey and copy | [`docs/cjm-v2.md`](docs/cjm-v2.md) |
 | Code style and layering | [`docs/style.md`](docs/style.md) |
 | Layer boundaries | [`docs/platform-core-boundaries.md`](docs/platform-core-boundaries.md) |
 | Frozen production behavior | [`docs/platform-invariants.md`](docs/platform-invariants.md) |

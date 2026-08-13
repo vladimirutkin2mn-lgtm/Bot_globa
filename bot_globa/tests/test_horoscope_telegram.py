@@ -56,6 +56,7 @@ def _matches(data: str) -> Iterator[tuple[str, str]]:
 
 ASTRO_PAYLOADS = (
     f"menu:{HOROSCOPE_FLOW.namespace}",
+    f"onboarding:consent:{HOROSCOPE_FLOW.namespace}",
     flow.callback("new"),
     flow.callback("cancel"),
     flow.callback("menu"),
@@ -72,6 +73,7 @@ ASTRO_PAYLOADS = (
     flow.callback("history", "page", "1"),
     flow.callback("history", "open", str(READING_ID)),
     flow.callback("topic", "natal_profile"),
+    flow.callback("example"),
     flow.callback("context", "skip"),
     flow.callback("retry", str(READING_ID)),
     flow.callback("unlock", str(READING_ID)),

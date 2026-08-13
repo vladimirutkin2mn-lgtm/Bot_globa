@@ -5,6 +5,7 @@ from uuid import UUID
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.keyboards import payment_market_keyboard, products_keyboard
 from app.bot.scene_media import Scene, answer_scene
 from app.config import Settings
 from app.db.models import User
@@ -25,41 +26,11 @@ router = Router(name="subscriptions")
 
 
 def subscription_market_keyboard(settings: Settings) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
-    if settings.telegram_stars_enabled:
-        rows.extend(
-            [
-                [
-                    InlineKeyboardButton(
-                        text="Telegram Stars · ⭐",
-                        callback_data="credits:stars:subscription_monthly",
-                    )
-                ]
-            ]
-        )
-    if settings.yookassa_enabled and settings.yookassa_recurring_enabled:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="Россия · RUB",
-                    callback_data="credits:offer:subscription_monthly:RU:RUB",
-                )
-            ]
-        )
-    if settings.stripe_enabled:
-        for currency in ("EUR", "USD"):
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=f"International · {currency}",
-                        callback_data=(
-                            f"credits:offer:subscription_monthly:INTERNATIONAL:{currency}"
-                        ),
-                    )
-                ]
-            )
-    rows.append([InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return payment_market_keyboard(
+        "subscription_monthly",
+        settings=settings,
+        recurring=True,
+    )
 
 
 def subscription_checkout_keyboard(url: str) -> InlineKeyboardMarkup:
@@ -154,8 +125,8 @@ async def balance_and_subscription_screen(
         "\n\n" + _status_text(current)
         if current is not None
         else (
-            "\n\nМесячная подписка начисляет кредиты после каждого подтверждённого платежа. "
-            "Автопродление можно отключить в любой момент."
+            "\n\nМесячная подписка открывает 30 полных разборов после подтверждённого "
+            "платежа. Автопродление можно отключить в любой момент."
             if billing_settings.subscriptions_enabled
             else ""
         )
@@ -163,34 +134,13 @@ async def balance_and_subscription_screen(
     await answer_scene(
         callback.message,
         _subscription_scene(current) if current is not None else Scene.BALANCE,
-        f"Ваш баланс: {balance} кредитов\n"
-        f"Один полный разбор стоит: {analysis_price} кредитов"
-        f"{subscription_note}",
+        f"Доступно полных разборов: {balance // analysis_price}.{subscription_note}",
         reply_markup=(
             subscription_management_keyboard(current)
             if current is not None
-            else _products_keyboard(catalog)
+            else products_keyboard(catalog, billing_settings)
         ),
     )
-
-
-def _products_keyboard(catalog: ProductCatalog) -> InlineKeyboardMarkup:
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=f"{product.title} — {product.credits} кр.",
-                callback_data=f"credits:buy:{product.code.value}",
-            )
-        ]
-        for product in catalog.all()
-    ]
-    rows.extend(
-        [
-            [InlineKeyboardButton(text="Обновить баланс", callback_data="credits:refresh")],
-            [InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")],
-        ]
-    )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 @router.callback_query(F.data == "credits:buy:subscription_monthly")

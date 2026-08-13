@@ -39,29 +39,40 @@ def test_every_current_cjm_scene_has_one_optimized_asset() -> None:
     assert all(scene.asset_path.stat().st_size < 1_000_000 for scene in Scene)
 
 
-async def test_short_scene_copy_is_sent_as_one_photo_caption() -> None:
+async def test_hero_scene_copy_is_sent_as_one_photo_caption() -> None:
     message = Mock(spec=Message)
     message.answer_photo = AsyncMock(return_value=object())
     message.answer = AsyncMock()
 
-    await answer_scene(cast("Message", message), Scene.MAIN_MENU, "Главное меню")
+    await answer_scene(cast("Message", message), Scene.TAROT_ENTRY, "Выберите тему")
 
     message.answer_photo.assert_awaited_once()
-    assert message.answer_photo.await_args.kwargs["caption"] == "Главное меню"
+    assert message.answer_photo.await_args.kwargs["caption"] == "Выберите тему"
     message.answer.assert_not_awaited()
 
 
-async def test_long_scene_copy_keeps_the_photo_and_full_text() -> None:
+async def test_long_hero_copy_keeps_the_photo_and_full_text() -> None:
     message = Mock(spec=Message)
     message.answer_photo = AsyncMock(return_value=object())
     message.answer = AsyncMock(return_value=object())
     text = "д" * (TELEGRAM_CAPTION_LIMIT + 1)
 
-    await answer_scene(cast("Message", message), Scene.PRIVACY, text)
+    await answer_scene(cast("Message", message), Scene.FULL_READING, text)
 
     message.answer_photo.assert_awaited_once()
     assert "caption" not in message.answer_photo.await_args.kwargs
     message.answer.assert_awaited_once_with(text, reply_markup=None)
+
+
+async def test_utility_scene_is_plain_text_without_decorative_media() -> None:
+    message = Mock(spec=Message)
+    message.answer_photo = AsyncMock(return_value=object())
+    message.answer = AsyncMock(return_value=object())
+
+    await answer_scene(cast("Message", message), Scene.PRIVACY, "Приватность")
+
+    message.answer_photo.assert_not_awaited()
+    message.answer.assert_awaited_once_with("Приватность", reply_markup=None)
 
 
 async def test_a_refused_photo_still_delivers_the_copy_as_text() -> None:
@@ -70,9 +81,9 @@ async def test_a_refused_photo_still_delivers_the_copy_as_text() -> None:
     message.answer = AsyncMock(return_value=object())
     markup = InlineKeyboardMarkup(inline_keyboard=[])
 
-    await answer_scene(cast("Message", message), Scene.CHECKOUT, "Оплата", reply_markup=markup)
+    await answer_scene(cast("Message", message), Scene.PREVIEW, "Превью", reply_markup=markup)
 
-    message.answer.assert_awaited_once_with("Оплата", reply_markup=markup)
+    message.answer.assert_awaited_once_with("Превью", reply_markup=markup)
 
 
 async def test_the_second_send_reuses_the_cached_file_id() -> None:
@@ -80,8 +91,8 @@ async def test_the_second_send_reuses_the_cached_file_id() -> None:
     message.answer_photo = AsyncMock(return_value=_photo_message("cached-id"))
     message.answer = AsyncMock()
 
-    await answer_scene(cast("Message", message), Scene.BALANCE, "Баланс")
-    await answer_scene(cast("Message", message), Scene.BALANCE, "Баланс")
+    await answer_scene(cast("Message", message), Scene.GENERATING, "Собираю разбор")
+    await answer_scene(cast("Message", message), Scene.GENERATING, "Собираю разбор")
 
     assert message.answer_photo.await_args.kwargs["photo"] == "cached-id"
     message.answer.assert_not_awaited()
@@ -91,15 +102,15 @@ async def test_a_rejected_cached_file_id_is_dropped_and_the_asset_re_uploaded() 
     message = Mock(spec=Message)
     message.answer_photo = AsyncMock(return_value=_photo_message("stale-id"))
     message.answer = AsyncMock()
-    await answer_scene(cast("Message", message), Scene.HISTORY, "История")
+    await answer_scene(cast("Message", message), Scene.PREVIEW, "Превью")
 
     message.answer_photo = AsyncMock(
         side_effect=[_refused(), _photo_message("fresh-id")],
     )
-    await answer_scene(cast("Message", message), Scene.HISTORY, "История")
+    await answer_scene(cast("Message", message), Scene.PREVIEW, "Превью")
 
     assert message.answer_photo.await_count == 2
     assert message.answer_photo.await_args_list[0].kwargs["photo"] == "stale-id"
     assert isinstance(message.answer_photo.await_args_list[1].kwargs["photo"], FSInputFile)
-    assert scene_media._telegram_file_ids[Scene.HISTORY] == "fresh-id"
+    assert scene_media._telegram_file_ids[Scene.PREVIEW] == "fresh-id"
     message.answer.assert_not_awaited()

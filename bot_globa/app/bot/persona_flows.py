@@ -15,30 +15,57 @@ from app.bot.states import LoveOracleStates, MysticalPsychologistStates, TarotSt
 TAROT_TOPIC_LABELS = MappingProxyType(
     {
         "love": "Отношения",
-        "work": "Работа",
+        "work": "Работа и деньги",
         "decision": "Выбор",
-        "repeating_pattern": "Повторяющаяся ситуация",
-        "general_forecast": "Общий расклад",
+        "repeating_pattern": "Почему это повторяется",
+        "general_forecast": "Свой вопрос",
+    }
+)
+TAROT_TOPIC_EXAMPLES = MappingProxyType(
+    {
+        "love": "мы стали реже общаться; хочу понять динамику и свой следующий шаг",
+        "work": "выбираю между текущей работой и новым предложением; что важно учесть",
+        "decision": "у меня два варианта; чего я могу не замечать в каждом из них",
+        "repeating_pattern": "я снова откладываю важное решение; почему так происходит",
+        "general_forecast": "какая тема сейчас больше всего требует моего внимания",
     }
 )
 
 LOVE_ORACLE_TOPIC_LABELS = MappingProxyType(
     {
-        "love": "Отношения",
-        "communication": "Общение",
-        "boundaries": "Границы",
-        "choice": "Выбор",
-        "repeating_pattern": "Повторяющаяся ситуация",
+        "love": "Что происходит между нами",
+        "communication": "Стоит ли проявиться",
+        "choice": "Куда всё движется",
+        "repeating_pattern": "Почему это повторяется",
+        "boundaries": "Свой вопрос",
+    }
+)
+LOVE_ORACLE_TOPIC_EXAMPLES = MappingProxyType(
+    {
+        "love": "мы сблизились, а затем человек отдалился; хочу увидеть динамику со стороны",
+        "communication": "думаю написать после паузы; хочу выбрать уважительный следующий шаг",
+        "choice": "отношения неопределённые; хочу понять возможные сценарии и свои границы",
+        "repeating_pattern": "в отношениях я снова беру всю инициативу на себя",
+        "boundaries": "мне трудно отказать; как обозначить границу без давления",
     }
 )
 
 MYSTICAL_PSYCHOLOGIST_TOPIC_LABELS = MappingProxyType(
     {
-        "self_reflection": "Взгляд на себя",
         "repeating_pattern": "Повторяющийся сценарий",
-        "decision": "Выбор",
+        "decision": "Сложный выбор",
         "work": "Работа",
         "love": "Отношения",
+        "self_reflection": "Свой вопрос",
+    }
+)
+MYSTICAL_PSYCHOLOGIST_TOPIC_EXAMPLES = MappingProxyType(
+    {
+        "repeating_pattern": "я берусь за новое, но отступаю перед первым заметным результатом",
+        "decision": "одна часть меня хочет перемен, другая держится за безопасность",
+        "work": "после рабочих встреч долго сомневаюсь в каждом своём слове",
+        "love": "мне трудно говорить о потребностях, пока напряжение не накопится",
+        "self_reflection": "хочу понять, почему сейчас так остро реагирую на неопределённость",
     }
 )
 
@@ -47,7 +74,9 @@ def _reflection_texts(*, welcome: str, unavailable: str) -> PersonaFlowTexts:
     """Copy shared by the personas whose answer is a discussion, not a card spread."""
     return PersonaFlowTexts(
         welcome=welcome,
-        processing="Вопрос зафиксирован. Собираю разбор…",
+        processing=(
+            "Вопрос принят. Фиксирую опоры и собираю разбор — обычно это занимает до 30 секунд."
+        ),
         opening="Открываю сохранённый разбор…",
         already_processing="Этот разбор уже обрабатывается. Откройте его немного позже.",
         unavailable=unavailable,
@@ -55,12 +84,9 @@ def _reflection_texts(*, welcome: str, unavailable: str) -> PersonaFlowTexts:
         history_title="Ваши последние готовые разборы:",
         history_empty="Готовых разборов пока нет.",
         history_fallback="Разбор",
-        locked=(
-            "Разбор готов. Бесплатный preview уже использован — "
-            "откройте полный разбор за {price} кр."
-        ),
+        locked="Разбор готов. Откройте полный разбор за {price}.",
         unlock_failed="Не удалось открыть полный разбор. Списание отменено или возвращено.",
-        unlock_button="Открыть полный разбор за {price} кр.",
+        unlock_button="Открыть полный разбор — {price}",
         new_button="Новый разбор",
         history_button="Мои разборы",
     )
@@ -71,12 +97,15 @@ TAROT_FLOW = PersonaFlow(
     namespace="tarot",
     states=TarotStates,
     topic_labels=TAROT_TOPIC_LABELS,
+    topic_examples=TAROT_TOPIC_EXAMPLES,
     texts=PersonaFlowTexts(
         welcome=(
-            "🔮 Таролог\n\nВыберите тему. Карты выбираются приложением и не меняются при "
-            "повторе. Результат предназначен для развлечения и рефлексии."
+            "Что хотите прояснить? Карты фиксируются один раз до интерпретации, поэтому "
+            "ответ не подгоняется под вопрос.\n\nЭто развлекательная практика для рефлексии."
         ),
-        processing="Расклад зафиксирован. Собираю интерпретацию…",
+        processing=(
+            "Вопрос принят. Фиксирую опоры и собираю разбор — обычно это занимает до 30 секунд."
+        ),
         opening="Открываю сохранённый расклад…",
         already_processing="Этот расклад уже обрабатывается. Откройте его немного позже.",
         unavailable="Таролог временно недоступен. Начните новый расклад позже.",
@@ -86,12 +115,9 @@ TAROT_FLOW = PersonaFlow(
         history_title="Ваши последние готовые расклады:",
         history_empty="Готовых раскладов пока нет.",
         history_fallback="Расклад",
-        locked=(
-            "Расклад готов. Бесплатный preview уже использован — "
-            "откройте полный разбор за {price} кр."
-        ),
+        locked="Расклад готов. Откройте полный разбор за {price}.",
         unlock_failed="Не удалось открыть полный расклад. Списание отменено или возвращено.",
-        unlock_button="Открыть полный расклад за {price} кр.",
+        unlock_button="Открыть полный разбор — {price}",
         new_button="Новый расклад",
         history_button="Мои расклады",
     ),
@@ -108,11 +134,11 @@ LOVE_ORACLE_FLOW = PersonaFlow(
     namespace="love",
     states=LoveOracleStates,
     topic_labels=LOVE_ORACLE_TOPIC_LABELS,
+    topic_examples=LOVE_ORACLE_TOPIC_EXAMPLES,
     texts=_reflection_texts(
         welcome=(
-            "💞 Любовный оракул\n\nВыберите тему. Разбор говорит о наблюдаемой динамике, "
-            "границах и ваших решениях — он не читает мысли другого человека и не обещает "
-            "конкретный исход."
+            "Что в отношениях сейчас не даёт покоя? Globa разберёт динамику, ваши границы "
+            "и возможные следующие шаги — без попыток угадывать чужие мысли."
         ),
         unavailable="Любовный оракул временно недоступен. Начните новый разбор позже.",
     ),
@@ -129,11 +155,12 @@ MYSTICAL_PSYCHOLOGIST_FLOW = PersonaFlow(
     namespace="psy",
     states=MysticalPsychologistStates,
     topic_labels=MYSTICAL_PSYCHOLOGIST_TOPIC_LABELS,
+    topic_examples=MYSTICAL_PSYCHOLOGIST_TOPIC_EXAMPLES,
     texts=_reflection_texts(
         welcome=(
-            "🌙 Мистический психолог\n\nВыберите тему. Это метафорическая рефлексия об "
-            "архетипах и повторяющихся сценариях — не диагноз, не терапия и не утверждение "
-            "о вашей личности."
+            "Какую ситуацию хотите увидеть со стороны? Разберём повторяющийся сценарий, "
+            "внутренний конфликт или выбор через метафоры и архетипы.\n\n"
+            "Это не заменяет терапию."
         ),
         unavailable="Мистический психолог временно недоступен. Начните новый разбор позже.",
     ),

@@ -3,13 +3,13 @@
 import inspect
 
 from app.bot import main, oracle_dependencies, texts
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard
 
 
 def _callback_data() -> set[str]:
-    keyboard = main_menu_keyboard()
     return {
         button.callback_data
+        for keyboard in (main_menu_keyboard(), more_menu_keyboard())
         for row in keyboard.inline_keyboard
         for button in row
         if button.callback_data is not None
@@ -60,4 +60,4 @@ def test_active_dependency_middleware_does_not_build_analysis_stack() -> None:
 
 def test_active_welcome_copy_has_no_heartsignal_brand() -> None:
     assert "HeartSignal" not in texts.WELCOME
-    assert "AI-оракул" in texts.WELCOME
+    assert "Globa" in texts.WELCOME
