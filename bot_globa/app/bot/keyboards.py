@@ -402,6 +402,12 @@ def payment_market_keyboard(
     """
 
     rows: list[list[InlineKeyboardButton]] = []
+    if not settings.permits_new_checkout():
+        # Disabled billing and the kill switch reject every route, so any button here would
+        # cost the buyer a tap and answer with an error.
+        return InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")]]
+        )
     if settings.telegram_stars_enabled:
         stars = catalog.resolve_product_offer(product_code, BillingMarket.TELEGRAM, "XTR")
         if stars.amount_minor > 0:

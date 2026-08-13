@@ -16,7 +16,7 @@ from aiogram.types import (
 from pydantic import SecretStr, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.bot.keyboards import payment_market_keyboard
+from app.bot.keyboards import has_payment_routes, payment_market_keyboard
 from app.bot.subscription_handlers import subscription_market_keyboard
 from app.bot.telegram_stars_handlers import payment_support_text, payment_terms_text
 from app.config import Settings
@@ -33,6 +33,7 @@ def configured(**changes: object) -> Settings:
         "database_url": "postgresql+asyncpg://u:p@db/x",
         "telegram_bot_token": SecretStr("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
         "content_encryption_key": SecretStr("test-only-strong-content-key-32-bytes"),
+        "billing_enabled": True,
         "telegram_stars_enabled": True,
         "subscriptions_enabled": True,
         "telegram_stars_amount_reading_single": 75,
@@ -119,6 +120,21 @@ def test_stars_payload_is_compact_and_strict() -> None:
     assert parse_stars_payload(payload) == order_id
     assert parse_stars_payload(payload + "00") is None
     assert parse_stars_payload("foreign:payload") is None
+
+
+def test_payment_screen_offers_nothing_while_billing_cannot_settle() -> None:
+    """Every checkout path rejects a purchase here, so no button may promise one."""
+    for blocked in ({"billing_enabled": False}, {"billing_kill_switch": True}):
+        settings = configured(yookassa_enabled=True, stripe_enabled=True, **blocked)
+        keyboard = payment_market_keyboard(
+            "reading_single",
+            catalog=BillingCatalog(settings),
+            settings=settings,
+        )
+        callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+
+        assert callbacks == ["menu:balance"]
+        assert not has_payment_routes(keyboard)
 
 
 def test_payment_choice_shows_stars_and_card_routes_together() -> None:

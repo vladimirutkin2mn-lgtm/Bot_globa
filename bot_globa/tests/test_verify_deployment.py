@@ -29,6 +29,8 @@ def production_settings() -> Settings:
             "0123456789abcdefghijklmnopqrstuvwxyz-HEARTSIGNAL-production-key"
         ),
         payment_public_base_url="https://bot-globa.example",
+        billing_enabled=True,
+        payment_provider="production",
         telegram_stars_enabled=True,
         subscriptions_enabled=True,
         telegram_stars_amount_reading_single=40,
