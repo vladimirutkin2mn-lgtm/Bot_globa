@@ -17,9 +17,10 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from app.bot import horoscope_flow as flow
 from app.bot import texts
+from app.bot.consent import ensure_consent
 from app.bot.horoscope_flow import HOROSCOPE_FLOW
 from app.bot.horoscope_renderer import HoroscopeRenderer
-from app.bot.keyboards import consent_keyboard, main_menu_keyboard, products_keyboard
+from app.bot.keyboards import main_menu_keyboard, products_keyboard
 from app.bot.memory_keyboards import memory_disabled_keyboard
 from app.bot.persona_flow import (
     CONTEXT_LIMIT,
@@ -31,11 +32,11 @@ from app.bot.persona_flow import (
     UNLOCKING,
 )
 from app.bot.scene_media import Scene, answer_scene
-from app.bot.states import HoroscopeStates, OnboardingStates
+from app.bot.states import HoroscopeStates
 from app.config import Settings
+from app.domain.billing import BillingCatalog
 from app.domain.birth_profile import BirthProfileConsentStatus
 from app.domain.horoscope import HoroscopeScope
-from app.domain.products import ProductCatalog
 from app.providers.analytics import OracleProductEvent
 from app.providers.geocoding.base import GeocodedPlace, GeocodingError
 from app.services.birth_place_lookup import (
@@ -134,7 +135,7 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
-        privacy_retention_days: int = 30,
+        privacy_retention_days: int,
     ) -> None:
         if message.from_user is None:
             return
@@ -159,7 +160,7 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
-        privacy_retention_days: int = 30,
+        privacy_retention_days: int,
     ) -> None:
         await callback.answer()
         if isinstance(callback.message, Message):
@@ -184,7 +185,7 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
-        privacy_retention_days: int = 30,
+        privacy_retention_days: int,
     ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
@@ -214,8 +215,15 @@ class HoroscopeHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         birth_profile_service: BirthProfileService,
+        privacy_retention_days: int,
     ) -> None:
-        await self.start_from_menu(callback, state, onboarding, birth_profile_service)
+        await self.start_from_menu(
+            callback,
+            state,
+            onboarding,
+            birth_profile_service,
+            privacy_retention_days,
+        )
 
     async def cancel(self, callback: CallbackQuery, state: FSMContext) -> None:
         """Abandon the intake outright; consent stays granted so a retry is one step."""
@@ -530,20 +538,20 @@ class HoroscopeHandlers:
         callback: CallbackQuery,
         state: FSMContext,
         onboarding: OnboardingService,
+        privacy_retention_days: int,
         oracle_analytics: OracleProductAnalytics | None = None,
-        privacy_retention_days: int = 30,
     ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
             return
-        if not await onboarding.analysis_allowed(callback.from_user.id):
-            await state.set_state(OnboardingStates.waiting_for_consent)
-            await answer_scene(
-                callback.message,
-                Scene.ONBOARDING_CONSENT,
-                texts.CONSENT.format(days=privacy_retention_days),
-                reply_markup=consent_keyboard(HOROSCOPE_FLOW.namespace),
-            )
+        if not await ensure_consent(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            destination=HOROSCOPE_FLOW.namespace,
+        ):
             return
         topic = (callback.data or "").removeprefix(flow.callback("topic", ""))
         if topic not in flow.HOROSCOPE_TOPIC_LABELS:
@@ -786,7 +794,7 @@ class HoroscopeHandlers:
         horoscope_use_case: UseCase,
         horoscope_monetized: MonetizedReadingService,
         horoscope_renderer: HoroscopeRenderer,
-        catalog: ProductCatalog,
+        billing_catalog: BillingCatalog,
         billing_settings: Settings,
         reading_full_price_label: str,
         oracle_memory: OracleMemoryService | None = None,
@@ -811,7 +819,7 @@ class HoroscopeHandlers:
                 Scene.INSUFFICIENT_CREDITS,
                 texts.PAYWALL.format(price=reading_full_price_label),
                 reply_markup=products_keyboard(
-                    catalog,
+                    billing_catalog,
                     billing_settings,
                     resume_callback=flow.callback("unlock", str(reading_id)),
                 ),
@@ -848,16 +856,15 @@ class HoroscopeHandlers:
         identity: TelegramIdentity,
         privacy_retention_days: int,
     ) -> None:
-        if await onboarding.current_user(telegram_user_id) is None:
-            await onboarding.start(identity)
-        if not await onboarding.analysis_allowed(telegram_user_id):
-            await state.set_state(OnboardingStates.waiting_for_consent)
-            await answer_scene(
-                message,
-                Scene.ONBOARDING_CONSENT,
-                texts.CONSENT.format(days=privacy_retention_days),
-                reply_markup=consent_keyboard(HOROSCOPE_FLOW.namespace),
-            )
+        if not await ensure_consent(
+            message,
+            telegram_user_id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            identity=identity,
+            destination=HOROSCOPE_FLOW.namespace,
+        ):
             return
         user = await onboarding.current_user(telegram_user_id)
         if user is None:
@@ -1187,7 +1194,7 @@ class HoroscopeHandlers:
             try:
                 offer_memory = await oracle_memory.should_offer_consent(user_id)
             except Exception:
-                logger.warning("memory_offer_check_failed")
+                logger.warning("memory_offer_check_failed", exc_info=True)
         final = markup or HOROSCOPE_FLOW.full_result_keyboard(outcome.reading_id)
         for index, chunk in enumerate(chunks):
             reply_markup = final if index == len(chunks) - 1 else None

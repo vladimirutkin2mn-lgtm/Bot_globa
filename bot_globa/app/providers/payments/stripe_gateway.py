@@ -444,6 +444,6 @@ def _optional_datetime(value: object) -> datetime | None:
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return datetime.fromtimestamp(value, UTC)
     raise ProviderStateMismatchError("invalid provider timestamp")

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import Date, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.daily_horoscope_models import DailyHoroscopePreference
@@ -93,6 +93,17 @@ class DailyHoroscopePreferenceService:
                         or_(
                             DailyHoroscopePreference.lease_until.is_(None),
                             DailyHoroscopePreference.lease_until <= current,
+                        ),
+                        # A worker killed between the send and the completion leaves the
+                        # row due again; the recorded delivery day is what keeps the user
+                        # from receiving the same digest twice.
+                        or_(
+                            DailyHoroscopePreference.last_delivered_on.is_(None),
+                            DailyHoroscopePreference.last_delivered_on
+                            < cast(
+                                func.timezone(DailyHoroscopePreference.timezone, current),
+                                Date,
+                            ),
                         ),
                         User.telegram_user_id.is_not(None),
                         User.privacy_status != "deleted",

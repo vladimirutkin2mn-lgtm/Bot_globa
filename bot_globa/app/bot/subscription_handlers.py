@@ -3,13 +3,15 @@
 from uuid import UUID
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot.keyboards import payment_market_keyboard, products_keyboard
+from app.bot.consent import ensure_consent
+from app.bot.keyboards import has_payment_routes, payment_market_keyboard, products_keyboard
 from app.bot.scene_media import Scene, answer_scene
 from app.config import Settings
 from app.db.models import User
-from app.domain.products import ProductCatalog
+from app.domain.billing import BillingCatalog
 from app.services.credits_service import CreditsService
 from app.services.onboarding import OnboardingService
 from app.services.subscription_checkout_service import (
@@ -25,9 +27,13 @@ from app.services.subscription_management_service import (
 router = Router(name="subscriptions")
 
 
-def subscription_market_keyboard(settings: Settings) -> InlineKeyboardMarkup:
+def subscription_market_keyboard(
+    catalog: BillingCatalog,
+    settings: Settings,
+) -> InlineKeyboardMarkup:
     return payment_market_keyboard(
         "subscription_monthly",
+        catalog=catalog,
         settings=settings,
         recurring=True,
     )
@@ -109,16 +115,28 @@ async def _current_user_subscription(
 @router.callback_query(F.data.in_({"menu:balance", "credits:refresh", "subscription:refresh"}))
 async def balance_and_subscription_screen(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     credits: CreditsService,
-    catalog: ProductCatalog,
+    billing_catalog: BillingCatalog,
     subscriptions: SubscriptionManagementService | None,
     billing_settings: Settings,
     analysis_price: int,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+    ):
+        return
     user, current = await _current_user_subscription(callback, onboarding, subscriptions)
-    if user is None or not isinstance(callback.message, Message):
+    if user is None:
         return
     balance = await credits.balance(user.id)
     subscription_note = (
@@ -138,7 +156,7 @@ async def balance_and_subscription_screen(
         reply_markup=(
             subscription_management_keyboard(current)
             if current is not None
-            else products_keyboard(catalog, billing_settings)
+            else products_keyboard(billing_catalog, billing_settings)
         ),
     )
 
@@ -146,13 +164,26 @@ async def balance_and_subscription_screen(
 @router.callback_query(F.data == "credits:buy:subscription_monthly")
 async def choose_subscription_market(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     subscriptions: SubscriptionManagementService | None,
+    billing_catalog: BillingCatalog,
     billing_settings: Settings,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+    ):
+        return
     user, current = await _current_user_subscription(callback, onboarding, subscriptions)
-    if user is None or not isinstance(callback.message, Message):
+    if user is None:
         return
     if current is not None:
         await answer_scene(
@@ -162,19 +193,15 @@ async def choose_subscription_market(
             reply_markup=subscription_management_keyboard(current),
         )
         return
-    if not billing_settings.subscriptions_enabled:
+    keyboard = subscription_market_keyboard(billing_catalog, billing_settings)
+    if not billing_settings.subscriptions_enabled or not has_payment_routes(keyboard):
+        # Leave a way forward: the other products stay buyable when only the recurring
+        # route is unavailable.
         await answer_scene(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Подписка сейчас недоступна.",
-        )
-        return
-    keyboard = subscription_market_keyboard(billing_settings)
-    if len(keyboard.inline_keyboard) == 1:
-        await answer_scene(
-            callback.message,
-            Scene.CHECKOUT_UNAVAILABLE,
-            "Подписка сейчас недоступна.",
+            reply_markup=products_keyboard(billing_catalog, billing_settings),
         )
         return
     await answer_scene(
@@ -189,13 +216,25 @@ async def choose_subscription_market(
 @router.callback_query(F.data.startswith("credits:offer:subscription_monthly:"))
 async def create_subscription_checkout(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     subscription_checkout: SubscriptionCheckoutService | None,
     billing_settings: Settings,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+    ):
+        return
     user = await onboarding.current_user(callback.from_user.id)
-    if user is None or subscription_checkout is None or not isinstance(callback.message, Message):
+    if user is None or subscription_checkout is None:
         return
     parts = (callback.data or "").split(":")
     if len(parts) != 5:

@@ -8,6 +8,7 @@ from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
+from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
 from app.providers.payments.base import PaymentProvider
@@ -48,6 +49,9 @@ class OracleDependencyMiddleware(BaseMiddleware):
         self._settings = settings
         self._payment_provider = payment_provider
         self._product_catalog = product_catalog
+        # Built once: every price shown in Telegram resolves through this catalog, and
+        # rebuilding it per keyboard would repeat the whole product/market expansion.
+        self._billing_catalog = BillingCatalog(settings)
         self._checkout_service = checkout_service
         self._subscription_checkout = subscription_checkout
         self._subscriptions = subscriptions
@@ -71,6 +75,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["credits"] = CreditsService(self._sessions)
             data["previews"] = PreviewEntitlementService(self._sessions)
             data["catalog"] = self._product_catalog
+            data["billing_catalog"] = self._billing_catalog
             data["payments"] = (
                 PaymentService(
                     self._sessions,

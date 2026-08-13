@@ -6,12 +6,11 @@ import logging
 import signal
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
-from aiogram.types.input_file import FSInputFile
+from aiogram.exceptions import TelegramForbiddenError
 
 from app.bot.daily_horoscope import render_daily_horoscope
 from app.bot.keyboards import daily_horoscope_keyboard
-from app.bot.scene_media import Scene
+from app.bot.scene_media import Scene, send_scene_photo
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import DeploymentSettings, get_deployment_settings
@@ -52,23 +51,13 @@ async def run(
                     )
                 continue
             try:
-                digest = render_daily_horoscope(claim.delivery_date)
-                try:
-                    await bot.send_photo(
-                        chat_id=claim.telegram_user_id,
-                        photo=FSInputFile(Scene.DAILY_HOROSCOPE.asset_path),
-                        caption=digest,
-                        reply_markup=daily_horoscope_keyboard(),
-                    )
-                except TelegramForbiddenError:
-                    raise
-                except TelegramAPIError:
-                    logger.warning("daily_horoscope_photo_unavailable")
-                    await bot.send_message(
-                        chat_id=claim.telegram_user_id,
-                        text=digest,
-                        reply_markup=daily_horoscope_keyboard(),
-                    )
+                await send_scene_photo(
+                    bot,
+                    claim.telegram_user_id,
+                    Scene.DAILY_HOROSCOPE,
+                    render_daily_horoscope(claim.delivery_date),
+                    reply_markup=daily_horoscope_keyboard(),
+                )
             except asyncio.CancelledError:
                 await preferences.release(claim)
                 raise

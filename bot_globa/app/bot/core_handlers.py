@@ -9,7 +9,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot import texts
-from app.bot.daily_horoscope import render_daily_horoscope
+from app.bot.consent import ensure_consent, request_consent
+from app.bot.daily_horoscope import MODE_CONFIRMATIONS, MODE_LABELS, render_daily_horoscope
 from app.bot.keyboards import (
     checkout_creating_keyboard,
     checkout_keyboard,
@@ -17,6 +18,7 @@ from app.bot.keyboards import (
     consent_keyboard,
     daily_horoscope_keyboard,
     daily_settings_keyboard,
+    has_payment_routes,
     main_menu_keyboard,
     more_menu_keyboard,
     onboarding_intro_keyboard,
@@ -30,11 +32,11 @@ from app.bot.keyboards import (
 from app.bot.scene_media import Scene, answer_scene
 from app.bot.states import OnboardingStates, PaymentStates
 from app.config import Settings
+from app.domain.billing import BillingCatalog
 from app.domain.daily_horoscope import (
     DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
     DailyHoroscopeMode,
 )
-from app.domain.products import ProductCatalog
 from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
@@ -61,7 +63,7 @@ async def _show_onboarding_step(
     state: FSMContext,
     step: OnboardingStep,
     *,
-    privacy_retention_days: int = 30,
+    privacy_retention_days: int,
 ) -> None:
     if step is OnboardingStep.CONSENT:
         await state.set_state(OnboardingStates.waiting_for_consent)
@@ -86,7 +88,7 @@ async def start(
     message: Message,
     state: FSMContext,
     onboarding: OnboardingService,
-    privacy_retention_days: int = 30,
+    privacy_retention_days: int,
 ) -> None:
     """Enter the oracle product without reviving legacy relationship-analysis drafts."""
 
@@ -138,14 +140,22 @@ async def continue_onboarding(
 
 @router.callback_query(F.data == "onboarding:consent")
 async def accept_consent(
-    callback: CallbackQuery, state: FSMContext, onboarding: OnboardingService
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    privacy_retention_days: int,
 ) -> None:
     if await onboarding.current_user(callback.from_user.id) is None:
         await onboarding.start(_identity(callback))
     step = await onboarding.accept_consent(callback.from_user.id)
     await callback.answer()
     if isinstance(callback.message, Message):
-        await _show_onboarding_step(callback.message, state, step)
+        await _show_onboarding_step(
+            callback.message,
+            state,
+            step,
+            privacy_retention_days=privacy_retention_days,
+        )
 
 
 @router.callback_query(F.data == "menu:more")
@@ -185,16 +195,28 @@ async def daily_horoscope_screen(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "daily:settings")
-async def daily_horoscope_settings(callback: CallbackQuery) -> None:
+async def daily_horoscope_settings(
+    callback: CallbackQuery,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
     await callback.answer()
-    if isinstance(callback.message, Message):
-        await answer_scene(
-            callback.message,
-            Scene.DAILY_SETTINGS,
-            "Присылать короткий общий гороскоп каждый день? "
-            "Утро — около 08:00, вечер — около 20:00 по московскому времени.",
-            reply_markup=daily_settings_keyboard(),
-        )
+    if not isinstance(callback.message, Message):
+        return
+    user = await onboarding.current_user(callback.from_user.id)
+    current = (
+        (await daily_horoscopes.current(user.id)).mode
+        if user is not None
+        else DailyHoroscopeMode.ON_REQUEST
+    )
+    await answer_scene(
+        callback.message,
+        Scene.DAILY_SETTINGS,
+        "Присылать короткий общий гороскоп каждый день? "
+        "Утро — около 08:00, вечер — около 20:00 по московскому времени.\n\n"
+        f"Сейчас: {MODE_LABELS[current]}.",
+        reply_markup=daily_settings_keyboard(current),
+    )
 
 
 @router.callback_query(F.data.startswith("daily:set:"))
@@ -216,22 +238,10 @@ async def set_daily_horoscope(
     except (LookupError, ValueError):
         await callback.message.answer("Не удалось сохранить настройку. Попробуйте ещё раз.")
         return
-    message = {
-        DailyHoroscopeMode.MORNING: (
-            "Готово. Буду присылать общий гороскоп около 08:00 по московскому времени."
-        ),
-        DailyHoroscopeMode.EVENING: (
-            "Готово. Буду присылать общий гороскоп около 20:00 по московскому времени."
-        ),
-        DailyHoroscopeMode.ON_REQUEST: (
-            "Готово. Автоматическая доставка выключена — гороскоп останется доступен в меню."
-        ),
-        DailyHoroscopeMode.DISABLED: "Готово. Гороскопы автоматически приходить не будут.",
-    }[mode]
     await answer_scene(
         callback.message,
         Scene.DAILY_SETTINGS,
-        message,
+        MODE_CONFIRMATIONS[mode],
         reply_markup=main_menu_keyboard(),
     )
 
@@ -307,14 +317,27 @@ async def delete_all_confirm(
 @router.callback_query(F.data.in_({"menu:balance", "credits:refresh"}))
 async def balance_screen(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     credits: CreditsService,
-    catalog: ProductCatalog,
+    billing_catalog: BillingCatalog,
     billing_settings: Settings,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+        identity=_identity(callback),
+    ):
+        return
     user = await onboarding.current_user(callback.from_user.id)
-    if user is None or not isinstance(callback.message, Message):
+    if user is None:
         return
     balance = await credits.balance(user.id)
     await answer_scene(
@@ -323,7 +346,7 @@ async def balance_screen(
         f"Доступно полных разборов: "
         f"{balance // billing_settings.reading_full_price_credits}.\n\n"
         "Выберите вариант:",
-        reply_markup=products_keyboard(catalog, billing_settings),
+        reply_markup=products_keyboard(billing_catalog, billing_settings),
     )
 
 
@@ -334,21 +357,48 @@ def _callback_parts(callback: CallbackQuery) -> list[str]:
 @router.callback_query(F.data.startswith("credits:buy:"))
 async def buy_credits(
     callback: CallbackQuery,
+    state: FSMContext,
     onboarding: OnboardingService,
     payments: PaymentService | None,
+    billing_catalog: BillingCatalog,
     billing_settings: Settings,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+        identity=_identity(callback),
+    ):
+        return
     user = await onboarding.current_user(callback.from_user.id)
-    if user is None or not isinstance(callback.message, Message):
+    if user is None:
         return
     product_code = _callback_parts(callback)[-1]
     if payments is None or billing_settings.billing_enabled:
+        market = payment_market_keyboard(
+            product_code,
+            catalog=billing_catalog,
+            settings=billing_settings,
+        )
+        if not has_payment_routes(market):
+            await answer_scene(
+                callback.message,
+                Scene.CHECKOUT_UNAVAILABLE,
+                texts.CHECKOUT_UNAVAILABLE,
+                reply_markup=market,
+            )
+            return
         await answer_scene(
             callback.message,
             Scene.PAYMENT_MARKET,
             "Выберите способ оплаты.",
-            reply_markup=payment_market_keyboard(product_code, settings=billing_settings),
+            reply_markup=market,
         )
         return
     outcome = await payments.create_checkout(user.id, product_code)
@@ -368,7 +418,11 @@ async def buy_credits(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
             texts.CHECKOUT_UNAVAILABLE,
-            reply_markup=payment_market_keyboard(product_code, settings=billing_settings),
+            reply_markup=payment_market_keyboard(
+                product_code,
+                catalog=billing_catalog,
+                settings=billing_settings,
+            ),
         )
         return
     await answer_scene(
@@ -386,10 +440,22 @@ async def create_production_checkout(
     onboarding: OnboardingService,
     checkout: CheckoutService,
     billing_settings: Settings,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+        identity=_identity(callback),
+    ):
+        return
     user = await onboarding.current_user(callback.from_user.id)
-    if user is None or not isinstance(callback.message, Message):
+    if user is None:
         return
     parts = _callback_parts(callback)
     if len(parts) != 5:
@@ -442,9 +508,17 @@ async def receive_receipt_contact(
     state: FSMContext,
     onboarding: OnboardingService,
     checkout: CheckoutService,
+    privacy_retention_days: int,
     billing_settings: Settings | None = None,
 ) -> None:
     data = await state.get_data()
+    if message.from_user is not None and not await onboarding.analysis_allowed(
+        message.from_user.id
+    ):
+        # A durable FSM can outlive the screen that opened it; a receipt contact is
+        # personal data and must not be accepted on an unaccepted-terms account.
+        await request_consent(message, state, privacy_retention_days)
+        return
     if message.from_user is None or not message.text:
         await state.clear()
         await answer_scene(

@@ -51,6 +51,38 @@ async def test_opt_in_is_leased_once_and_rescheduled_after_delivery(
     assert current.next_delivery_at == datetime(2026, 8, 14, 5, 0, tzinfo=UTC)
 
 
+async def test_an_expired_lease_does_not_deliver_the_same_day_twice(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """A worker killed between the send and the completion must not repeat the digest."""
+
+    user = await _user(payment_db, 975005)
+    service = DailyHoroscopePreferenceService(payment_db)
+    due = datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
+    await service.configure(
+        user.id,
+        DailyHoroscopeMode.MORNING,
+        now=datetime(2026, 8, 13, 4, 59, tzinfo=UTC),
+    )
+    claim = await service.claim_due(now=due, lease_seconds=120)
+    assert claim is not None
+    assert await service.complete(claim, now=datetime(2026, 8, 13, 5, 1, tzinfo=UTC))
+
+    # Simulate the crash: the row is due again while its delivery day is already recorded.
+    async with payment_db.begin() as session:
+        preference = await session.get(DailyHoroscopePreference, user.id)
+        assert preference is not None
+        preference.next_delivery_at = due
+        preference.claim_id = None
+        preference.lease_until = None
+
+    assert await service.claim_due(now=datetime(2026, 8, 13, 9, 0, tzinfo=UTC)) is None
+
+    tomorrow = await service.claim_due(now=datetime(2026, 8, 14, 5, 0, tzinfo=UTC))
+    assert tomorrow is not None
+    assert tomorrow.delivery_date.isoformat() == "2026-08-14"
+
+
 async def test_opt_out_invalidates_an_in_flight_delivery_claim(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:

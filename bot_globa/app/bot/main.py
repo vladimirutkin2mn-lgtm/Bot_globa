@@ -16,6 +16,7 @@ from app.bot.persona_flow import PersonaReadingBundle
 from app.bot.persona_flows import MVP_READING_FLOWS, TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
+from app.bot.pricing import product_price_label
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.bot.reading_feedback_handlers import router as reading_feedback_router
 from app.bot.reading_followup_handlers import create_reading_followup_router
@@ -26,7 +27,7 @@ from app.bot.telegram_stars_handlers import router as telegram_stars_router
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
-from app.domain.products import ProductCatalog, ProductCode, format_user_price
+from app.domain.products import ProductCatalog, ProductCode
 from app.logging import configure_logging
 from app.observability.errors import LoggingErrorReporter, NoOpErrorReporter
 from app.observability.oracle_quality import (
@@ -109,18 +110,12 @@ def create_dispatcher(
     raw_llm = create_llm_client(settings)
     payments = create_payment_components(settings, bot)
     product_catalog = ProductCatalog(settings)
-    reading_product = product_catalog.get(ProductCode.READING_SINGLE)
-    if reading_product is None:  # pragma: no cover - a corrupt static catalog cannot run
-        raise RuntimeError("reading product is missing")
-    reading_full_price_label = format_user_price(
-        reading_product.amount_minor,
-        reading_product.currency,
-    )
-    if settings.telegram_stars_enabled:
-        reading_full_price_label = (
-            f"{reading_full_price_label} / {settings.telegram_stars_amount_reading_single} ⭐"
-        )
     billing_catalog = BillingCatalog(settings)
+    reading_full_price_label = product_price_label(
+        billing_catalog,
+        ProductCode.READING_SINGLE,
+        settings,
+    )
     analytics = create_analytics_client(sessions, resolved_observability)
     oracle_analytics = OracleProductAnalytics(analytics)
     quality_observer = OracleQualityObserver(

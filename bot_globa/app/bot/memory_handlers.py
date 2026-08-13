@@ -8,6 +8,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from app.bot.consent import ensure_consent
 from app.bot.keyboards import main_menu_keyboard
 from app.bot.memory_keyboards import (
     memory_clear_confirmation_keyboard,
@@ -53,10 +54,18 @@ async def memory_command(
     state: FSMContext,
     onboarding: OnboardingService,
     oracle_memory: OracleMemoryService,
+    privacy_retention_days: int,
 ) -> None:
     if message.from_user is None:
         return
-    await _show_home(message, message.from_user.id, state, onboarding, oracle_memory)
+    await _show_home(
+        message,
+        message.from_user.id,
+        state,
+        onboarding,
+        oracle_memory,
+        privacy_retention_days,
+    )
 
 
 @router.callback_query(F.data.in_({"menu:memory", "memory:home"}))
@@ -65,6 +74,7 @@ async def memory_home(
     state: FSMContext,
     onboarding: OnboardingService,
     oracle_memory: OracleMemoryService,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
@@ -74,6 +84,7 @@ async def memory_home(
             state,
             onboarding,
             oracle_memory,
+            privacy_retention_days,
         )
 
 
@@ -96,9 +107,18 @@ async def grant_memory(
     state: FSMContext,
     onboarding: OnboardingService,
     oracle_memory: OracleMemoryService,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
     if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+    ):
         return
     user = await onboarding.current_user(callback.from_user.id)
     if user is None:
@@ -411,8 +431,19 @@ async def _show_home(
     state: FSMContext,
     onboarding: OnboardingService,
     oracle_memory: OracleMemoryService,
+    privacy_retention_days: int,
 ) -> None:
     await state.clear()
+    # Memory is a second consent layered on the terms; offering it first would ask for
+    # permission to remember content the user has not agreed to have processed at all.
+    if not await ensure_consent(
+        message,
+        telegram_user_id,
+        state,
+        onboarding,
+        privacy_retention_days,
+    ):
+        return
     user = await onboarding.current_user(telegram_user_id)
     if user is None:
         await message.answer(_NOT_ONBOARDED)

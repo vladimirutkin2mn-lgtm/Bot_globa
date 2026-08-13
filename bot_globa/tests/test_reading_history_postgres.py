@@ -1,12 +1,12 @@
 """PostgreSQL coverage for safe paginated reading history metadata."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.models import User
+from app.db.models import CreditTransaction, User
 from app.db.reading_models import Persona, Reading, ReadingPrivateContent
 from app.domain.reading import ReadingAccess, ReadingStatus
 from app.services.reading_history import ReadingHistoryService
@@ -129,3 +129,70 @@ async def test_history_rejects_invalid_pagination_before_query(
         await history.list_ready(user_id, "tarot_reader", page=-1)
     with pytest.raises(ValueError, match="page size"):
         await history.list_ready(user_id, "tarot_reader", page_size=21)
+
+
+async def test_full_ownership_authorizes_a_result_action_only_for_the_paid_owner(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """Feedback acts on one reading, so it must prove ownership before it is accepted."""
+
+    now = datetime.now(UTC)
+    async with payment_db.begin() as session:
+        owner = User(telegram_user_id=894101, first_name="FeedbackOwner")
+        stranger = User(telegram_user_id=894102, first_name="FeedbackStranger")
+        persona = Persona(
+            code="tarot_reader_feedback",
+            display_name="Tarot Reader",
+            prompt_version="tarot-reader-v1",
+            schema_version="reading-result-v1",
+        )
+        session.add_all((owner, stranger, persona))
+        await session.flush()
+
+        def _reading(user_id: UUID) -> Reading:
+            return Reading(
+                user_id=user_id,
+                persona_id=persona.id,
+                topic="decision",
+                status=ReadingStatus.PREVIEW_READY.value,
+                access_level=ReadingAccess.PREVIEW.value,
+                cost_units=0,
+                engine_version="tarot-symbolic-v1",
+                prompt_version="tarot-reader-v1",
+                schema_version="reading-result-v1",
+                generated_at=now,
+                created_at=now,
+            )
+
+        paid = _reading(owner.id)
+        preview_only = _reading(owner.id)
+        removed = _reading(owner.id)
+        session.add_all((paid, preview_only, removed))
+        await session.flush()
+
+        for reading in (paid, removed):
+            spend = CreditTransaction(
+                user_id=owner.id,
+                type="spend",
+                amount=-1,
+                idempotency_key=f"feedback-ownership:{reading.id}",
+                reading_id=reading.id,
+            )
+            session.add(spend)
+            await session.flush()
+            reading.status = ReadingStatus.FULL_READY.value
+            reading.access_level = ReadingAccess.FULL.value
+            reading.cost_units = 1
+            reading.full_access_transaction_id = spend.id
+        removed.deleted_at = now
+        await session.flush()
+        paid_id, preview_id, removed_id = paid.id, preview_only.id, removed.id
+        owner_id, stranger_id = owner.id, stranger.id
+
+    history = ReadingHistoryService(payment_db)
+
+    assert await history.owns_full(owner_id, paid_id)
+    assert not await history.owns_full(stranger_id, paid_id)
+    assert not await history.owns_full(owner_id, preview_id)
+    assert not await history.owns_full(owner_id, removed_id)
+    assert not await history.owns_full(owner_id, uuid4())

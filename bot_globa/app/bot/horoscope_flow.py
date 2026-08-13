@@ -100,7 +100,6 @@ HOROSCOPE_FLOW = ReadingFlow(
         unlock_failed="Не удалось открыть полный разбор. Списание отменено или возвращено.",
         unlock_button="Открыть полный разбор — {price}",
         new_button="Новый разбор",
-        history_button="Мои разборы",
     ),
 )
 

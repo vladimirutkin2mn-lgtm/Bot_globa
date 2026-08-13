@@ -88,7 +88,6 @@ def _reflection_texts(*, welcome: str, unavailable: str) -> PersonaFlowTexts:
         unlock_failed="Не удалось открыть полный разбор. Списание отменено или возвращено.",
         unlock_button="Открыть полный разбор — {price}",
         new_button="Новый разбор",
-        history_button="Мои разборы",
     )
 
 
@@ -119,7 +118,6 @@ TAROT_FLOW = PersonaFlow(
         unlock_failed="Не удалось открыть полный расклад. Списание отменено или возвращено.",
         unlock_button="Открыть полный разбор — {price}",
         new_button="Новый расклад",
-        history_button="Мои расклады",
     ),
     copy=ReadingCopy(
         emoji="🔮",

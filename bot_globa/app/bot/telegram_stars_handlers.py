@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     BotSubscriptionUpdated,
     CallbackQuery,
@@ -14,6 +15,7 @@ from aiogram.types import (
     PreCheckoutQuery,
 )
 
+from app.bot.consent import ensure_consent
 from app.bot.scene_media import Scene, answer_scene
 from app.config import Settings
 from app.services.credits_service import CreditsService
@@ -63,13 +65,25 @@ def payment_support_text() -> str:
 @router.callback_query(F.data.startswith("credits:stars:"))
 async def create_stars_invoice(
     callback: CallbackQuery,
+    state: FSMContext,
     bot: Bot,
     onboarding: OnboardingService,
     telegram_stars: TelegramStarsPaymentService,
+    privacy_retention_days: int,
 ) -> None:
     await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if not await ensure_consent(
+        callback.message,
+        callback.from_user.id,
+        state,
+        onboarding,
+        privacy_retention_days,
+    ):
+        return
     user = await onboarding.current_user(callback.from_user.id)
-    if user is None or not isinstance(callback.message, Message):
+    if user is None:
         return
     product_code = (callback.data or "").removeprefix("credits:stars:")
     try:

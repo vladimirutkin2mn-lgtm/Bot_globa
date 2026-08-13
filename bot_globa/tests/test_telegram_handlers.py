@@ -24,6 +24,8 @@ from app.bot.states import OnboardingStates
 from app.db.models import User
 from app.services.onboarding import OnboardingService, TelegramIdentity
 
+RETENTION_DAYS = 30
+
 type Harness = tuple[Dispatcher, Bot, "RecordingSession", "MemoryUsers", OnboardingService]
 
 
@@ -189,7 +191,7 @@ def sent_texts(session: RecordingSession) -> list[str]:
     return [
         method.text if isinstance(method, SendMessage) else method.caption or ""
         for method in session.methods
-        if isinstance(method, (SendMessage, SendPhoto))
+        if isinstance(method, SendMessage | SendPhoto)
     ]
 
 
@@ -200,19 +202,26 @@ async def complete(service: OnboardingService, user_id: int = 42) -> None:
 
 async def test_new_and_repeated_start_show_intro_without_duplicate(harness: Harness) -> None:
     local_dispatcher, bot, session, users, service = harness
-    await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
-    await local_dispatcher.feed_update(bot, start_update(2), onboarding=service)
+    await local_dispatcher.feed_update(
+        bot, start_update(), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
+    await local_dispatcher.feed_update(
+        bot, start_update(2), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
     assert sent_texts(session) == [texts.WELCOME, texts.WELCOME]
     assert len(users.users) == 1
 
 
 async def test_intro_continuation_shows_intent_menu_before_consent(harness: Harness) -> None:
     local_dispatcher, bot, session, _, service = harness
-    await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
+    await local_dispatcher.feed_update(
+        bot, start_update(), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
     await local_dispatcher.feed_update(
         bot,
         callback_update("onboarding:intro"),
         onboarding=service,
+        privacy_retention_days=RETENTION_DAYS,
     )
     assert sent_texts(session)[-1] == texts.MAIN_MENU
     assert not await service.analysis_allowed(42)
@@ -220,18 +229,24 @@ async def test_intro_continuation_shows_intent_menu_before_consent(harness: Harn
 
 async def test_consent_acceptance_and_completed_start_show_menu(harness: Harness) -> None:
     local_dispatcher, bot, session, _, service = harness
-    await local_dispatcher.feed_update(bot, start_update(), onboarding=service)
+    await local_dispatcher.feed_update(
+        bot, start_update(), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
     await local_dispatcher.feed_update(
         bot,
         callback_update("onboarding:intro"),
         onboarding=service,
+        privacy_retention_days=RETENTION_DAYS,
     )
     await local_dispatcher.feed_update(
         bot,
         callback_update("onboarding:consent", 3),
         onboarding=service,
+        privacy_retention_days=RETENTION_DAYS,
     )
-    await local_dispatcher.feed_update(bot, start_update(4), onboarding=service)
+    await local_dispatcher.feed_update(
+        bot, start_update(4), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
     assert sent_texts(session)[-2:] == [texts.MAIN_MENU, texts.MAIN_MENU]
 
 
@@ -245,6 +260,7 @@ async def test_a_stale_intro_button_does_not_reopen_consent_for_a_completed_user
         bot,
         callback_update("onboarding:intro"),
         onboarding=service,
+        privacy_retention_days=RETENTION_DAYS,
     )
 
     assert sent_texts(session)[-1] == texts.MAIN_MENU
@@ -265,7 +281,7 @@ async def test_selected_persona_requests_just_in_time_consent_then_resumes_that_
             bot,
             callback_update("menu:tarot"),
             onboarding=service,
-            privacy_retention_days=30,
+            privacy_retention_days=RETENTION_DAYS,
         )
         context = local_dispatcher.fsm.get_context(bot=bot, chat_id=42, user_id=42)
         assert await context.get_state() == OnboardingStates.waiting_for_consent.state
@@ -276,6 +292,7 @@ async def test_selected_persona_requests_just_in_time_consent_then_resumes_that_
             bot,
             callback_update("onboarding:consent:tarot", 3),
             onboarding=service,
+            privacy_retention_days=RETENTION_DAYS,
         )
         assert await service.analysis_allowed(42)
         assert sent_texts(session)[-1] == TAROT_FLOW.texts.welcome
@@ -284,12 +301,14 @@ async def test_selected_persona_requests_just_in_time_consent_then_resumes_that_
             bot,
             callback_update("tarot:topic:decision", 4),
             onboarding=service,
+            privacy_retention_days=RETENTION_DAYS,
         )
         assert sent_texts(session)[-1] == QUESTION_PROMPT
         await local_dispatcher.feed_update(
             bot,
             callback_update("tarot:example", 5),
             onboarding=service,
+            privacy_retention_days=RETENTION_DAYS,
         )
         assert sent_texts(session)[-1] == QUESTION_EXAMPLE.format(
             example=TAROT_FLOW.topic_examples["decision"]
@@ -304,7 +323,9 @@ async def test_onboarding_callback_without_prior_start_is_handled(
     data: str,
 ) -> None:
     local_dispatcher, bot, session, users, service = harness
-    await local_dispatcher.feed_update(bot, callback_update(data), onboarding=service)
+    await local_dispatcher.feed_update(
+        bot, callback_update(data), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
     assert 42 in users.users
     assert any(isinstance(method, AnswerCallbackQuery) for method in session.methods)
 
@@ -325,19 +346,23 @@ async def test_rate_limit_middleware_applies_to_start_and_callbacks() -> None:
     bot = Bot("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", session=session)
     users = MemoryUsers()
     service = OnboardingService(users, NoOpAnalytics())
-    await limited_dispatcher.feed_update(bot, start_update(), onboarding=service)
-    await limited_dispatcher.feed_update(bot, start_update(2), onboarding=service)
+    await limited_dispatcher.feed_update(
+        bot, start_update(), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
+    await limited_dispatcher.feed_update(
+        bot, start_update(2), onboarding=service, privacy_retention_days=RETENTION_DAYS
+    )
     await limited_dispatcher.feed_update(
         bot,
         callback_update("menu:privacy", 3),
         onboarding=service,
-        privacy_retention_days=30,
+        privacy_retention_days=RETENTION_DAYS,
     )
     await limited_dispatcher.feed_update(
         bot,
         callback_update("menu:privacy", 4),
         onboarding=service,
-        privacy_retention_days=30,
+        privacy_retention_days=RETENTION_DAYS,
     )
     assert sent_texts(session).count(texts.RATE_LIMITED) == 1
     alerts = [method for method in session.methods if isinstance(method, AnswerCallbackQuery)]

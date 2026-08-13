@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from app.bot.keyboards import payment_market_keyboard
 from app.config import Settings, get_settings
 from app.deployment import validate_telegram_webhook
+from app.domain.billing import BillingCatalog
 
 
 class VerificationConfigurationError(ValueError):
@@ -105,6 +106,7 @@ class DeploymentVerifier:
     def _check_telegram_payment_routes(self) -> VerificationCheck:
         keyboard = payment_market_keyboard(
             "reading_single",
+            catalog=BillingCatalog(self._settings),
             settings=self._settings,
         )
         callbacks = {

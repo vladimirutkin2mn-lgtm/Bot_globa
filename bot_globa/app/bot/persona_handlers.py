@@ -14,7 +14,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from app.bot import texts
-from app.bot.keyboards import consent_keyboard, main_menu_keyboard, products_keyboard
+from app.bot.consent import ensure_consent, request_consent
+from app.bot.keyboards import main_menu_keyboard, products_keyboard
 from app.bot.memory_keyboards import memory_disabled_keyboard
 from app.bot.persona_flow import (
     CONTEXT_LIMIT,
@@ -29,9 +30,8 @@ from app.bot.persona_flow import (
 )
 from app.bot.reading_renderer import render_full, render_micro_preview, render_preview
 from app.bot.scene_media import Scene, answer_scene
-from app.bot.states import OnboardingStates
 from app.config import Settings
-from app.domain.products import ProductCatalog
+from app.domain.billing import BillingCatalog
 from app.providers.analytics import OracleProductEvent
 from app.services.monetized_reading import MonetizedReadingStatus
 from app.services.onboarding import OnboardingService, TelegramIdentity
@@ -107,7 +107,7 @@ class PersonaReadingHandlers:
         message: Message,
         state: FSMContext,
         onboarding: OnboardingService,
-        privacy_retention_days: int = 30,
+        privacy_retention_days: int,
     ) -> None:
         if message.from_user is None:
             return
@@ -131,7 +131,7 @@ class PersonaReadingHandlers:
         callback: CallbackQuery,
         state: FSMContext,
         onboarding: OnboardingService,
-        privacy_retention_days: int = 30,
+        privacy_retention_days: int,
     ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
@@ -177,8 +177,9 @@ class PersonaReadingHandlers:
         callback: CallbackQuery,
         state: FSMContext,
         onboarding: OnboardingService,
+        privacy_retention_days: int,
     ) -> None:
-        await self.start_from_menu(callback, state, onboarding)
+        await self.start_from_menu(callback, state, onboarding, privacy_retention_days)
 
     async def to_main_menu(self, callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer()
@@ -198,18 +199,20 @@ class PersonaReadingHandlers:
         callback: CallbackQuery,
         state: FSMContext,
         onboarding: OnboardingService,
+        privacy_retention_days: int,
         oracle_analytics: OracleProductAnalytics | None = None,
-        privacy_retention_days: int = 30,
     ) -> None:
         await callback.answer()
         if not isinstance(callback.message, Message):
             return
-        if not await onboarding.analysis_allowed(callback.from_user.id):
-            await self._request_consent(
-                callback.message,
-                state,
-                privacy_retention_days,
-            )
+        if not await ensure_consent(
+            callback.message,
+            callback.from_user.id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            destination=self._flow.namespace,
+        ):
             return
         topic = (callback.data or "").removeprefix(self._flow.callback("topic", ""))
         if topic not in self._flow.topic_labels:
@@ -429,7 +432,7 @@ class PersonaReadingHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         persona_readings: PersonaReadings,
-        catalog: ProductCatalog,
+        billing_catalog: BillingCatalog,
         billing_settings: Settings,
     ) -> None:
         await callback.answer()
@@ -453,7 +456,7 @@ class PersonaReadingHandlers:
                 Scene.INSUFFICIENT_CREDITS,
                 texts.PAYWALL.format(price=bundle.full_price_label),
                 reply_markup=products_keyboard(
-                    catalog,
+                    billing_catalog,
                     billing_settings,
                     resume_callback=self._flow.callback("unlock", str(reading_id)),
                 ),
@@ -482,12 +485,15 @@ class PersonaReadingHandlers:
         privacy_retention_days: int,
         identity: TelegramIdentity,
     ) -> bool:
-        if await onboarding.current_user(telegram_user_id) is None:
-            await onboarding.start(identity)
-        if not await onboarding.analysis_allowed(telegram_user_id):
-            await self._request_consent(message, state, privacy_retention_days)
-            return False
-        return True
+        return await ensure_consent(
+            message,
+            telegram_user_id,
+            state,
+            onboarding,
+            privacy_retention_days,
+            identity=identity,
+            destination=self._flow.namespace,
+        )
 
     async def _request_consent(
         self,
@@ -495,12 +501,11 @@ class PersonaReadingHandlers:
         state: FSMContext,
         privacy_retention_days: int,
     ) -> None:
-        await state.set_state(OnboardingStates.waiting_for_consent)
-        await answer_scene(
+        await request_consent(
             message,
-            Scene.ONBOARDING_CONSENT,
-            texts.CONSENT.format(days=privacy_retention_days),
-            reply_markup=consent_keyboard(self._flow.namespace),
+            state,
+            privacy_retention_days,
+            destination=self._flow.namespace,
         )
 
     async def _show_topics(self, message: Message, state: FSMContext) -> None:
@@ -671,7 +676,7 @@ class PersonaReadingHandlers:
         try:
             offer_memory = await bundle.memory.should_offer_consent(user_id)
         except Exception:
-            logger.warning("memory_offer_check_failed")
+            logger.warning("memory_offer_check_failed", exc_info=True)
             offer_memory = False
         await _send_chunks(
             message,

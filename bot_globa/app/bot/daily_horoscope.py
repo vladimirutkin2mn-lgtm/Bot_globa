@@ -1,6 +1,33 @@
 """A privacy-free, deterministic daily digest for all twelve zodiac signs."""
 
 from datetime import date
+from types import MappingProxyType
+
+from app.domain.daily_horoscope import DailyHoroscopeMode
+
+MODE_LABELS = MappingProxyType(
+    {
+        DailyHoroscopeMode.MORNING: "каждое утро, около 08:00",
+        DailyHoroscopeMode.EVENING: "каждый вечер, около 20:00",
+        DailyHoroscopeMode.ON_REQUEST: "только по запросу",
+        DailyHoroscopeMode.DISABLED: "не присылать",
+    }
+)
+
+MODE_CONFIRMATIONS = MappingProxyType(
+    {
+        DailyHoroscopeMode.MORNING: (
+            "Готово. Буду присылать общий гороскоп около 08:00 по московскому времени."
+        ),
+        DailyHoroscopeMode.EVENING: (
+            "Готово. Буду присылать общий гороскоп около 20:00 по московскому времени."
+        ),
+        DailyHoroscopeMode.ON_REQUEST: (
+            "Готово. Автоматическая доставка выключена — гороскоп останется доступен в меню."
+        ),
+        DailyHoroscopeMode.DISABLED: "Готово. Гороскопы автоматически приходить не будут.",
+    }
+)
 
 _THEMES = (
     "сначала прояснить главное, а уже затем действовать",
