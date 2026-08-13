@@ -160,6 +160,7 @@ async def test_yookassa_refund_uses_payment_amount_and_stable_idempotency(
     payload, headers = yookassa_transport.posts[0]
     assert payload["payment_id"] == "payment_1"
     assert payload["amount"] == {"value": "5.00", "currency": "RUB"}
+    assert payload["description"] == "Numa refund"
     assert headers["Idempotence-Key"] == "refund:stable-key"
 
 

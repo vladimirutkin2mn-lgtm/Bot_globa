@@ -8,6 +8,7 @@ class ProductIdentity:
     """Stable repository and runtime identity for the evolving product."""
 
     repository_slug: str
+    consumer_brand: str
     working_name: str
     api_title: str
     version: str
@@ -16,6 +17,7 @@ class ProductIdentity:
 
 PRODUCT_IDENTITY = ProductIdentity(
     repository_slug="bot_globa",
+    consumer_brand="Numa",
     working_name="Персональный AI-оракул",
     api_title="Bot Globa API",
     version="0.1.0",

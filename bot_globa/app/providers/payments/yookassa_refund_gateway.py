@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from app.platform.identity import PRODUCT_IDENTITY
 from app.providers.payments.base import PermanentProviderError, UnknownProviderOutcomeError
 from app.providers.payments.refund_gateway import (
     AuthoritativeRefund,
@@ -38,7 +39,7 @@ class YooKassaRefundGateway:
                 "value": format(Decimal(request.amount_minor) / Decimal(100), ".2f"),
                 "currency": request.currency,
             },
-            "description": "Bot Globa refund"[:128],
+            "description": f"{PRODUCT_IDENTITY.consumer_brand} refund"[:128],
             "metadata": {"refund_request_id": str(request.refund_request_id)},
         }
         try:

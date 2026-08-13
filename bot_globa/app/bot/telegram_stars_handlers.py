@@ -15,6 +15,7 @@ from aiogram.types import (
     PreCheckoutQuery,
 )
 
+from app.bot import texts
 from app.bot.consent import ensure_consent
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
@@ -35,7 +36,8 @@ def payment_terms_text(settings: Settings) -> str:
     """Return clear purchase terms without depending on an external web page."""
     return (
         "Условия оплаты\n\n"
-        "• Globa продаёт цифровые кредиты для функций бота. Это развлекательный и "
+        f"• {texts.BRAND_NAME} продаёт цифровые кредиты для функций бота. "
+        "Это развлекательный и "
         "рефлексивный сервис, а не медицинская, юридическая или финансовая консультация.\n"
         "• Состав покупки и окончательная цена в ⭐ показываются до подтверждения платежа.\n"
         "• Кредиты начисляются только после успешного подтверждения Telegram. Если начисление "

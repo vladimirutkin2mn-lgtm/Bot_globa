@@ -84,7 +84,12 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Мой персональный прогноз", callback_data="menu:astro")],
-            [InlineKeyboardButton(text="Задать вопрос Globa", callback_data="menu:home")],
+            [
+                InlineKeyboardButton(
+                    text=f"Задать вопрос {texts.BRAND_NAME}",
+                    callback_data="menu:home",
+                )
+            ],
             [InlineKeyboardButton(text="Получать каждый день", callback_data="daily:settings")],
         ]
     )

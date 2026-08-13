@@ -1422,9 +1422,7 @@ class HoroscopeHandlers:
             await show_screen(
                 message,
                 Scene.MEMORY_DISABLED,
-                "Хотите, чтобы Globa помнил важный контекст для следующих разборов? "
-                "Память включается только с вашего согласия, а записи можно удалить "
-                "в любой момент.",
+                texts.MEMORY_CONSENT_OFFER,
                 reply_markup=memory_disabled_keyboard(),
                 state=state,
             )
