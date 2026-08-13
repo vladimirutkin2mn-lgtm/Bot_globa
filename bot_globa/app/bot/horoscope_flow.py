@@ -46,27 +46,59 @@ CONSENT_DECLINED = (
     "Без данных рождения натальную карту рассчитать нельзя. Остальные направления доступны "
     "из главного меню."
 )
-BIRTH_DATE_PROMPT = "Введите дату рождения в формате ДД.ММ.ГГГГ, например 12.07.1990."
-BIRTH_DATE_INVALID = "Не удалось разобрать дату. Нужен формат ДД.ММ.ГГГГ и дата не в будущем."
-BIRTH_PLACE_PROMPT = "Введите город рождения. Если нужного города нет, выберите ближайший крупный."
-BIRTH_PLACE_INVALID = "Название города должно быть от 2 до 200 символов."
-BIRTH_PLACE_EMPTY = "Ничего не нашлось. Попробуйте другое написание или ближайший крупный город."
-BIRTH_PLACE_UNAVAILABLE = "Поиск места сейчас недоступен. Попробуйте позже."
-BIRTH_TIME_PROMPT = (
-    "Введите время рождения в формате ЧЧ:ММ. Без точного времени дома и асцендент не "
-    "рассчитываются — тогда нажмите «Не знаю время»."
+
+# The birth intake is the longest form in the product — four answers before the reading
+# starts. Each screen says where it is in that sequence, because a form of unknown length
+# is the one people abandon. The marker counts answered steps, so it never runs ahead of
+# what actually happened.
+INTAKE_STEPS = 4
+
+
+def step_marker(answered: int) -> str:
+    """Render the intake position as filled and remaining steps."""
+
+    if not 0 <= answered < INTAKE_STEPS:
+        raise ValueError("intake step is outside the birth profile sequence")
+    return "✅" * answered + "⬜" + "▫️" * (INTAKE_STEPS - answered - 1)
+
+
+def _step(answered: int, copy: str) -> str:
+    return f"{step_marker(answered)}\n\n{copy}"
+
+
+BIRTH_DATE_PROMPT = _step(
+    0, "Введите дату рождения в формате <code>ДД.ММ.ГГГГ</code>, например 12.07.1990."
 )
-BIRTH_TIME_INVALID = "Не удалось разобрать время. Нужен формат ЧЧ:ММ, например 14:30."
-BIRTH_MOMENT_INVALID = (
-    "Такого местного времени в этом часовом поясе не существует. Уточните время или место."
+BIRTH_DATE_INVALID = _step(
+    0, "Не удалось разобрать дату. Нужен формат <code>ДД.ММ.ГГГГ</code> и дата не в будущем."
 )
-BIRTH_TIME_AMBIGUOUS = (
+BIRTH_PLACE_PROMPT = _step(
+    1, "Введите город рождения. Если нужного города нет, выберите ближайший крупный."
+)
+BIRTH_PLACE_INVALID = _step(1, "Название города должно быть от 2 до 200 символов.")
+BIRTH_PLACE_EMPTY = _step(
+    1, "Ничего не нашлось. Попробуйте другое написание или ближайший крупный город."
+)
+BIRTH_PLACE_UNAVAILABLE = _step(1, "Поиск места сейчас недоступен. Попробуйте позже.")
+BIRTH_TIME_PROMPT = _step(
+    2,
+    "Введите время рождения в формате <code>ЧЧ:ММ</code>. Без точного времени дома и "
+    "асцендент не рассчитываются — тогда нажмите «Не знаю время».",
+)
+BIRTH_TIME_INVALID = _step(
+    2, "Не удалось разобрать время. Нужен формат <code>ЧЧ:ММ</code>, например 14:30."
+)
+BIRTH_MOMENT_INVALID = _step(
+    2, "Такого местного времени в этом часовом поясе не существует. Уточните время или место."
+)
+BIRTH_TIME_AMBIGUOUS = _step(
+    2,
     "В эту ночь часы переводили назад, поэтому {clock} было дважды. От выбора зависят дома "
-    "и асцендент — укажите, какой это был час."
+    "и асцендент — укажите, какой это был час.",
 )
 TIME_SUMMER_BUTTON = "{clock} — летнее время ({offset})"
 TIME_WINTER_BUTTON = "{clock} — зимнее время ({offset})"
-PROFILE_SAVED = "Данные рождения сохранены. Выберите тему разбора."
+PROFILE_SAVED = "✅" * INTAKE_STEPS + "\n\nДанные рождения сохранены. Выберите тему разбора."
 PROFILE_MISSING = "Данные рождения не найдены. Заполните их заново."
 PROFILE_TITLE = "Ваши данные рождения:"
 PROFILE_DELETED = "Данные рождения и согласие удалены."

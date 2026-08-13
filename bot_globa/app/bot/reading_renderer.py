@@ -13,6 +13,9 @@ from app.services.persona_reading import PersonaPreviewOutcome
 
 TELEGRAM_LIMIT = 4096
 TARGET_CHUNK = 3600
+# One line of the paid reading is enough to prove it continues; a spoiler is one tap from
+# being read, so anything longer would simply be given away.
+TEASER_LIMIT = 140
 
 # Set apart from the reading rather than buried in it: the boundary between reflection
 # and prediction is the product, so it is typographically distinct on every view.
@@ -48,12 +51,7 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
         [
             f"<b>Главная тема:</b> {quote(pattern)}\n\n{quote(result.opening)}",
             f"<b>Практический шаг:</b>\n{quote(result.practical_step)}",
-            (
-                "<b>В полном разборе:</b>\n"
-                "• почему это повторяется;\n"
-                "• два возможных сценария;\n"
-                "• что можно сделать в ближайшие 7 дней."
-            ),
+            _locked_teaser(result),
             f"<b>Важно:</b>\n{quote(result.uncertainty_note)}",
             DISCLAIMER,
         ]
@@ -128,6 +126,42 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         ]
     )
     return chunk_sections(tuple(sections))
+
+
+def _locked_teaser(result: ReadingResult) -> str:
+    """Show that the paid depth exists by covering a real line of it, not by listing it.
+
+    A promise ("two possible scenarios") is weaker than the thing itself under a blur, and
+    an honest blur has to be real text rather than a placeholder. A Telegram spoiler is one
+    tap away from being read, so only a single truncated line goes under it — enough to
+    prove the reading continues, not enough to be the reading.
+    """
+
+    covered = (
+        result.possible_scenarios[0].scenario
+        if result.possible_scenarios
+        else (result.reflection_questions[0] if result.reflection_questions else "")
+    )
+    lines = ["<b>В полном разборе:</b>"]
+    if covered:
+        lines.append(f"<tg-spoiler>{quote(_shortened(covered))}</tg-spoiler>")
+    lines.extend(
+        (
+            "• почему это повторяется;",
+            "• два возможных сценария и условия каждого;",
+            "• что можно сделать в ближайшие 7 дней.",
+        )
+    )
+    return "\n".join(lines)
+
+
+def _shortened(value: str, maximum: int = TEASER_LIMIT) -> str:
+    """Cut at a word boundary so the covered line reads as a sentence, not a fragment."""
+
+    if len(value) <= maximum:
+        return value
+    head = value[:maximum].rsplit(" ", 1)[0].rstrip(" ,.;:—-")
+    return f"{head}…"
 
 
 def chunk_text(text: str) -> tuple[str, ...]:
