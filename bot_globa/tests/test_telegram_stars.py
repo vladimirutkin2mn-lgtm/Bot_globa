@@ -16,6 +16,7 @@ from pydantic import SecretStr, ValidationError
 
 from app.bot.keyboards import payment_market_keyboard
 from app.bot.subscription_handlers import subscription_market_keyboard
+from app.bot.telegram_stars_handlers import payment_support_text, payment_terms_text
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.providers.payments.refund_gateway import CreateRefund
@@ -34,8 +35,6 @@ def configured(**changes: object) -> Settings:
         "telegram_stars_amount_reading_single": 75,
         "telegram_stars_amount_reading_pack_5": 300,
         "telegram_stars_amount_subscription_monthly": 450,
-        "billing_terms_url": "https://example.com/terms",
-        "billing_support_url": "https://example.com/support",
     }
     values.update(changes)
     return Settings(**values)  # type: ignore[arg-type]
@@ -47,11 +46,9 @@ def configured(**changes: object) -> Settings:
         {"telegram_stars_amount_reading_single": 0},
         {"telegram_stars_amount_reading_pack_5": 0},
         {"telegram_stars_amount_subscription_monthly": 0},
-        {"billing_terms_url": ""},
-        {"billing_support_url": "http://example.com/support"},
     ],
 )
-def test_enabled_stars_require_explicit_prices_and_https_support(
+def test_enabled_stars_require_explicit_prices(
     changes: dict[str, object],
 ) -> None:
     with pytest.raises(ValidationError):
@@ -65,6 +62,16 @@ def test_one_time_stars_do_not_require_a_subscription_price() -> None:
     )
 
     assert settings.telegram_stars_enabled
+
+
+def test_terms_and_payment_support_are_available_without_external_links() -> None:
+    terms = payment_terms_text(configured())
+    support = payment_support_text()
+
+    assert "принимаете эти условия" in terms
+    assert "/refund" in terms
+    assert "/refund_status" in support
+    assert "http" not in terms + support
 
 
 def test_catalog_exposes_xtr_without_changing_existing_routes() -> None:

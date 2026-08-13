@@ -14,21 +14,21 @@ non-Telegram channels and while the Stars rollout flag is disabled.
 
 Stars are disabled and unpriced by default. Product owners must explicitly choose whole-Star
 prices before rollout; the application will not silently derive them from RUB, EUR, or USD.
+The approved production catalog is version-controlled in `production.public.env`, which Compose
+loads after the secret `.env.prod` file:
 
 ```dotenv
-BILLING_ENABLED=true
-PAYMENT_PROVIDER=production
+BILLING_KILL_SWITCH=false
 TELEGRAM_STARS_ENABLED=true
-TELEGRAM_STARS_AMOUNT_READING_SINGLE=75
-TELEGRAM_STARS_AMOUNT_READING_PACK_5=300
-TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY=450
-BILLING_TERMS_URL=https://example.com/terms
-BILLING_SUPPORT_URL=https://example.com/payment-support
+TELEGRAM_STARS_AMOUNT_READING_SINGLE=40
+TELEGRAM_STARS_AMOUNT_READING_PACK_5=200
+TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY=280
+SUBSCRIPTIONS_ENABLED=true
 ```
 
-The numbers above are examples, not approved production prices. Every enabled price must be from
-1 to 10,000 Stars. `BILLING_TERMS_URL` and `BILLING_SUPPORT_URL` must be public HTTPS pages; the
-bot exposes them through `/terms` and `/paysupport`.
+Every enabled price must be from 1 to 10,000 Stars. The bot returns clear terms and payment-support
+instructions directly from `/terms` and `/paysupport`; these commands do not depend on external
+pages or placeholder URLs. Checkout screens ask the user to read `/terms` before confirming.
 
 ## Payment lifecycle
 
@@ -85,4 +85,6 @@ autorenewal separately.
   reversal, and a consumed reservation. Verify partial refund is unavailable.
 - Force an ambiguous refund response and verify transaction reconciliation finds the existing
   refund without issuing a second ledger reversal.
-- Test `/terms` and `/paysupport` from a fresh chat before enabling production traffic.
+- Test `/terms` and `/paysupport` from a fresh chat and confirm neither depends on an external URL.
+- Run the deployment verifier and confirm `telegram_stars_configuration` reports
+  `single=40, pack_5=200, monthly=280` from the live container environment.

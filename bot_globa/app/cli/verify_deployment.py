@@ -79,12 +79,26 @@ class DeploymentVerifier:
     async def verify(self) -> tuple[VerificationCheck, ...]:
         """Return every check; network and payload failures remain safe result values."""
         checks = [
+            self._check_telegram_stars_configuration(),
             await self._check_liveness(),
             await self._check_readiness(),
             await self._check_webhook_authentication(),
         ]
         checks.extend(await self._check_telegram_webhook())
         return tuple(checks)
+
+    def _check_telegram_stars_configuration(self) -> VerificationCheck:
+        single = self._settings.telegram_stars_amount_reading_single
+        pack = self._settings.telegram_stars_amount_reading_pack_5
+        monthly = self._settings.telegram_stars_amount_subscription_monthly
+        monthly_valid = not self._settings.subscriptions_enabled or monthly > 0
+        passed = self._settings.telegram_stars_enabled and single > 0 and pack > 0 and monthly_valid
+        detail = (
+            f"enabled XTR catalog: single={single}, pack_5={pack}, monthly={monthly}"
+            if passed
+            else "Telegram Stars are disabled or the XTR catalog is incomplete"
+        )
+        return VerificationCheck("telegram_stars_configuration", passed, detail)
 
     async def _request(
         self,
