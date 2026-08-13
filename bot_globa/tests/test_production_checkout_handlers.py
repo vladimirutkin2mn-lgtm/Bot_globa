@@ -172,6 +172,27 @@ async def test_billing_enabled_opens_explicit_market_selection(
     ]
 
 
+async def test_billing_enabled_with_stars_keeps_every_payment_route_visible(
+    handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
+    settings: Settings,
+) -> None:
+    _, session, _, callback, onboarding = handler_context
+    callback = with_data(callback, "credits:buy:reading_single")
+    combined = settings.model_copy(update={"billing_enabled": True, "telegram_stars_enabled": True})
+
+    await buy_credits(callback, onboarding, None, combined)
+
+    markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    assert callbacks == [
+        "credits:stars:reading_single",
+        "credits:offer:reading_single:RU:RUB",
+        "credits:offer:reading_single:INTERNATIONAL:EUR",
+        "credits:offer:reading_single:INTERNATIONAL:USD",
+        "menu:balance",
+    ]
+
+
 async def test_receipts_disabled_starts_direct_checkout_and_returns_button(
     handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
     settings: Settings,
@@ -179,6 +200,25 @@ async def test_receipts_disabled_starts_direct_checkout_and_returns_button(
     _, session, state, callback, onboarding = handler_context
     checkout = FakeCheckout()
     await create_production_checkout(callback, state, onboarding, checkout, settings)
+    assert checkout.calls[0][1:] == ("reading_single", "RU", "RUB", None)
+    assert sent(session)[-1].reply_markup.inline_keyboard[0][0].url == checkout.url  # type: ignore[union-attr]
+
+
+async def test_card_checkout_remains_active_when_stars_are_enabled(
+    handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
+    settings: Settings,
+) -> None:
+    _, session, state, callback, onboarding = handler_context
+    checkout = FakeCheckout()
+
+    await create_production_checkout(
+        callback,
+        state,
+        onboarding,
+        checkout,
+        settings.model_copy(update={"telegram_stars_enabled": True}),
+    )
+
     assert checkout.calls[0][1:] == ("reading_single", "RU", "RUB", None)
     assert sent(session)[-1].reply_markup.inline_keyboard[0][0].url == checkout.url  # type: ignore[union-attr]
 

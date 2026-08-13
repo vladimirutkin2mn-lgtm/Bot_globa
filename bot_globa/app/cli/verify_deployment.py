@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import ValidationError
 
+from app.bot.keyboards import payment_market_keyboard
 from app.config import Settings, get_settings
 from app.deployment import validate_telegram_webhook
 
@@ -80,6 +81,7 @@ class DeploymentVerifier:
         """Return every check; network and payload failures remain safe result values."""
         checks = [
             self._check_telegram_stars_configuration(),
+            self._check_telegram_payment_routes(),
             await self._check_liveness(),
             await self._check_readiness(),
             await self._check_webhook_authentication(),
@@ -99,6 +101,33 @@ class DeploymentVerifier:
             else "Telegram Stars are disabled or the XTR catalog is incomplete"
         )
         return VerificationCheck("telegram_stars_configuration", passed, detail)
+
+    def _check_telegram_payment_routes(self) -> VerificationCheck:
+        keyboard = payment_market_keyboard(
+            "reading_single",
+            telegram_stars_enabled=self._settings.telegram_stars_enabled,
+        )
+        callbacks = {
+            button.callback_data
+            for row in keyboard.inline_keyboard
+            for button in row
+            if button.callback_data is not None
+        }
+        expected = {
+            "credits:stars:reading_single",
+            "credits:offer:reading_single:RU:RUB",
+            "credits:offer:reading_single:INTERNATIONAL:EUR",
+            "credits:offer:reading_single:INTERNATIONAL:USD",
+        }
+        providers_enabled = self._settings.yookassa_enabled and self._settings.stripe_enabled
+        passed = providers_enabled and expected.issubset(callbacks)
+        return VerificationCheck(
+            "telegram_payment_routes",
+            passed,
+            "Stars, RUB, EUR, and USD routes are enabled"
+            if passed
+            else "one or more Telegram payment routes are unavailable",
+        )
 
     async def _request(
         self,
