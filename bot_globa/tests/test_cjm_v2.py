@@ -30,6 +30,7 @@ def _settings(**overrides: object) -> Settings:
         "telegram_bot_token": SecretStr("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
         "content_encryption_key": SecretStr("cjm-v2-test-key"),
         "subscriptions_enabled": True,
+        "billing_enabled": True,
         "telegram_stars_enabled": True,
         "telegram_stars_amount_reading_single": 40,
         "telegram_stars_amount_reading_pack_5": 200,
