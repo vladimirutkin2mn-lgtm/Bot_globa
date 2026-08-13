@@ -6,14 +6,11 @@ from uuid import UUID
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot import texts
+from app.bot.pricing import product_price_label
 from app.config import Settings
 from app.domain.billing import BillingCatalog
-from app.domain.products import (
-    READING_PURCHASE_CODES,
-    ProductCatalog,
-    ProductCode,
-    format_user_price,
-)
+from app.domain.daily_horoscope import DailyHoroscopeMode
+from app.domain.products import READING_PURCHASE_CODES, ProductCode, format_user_price
 from app.providers.payments.base import BillingMarket
 
 
@@ -96,16 +93,26 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def daily_settings_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Да, утром", callback_data="daily:set:morning")],
-            [InlineKeyboardButton(text="Да, вечером", callback_data="daily:set:evening")],
-            [InlineKeyboardButton(text="Только по запросу", callback_data="daily:set:on_request")],
-            [InlineKeyboardButton(text="Не присылать", callback_data="daily:set:disabled")],
-            [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
-        ]
+def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> InlineKeyboardMarkup:
+    """Offer the four delivery choices and mark the one already saved."""
+
+    options = (
+        ("Да, утром", DailyHoroscopeMode.MORNING),
+        ("Да, вечером", DailyHoroscopeMode.EVENING),
+        ("Только по запросу", DailyHoroscopeMode.ON_REQUEST),
+        ("Не присылать", DailyHoroscopeMode.DISABLED),
     )
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"✓ {label}" if mode is current else label,
+                callback_data=f"daily:set:{mode.value}",
+            )
+        ]
+        for label, mode in options
+    ]
+    rows.append([InlineKeyboardButton(text="Главное меню", callback_data="menu:home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def privacy_keyboard() -> InlineKeyboardMarkup:
@@ -330,36 +337,30 @@ def billing_keyboard(
 
 
 def products_keyboard(
-    catalog: ProductCatalog,
+    catalog: BillingCatalog,
     settings: Settings,
     *,
     resume_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     for code in READING_PURCHASE_CODES:
-        product = catalog.get(code)
-        if product is None:
+        # A subscription that cannot be checked out must not be advertised: the recurring
+        # route would answer the tap with "unavailable" and end the purchase there.
+        if code is ProductCode.SUBSCRIPTION_MONTHLY and not settings.subscriptions_enabled:
             continue
-        reading_count = max(product.credits // settings.reading_full_price_credits, 1)
+        offer = catalog.resolve_product_offer(code, BillingMarket.RU, "RUB")
+        reading_count = max(offer.credits // settings.reading_full_price_credits, 1)
         if code is ProductCode.READING_SINGLE:
             choice = "1 полный разбор"
         elif code is ProductCode.READING_PACK_5:
             choice = f"{reading_count} полных разборов"
         else:
-            choice = (
-                f"{reading_count} разборов в месяц"
-                if settings.subscriptions_enabled
-                else f"{reading_count} разборов"
-            )
-        label = f"{choice} — {format_user_price(product.amount_minor, product.currency)}"
-        stars = _stars_amount(settings, code)
-        if settings.telegram_stars_enabled and stars > 0:
-            label = f"{label} / {stars} ⭐"
+            choice = f"{reading_count} разборов в месяц"
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=label,
-                    callback_data=f"credits:buy:{product.code.value}",
+                    text=f"{choice} — {product_price_label(catalog, code, settings)}",
+                    callback_data=f"credits:buy:{code.value}",
                 )
             ]
         )
@@ -390,28 +391,30 @@ def checkout_keyboard(url: str) -> InlineKeyboardMarkup:
 def payment_market_keyboard(
     product_code: str,
     *,
+    catalog: BillingCatalog,
     settings: Settings,
     recurring: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Offer every usable payment route in one Telegram screen."""
-    catalog = BillingCatalog(settings)
-    ru = catalog.resolve_product_offer(product_code, BillingMarket.RU, "RUB")
-    eur = catalog.resolve_product_offer(product_code, BillingMarket.INTERNATIONAL, "EUR")
-    usd = catalog.resolve_product_offer(product_code, BillingMarket.INTERNATIONAL, "USD")
+    """Offer only the routes that can actually complete this purchase.
+
+    A button for a disabled provider costs the buyer a tap and answers with an error, so
+    each route is gated on the provider that would have to settle it.
+    """
+
     rows: list[list[InlineKeyboardButton]] = []
     if settings.telegram_stars_enabled:
         stars = catalog.resolve_product_offer(product_code, BillingMarket.TELEGRAM, "XTR")
-        rows.extend(
-            [
+        if stars.amount_minor > 0:
+            rows.append(
                 [
                     InlineKeyboardButton(
                         text=f"Telegram Stars · {stars.amount_minor} ⭐",
                         callback_data=f"credits:stars:{product_code}",
                     )
                 ]
-            ]
-        )
-    if not recurring or (settings.yookassa_enabled and settings.yookassa_recurring_enabled):
+            )
+    if settings.yookassa_enabled and (not recurring or settings.yookassa_recurring_enabled):
+        ru = catalog.resolve_product_offer(product_code, BillingMarket.RU, "RUB")
         rows.append(
             [
                 InlineKeyboardButton(
@@ -420,25 +423,35 @@ def payment_market_keyboard(
                 )
             ]
         )
-    if not recurring or settings.stripe_enabled:
-        rows.extend(
-            [
+    if settings.stripe_enabled:
+        for currency in ("EUR", "USD"):
+            offer = catalog.resolve_product_offer(
+                product_code, BillingMarket.INTERNATIONAL, currency
+            )
+            rows.append(
                 [
                     InlineKeyboardButton(
-                        text=f"International · {format_user_price(eur.amount_minor, eur.currency)}",
-                        callback_data=f"credits:offer:{product_code}:INTERNATIONAL:EUR",
+                        text=(
+                            "International · "
+                            f"{format_user_price(offer.amount_minor, offer.currency)}"
+                        ),
+                        callback_data=f"credits:offer:{product_code}:INTERNATIONAL:{currency}",
                     )
-                ],
-                [
-                    InlineKeyboardButton(
-                        text=f"International · {format_user_price(usd.amount_minor, usd.currency)}",
-                        callback_data=f"credits:offer:{product_code}:INTERNATIONAL:USD",
-                    )
-                ],
-            ]
-        )
+                ]
+            )
     rows.append([InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def has_payment_routes(keyboard: InlineKeyboardMarkup) -> bool:
+    """Report whether a market keyboard opens a checkout rather than only going back."""
+
+    return any(
+        button.callback_data is not None
+        and button.callback_data.startswith(("credits:offer:", "credits:stars:"))
+        for row in keyboard.inline_keyboard
+        for button in row
+    )
 
 
 def receipt_contact_keyboard() -> InlineKeyboardMarkup:
@@ -485,14 +498,6 @@ def checkout_unavailable_keyboard(
             [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
         ]
     )
-
-
-def _stars_amount(settings: Settings, code: ProductCode) -> int:
-    if code is ProductCode.READING_PACK_5:
-        return settings.telegram_stars_amount_reading_pack_5
-    if code is ProductCode.SUBSCRIPTION_MONTHLY:
-        return settings.telegram_stars_amount_subscription_monthly
-    return settings.telegram_stars_amount_reading_single
 
 
 def paywall_keyboard(analysis_id: UUID, preview_available: bool) -> InlineKeyboardMarkup:

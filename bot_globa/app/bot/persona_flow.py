@@ -22,8 +22,6 @@ MENU_BUTTON = "Главное меню"
 CANCEL_BUTTON = "Отмена"
 SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
-BUY_CREDITS_BUTTON = "Купить кредиты"
-CHECK_BALANCE_BUTTON = "Проверить баланс и открыть"
 FOLLOWUP_BUTTON = "Задать уточняющий вопрос"
 FOLLOWUP_NAMESPACE = "rfu"
 FEEDBACK_NAMESPACE = "rfb"
@@ -35,11 +33,7 @@ QUESTION_PROMPT = (
     "пробовали — если это важно. Можно написать коротко."
 )
 QUESTION_EXAMPLE = "Например: {example}"
-CONTEXT_PROMPT = (
-    "Можно добавить короткий контекст ситуации одним сообщением или продолжить без него."
-)
 UNLOCKING = "Проверяю баланс и открываю полный разбор…"
-INSUFFICIENT = "Для полного разбора нужно {price} кр. Доступный баланс: {balance} кр."
 
 QUESTION_LIMIT = 8000
 CONTEXT_LIMIT = 12000
@@ -74,7 +68,6 @@ class PersonaFlowTexts:
     unlock_failed: str
     unlock_button: str
     new_button: str
-    history_button: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,20 +187,6 @@ class ReadingFlow:
             rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
-    def insufficient_keyboard(self, reading_id: UUID) -> InlineKeyboardMarkup:
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=BUY_CREDITS_BUTTON, callback_data="menu:balance")],
-                [
-                    InlineKeyboardButton(
-                        text=CHECK_BALANCE_BUTTON,
-                        callback_data=self.callback("unlock", str(reading_id)),
-                    )
-                ],
-                [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
-            ]
-        )
-
     def retry_keyboard(self, reading_id: UUID) -> InlineKeyboardMarkup:
         rows = [
             [
@@ -217,7 +196,7 @@ class ReadingFlow:
                 )
             ]
         ]
-        rows.extend(self._navigation_rows())
+        rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
     def history_keyboard(
@@ -260,11 +239,6 @@ class ReadingFlow:
             ]
         )
         return InlineKeyboardMarkup(inline_keyboard=rows)
-
-    def _navigation_rows(self) -> list[list[InlineKeyboardButton]]:
-        return [
-            [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
-        ]
 
     @property
     def _new(self) -> str:

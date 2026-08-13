@@ -4,7 +4,7 @@ from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import Date, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.daily_horoscope_models import DailyHoroscopePreference
@@ -94,6 +94,17 @@ class DailyHoroscopePreferenceService:
                             DailyHoroscopePreference.lease_until.is_(None),
                             DailyHoroscopePreference.lease_until <= current,
                         ),
+                        # A worker killed between the send and the completion leaves the
+                        # row due again; the recorded delivery day is what keeps the user
+                        # from receiving the same digest twice.
+                        or_(
+                            DailyHoroscopePreference.last_delivered_on.is_(None),
+                            DailyHoroscopePreference.last_delivered_on
+                            < cast(
+                                func.timezone(DailyHoroscopePreference.timezone, current),
+                                Date,
+                            ),
+                        ),
                         User.telegram_user_id.is_not(None),
                         User.privacy_status != "deleted",
                     )
@@ -106,10 +117,17 @@ class DailyHoroscopePreferenceService:
                 return None
             preference, telegram_user_id = row
             claim_id = uuid4()
-            preference.claim_id = claim_id
-            preference.lease_until = current + timedelta(seconds=lease_seconds)
             mode = DailyHoroscopeMode(preference.mode)
             local_date = current.astimezone(ZoneInfo(preference.timezone)).date()
+            # Telegram does not offer an idempotency key for sendPhoto/sendMessage. Reserve
+            # the local delivery day in the same transaction as the claim so a worker that
+            # disappears after Telegram accepted the message cannot lease the day again.
+            # This deliberately chooses at-most-once delivery: an ambiguous crash may skip
+            # one digest, but it cannot send the same digest twice.
+            preference.last_delivered_on = local_date
+            preference.next_delivery_at = _next_delivery(mode, current, preference.timezone)
+            preference.claim_id = claim_id
+            preference.lease_until = current + timedelta(seconds=lease_seconds)
             await session.flush()
             return DailyHoroscopeClaim(
                 claim_id=claim_id,
@@ -125,7 +143,7 @@ class DailyHoroscopePreferenceService:
         *,
         now: datetime | None = None,
     ) -> bool:
-        current = _utc(now)
+        _utc(now)
         async with self._sessions.begin() as session:
             preference = await session.get(
                 DailyHoroscopePreference,
@@ -134,9 +152,6 @@ class DailyHoroscopePreferenceService:
             )
             if preference is None or preference.claim_id != claim.claim_id:
                 return False
-            mode = DailyHoroscopeMode(preference.mode)
-            preference.last_delivered_on = claim.delivery_date
-            preference.next_delivery_at = _next_delivery(mode, current, preference.timezone)
             preference.claim_id = None
             preference.lease_until = None
             return True
@@ -147,7 +162,7 @@ class DailyHoroscopePreferenceService:
         *,
         now: datetime | None = None,
     ) -> bool:
-        current = _utc(now)
+        _utc(now)
         async with self._sessions.begin() as session:
             preference = await session.get(
                 DailyHoroscopePreference,
@@ -156,7 +171,6 @@ class DailyHoroscopePreferenceService:
             )
             if preference is None or preference.claim_id != claim.claim_id:
                 return False
-            preference.next_delivery_at = current + timedelta(minutes=5)
             preference.claim_id = None
             preference.lease_until = None
             return True

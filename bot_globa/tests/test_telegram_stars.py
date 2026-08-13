@@ -97,7 +97,12 @@ def test_stars_payload_is_compact_and_strict() -> None:
 
 
 def test_payment_choice_shows_stars_and_card_routes_together() -> None:
-    keyboard = payment_market_keyboard("reading_single", settings=configured())
+    settings = configured(yookassa_enabled=True, stripe_enabled=True)
+    keyboard = payment_market_keyboard(
+        "reading_single",
+        catalog=BillingCatalog(settings),
+        settings=settings,
+    )
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
 
@@ -123,7 +128,7 @@ def test_subscription_choice_shows_every_enabled_route_together() -> None:
         yookassa_recurring_enabled=True,
         stripe_enabled=True,
     )
-    keyboard = subscription_market_keyboard(settings)
+    keyboard = subscription_market_keyboard(BillingCatalog(settings), settings)
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
 
     assert callbacks == [
@@ -136,12 +141,14 @@ def test_subscription_choice_shows_every_enabled_route_together() -> None:
 
 
 def test_subscription_choice_hides_card_providers_without_recurring_support() -> None:
+    recurring_unsupported = configured(
+        yookassa_enabled=True,
+        yookassa_recurring_enabled=False,
+        stripe_enabled=False,
+    )
     keyboard = subscription_market_keyboard(
-        configured(
-            yookassa_enabled=True,
-            yookassa_recurring_enabled=False,
-            stripe_enabled=False,
-        )
+        BillingCatalog(recurring_unsupported),
+        recurring_unsupported,
     )
 
     assert [button.callback_data for row in keyboard.inline_keyboard for button in row] == [

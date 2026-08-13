@@ -25,9 +25,12 @@ from app.bot.core_handlers import (
 from app.bot.states import PaymentStates
 from app.config import Settings
 from app.db.models import User
+from app.domain.billing import BillingCatalog
 from app.providers.payments.base import Checkout
 from app.services.checkout_service import CheckoutRejectedError, OneTimeCheckoutResult
 from app.services.payment_service import CheckoutOutcome, CheckoutResult
+
+RETENTION_DAYS = 30
 
 
 class RecordingSession(AiohttpSession):
@@ -69,11 +72,15 @@ class RecordingSession(AiohttpSession):
 
 
 class FakeOnboarding:
-    def __init__(self) -> None:
+    def __init__(self, *, consented: bool = True) -> None:
         self.user = User(id=uuid4(), telegram_user_id=42, first_name="Buyer")
+        self.consented = consented
 
     async def current_user(self, telegram_user_id: int) -> User | None:
         return self.user if telegram_user_id == 42 else None
+
+    async def analysis_allowed(self, telegram_user_id: int) -> bool:
+        return self.consented and telegram_user_id == 42
 
 
 class FakeCheckout:
@@ -132,7 +139,7 @@ async def handler_context() -> AsyncGenerator[
 
 
 def sent(session: RecordingSession) -> list[SendMessage | SendPhoto]:
-    return [method for method in session.methods if isinstance(method, (SendMessage, SendPhoto))]
+    return [method for method in session.methods if isinstance(method, SendMessage | SendPhoto)]
 
 
 def sent_text(method: SendMessage | SendPhoto) -> str:
@@ -147,9 +154,17 @@ async def test_billing_disabled_uses_legacy_mock_checkout(
     handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
     settings: Settings,
 ) -> None:
-    _, session, _, callback, onboarding = handler_context
+    _, session, state, callback, onboarding = handler_context
     callback = with_data(callback, "credits:buy:reading_single")
-    await buy_credits(callback, onboarding, FakeLegacyPayments(), settings)
+    await buy_credits(
+        callback,
+        state,
+        onboarding,
+        FakeLegacyPayments(),
+        BillingCatalog(settings),
+        settings,
+        RETENTION_DAYS,
+    )
     markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     assert markup.inline_keyboard[0][0].url == "https://local.test/mock"
 
@@ -158,10 +173,19 @@ async def test_billing_enabled_opens_explicit_market_selection(
     handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
     settings: Settings,
 ) -> None:
-    _, session, _, callback, onboarding = handler_context
+    _, session, state, callback, onboarding = handler_context
     callback = with_data(callback, "credits:buy:reading_single")
+    enabled = settings.model_copy(
+        update={"billing_enabled": True, "yookassa_enabled": True, "stripe_enabled": True}
+    )
     await buy_credits(
-        callback, onboarding, None, settings.model_copy(update={"billing_enabled": True})
+        callback,
+        state,
+        onboarding,
+        None,
+        BillingCatalog(enabled),
+        enabled,
+        RETENTION_DAYS,
     )
     markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
@@ -176,11 +200,28 @@ async def test_billing_enabled_with_stars_keeps_every_payment_route_visible(
     handler_context: tuple[Bot, RecordingSession, FSMContext, CallbackQuery, FakeOnboarding],
     settings: Settings,
 ) -> None:
-    _, session, _, callback, onboarding = handler_context
+    _, session, state, callback, onboarding = handler_context
     callback = with_data(callback, "credits:buy:reading_single")
-    combined = settings.model_copy(update={"billing_enabled": True, "telegram_stars_enabled": True})
+    combined = settings.model_copy(
+        update={
+            "billing_enabled": True,
+            "telegram_stars_enabled": True,
+            "telegram_stars_amount_reading_single": 40,
+            "telegram_stars_amount_reading_pack_5": 200,
+            "yookassa_enabled": True,
+            "stripe_enabled": True,
+        }
+    )
 
-    await buy_credits(callback, onboarding, None, combined)
+    await buy_credits(
+        callback,
+        state,
+        onboarding,
+        None,
+        BillingCatalog(combined),
+        combined,
+        RETENTION_DAYS,
+    )
 
     markup = cast("InlineKeyboardMarkup", sent(session)[-1].reply_markup)
     callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
@@ -199,7 +240,9 @@ async def test_receipts_disabled_starts_direct_checkout_and_returns_button(
 ) -> None:
     _, session, state, callback, onboarding = handler_context
     checkout = FakeCheckout()
-    await create_production_checkout(callback, state, onboarding, checkout, settings)
+    await create_production_checkout(
+        callback, state, onboarding, checkout, settings, RETENTION_DAYS
+    )
     assert checkout.calls[0][1:] == ("reading_single", "RU", "RUB", None)
     assert sent(session)[-1].reply_markup.inline_keyboard[0][0].url == checkout.url  # type: ignore[union-attr]
 
@@ -216,7 +259,14 @@ async def test_card_checkout_remains_active_when_stars_are_enabled(
         state,
         onboarding,
         checkout,
-        settings.model_copy(update={"telegram_stars_enabled": True}),
+        settings.model_copy(
+            update={
+                "telegram_stars_enabled": True,
+                "telegram_stars_amount_reading_single": 40,
+                "telegram_stars_amount_reading_pack_5": 200,
+            }
+        ),
+        RETENTION_DAYS,
     )
 
     assert checkout.calls[0][1:] == ("reading_single", "RU", "RUB", None)
@@ -234,6 +284,7 @@ async def test_receipts_enabled_stores_only_offer_coordinates(
         onboarding,
         FakeCheckout(),
         settings.model_copy(update={"yookassa_receipts_required": True}),
+        RETENTION_DAYS,
     )
     assert await state.get_state() == PaymentStates.waiting_for_receipt_contact.state
     assert await state.get_data() == {
@@ -259,7 +310,7 @@ async def test_valid_contact_starts_checkout_and_clears_fsm(
         from_user=TelegramUser(id=42, is_bot=False, first_name="Buyer"),
         text=contact,
     ).as_(bot)
-    await receive_receipt_contact(message, state, onboarding, checkout)
+    await receive_receipt_contact(message, state, onboarding, checkout, RETENTION_DAYS)
     assert checkout.calls[0][-1] == contact
     assert await state.get_state() is None and await state.get_data() == {}
     assert contact not in repr(sent(session))
@@ -278,7 +329,7 @@ async def test_invalid_contact_remains_in_state_for_retry(
         from_user=TelegramUser(id=42, is_bot=False, first_name="Buyer"),
         text="invalid",
     ).as_(bot)
-    await receive_receipt_contact(message, state, onboarding, FakeCheckout())
+    await receive_receipt_contact(message, state, onboarding, FakeCheckout(), RETENTION_DAYS)
     assert await state.get_state() == PaymentStates.waiting_for_receipt_contact.state
 
 
@@ -293,7 +344,7 @@ async def test_missing_text_and_cancel_callback_clear_state(
         chat=Chat(id=42, type="private"),
         from_user=TelegramUser(id=42, is_bot=False, first_name="Buyer"),
     ).as_(bot)
-    await receive_receipt_contact(message, state, onboarding, FakeCheckout())
+    await receive_receipt_contact(message, state, onboarding, FakeCheckout(), RETENTION_DAYS)
     assert await state.get_state() is None
     await state.set_state(PaymentStates.waiting_for_receipt_contact)
     callback = with_data(callback, "credits:receipt:cancel")
@@ -323,6 +374,6 @@ async def test_rejection_and_pending_checkout_clear_state(
         from_user=TelegramUser(id=42, is_bot=False, first_name="Buyer"),
         text="buyer@example.com",
     ).as_(bot)
-    await receive_receipt_contact(message, state, onboarding, checkout)
+    await receive_receipt_contact(message, state, onboarding, checkout, RETENTION_DAYS)
     assert await state.get_state() is None
     assert expected in sent_text(sent(session)[-1])

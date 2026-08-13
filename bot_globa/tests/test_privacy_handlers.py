@@ -57,7 +57,7 @@ def _rendered(methods: Sequence[object]) -> list[str]:
     return [
         method.text if isinstance(method, SendMessage) else method.caption or ""
         for method in methods
-        if isinstance(method, (SendMessage, SendPhoto))
+        if isinstance(method, SendMessage | SendPhoto)
     ]
 
 

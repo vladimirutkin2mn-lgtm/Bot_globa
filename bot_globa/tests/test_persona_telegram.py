@@ -12,7 +12,12 @@ from app.bot.persona_flows import (
     MYSTICAL_PSYCHOLOGIST_FLOW,
     TAROT_FLOW,
 )
-from app.bot.reading_renderer import TELEGRAM_LIMIT, render_full, render_preview
+from app.bot.reading_renderer import (
+    TELEGRAM_LIMIT,
+    render_full,
+    render_micro_preview,
+    render_preview,
+)
 from app.domain.reading_result import (
     ReadingResult,
     ReadingSafetyAssessment,
@@ -103,6 +108,41 @@ def test_full_render_names_drawn_symbols_and_stays_within_the_limit() -> None:
     assert all(len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
 
 
+def test_micro_preview_gives_one_signal_without_the_paid_sections() -> None:
+    outcome = _outcome(with_symbols=True)
+
+    chunks = render_micro_preview(outcome, TAROT_FLOW.copy)
+    text = "\n".join(chunks)
+
+    assert "Разбор готов" in text
+    assert "Separate urgency from importance." in text
+    assert "развлекательная практика" in text
+    # The paid depth is described, never delivered.
+    assert "Практический шаг" not in text
+    assert "A pause makes trade-offs clearer." not in text
+    assert "Which value needs protection?" not in text
+    assert PRIVATE_MARKER not in text
+    assert all(0 < len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
+
+
+def test_micro_preview_still_names_the_symbols_that_were_already_fixed() -> None:
+    outcome = _outcome(with_symbols=True)
+
+    text = "\n".join(render_micro_preview(outcome, TAROT_FLOW.copy))
+
+    for context in outcome.symbols:
+        assert context.display_name in text
+
+
+def test_micro_preview_is_shorter_than_the_first_free_preview() -> None:
+    outcome = _outcome(with_symbols=True)
+
+    micro = "\n".join(render_micro_preview(outcome, TAROT_FLOW.copy))
+    preview = "\n".join(render_preview(outcome, TAROT_FLOW.copy))
+
+    assert len(micro) < len(preview)
+
+
 def test_renderer_chunks_large_valid_sections_below_telegram_limit() -> None:
     chunks = render_preview(_outcome(with_symbols=True, long=True), TAROT_FLOW.copy)
 
@@ -120,7 +160,6 @@ def test_callbacks_carry_only_codes_or_reading_id_within_the_telegram_limit(
         flow.context_keyboard(),
         flow.handoff_keyboard(),
         flow.result_keyboard(reading_id, 2),
-        flow.insufficient_keyboard(reading_id),
         flow.retry_keyboard(reading_id),
         flow.history_keyboard(((reading_id, "Выбор · 05.08.2026"),), page=1, has_next=True),
     )

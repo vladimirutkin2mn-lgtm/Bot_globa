@@ -4,7 +4,8 @@ import logging
 from enum import StrEnum
 from pathlib import Path
 
-from aiogram.exceptions import TelegramAPIError
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 from aiogram.types import InlineKeyboardMarkup, Message
 from aiogram.types.input_file import FSInputFile
 
@@ -157,6 +158,56 @@ async def answer_scene(
         return
     if not caption_fits:
         await message.answer(text, reply_markup=reply_markup)
+
+
+async def send_scene_photo(
+    bot: Bot,
+    chat_id: int,
+    scene: Scene,
+    caption: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
+    """Send a scene outside a handler, reusing the same cached `file_id` the bot uses.
+
+    A worker has no incoming `Message` to answer, and re-uploading the asset for every
+    recipient would send the same picture over the wire once per delivery.
+    """
+
+    cached = _telegram_file_ids.get(scene)
+    if cached is not None:
+        try:
+            _remember_file_id(
+                scene,
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=cached,
+                    caption=caption,
+                    reply_markup=reply_markup,
+                ),
+            )
+        except TelegramForbiddenError:
+            raise
+        except TelegramAPIError:
+            logger.warning("scene_file_id_rejected scene=%s", scene.value)
+            _telegram_file_ids.pop(scene, None)
+        else:
+            return
+    try:
+        _remember_file_id(
+            scene,
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=FSInputFile(scene.asset_path, filename=f"{scene.value}.jpg"),
+                caption=caption,
+                reply_markup=reply_markup,
+            ),
+        )
+    except TelegramForbiddenError:
+        raise
+    except TelegramAPIError:
+        logger.warning("scene_photo_unavailable scene=%s", scene.value)
+        await bot.send_message(chat_id=chat_id, text=caption, reply_markup=reply_markup)
 
 
 async def _send_photo(
