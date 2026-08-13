@@ -5,10 +5,13 @@ have the provider identity `telegram_stars`, market `TELEGRAM`, and currency `XT
 implementation follows the official [Stars payments guide](https://core.telegram.org/bots/payments-stars)
 and [Bot API](https://core.telegram.org/bots/api#payments).
 
-Telegram requires digital goods and services sold inside its apps to use Stars. Therefore, when
-`TELEGRAM_STARS_ENABLED=true`, the Telegram keyboards expose only the Stars route and reject stale
-YooKassa or Stripe callback buttons from old messages. Those providers remain available to
-non-Telegram channels and while the Stars rollout flag is disabled.
+When `TELEGRAM_STARS_ENABLED=true`, the Telegram payment screen exposes Stars together with the
+configured YooKassa and Stripe routes. Each button starts its own checkout flow; enabling Stars
+does not disable existing RUB, EUR, or USD callbacks.
+
+Telegram's published policy says digital goods inside Telegram apps must use Stars exclusively.
+The combined payment screen is an explicit product-owner decision and must be reconsidered if
+Telegram enforcement or distribution requirements change.
 
 ## Commercial configuration
 

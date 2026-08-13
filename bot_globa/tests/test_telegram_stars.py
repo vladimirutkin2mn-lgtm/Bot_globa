@@ -96,17 +96,20 @@ def test_stars_payload_is_compact_and_strict() -> None:
     assert parse_stars_payload("foreign:payload") is None
 
 
-def test_payment_choice_uses_stars_exclusively_inside_telegram() -> None:
+def test_payment_choice_shows_stars_and_card_routes_together() -> None:
     keyboard = payment_market_keyboard("reading_single", telegram_stars_enabled=True)
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
 
     assert callbacks == [
         "credits:stars:reading_single",
+        "credits:offer:reading_single:RU:RUB",
+        "credits:offer:reading_single:INTERNATIONAL:EUR",
+        "credits:offer:reading_single:INTERNATIONAL:USD",
         "menu:balance",
     ]
 
 
-def test_subscription_choice_uses_stars_exclusively_inside_telegram() -> None:
+def test_subscription_choice_shows_every_enabled_route_together() -> None:
     settings = configured(
         yookassa_enabled=True,
         yookassa_recurring_enabled=True,
@@ -117,6 +120,9 @@ def test_subscription_choice_uses_stars_exclusively_inside_telegram() -> None:
 
     assert callbacks == [
         "credits:stars:subscription_monthly",
+        "credits:offer:subscription_monthly:RU:RUB",
+        "credits:offer:subscription_monthly:INTERNATIONAL:EUR",
+        "credits:offer:subscription_monthly:INTERNATIONAL:USD",
         "menu:balance",
     ]
 

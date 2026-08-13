@@ -293,18 +293,17 @@ def payment_market_keyboard(
     *,
     telegram_stars_enabled: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Offer the Telegram-native route exclusively when Stars are enabled."""
+    """Offer every enabled payment route in one Telegram screen."""
     rows: list[list[InlineKeyboardButton]] = []
     if telegram_stars_enabled:
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
+        rows.extend(
+            [
                 [
                     InlineKeyboardButton(
                         text="Telegram Stars · ⭐",
                         callback_data=f"credits:stars:{product_code}",
                     )
-                ],
-                [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
+                ]
             ]
         )
     rows.extend(

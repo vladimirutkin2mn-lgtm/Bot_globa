@@ -27,15 +27,14 @@ router = Router(name="subscriptions")
 def subscription_market_keyboard(settings: Settings) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if settings.telegram_stars_enabled:
-        return InlineKeyboardMarkup(
-            inline_keyboard=[
+        rows.extend(
+            [
                 [
                     InlineKeyboardButton(
                         text="Telegram Stars · ⭐",
                         callback_data="credits:stars:subscription_monthly",
                     )
-                ],
-                [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
+                ]
             ]
         )
     if settings.yookassa_enabled and settings.yookassa_recurring_enabled:
@@ -247,13 +246,6 @@ async def create_subscription_checkout(
     await callback.answer()
     user = await onboarding.current_user(callback.from_user.id)
     if user is None or subscription_checkout is None or not isinstance(callback.message, Message):
-        return
-    if billing_settings.telegram_stars_enabled:
-        await answer_scene(
-            callback.message,
-            Scene.CHECKOUT_UNAVAILABLE,
-            "Для цифровой подписки внутри Telegram используйте оплату звёздами.",
-        )
         return
     parts = (callback.data or "").split(":")
     if len(parts) != 5:

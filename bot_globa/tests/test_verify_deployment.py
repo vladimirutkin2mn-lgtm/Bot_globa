@@ -19,7 +19,7 @@ _NOW = datetime(2026, 8, 5, 4, 30, tzinfo=UTC)
 
 
 def production_settings() -> Settings:
-    return Settings(
+    settings = Settings(
         app_env="production",
         database_url="postgresql+asyncpg://user:pass@db:5432/bot_globa",
         telegram_bot_token=SecretStr(_TOKEN),
@@ -35,6 +35,7 @@ def production_settings() -> Settings:
         telegram_stars_amount_reading_pack_5=200,
         telegram_stars_amount_subscription_monthly=280,
     )
+    return settings.model_copy(update={"yookassa_enabled": True, "stripe_enabled": True})
 
 
 def mock_transport(
@@ -82,10 +83,11 @@ async def test_verifier_passes_complete_release_contract() -> None:
     async with httpx.AsyncClient(transport=mock_transport()) as client:
         checks = await DeploymentVerifier(production_settings(), client, now=_NOW).verify()
 
-    assert len(checks) == 7
+    assert len(checks) == 8
     assert all(check.passed for check in checks)
     assert {check.name for check in checks} == {
         "telegram_stars_configuration",
+        "telegram_payment_routes",
         "api_liveness",
         "api_readiness",
         "telegram_webhook_authentication",
@@ -95,6 +97,8 @@ async def test_verifier_passes_complete_release_contract() -> None:
     }
     stars = next(check for check in checks if check.name == "telegram_stars_configuration")
     assert "single=40, pack_5=200, monthly=280" in stars.detail
+    routes = next(check for check in checks if check.name == "telegram_payment_routes")
+    assert routes.detail == "Stars, RUB, EUR, and USD routes are enabled"
 
 
 @pytest.mark.asyncio
