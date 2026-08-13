@@ -271,8 +271,10 @@ async def create_subscription_checkout(
     if result.url is None:
         await answer_scene(
             callback.message,
-            Scene.CHECKOUT_UNAVAILABLE,
-            "Подписка создаётся. Обновите статус через несколько секунд.",
+            # Not a failure: the provider page is still being created, so this keeps the
+            # checkout scene instead of the unavailable one.
+            Scene.SUBSCRIPTION_CHECKOUT,
+            "Подписка создаётся — покупка не потеряна. Обновите статус через несколько секунд.",
         )
         return
     provider = "YooKassa" if market == "RU" else "Stripe"
