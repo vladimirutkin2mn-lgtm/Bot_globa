@@ -12,6 +12,7 @@ from app.bot import texts
 from app.bot.consent import ensure_consent, request_consent
 from app.bot.daily_horoscope import MODE_CONFIRMATIONS, MODE_LABELS, render_daily_horoscope
 from app.bot.keyboards import (
+    back_to_balance_keyboard,
     checkout_creating_keyboard,
     checkout_keyboard,
     checkout_unavailable_keyboard,
@@ -390,7 +391,7 @@ async def buy_credits(
             await answer_scene(
                 callback.message,
                 Scene.CHECKOUT_UNAVAILABLE,
-                texts.CHECKOUT_UNAVAILABLE,
+                texts.PURCHASES_PAUSED,
                 reply_markup=market,
             )
             return
@@ -462,7 +463,8 @@ async def create_production_checkout(
         await answer_scene(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
-            "Этот вариант оплаты недоступен.",
+            texts.CHECKOUT_STALE_BUTTON,
+            reply_markup=back_to_balance_keyboard(),
         )
         return
     _, _, product_code, market, currency = parts

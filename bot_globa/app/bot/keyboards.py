@@ -506,6 +506,15 @@ def checkout_unavailable_keyboard(
     )
 
 
+def back_to_balance_keyboard() -> InlineKeyboardMarkup:
+    """A dead end needs one way forward: back to the current prices and routes."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
+        ]
+    )
+
+
 def paywall_keyboard(analysis_id: UUID, preview_available: bool) -> InlineKeyboardMarkup:
     rows = [
         [
