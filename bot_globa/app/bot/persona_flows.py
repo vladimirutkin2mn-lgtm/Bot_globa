@@ -8,6 +8,7 @@ a payload already carries a 36-character reading UUID.
 
 from types import MappingProxyType
 
+from app.bot import texts
 from app.bot.persona_flow import PersonaFlow, PersonaFlowTexts
 from app.bot.reading_renderer import ReadingCopy
 from app.bot.states import LoveOracleStates, MysticalPsychologistStates, TarotStates
@@ -135,7 +136,8 @@ LOVE_ORACLE_FLOW = PersonaFlow(
     topic_examples=LOVE_ORACLE_TOPIC_EXAMPLES,
     texts=_reflection_texts(
         welcome=(
-            "Что в отношениях сейчас не даёт покоя? Globa разберёт динамику, ваши границы "
+            f"Что в отношениях сейчас не даёт покоя? {texts.BRAND_NAME} разберёт динамику, "
+            "ваши границы "
             "и возможные следующие шаги — без попыток угадывать чужие мысли."
         ),
         unavailable="Любовный оракул временно недоступен. Начните новый разбор позже.",

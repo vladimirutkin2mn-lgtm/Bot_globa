@@ -9,6 +9,7 @@ from app.platform.identity import PRODUCT_IDENTITY
 
 def test_product_identity_is_domain_neutral() -> None:
     assert PRODUCT_IDENTITY.repository_slug == "bot_globa"
+    assert PRODUCT_IDENTITY.consumer_brand == "Numa"
     assert PRODUCT_IDENTITY.working_name == "Персональный AI-оракул"
     assert PRODUCT_IDENTITY.api_title == "Bot Globa API"
     assert PRODUCT_IDENTITY.legacy_baseline_name == "HeartSignal"

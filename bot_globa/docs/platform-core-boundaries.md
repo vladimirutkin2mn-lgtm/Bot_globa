@@ -41,6 +41,7 @@ These elements must be replaced incrementally after characterization tests prote
 Runtime and packaging identity is centralized in `app.platform.identity`.
 
 - `Bot Globa` is the repository/runtime identity.
+- `Numa` is the consumer brand shown in the Telegram interface and external payment copy.
 - `Персональный AI-оракул` is the current working product description, not a permanent consumer brand.
 - `HeartSignal` is retained only as the name of the imported baseline and in historical documentation or migration provenance.
 - Database names, old Alembic revision identifiers, ledger keys and provider idempotency keys are not renamed in place.

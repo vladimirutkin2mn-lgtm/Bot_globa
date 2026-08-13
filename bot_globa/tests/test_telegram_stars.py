@@ -72,6 +72,8 @@ def test_terms_and_payment_support_are_available_without_external_links() -> Non
     terms = payment_terms_text(configured())
     support = payment_support_text()
 
+    assert "Numa" in terms
+    assert "Globa" not in terms
     assert "принимаете эти условия" in terms
     assert "/refund" in terms
     assert "/refund_status" in support
