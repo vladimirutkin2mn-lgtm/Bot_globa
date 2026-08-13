@@ -4,11 +4,13 @@
 nothing in this module knows about tarot, love or reflection specifically.
 """
 
+import asyncio
 import logging
 from collections.abc import Mapping
 from uuid import UUID
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
@@ -28,7 +30,12 @@ from app.bot.persona_flow import (
     PersonaFlow,
     PersonaReadingBundle,
 )
-from app.bot.reading_renderer import render_full, render_micro_preview, render_preview
+from app.bot.reading_renderer import (
+    render_full,
+    render_micro_preview,
+    render_preview,
+    render_reveal,
+)
 from app.bot.scene_media import Scene, answer_scene
 from app.bot.screen import forget_screen, show_screen, show_thinking
 from app.config import Settings
@@ -626,7 +633,7 @@ class PersonaReadingHandlers:
         await show_screen(message, Scene.GENERATING, self._flow.texts.processing, state=state)
         await show_thinking(message)
         try:
-            outcome = await bundle.use_case.create_preview(
+            reading_id = await bundle.use_case.create_draft(
                 user.id,
                 PersonaPreviewRequest(topic=topic, question=question, context=context),
             )
@@ -634,7 +641,46 @@ class PersonaReadingHandlers:
             await state.clear()
             await self._answer_unavailable(message, state)
             return
+        # The spread is already drawn, so revealing it runs alongside the interpretation
+        # rather than before it: the wait becomes the reveal instead of growing by it.
+        generation = asyncio.ensure_future(
+            bundle.use_case.generate_existing_preview(reading_id, user.id)
+        )
+        try:
+            await self._reveal_spread(message, state, reading_id, bundle)
+        finally:
+            outcome = await generation
         await self._deliver(message, state, outcome, bundle, user.id)
+
+    async def _reveal_spread(
+        self,
+        message: Message,
+        state: FSMContext,
+        reading_id: UUID,
+        bundle: PersonaReadingBundle,
+    ) -> None:
+        """Turn the symbols already drawn into the moment the user is waiting through.
+
+        Nothing here is invented or predicted: the draw is seeded from `reading_id`, so
+        these are the same symbols the interpretation will explain, in the same order. A
+        persona that reasons in words has no symbols and simply waits.
+
+        The reveal is decoration. If Telegram refuses an edit the reading still arrives,
+        so a failure is logged rather than raised.
+        """
+
+        symbols = bundle.use_case.draw_symbols(reading_id)
+        try:
+            for revealed in range(1, len(symbols) + 1):
+                await asyncio.sleep(bundle.reveal_seconds)
+                await show_screen(
+                    message,
+                    Scene.GENERATING,
+                    render_reveal(self._flow.copy, symbols, revealed),
+                    state=state,
+                )
+        except TelegramAPIError:
+            logger.info("symbol_reveal_interrupted persona=%s", self._flow.persona_code)
 
     async def _regenerate(
         self,

@@ -4,10 +4,12 @@ Persona-neutral: the only thing that varies is the wording supplied by `ReadingC
 Nothing here reads the private source text — only the already validated result.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.bot.typography import quote
 from app.domain.reading import SymbolOrientation
+from app.domain.reading_generation import ReadingSymbolContext
 from app.domain.reading_result import ReadingResult
 from app.services.persona_reading import PersonaPreviewOutcome
 
@@ -16,6 +18,9 @@ TARGET_CHUNK = 3600
 # One line of the paid reading is enough to prove it continues; a spoiler is one tap from
 # being read, so anything longer would simply be given away.
 TEASER_LIMIT = 140
+
+REVEAL_TITLE = "Расклад складывается"
+REVEAL_CLOSING = "Читаю расклад…"
 
 # Set apart from the reading rather than buried in it: the boundary between reflection
 # and prediction is the product, so it is typographically distinct on every view.
@@ -42,7 +47,7 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
     if outcome.symbols:
         drawn = "\n".join(
             f"{index}. <b>{quote(context.display_name)}</b> — "
-            f"{_orientation(context.symbol.orientation)}"
+            f"{orientation_label(context.symbol.orientation)}"
             for index, context in enumerate(outcome.symbols, start=1)
         )
         sections.append(f"<b>{copy.drawn_symbols_title}</b>\n{drawn}")
@@ -89,7 +94,7 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
     names = {context.symbol.position: context.display_name for context in outcome.symbols}
     symbol_sections = [
         f"{index}. <b>{quote(names.get(symbol.position, symbol.symbol_id))}</b> — "
-        f"{_orientation(symbol.orientation)}\n{quote(symbol.interpretation)}"
+        f"{orientation_label(symbol.orientation)}\n{quote(symbol.interpretation)}"
         for index, symbol in enumerate(result.symbols, start=1)
     ]
     if symbol_sections:
@@ -126,6 +131,41 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         ]
     )
     return chunk_sections(tuple(sections))
+
+
+def reveal_progress(revealed: int, total: int) -> str:
+    """A bar of what has actually happened: one filled mark per revealed symbol."""
+
+    if not 0 <= revealed <= total:
+        raise ValueError("revealed symbols are outside the spread")
+    return "▰" * revealed + "▱" * (total - revealed)
+
+
+def render_reveal(
+    copy: ReadingCopy,
+    symbols: Sequence[ReadingSymbolContext],
+    revealed: int,
+) -> str:
+    """The spread as far as it has been turned over, while the interpretation is written.
+
+    Shows only what has actually been revealed and counts the bar from the same number,
+    so the screen can never claim more than happened. The symbols come from the
+    deterministic draw, not from the model, so repeating a reading repeats this exactly.
+    """
+
+    if not 0 < revealed <= len(symbols):
+        raise ValueError("revealed symbols are outside the spread")
+    drawn = "\n".join(
+        f"{index}. <b>{quote(context.display_name)}</b> — "
+        f"{orientation_label(context.symbol.orientation)}"
+        for index, context in enumerate(symbols[:revealed], start=1)
+    )
+    return (
+        f"{copy.emoji} <b>{REVEAL_TITLE}</b>\n"
+        f"{reveal_progress(revealed, len(symbols))}\n\n"
+        f"{drawn}\n\n"
+        f"<i>{REVEAL_CLOSING}</i>"
+    )
 
 
 def _locked_teaser(result: ReadingResult) -> str:
@@ -213,5 +253,7 @@ def _completed_result(outcome: PersonaPreviewOutcome) -> ReadingResult:
     return result
 
 
-def _orientation(orientation: SymbolOrientation) -> str:
+def orientation_label(orientation: SymbolOrientation) -> str:
+    """How a drawn symbol sits, worded the same way everywhere it is shown."""
+
     return "перевёрнутая" if orientation is SymbolOrientation.REVERSED else "прямая"
