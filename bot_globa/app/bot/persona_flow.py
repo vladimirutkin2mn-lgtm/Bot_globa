@@ -264,6 +264,13 @@ class PersonaFlow(ReadingFlow):
     copy: ReadingCopy
 
 
+# The spread is drawn deterministically before the model is called, so it can be revealed
+# one symbol at a time while the interpretation is written. Two seconds per symbol keeps
+# the reveal inside the generation it accompanies and inside the edit rate Telegram
+# tolerates for a message that at-least-once delivery may render twice.
+SYMBOL_REVEAL_SECONDS = 2.0
+
+
 @dataclass(frozen=True, slots=True)
 class PersonaReadingBundle:
     """The per-persona services a flow needs, resolved once at composition time."""
@@ -272,3 +279,4 @@ class PersonaReadingBundle:
     monetized: MonetizedReadingService
     full_price_label: str
     memory: OracleMemoryService
+    reveal_seconds: float = SYMBOL_REVEAL_SECONDS

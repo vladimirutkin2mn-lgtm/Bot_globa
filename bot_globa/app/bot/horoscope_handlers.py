@@ -11,7 +11,7 @@ from typing import Any
 from uuid import UUID
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
@@ -31,7 +31,8 @@ from app.bot.persona_flow import (
     QUESTION_PROMPT,
     UNLOCKING,
 )
-from app.bot.scene_media import Scene, answer_scene
+from app.bot.scene_media import Scene
+from app.bot.screen import send_artifact, show_screen
 from app.bot.states import HoroscopeStates
 from app.config import Settings
 from app.domain.billing import BillingCatalog
@@ -68,6 +69,10 @@ def create_horoscope_router() -> Router:
     router = Router(name=HOROSCOPE_FLOW.namespace)
 
     router.message.register(handlers.start_from_command, Command(HOROSCOPE_FLOW.namespace))
+    router.message.register(
+        handlers.start_from_command,
+        CommandStart(deep_link=True, magic=F.args == HOROSCOPE_FLOW.namespace),
+    )
     router.message.register(handlers.receive_birth_date, HoroscopeStates.waiting_for_birth_date)
     router.message.register(handlers.receive_birth_place, HoroscopeStates.waiting_for_birth_place)
     router.message.register(handlers.receive_birth_time, HoroscopeStates.waiting_for_birth_time)
@@ -233,11 +238,12 @@ class HoroscopeHandlers:
         await callback.answer()
         await state.clear()
         if isinstance(callback.message, Message):
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.MAIN_MENU,
                 texts.MAIN_MENU,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
 
     # ---------------------------------------------------------------- consent ---
@@ -274,11 +280,12 @@ class HoroscopeHandlers:
         await callback.answer()
         await state.clear()
         if isinstance(callback.message, Message):
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.ASTRO_CONSENT_DECLINED,
                 flow.CONSENT_DECLINED,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
 
     # ------------------------------------------------------------ birth intake ---
@@ -303,20 +310,22 @@ class HoroscopeHandlers:
             return
         parsed = _parse_date(message.text)
         if parsed is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_BIRTH_DATE_ERROR,
                 flow.BIRTH_DATE_INVALID,
                 reply_markup=flow.cancel_keyboard(),
+                state=state,
             )
             return
         await state.update_data(birth_date=parsed.isoformat())
         await state.set_state(HoroscopeStates.waiting_for_birth_place)
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_BIRTH_PLACE,
             flow.BIRTH_PLACE_PROMPT,
             reply_markup=flow.cancel_keyboard(),
+            state=state,
         )
 
     async def receive_birth_place(
@@ -342,37 +351,41 @@ class HoroscopeHandlers:
         try:
             places = await birth_place_lookup.search(query)
         except InvalidBirthPlaceQueryError:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_PLACE_ERROR,
                 flow.BIRTH_PLACE_INVALID,
                 reply_markup=flow.cancel_keyboard(),
+                state=state,
             )
             return
         except GeocodingError:
             logger.warning("birth_place_lookup_failed")
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_PLACE_ERROR,
                 flow.BIRTH_PLACE_UNAVAILABLE,
                 reply_markup=flow.cancel_keyboard(),
+                state=state,
             )
             return
         if not places:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_PLACE_ERROR,
                 flow.BIRTH_PLACE_EMPTY,
                 reply_markup=flow.cancel_keyboard(),
+                state=state,
             )
             return
         await state.update_data(places=[_place_payload(place) for place in places])
         await state.set_state(HoroscopeStates.waiting_for_place_choice)
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_PLACE_CHOICE,
             flow.BIRTH_PLACE_PROMPT,
             reply_markup=flow.place_choice_keyboard([place.label for place in places]),
+            state=state,
         )
 
     async def retry_place(
@@ -395,11 +408,12 @@ class HoroscopeHandlers:
         ):
             return
         await state.set_state(HoroscopeStates.waiting_for_birth_place)
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.ASTRO_BIRTH_PLACE,
             flow.BIRTH_PLACE_PROMPT,
             reply_markup=flow.cancel_keyboard(),
+            state=state,
         )
 
     async def choose_place(
@@ -426,20 +440,22 @@ class HoroscopeHandlers:
         place = _selected_place(stored, raw)
         if place is None:
             await state.set_state(HoroscopeStates.waiting_for_birth_place)
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.ASTRO_BIRTH_PLACE,
                 flow.BIRTH_PLACE_PROMPT,
                 reply_markup=flow.cancel_keyboard(),
+                state=state,
             )
             return
         await state.update_data(place=_place_payload(place))
         await state.set_state(HoroscopeStates.waiting_for_birth_time)
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.ASTRO_BIRTH_TIME,
             flow.BIRTH_TIME_PROMPT,
             reply_markup=flow.birth_time_keyboard(),
+            state=state,
         )
 
     async def receive_birth_time(
@@ -464,11 +480,12 @@ class HoroscopeHandlers:
             return
         parsed = _parse_time(message.text)
         if parsed is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_BIRTH_TIME,
                 flow.BIRTH_TIME_INVALID,
                 reply_markup=flow.birth_time_keyboard(),
+                state=state,
             )
             return
         await self._save_profile(
@@ -541,11 +558,12 @@ class HoroscopeHandlers:
         except ValueError:
             offset = None
         if offset is None or offset not in _stored_offsets(data.get("offsets")):
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.ASTRO_BIRTH_TIME,
                 flow.BIRTH_TIME_PROMPT,
                 reply_markup=flow.birth_time_keyboard(),
+                state=state,
             )
             await state.set_state(HoroscopeStates.waiting_for_birth_time)
             return
@@ -593,11 +611,12 @@ class HoroscopeHandlers:
             await self._ask_consent(callback.message, state)
             return
         if view is None:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.ASTRO_PROFILE,
                 flow.PROFILE_MISSING,
                 reply_markup=flow.profile_keyboard(),
+                state=state,
             )
             return
         await state.clear()
@@ -606,11 +625,12 @@ class HoroscopeHandlers:
             view.profile.birth_date,
             view.profile.birth_time,
         )
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.ASTRO_PROFILE,
             f"{flow.PROFILE_TITLE}\n{summary}",
             reply_markup=flow.profile_keyboard(),
+            state=state,
         )
 
     async def edit_profile(
@@ -652,11 +672,12 @@ class HoroscopeHandlers:
         # Revoking consent also purges the stored ciphertext, so one action removes both.
         await birth_profile_service.revoke_consent(user.id)
         await state.clear()
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.ASTRO_PROFILE_DELETED,
             flow.PROFILE_DELETED,
             reply_markup=main_menu_keyboard(),
+            state=state,
         )
 
     # ---------------------------------------------------------- reading intake ---
@@ -683,11 +704,12 @@ class HoroscopeHandlers:
             return
         topic = (callback.data or "").removeprefix(flow.callback("topic", ""))
         if topic not in flow.HOROSCOPE_TOPIC_LABELS:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.ASTRO_PROFILE_SAVED,
                 "Эта тема недоступна.",
                 reply_markup=flow.topics_keyboard(),
+                state=state,
             )
             return
         user = await onboarding.current_user(callback.from_user.id)
@@ -699,11 +721,12 @@ class HoroscopeHandlers:
             )
         await state.update_data(topic=topic)
         await state.set_state(HoroscopeStates.waiting_for_question)
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.QUESTION,
             QUESTION_PROMPT,
             reply_markup=HOROSCOPE_FLOW.question_keyboard(),
+            state=state,
         )
 
     async def show_example(self, callback: CallbackQuery, state: FSMContext) -> None:
@@ -713,18 +736,20 @@ class HoroscopeHandlers:
         data = await state.get_data()
         example = flow.HOROSCOPE_TOPIC_EXAMPLES.get(str(data.get("topic")))
         if example is None:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.QUESTION_ERROR,
                 "Эта тема недоступна.",
                 reply_markup=flow.topics_keyboard(),
+                state=state,
             )
             return
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.QUESTION,
             QUESTION_EXAMPLE.format(example=example),
             reply_markup=HOROSCOPE_FLOW.question_keyboard(),
+            state=state,
         )
 
     async def receive_question(
@@ -751,11 +776,12 @@ class HoroscopeHandlers:
             return
         text = _bounded_text(message, maximum=QUESTION_LIMIT)
         if text is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.QUESTION_ERROR,
                 INVALID_TEXT,
                 reply_markup=HOROSCOPE_FLOW.question_keyboard(),
+                state=state,
             )
             return
         await state.update_data(question=text)
@@ -795,11 +821,12 @@ class HoroscopeHandlers:
             return
         context = _bounded_text(message, maximum=CONTEXT_LIMIT)
         if context is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.QUESTION_ERROR,
                 INVALID_TEXT,
                 reply_markup=HOROSCOPE_FLOW.context_keyboard(),
+                state=state,
             )
             return
         await self._generate(
@@ -849,11 +876,12 @@ class HoroscopeHandlers:
             oracle_memory=oracle_memory,
         )
 
-    async def already_generating(self, message: Message) -> None:
-        await answer_scene(
+    async def already_generating(self, message: Message, state: FSMContext) -> None:
+        await show_screen(
             message,
             Scene.GENERATION_IN_PROGRESS,
             HOROSCOPE_FLOW.texts.already_processing,
+            state=state,
         )
 
     # ---------------------------------------------------------------- history ---
@@ -968,12 +996,12 @@ class HoroscopeHandlers:
             return
         reading_id = _reading_id(callback.data, flow.callback("unlock", ""))
         if reading_id is None:
-            await self._answer_unavailable(callback.message)
+            await self._answer_unavailable(callback.message, state)
             return
-        await answer_scene(callback.message, Scene.UNLOCKING, UNLOCKING)
+        await show_screen(callback.message, Scene.UNLOCKING, UNLOCKING, state=state)
         unlocked = await horoscope_monetized.unlock_full(reading_id, user.id)
         if unlocked.status is MonetizedReadingStatus.INSUFFICIENT_CREDITS:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.INSUFFICIENT_CREDITS,
                 texts.PAYWALL.format(price=reading_full_price_label),
@@ -982,6 +1010,7 @@ class HoroscopeHandlers:
                     billing_settings,
                     resume_callback=flow.callback("unlock", str(reading_id)),
                 ),
+                state=state,
             )
             return
         if unlocked.status is MonetizedReadingStatus.FULL_COMPLETED:
@@ -989,6 +1018,7 @@ class HoroscopeHandlers:
             if _renderable(outcome):
                 await self._send(
                     callback.message,
+                    state,
                     outcome,
                     horoscope_renderer,
                     full=True,
@@ -996,11 +1026,12 @@ class HoroscopeHandlers:
                     oracle_memory=oracle_memory,
                 )
                 return
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.GENERATION_FAILED,
             HOROSCOPE_FLOW.texts.unlock_failed,
             reply_markup=HOROSCOPE_FLOW.result_keyboard(),
+            state=state,
         )
 
     # ---------------------------------------------------------------- internal ---
@@ -1043,29 +1074,32 @@ class HoroscopeHandlers:
             await self._ask_birth_date(message, state)
             return
         await state.clear()
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_PROFILE_SAVED,
             HOROSCOPE_FLOW.texts.welcome,
             reply_markup=flow.topics_keyboard(),
+            state=state,
         )
 
     async def _ask_consent(self, message: Message, state: FSMContext) -> None:
         await state.set_state(HoroscopeStates.waiting_for_consent)
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_CONSENT,
             flow.CONSENT,
             reply_markup=flow.consent_keyboard(),
+            state=state,
         )
 
     async def _ask_birth_date(self, message: Message, state: FSMContext) -> None:
         await state.set_state(HoroscopeStates.waiting_for_birth_date)
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_BIRTH_DATE,
             flow.BIRTH_DATE_PROMPT,
             reply_markup=flow.cancel_keyboard(),
+            state=state,
         )
 
     async def _save_profile(
@@ -1086,11 +1120,12 @@ class HoroscopeHandlers:
         place = _stored_place(data.get("place"))
         if user is None or birth_date is None or place is None:
             await state.clear()
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_PROFILE,
                 flow.PROFILE_MISSING,
                 reply_markup=HOROSCOPE_FLOW.result_keyboard(),
+                state=state,
             )
             return
         try:
@@ -1101,11 +1136,12 @@ class HoroscopeHandlers:
             await self._ask_which_hour(message, state, birth_time, ambiguous.offsets)
             return
         except UnresolvableBirthPlaceError:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.ASTRO_PLACE_ERROR,
                 flow.BIRTH_MOMENT_INVALID,
                 reply_markup=flow.birth_time_keyboard(),
+                state=state,
             )
             return
         try:
@@ -1114,11 +1150,12 @@ class HoroscopeHandlers:
             await self._ask_consent(message, state)
             return
         await state.clear()
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_UNKNOWN_TIME if birth_time is None else Scene.ASTRO_PROFILE_SAVED,
             flow.PROFILE_SAVED,
             reply_markup=flow.topics_keyboard(),
+            state=state,
         )
 
     async def _ask_which_hour(
@@ -1135,11 +1172,12 @@ class HoroscopeHandlers:
             offsets=list(offsets),
         )
         await state.set_state(HoroscopeStates.waiting_for_time_choice)
-        await answer_scene(
+        await show_screen(
             message,
             Scene.ASTRO_AMBIGUOUS_TIME,
             flow.BIRTH_TIME_AMBIGUOUS.format(clock=clock),
             reply_markup=flow.time_choice_keyboard(offsets, clock),
+            state=state,
         )
 
     async def _show_history(
@@ -1165,13 +1203,14 @@ class HoroscopeHandlers:
             )
             for item in history_page.items
         ]
-        await answer_scene(
+        await show_screen(
             message,
             Scene.HISTORY if labels else Scene.HISTORY_EMPTY,
             HOROSCOPE_FLOW.texts.history_title if labels else HOROSCOPE_FLOW.texts.history_empty,
             reply_markup=HOROSCOPE_FLOW.history_keyboard(
                 labels, page=history_page.page, has_next=history_page.has_next
             ),
+            state=state,
         )
 
     async def _generate(
@@ -1193,10 +1232,10 @@ class HoroscopeHandlers:
         question = data.get("question")
         if user is None or not isinstance(topic, str) or not isinstance(question, str):
             await state.clear()
-            await self._answer_unavailable(message)
+            await self._answer_unavailable(message, state)
             return
         await state.set_state(HoroscopeStates.generating)
-        await answer_scene(message, Scene.GENERATING, HOROSCOPE_FLOW.texts.processing)
+        await show_screen(message, Scene.GENERATING, HOROSCOPE_FLOW.texts.processing, state=state)
         try:
             outcome = await use_case.create_preview(
                 user.id,
@@ -1208,7 +1247,7 @@ class HoroscopeHandlers:
             )
         except (LookupError, ValueError, PermissionError):
             await state.clear()
-            await self._answer_unavailable(message)
+            await self._answer_unavailable(message, state)
             return
         await self._deliver(
             message,
@@ -1243,10 +1282,10 @@ class HoroscopeHandlers:
             return
         reading_id = _reading_id(callback.data, prefix)
         if reading_id is None:
-            await self._answer_unavailable(callback.message)
+            await self._answer_unavailable(callback.message, state)
             return
         await state.set_state(HoroscopeStates.generating)
-        await answer_scene(callback.message, notice_scene, notice)
+        await show_screen(callback.message, notice_scene, notice, state=state)
         outcome = await use_case.generate_existing_preview(reading_id, user.id)
         await self._deliver(
             callback.message,
@@ -1274,6 +1313,7 @@ class HoroscopeHandlers:
             if outcome.visibility is ReadingPreviewVisibility.FULL:
                 await self._send(
                     message,
+                    state,
                     outcome,
                     renderer,
                     full=True,
@@ -1284,6 +1324,7 @@ class HoroscopeHandlers:
             if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
                 await self._send(
                     message,
+                    state,
                     outcome,
                     renderer,
                     full=False,
@@ -1292,6 +1333,7 @@ class HoroscopeHandlers:
                 return
             await self._send(
                 message,
+                state,
                 outcome,
                 renderer,
                 full=False,
@@ -1302,22 +1344,24 @@ class HoroscopeHandlers:
 
         status = outcome.generation.status
         if status is HoroscopeGenerationStatus.ALREADY_PROCESSING:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.GENERATION_IN_PROGRESS,
                 HOROSCOPE_FLOW.texts.already_processing,
                 reply_markup=HOROSCOPE_FLOW.retry_keyboard(outcome.reading_id),
+                state=state,
             )
             return
         if status is HoroscopeGenerationStatus.FAILED:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.GENERATION_FAILED,
                 HOROSCOPE_FLOW.texts.failed,
                 reply_markup=HOROSCOPE_FLOW.retry_keyboard(outcome.reading_id),
+                state=state,
             )
             return
-        await self._answer_unavailable(message)
+        await self._answer_unavailable(message, state)
         logger.warning(
             "horoscope_delivery_unavailable reading_id=%s status=%s",
             outcome.reading_id,
@@ -1327,6 +1371,7 @@ class HoroscopeHandlers:
     async def _send(
         self,
         message: Message,
+        state: FSMContext,
         outcome: HoroscopePreviewOutcome,
         renderer: HoroscopeRenderer,
         *,
@@ -1339,7 +1384,7 @@ class HoroscopeHandlers:
         result = outcome.generation.result
         facts = outcome.generation.facts
         if result is None or facts is None:
-            await self._answer_unavailable(message)
+            await self._answer_unavailable(message, state)
             return
         if full:
             rendered = renderer.render(result, facts)
@@ -1358,7 +1403,7 @@ class HoroscopeHandlers:
         for index, chunk in enumerate(chunks):
             reply_markup = final if index == len(chunks) - 1 else None
             if index == 0:
-                await answer_scene(
+                await send_artifact(
                     message,
                     (
                         Scene.FULL_READING
@@ -1369,25 +1414,28 @@ class HoroscopeHandlers:
                     ),
                     chunk,
                     reply_markup=reply_markup,
+                    state=state,
                 )
             else:
                 await message.answer(chunk, reply_markup=reply_markup)
         if offer_memory:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.MEMORY_DISABLED,
                 "Хотите, чтобы Globa помнил важный контекст для следующих разборов? "
                 "Память включается только с вашего согласия, а записи можно удалить "
                 "в любой момент.",
                 reply_markup=memory_disabled_keyboard(),
+                state=state,
             )
 
-    async def _answer_unavailable(self, message: Message) -> None:
-        await answer_scene(
+    async def _answer_unavailable(self, message: Message, state: FSMContext) -> None:
+        await show_screen(
             message,
             Scene.GENERATION_FAILED,
             HOROSCOPE_FLOW.texts.unavailable,
             reply_markup=HOROSCOPE_FLOW.result_keyboard(),
+            state=state,
         )
 
 

@@ -6,6 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
 from app.bot.horoscope_handlers import create_horoscope_router
 from app.bot.horoscope_renderer import HoroscopeRenderer
@@ -24,6 +25,7 @@ from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
 from app.bot.telegram_stars_handlers import router as telegram_stars_router
+from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.domain.billing import BillingCatalog
@@ -80,10 +82,21 @@ from app.services.telegram_stars_service import TelegramStarsPaymentService
 logger = logging.getLogger(__name__)
 
 
-async def sync_persona_registry(persona_registry: PersonaRegistryService) -> None:
-    """Ensure all versioned MVP personas exist before Telegram updates are accepted."""
+async def prepare_runtime(bot: Bot, persona_registry: PersonaRegistryService) -> None:
+    """Do everything that must happen once before this process serves an update.
+
+    Deliberately explicit rather than registered on `dispatcher.startup`: production does
+    not poll. `app.workers.telegram` feeds updates straight into the dispatcher and never
+    emits aiogram's startup event, so a hook registered there runs locally, looks correct
+    in review, and silently never runs on the server. Personas are the case that matters —
+    without their rows `enabled_persona` finds nothing and every reading fails with
+    `PersonaUnavailableError`.
+
+    Both steps are idempotent, so every replica may run them at boot.
+    """
 
     await persona_registry.sync_mvp_personas()
+    await configure_commands(bot)
 
 
 def create_dispatcher(
@@ -278,7 +291,6 @@ def create_dispatcher(
         settings.llm_model,
         max_repair_attempts=settings.llm_max_repair_attempts,
     )
-    dispatcher.startup.register(sync_persona_registry)
     return dispatcher
 
 
@@ -312,10 +324,11 @@ async def run(settings: Settings | None = None) -> None:
     if resolved_settings.webhook_enabled:
         raise ValueError("webhook mode requires app.workers.telegram")
     configure_logging(resolved_settings.log_level)
-    bot = Bot(token=resolved_settings.telegram_bot_token.get_secret_value())
+    bot = create_bot(resolved_settings.telegram_bot_token.get_secret_value())
     dispatcher = create_dispatcher(resolved_settings, bot=bot)
     try:
         await bot.delete_webhook(drop_pending_updates=False)
+        await prepare_runtime(bot, dispatcher["persona_registry"])
         await dispatcher.start_polling(bot)
     finally:
         try:

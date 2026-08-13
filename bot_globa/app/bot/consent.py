@@ -12,7 +12,8 @@ from aiogram.types import Message
 
 from app.bot import texts
 from app.bot.keyboards import consent_keyboard
-from app.bot.scene_media import Scene, answer_scene
+from app.bot.scene_media import Scene
+from app.bot.screen import show_screen
 from app.bot.states import OnboardingStates
 from app.services.onboarding import OnboardingService, TelegramIdentity
 
@@ -27,11 +28,12 @@ async def request_consent(
     """Show the terms and remember which screen the user was trying to reach."""
 
     await state.set_state(OnboardingStates.waiting_for_consent)
-    await answer_scene(
+    await show_screen(
         message,
         Scene.ONBOARDING_CONSENT,
         texts.CONSENT.format(days=privacy_retention_days),
         reply_markup=consent_keyboard(destination),
+        state=state,
     )
 
 

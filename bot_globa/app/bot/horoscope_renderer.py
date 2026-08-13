@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from app.bot.reading_renderer import chunk_text
+from app.bot.typography import quote
 from app.domain.horoscope import (
     HOROSCOPE_RENDERER_VERSION,
     AstrologyReadingResult,
@@ -87,19 +88,19 @@ class HoroscopeRenderer:
         facts: HoroscopeFactBundle,
     ) -> RenderedHoroscope:
         labels = self._verified_labels(result, facts)
-        lines = [result.title, "", result.overview]
-        lines.extend(("", "Расчётные опоры:"))
+        lines = [f"<b>{quote(result.title)}</b>", "", quote(result.overview)]
+        lines.extend(("", "<b>Расчётные опоры:</b>"))
         lines.extend(self._interpretation_lines(result, labels))
-        lines.extend(("", "Темы:"))
-        lines.extend(f"• {theme}" for theme in result.themes)
-        lines.extend(("", "Возможные сценарии:"))
+        lines.extend(("", "<b>Темы:</b>"))
+        lines.extend(f"• {quote(theme)}" for theme in result.themes)
+        lines.extend(("", "<b>Возможные сценарии:</b>"))
         for scenario in result.possible_scenarios:
-            lines.append(f"• {scenario.scenario}")
-            lines.extend(f"  — {condition}" for condition in scenario.conditions)
+            lines.append(f"• {quote(scenario.scenario)}")
+            lines.extend(f"  — {quote(condition)}" for condition in scenario.conditions)
         if result.reflection_questions:
-            lines.extend(("", "Вопросы для размышления:"))
-            lines.extend(f"• {question}" for question in result.reflection_questions)
-        lines.extend(("", f"Практический шаг: {result.practical_step}"))
+            lines.extend(("", "<b>Вопросы для размышления:</b>"))
+            lines.extend(f"• {quote(question)}" for question in result.reflection_questions)
+        lines.extend(("", f"<b>Практический шаг:</b> {quote(result.practical_step)}"))
         lines.extend(self._closing_lines(result))
         lines.extend(
             (
@@ -120,13 +121,13 @@ class HoroscopeRenderer:
     ) -> RenderedHoroscope:
         """Show the calculation is real and useful while withholding the paid depth."""
         labels = self._verified_labels(result, facts)
-        lines = [result.title, "", result.overview]
-        lines.extend(("", "Расчётные опоры:"))
+        lines = [f"<b>{quote(result.title)}</b>", "", quote(result.overview)]
+        lines.extend(("", "<b>Расчётные опоры:</b>"))
         lines.extend(self._interpretation_lines(result, labels, limit=PREVIEW_INTERPRETATIONS))
         if result.themes:
-            lines.extend(("", "Темы:"))
-            lines.extend(f"• {theme}" for theme in result.themes)
-        lines.extend(("", f"Практический шаг: {result.practical_step}"))
+            lines.extend(("", "<b>Темы:</b>"))
+            lines.extend(f"• {quote(theme)}" for theme in result.themes)
+        lines.extend(("", f"<b>Практический шаг:</b> {quote(result.practical_step)}"))
         lines.extend(
             (
                 "",
@@ -148,10 +149,10 @@ class HoroscopeRenderer:
         """Show one calculated personal signal after the first free preview is used."""
 
         labels = self._verified_labels(result, facts)
-        lines = ["Разбор готов.", "", f"Главная тема — {result.overview}"]
+        lines = ["<b>Разбор готов.</b>", "", f"<b>Главная тема</b> — {quote(result.overview)}"]
         interpretations = self._interpretation_lines(result, labels, limit=1)
         if interpretations:
-            lines.extend(("", "Одна расчётная опора:", *interpretations))
+            lines.extend(("", "<b>Одна расчётная опора:</b>", *interpretations))
         lines.extend(
             (
                 "",
@@ -189,14 +190,14 @@ class HoroscopeRenderer:
                 references = "; ".join(labels[fact_id] for fact_id in interpretation.fact_ids)
             except KeyError as exc:
                 raise HoroscopeRenderError("Horoscope references an unknown fact") from exc
-            lines.append(f"• {references}\n  {interpretation.text}")
+            lines.append(f"• <b>{quote(references)}</b>\n  {quote(interpretation.text)}")
         return lines
 
     @staticmethod
     def _closing_lines(result: AstrologyReadingResult) -> list[str]:
-        lines = ["", "Ограничения расчёта:"]
+        lines = ["", "<b>Ограничения расчёта:</b>"]
         lines.extend(f"• {_LIMITATION_LABELS[value]}" for value in result.limitations)
-        lines.extend(("", result.uncertainty_note))
+        lines.extend(("", f"<i>{quote(result.uncertainty_note)}</i>"))
         return lines
 
     @staticmethod

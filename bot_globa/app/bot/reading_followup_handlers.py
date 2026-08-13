@@ -15,8 +15,10 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from app.bot.keyboards import main_menu_keyboard
 from app.bot.persona_flow import FOLLOWUP_NAMESPACE, MENU_BUTTON, NOT_ONBOARDED
 from app.bot.safety_intake import SafetyIntake, state_name
-from app.bot.scene_media import Scene, answer_scene
+from app.bot.scene_media import Scene
+from app.bot.screen import show_screen, show_thinking
 from app.bot.states import ReadingFollowUpStates
+from app.bot.typography import quote
 from app.services.onboarding import OnboardingService
 from app.services.reading_followup import (
     ReadingFollowUpResultView,
@@ -95,42 +97,47 @@ class ReadingFollowUpHandlers:
         if current.status is ReadingFollowUpStatus.COMPLETED:
             await _send(
                 callback.message,
+                state,
                 current,
                 prefix=ALREADY_USED,
                 scene=Scene.FOLLOW_UP_ALREADY_USED,
             )
             return
         if current.status is ReadingFollowUpStatus.NOT_ELIGIBLE:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.FOLLOW_UP_ALREADY_USED,
                 NOT_ELIGIBLE,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
             return
         if current.status is ReadingFollowUpStatus.PROCESSING:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.FOLLOW_UP_GENERATING,
                 PROCESSING,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
             return
         if current.status is ReadingFollowUpStatus.CORRUPTED_HISTORY:
-            await answer_scene(
+            await show_screen(
                 callback.message,
                 Scene.FOLLOW_UP_FAILED,
                 CORRUPTED,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
             return
         await state.set_state(ReadingFollowUpStates.waiting_for_question)
         await state.update_data(reading_id=str(reading_id))
-        await answer_scene(
+        await show_screen(
             callback.message,
             Scene.FOLLOW_UP_QUESTION,
             PROMPT,
             reply_markup=_cancel_keyboard(),
+            state=state,
         )
 
     async def cancel(self, callback: CallbackQuery, state: FSMContext) -> None:
@@ -152,11 +159,12 @@ class ReadingFollowUpHandlers:
             return
         question = _bounded_text(message)
         if question is None:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.FOLLOW_UP_QUESTION,
                 INVALID,
                 reply_markup=_cancel_keyboard(),
+                state=state,
             )
             return
         data = await state.get_data()
@@ -167,35 +175,39 @@ class ReadingFollowUpHandlers:
             await message.answer(UNAVAILABLE, reply_markup=main_menu_keyboard())
             return
         await state.clear()
-        await answer_scene(message, Scene.FOLLOW_UP_GENERATING, WORKING)
+        await show_screen(message, Scene.FOLLOW_UP_GENERATING, WORKING, state=state)
+        await show_thinking(message)
         outcome = await reading_followups.ask(reading_id, user.id, question)
         if outcome.status is ReadingFollowUpStatus.COMPLETED:
-            await _send(message, outcome)
+            await _send(message, state, outcome)
             return
         if outcome.status is ReadingFollowUpStatus.INVALID_QUESTION:
-            await answer_scene(message, Scene.FOLLOW_UP_QUESTION, INVALID)
+            await show_screen(message, Scene.FOLLOW_UP_QUESTION, INVALID, state=state)
             return
         if outcome.status is ReadingFollowUpStatus.PROCESSING:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.FOLLOW_UP_GENERATING,
                 PROCESSING,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
             return
         if outcome.status is ReadingFollowUpStatus.NOT_ELIGIBLE:
-            await answer_scene(
+            await show_screen(
                 message,
                 Scene.FOLLOW_UP_ALREADY_USED,
                 NOT_ELIGIBLE,
                 reply_markup=main_menu_keyboard(),
+                state=state,
             )
             return
-        await answer_scene(
+        await show_screen(
             message,
             Scene.FOLLOW_UP_FAILED,
             FAILED,
             reply_markup=_retry_keyboard(reading_id),
+            state=state,
         )
         logger.info(
             "reading_followup_not_delivered reading_id=%s status=%s failure_code=%s",
@@ -207,6 +219,7 @@ class ReadingFollowUpHandlers:
 
 async def _send(
     message: Message,
+    state: FSMContext,
     outcome: ReadingFollowUpResultView,
     *,
     prefix: str | None = None,
@@ -216,15 +229,18 @@ async def _send(
     if view is None:
         await message.answer(CORRUPTED, reply_markup=main_menu_keyboard())
         return
-    sections = [f"{ANSWER_TITLE}: {view.question}", view.answer]
+    sections = [f"<b>{ANSWER_TITLE}:</b> {quote(view.question)}", quote(view.answer)]
     if view.limitations:
-        sections.append(LIMITATIONS_TITLE + "\n" + "\n".join(f"• {v}" for v in view.limitations))
+        sections.append(
+            f"<b>{LIMITATIONS_TITLE}</b>\n" + "\n".join(f"• {quote(v)}" for v in view.limitations)
+        )
     body = "\n\n".join(sections)
-    await answer_scene(
+    await show_screen(
         message,
         scene,
         body if prefix is None else f"{prefix}\n\n{body}",
         reply_markup=main_menu_keyboard(),
+        state=state,
     )
 
 

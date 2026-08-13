@@ -157,11 +157,13 @@ class PersonaReadingUseCase:
         """Classify before transport emits any mystical processing state."""
         return self._safety.classify(question, context)
 
-    async def create_preview(
+    async def create_draft(
         self,
         user_id: UUID,
         request: PersonaPreviewRequest,
-    ) -> PersonaPreviewOutcome:
+    ) -> UUID:
+        """Reserve the reading and its symbols before any model call."""
+
         if request.topic not in self._persona.supported_topics:
             raise UnsupportedPersonaTopicError(self.persona_code)
         safety = self.classify_input(request.question, request.context)
@@ -180,7 +182,29 @@ class PersonaReadingUseCase:
                 cost_units=0,
             ),
         )
-        return await self.generate_existing_preview(reading.id, user_id)
+        return reading.id
+
+    async def create_preview(
+        self,
+        user_id: UUID,
+        request: PersonaPreviewRequest,
+    ) -> PersonaPreviewOutcome:
+        """Draft the reading and interpret it in one step."""
+
+        return await self.generate_existing_preview(
+            await self.create_draft(user_id, request),
+            user_id,
+        )
+
+    def draw_symbols(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
+        """The symbols this reading will be explained through, available before the model.
+
+        The draw is seeded from `reading_id`, so it exists the moment the draft does and
+        stays the same on every retry. That is what lets the transport reveal the spread
+        while the interpretation is still being written, without inventing anything.
+        """
+
+        return () if self._drawer is None else self._drawer.draw(reading_id)
 
     async def generate_existing_preview(
         self,
@@ -188,7 +212,7 @@ class PersonaReadingUseCase:
         user_id: UUID,
     ) -> PersonaPreviewOutcome:
         await self._reserve_if_possible(user_id, reading_id)
-        symbols = () if self._drawer is None else self._drawer.draw(reading_id)
+        symbols = self.draw_symbols(reading_id)
         generation = await self._generation.generate_preview(reading_id, user_id, symbols)
         visibility = (
             ReadingPreviewVisibility.PREVIEW

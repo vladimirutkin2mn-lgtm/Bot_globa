@@ -6,9 +6,8 @@ import os
 import signal
 import socket
 
-from aiogram import Bot
-
-from app.bot.main import close_dispatcher, create_dispatcher
+from app.bot.main import close_dispatcher, create_dispatcher, prepare_runtime
+from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import (
@@ -37,7 +36,7 @@ async def run(
     cipher = AESGCMSensitiveContentCipher(
         decode_configured_key(resolved.content_encryption_key.get_secret_value())
     )
-    bot = Bot(token=resolved.telegram_bot_token.get_secret_value())
+    bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     dispatcher = create_dispatcher(resolved, get_observability_settings(), engine, bot=bot)
     inbox = TelegramUpdateInboxService(
         sessions,
@@ -47,6 +46,7 @@ async def run(
         max_attempts=runtime.telegram_update_max_attempts,
     )
     worker = TelegramUpdateWorker(inbox, bot, dispatcher)
+    await prepare_runtime(bot, dispatcher["persona_registry"])
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     stopped = stop or asyncio.Event()
     loop = asyncio.get_running_loop()
