@@ -21,7 +21,12 @@ def upgrade() -> None:
     op.create_table(
         "acquisition_attributions",
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("source", sa.String(length=16), server_default="partizan", nullable=False),
+        sa.Column(
+            "source",
+            sa.String(length=16),
+            server_default="partizan",
+            nullable=False,
+        ),
         sa.Column("experiment_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column(
             "created_at",
