@@ -35,7 +35,7 @@ def parse_partizan_start_payload(payload: str | None) -> UUID | None:
 
 
 class AcquisitionAttributionRepository:
-    """Capture immutable first-touch attribution with PostgreSQL concurrency safety."""
+    """Capture immutable first-touch attribution with concurrency safety."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -53,15 +53,21 @@ class AcquisitionAttributionRepository:
             .on_conflict_do_nothing(index_elements=[AcquisitionAttribution.user_id])
             .returning(AcquisitionAttribution.user_id)
         )
-        inserted_user_id = (await self._session.execute(statement)).scalar_one_or_none()
+        inserted_user_id = (
+            await self._session.execute(statement)
+        ).scalar_one_or_none()
         await self._session.commit()
         attribution = await self.get_for_user(user_id)
         if attribution is None:  # pragma: no cover - protected by the database constraint
-            raise RuntimeError("Attribution insert did not produce a persisted first-touch row")
+            raise RuntimeError(
+                "Attribution insert did not produce a persisted first-touch row"
+            )
         return attribution, inserted_user_id is not None
 
     async def get_for_user(self, user_id: UUID) -> AcquisitionAttribution | None:
         result = await self._session.execute(
-            select(AcquisitionAttribution).where(AcquisitionAttribution.user_id == user_id)
+            select(AcquisitionAttribution).where(
+                AcquisitionAttribution.user_id == user_id
+            )
         )
         return result.scalar_one_or_none()
