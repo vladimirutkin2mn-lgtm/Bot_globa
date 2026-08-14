@@ -1,0 +1,34 @@
+name: Format probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: bot_globa
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.28"
+          enable-cache: true
+          cache-dependency-glob: bot_globa/uv.lock
+      - run: uv sync --frozen --extra dev
+      - name: Report formatter diff
+        shell: bash
+        run: |
+          diff="$(uv run ruff format --diff app tests migrations scripts tools)"
+          if [ -n "$diff" ]; then
+            diff="${diff//'%'/'%25'}"
+            diff="${diff//$'\r'/'%0D'}"
+            diff="${diff//$'\n'/'%0A'}"
+            echo "::error file=pyproject.toml,line=1::$diff"
+            exit 1
+          fi
