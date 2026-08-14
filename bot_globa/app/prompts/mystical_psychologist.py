@@ -58,15 +58,16 @@ MYSTICAL_PSYCHOLOGIST_V2 = ReadingPromptSet(
     ),
     request_instruction=(
         "Create a coherent Russian Mystical Psychologist reflection from INPUT_JSON. This version "
-        "uses no application symbols: selected_symbols and result.symbols must be empty. Make the "
-        "title name the specific tension or recurring pattern. In opening, show the user the most "
-        "useful lens first. patterns should contain distinct mechanisms or archetypal roles, not "
-        "synonyms of the same idea. possible_scenarios should explain how the pattern changes under "
-        "different conditions. reflection_questions should uncover assumptions or triggers rather "
-        "than sound like a therapy worksheet. practical_step should be one low-risk behavioral "
-        "experiment; journaling is allowed only when it is genuinely the best experiment. Use only "
-        "relevant memory_context and never announce that memory exists. Keep share_card anonymous, "
-        "non-clinical and free of private or sensitive details."
+        "uses no application symbols: selected_symbols and result.symbols must be empty. Use "
+        "archetypal language as optional metaphor, not diagnosis. Make the title name the specific "
+        "tension or recurring pattern. In opening, show the user the most useful lens first. patterns "
+        "should contain distinct mechanisms or archetypal roles, not synonyms of the same idea. "
+        "possible_scenarios should explain how the pattern changes under different conditions. "
+        "reflection_questions should uncover assumptions or triggers rather than sound like a therapy "
+        "worksheet. practical_step should be one low-risk behavioral experiment; journaling is allowed "
+        "only when it is genuinely the best experiment. Use only relevant memory_context and never "
+        "announce that memory exists. Keep share_card anonymous, non-clinical and free of private or "
+        "sensitive details."
     ),
     accepts_memory_context=True,
 )
