@@ -13,6 +13,7 @@ from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
 from app.providers.payments.base import PaymentProvider
 from app.repositories.users import SqlAlchemyUserRepository
+from app.services.acquisition_attribution import AcquisitionAttributionRepository
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
@@ -72,6 +73,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["onboarding"] = OnboardingService(
                 SqlAlchemyUserRepository(session), self._analytics, daily_horoscopes
             )
+            data["acquisition_attribution"] = AcquisitionAttributionRepository(session)
             data["oracle_memory"] = QualityManagedOracleMemoryService(self._sessions, cipher)
             data["credits"] = CreditsService(self._sessions)
             data["previews"] = PreviewEntitlementService(self._sessions)
