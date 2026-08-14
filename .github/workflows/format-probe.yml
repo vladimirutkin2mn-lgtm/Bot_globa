@@ -24,7 +24,7 @@ jobs:
       - name: Report formatter diff
         shell: bash
         run: |
-          diff="$(uv run ruff format --diff app tests migrations scripts tools)"
+          diff="$(uv run ruff format --diff app tests migrations scripts tools || true)"
           if [ -n "$diff" ]; then
             diff="${diff//'%'/'%25'}"
             diff="${diff//$'\r'/'%0D'}"
