@@ -12,6 +12,7 @@ The rules, their failure modes and the invariants covered by tests are in
 """
 
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -41,6 +42,15 @@ SCREEN_KEY = "pointer"
 # duplicate on top of the live one. Separating the record makes that impossible instead
 # of relying on every handler remembering a special reset helper.
 SCREEN_DESTINY = "screen"
+
+# Legacy artifact senders call ``forget_screen(state)`` without passing the Telegram
+# message. Remember the bot/chat only inside the current async context so that call can
+# still retire the transient screen rather than merely losing its pointer. ContextVar
+# keeps concurrent chats isolated and is only a fallback; ``retire_screen`` supplies the
+# context explicitly before permanent artifacts are sent.
+_SCREEN_RENDER_CONTEXT: ContextVar[tuple[Bot, int] | None] = ContextVar(
+    "screen_render_context", default=None
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +120,7 @@ async def show_screen(
         logger.warning("screen_without_bot scene=%s", scene.value)
         return
     chat_id = message.chat.id
+    _SCREEN_RENDER_CONTEXT.set((bot, chat_id))
     shown = art if art is not None else scene_art(scene)
     if shown is not None and len(text) > TELEGRAM_CAPTION_LIMIT:
         shown = None
@@ -152,11 +163,9 @@ async def retire_screen(message: Message, state: FSMContext) -> None:
     cleared either way so future navigation starts below the permanent artifact.
     """
 
-    screen = _screen_state(state)
-    pointer = ScreenPointer.restore((await screen.get_data()).get(SCREEN_KEY))
     bot = message.bot
-    if pointer is not None and bot is not None:
-        await _retire(bot, message.chat.id, pointer.message_id)
+    if bot is not None:
+        _SCREEN_RENDER_CONTEXT.set((bot, message.chat.id))
     await forget_screen(state)
 
 
@@ -178,9 +187,20 @@ async def show_thinking(message: Message) -> None:
 
 
 async def forget_screen(state: FSMContext) -> None:
-    """Drop the pointer so the next screen is a fresh message at the bottom of the chat."""
+    """Retire the live screen when possible, then drop its durable pointer.
 
-    await _screen_state(state).update_data({SCREEN_KEY: None})
+    Older artifact helpers know only the FSM state. If they run in the same update that
+    rendered the live screen, the context above gives us the bot/chat needed to delete it.
+    If no render context exists, clearing the pointer preserves the previous safe fallback.
+    """
+
+    screen = _screen_state(state)
+    pointer = ScreenPointer.restore((await screen.get_data()).get(SCREEN_KEY))
+    render_context = _SCREEN_RENDER_CONTEXT.get()
+    if pointer is not None and render_context is not None:
+        bot, chat_id = render_context
+        await _retire(bot, chat_id, pointer.message_id)
+    await screen.update_data({SCREEN_KEY: None})
 
 
 def _screen_state(state: FSMContext) -> FSMContext:
