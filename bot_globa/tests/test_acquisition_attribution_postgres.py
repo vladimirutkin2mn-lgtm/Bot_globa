@@ -52,13 +52,13 @@ async def test_capture_first_touch_does_not_overwrite_existing_experiment(
     later_experiment = uuid4()
 
     async with sessions() as session:
-        first, created = await AcquisitionAttributionRepository(session).capture_first_touch(
-            user_id=user_id, experiment_id=first_experiment
-        )
+        first, created = await AcquisitionAttributionRepository(
+            session
+        ).capture_first_touch(user_id=user_id, experiment_id=first_experiment)
     async with sessions() as session:
-        repeated, created_again = await AcquisitionAttributionRepository(session).capture_first_touch(
-            user_id=user_id, experiment_id=later_experiment
-        )
+        repeated, created_again = await AcquisitionAttributionRepository(
+            session
+        ).capture_first_touch(user_id=user_id, experiment_id=later_experiment)
 
     assert created
     assert not created_again
@@ -75,17 +75,23 @@ async def test_concurrent_first_touch_attempts_converge_on_one_row(
 
     async def capture(experiment_id: UUID) -> tuple[UUID, bool]:
         async with sessions() as session:
-            attribution, created = await AcquisitionAttributionRepository(session).capture_first_touch(
-                user_id=user_id, experiment_id=experiment_id
-            )
+            attribution, created = await AcquisitionAttributionRepository(
+                session
+            ).capture_first_touch(user_id=user_id, experiment_id=experiment_id)
             return attribution.experiment_id, created
 
-    results = await asyncio.gather(*(capture(experiment_id) for experiment_id in experiment_ids))
+    results = await asyncio.gather(
+        *(capture(experiment_id) for experiment_id in experiment_ids)
+    )
 
     async with sessions() as session:
-        rows = await session.scalar(select(func.count()).select_from(AcquisitionAttribution))
+        rows = await session.scalar(
+            select(func.count()).select_from(AcquisitionAttribution)
+        )
         stored = await session.scalar(
-            select(AcquisitionAttribution).where(AcquisitionAttribution.user_id == user_id)
+            select(AcquisitionAttribution).where(
+                AcquisitionAttribution.user_id == user_id
+            )
         )
 
     assert rows == 1
