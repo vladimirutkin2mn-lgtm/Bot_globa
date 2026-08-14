@@ -1,14 +1,14 @@
 """Isolation and syntax checks for the live-gate staging runtime."""
 
 import os
+import pathlib
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = pathlib.Path(__file__).parents[1]
 
 
 def test_staging_runtime_is_separate_from_production() -> None:
@@ -71,7 +71,9 @@ def test_staging_deploy_is_exact_release_and_fail_closed() -> None:
 @pytest.mark.skipif(
     shutil.which("docker") is None, reason="Docker is required for Compose validation"
 )
-def test_staging_compose_configuration_renders_without_real_secrets(tmp_path: Path) -> None:
+def test_staging_compose_configuration_renders_without_real_secrets(
+    tmp_path: pathlib.Path,
+) -> None:
     compose = (ROOT / "docker-compose.staging.yml").read_text()
     example = (
         (ROOT / ".env.staging.example")
