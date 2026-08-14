@@ -140,7 +140,7 @@ class MindReadingLoveOracleLLM:
         )
 
 
-def test_love_oracle_prompt_is_memory_aware_and_rejects_inner_state_claims() -> None:
+def test_love_oracle_legacy_prompt_remains_available() -> None:
     prompt = load_reading_prompts("love-oracle-v1")
 
     assert prompt.accepts_memory_context
@@ -171,7 +171,7 @@ async def test_use_case_freezes_love_versions_and_passes_no_symbols() -> None:
     _, request = drafts.requests[0]
     assert request.persona_code == "love_oracle"
     assert request.engine_version == "symbolic-v1"
-    assert request.prompt_version == "love-oracle-v1"
+    assert request.prompt_version == "love-oracle-v2"
     assert request.schema_version == "reading-result-v1"
     assert request.cost_units == 0
     assert generation.calls == [
@@ -228,7 +228,7 @@ async def test_postgres_love_oracle_preview_is_validated_and_idempotent(
         persona = Persona(
             code="love_oracle",
             display_name="Love Oracle",
-            prompt_version="love-oracle-v1",
+            prompt_version="love-oracle-v2",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))
@@ -270,7 +270,7 @@ async def test_postgres_love_oracle_preview_is_validated_and_idempotent(
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
         assert reading.engine_version == "symbolic-v1"
-        assert reading.prompt_version == "love-oracle-v1"
+        assert reading.prompt_version == "love-oracle-v2"
         assert reading.schema_version == "reading-result-v1"
 
 
@@ -284,7 +284,7 @@ async def test_mind_reading_and_guaranteed_reunion_are_rejected_before_persisten
         persona = Persona(
             code="love_oracle",
             display_name="Love Oracle",
-            prompt_version="love-oracle-v1",
+            prompt_version="love-oracle-v2",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))

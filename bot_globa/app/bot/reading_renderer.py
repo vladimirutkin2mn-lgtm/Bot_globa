@@ -1,7 +1,7 @@
 """Render a validated structured reading into bounded Telegram messages.
 
-Persona-neutral: the only thing that varies is the wording supplied by `ReadingCopy`.
-Nothing here reads the private source text — only the already validated result.
+Persona-neutral behavior, persona-specific wording. Nothing here reads the private source
+text — only the already validated result and copy configured for the selected persona.
 """
 
 from collections.abc import Sequence
@@ -15,15 +15,11 @@ from app.services.persona_reading import PersonaPreviewOutcome
 
 TELEGRAM_LIMIT = 4096
 TARGET_CHUNK = 3600
-# One line of the paid reading is enough to prove it continues; a spoiler is one tap from
-# being read, so anything longer would simply be given away.
 TEASER_LIMIT = 140
 
 REVEAL_TITLE = "Расклад складывается"
 REVEAL_CLOSING = "Читаю расклад…"
 
-# Set apart from the reading rather than buried in it: the boundary between reflection
-# and prediction is the product, so it is typographically distinct on every view.
 DISCLAIMER = (
     "<i>Это развлекательная практика для рефлексии, а не достоверное предсказание "
     "или профессиональная консультация.</i>"
@@ -32,12 +28,23 @@ DISCLAIMER = (
 
 @dataclass(frozen=True, slots=True)
 class ReadingCopy:
-    """Persona wording for the two rendered views."""
+    """Persona wording for rendered preview and full-reading views."""
 
     emoji: str
     full_title_prefix: str
     drawn_symbols_title: str
     result_symbols_title: str
+    main_theme_title: str = "Главная тема"
+    practical_step_title: str = "Практический шаг"
+    uncertainty_title: str = "Важно"
+    patterns_title: str = "Паттерны"
+    scenarios_title: str = "Возможные сценарии"
+    reflection_title: str = "Вопросы для рефлексии"
+    teaser_lines: tuple[str, ...] = (
+        "почему это повторяется",
+        "два возможных сценария и условия каждого",
+        "что можно сделать в ближайшие 7 дней",
+    )
 
 
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
@@ -51,13 +58,13 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
             for index, context in enumerate(outcome.symbols, start=1)
         )
         sections.append(f"<b>{copy.drawn_symbols_title}</b>\n{drawn}")
-    pattern = result.patterns[0] if result.patterns else "Явный общий паттерн не выделен."
+    pattern = result.patterns[0] if result.patterns else result.opening
     sections.extend(
         [
-            f"<b>Главная тема:</b> {quote(pattern)}\n\n{quote(result.opening)}",
-            f"<b>Практический шаг:</b>\n{quote(result.practical_step)}",
-            _locked_teaser(result),
-            f"<b>Важно:</b>\n{quote(result.uncertainty_note)}",
+            f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
+            f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
+            _locked_teaser(result, copy),
+            f"<b>{copy.uncertainty_title}:</b>\n{quote(result.uncertainty_note)}",
             DISCLAIMER,
         ]
     )
@@ -75,8 +82,8 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
         sections.append(f"<b>Зафиксированные карты:</b> {drawn}")
     sections.extend(
         (
-            f"<b>Главная тема</b> — {quote(insight)}",
-            ("Полная версия покажет возможные сценарии и практический следующий шаг."),
+            f"<b>{copy.main_theme_title}</b> — {quote(insight)}",
+            "Полная версия покажет развитие темы, возможные сценарии и следующий шаг.",
             DISCLAIMER,
         )
     )
@@ -101,7 +108,8 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         sections.append(f"<b>{copy.result_symbols_title}</b>\n\n" + "\n\n".join(symbol_sections))
     if result.patterns:
         sections.append(
-            "<b>Паттерны:</b>\n" + "\n".join(f"• {quote(value)}" for value in result.patterns)
+            f"<b>{copy.patterns_title}:</b>\n"
+            + "\n".join(f"• {quote(value)}" for value in result.patterns)
         )
 
     scenarios = [
@@ -113,16 +121,16 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         for index, scenario in enumerate(result.possible_scenarios, start=1)
     ]
     if scenarios:
-        sections.append("<b>Возможные сценарии:</b>\n\n" + "\n\n".join(scenarios))
+        sections.append(f"<b>{copy.scenarios_title}:</b>\n\n" + "\n\n".join(scenarios))
     if result.reflection_questions:
         sections.append(
-            "<b>Вопросы для рефлексии:</b>\n"
+            f"<b>{copy.reflection_title}:</b>\n"
             + "\n".join(f"• {quote(value)}" for value in result.reflection_questions)
         )
     sections.extend(
         [
-            f"<b>Практический шаг:</b>\n{quote(result.practical_step)}",
-            f"<b>Границы интерпретации:</b>\n{quote(result.uncertainty_note)}",
+            f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
+            f"<b>{copy.uncertainty_title}:</b>\n{quote(result.uncertainty_note)}",
             DISCLAIMER,
             (
                 "Разбор сохранён в «Моих разборах». Хотите уточнить один момент? "
@@ -134,8 +142,6 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
 
 
 def reveal_progress(revealed: int, total: int) -> str:
-    """A bar of what has actually happened: one filled mark per revealed symbol."""
-
     if not 0 <= revealed <= total:
         raise ValueError("revealed symbols are outside the spread")
     return "▰" * revealed + "▱" * (total - revealed)
@@ -146,13 +152,6 @@ def render_reveal(
     symbols: Sequence[ReadingSymbolContext],
     revealed: int,
 ) -> str:
-    """The spread as far as it has been turned over, while the interpretation is written.
-
-    Shows only what has actually been revealed and counts the bar from the same number,
-    so the screen can never claim more than happened. The symbols come from the
-    deterministic draw, not from the model, so repeating a reading repeats this exactly.
-    """
-
     if not 0 < revealed <= len(symbols):
         raise ValueError("revealed symbols are outside the spread")
     drawn = "\n".join(
@@ -168,15 +167,7 @@ def render_reveal(
     )
 
 
-def _locked_teaser(result: ReadingResult) -> str:
-    """Show that the paid depth exists by covering a real line of it, not by listing it.
-
-    A promise ("two possible scenarios") is weaker than the thing itself under a blur, and
-    an honest blur has to be real text rather than a placeholder. A Telegram spoiler is one
-    tap away from being read, so only a single truncated line goes under it — enough to
-    prove the reading continues, not enough to be the reading.
-    """
-
+def _locked_teaser(result: ReadingResult, copy: ReadingCopy) -> str:
     covered = (
         result.possible_scenarios[0].scenario
         if result.possible_scenarios
@@ -185,19 +176,11 @@ def _locked_teaser(result: ReadingResult) -> str:
     lines = ["<b>В полном разборе:</b>"]
     if covered:
         lines.append(f"<tg-spoiler>{quote(_shortened(covered))}</tg-spoiler>")
-    lines.extend(
-        (
-            "• почему это повторяется;",
-            "• два возможных сценария и условия каждого;",
-            "• что можно сделать в ближайшие 7 дней.",
-        )
-    )
+    lines.extend(f"• {line};" for line in copy.teaser_lines)
     return "\n".join(lines)
 
 
 def _shortened(value: str, maximum: int = TEASER_LIMIT) -> str:
-    """Cut at a word boundary so the covered line reads as a sentence, not a fragment."""
-
     if len(value) <= maximum:
         return value
     head = value[:maximum].rsplit(" ", 1)[0].rstrip(" ,.;:—-")
@@ -205,7 +188,6 @@ def _shortened(value: str, maximum: int = TEASER_LIMIT) -> str:
 
 
 def chunk_text(text: str) -> tuple[str, ...]:
-    """Chunk free-form rendered text, preferring paragraph then line boundaries."""
     sections: list[str] = []
     for paragraph in text.split("\n\n"):
         if len(paragraph) <= TARGET_CHUNK:
@@ -226,7 +208,6 @@ def chunk_text(text: str) -> tuple[str, ...]:
 
 
 def chunk_sections(sections: tuple[str, ...]) -> tuple[str, ...]:
-    """Pack whole sections into as few messages as the Telegram limit allows."""
     chunks: list[str] = []
     current = ""
     for section in sections:
@@ -254,6 +235,4 @@ def _completed_result(outcome: PersonaPreviewOutcome) -> ReadingResult:
 
 
 def orientation_label(orientation: SymbolOrientation) -> str:
-    """How a drawn symbol sits, worded the same way everywhere it is shown."""
-
     return "перевёрнутая" if orientation is SymbolOrientation.REVERSED else "прямая"

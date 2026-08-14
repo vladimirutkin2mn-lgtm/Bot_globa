@@ -141,7 +141,7 @@ class DiagnosticDependencyLLM:
         )
 
 
-def test_mystical_psychologist_prompt_is_reflective_not_clinical() -> None:
+def test_mystical_psychologist_legacy_prompt_remains_available() -> None:
     prompt = load_oracle_reading_prompts("mystical-psychologist-v1")
 
     assert prompt.accepts_memory_context
@@ -172,7 +172,7 @@ async def test_use_case_freezes_reflective_versions_and_passes_no_symbols() -> N
     _, request = drafts.requests[0]
     assert request.persona_code == "mystical_psychologist"
     assert request.engine_version == "reflective-v1"
-    assert request.prompt_version == "mystical-psychologist-v1"
+    assert request.prompt_version == "mystical-psychologist-v2"
     assert request.schema_version == "reading-result-v1"
     assert request.cost_units == 0
     assert generation.calls == [
@@ -229,7 +229,7 @@ async def test_postgres_reflection_is_validated_and_idempotent(
         persona = Persona(
             code="mystical_psychologist",
             display_name="Mystical Psychologist",
-            prompt_version="mystical-psychologist-v1",
+            prompt_version="mystical-psychologist-v2",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))
@@ -270,7 +270,7 @@ async def test_postgres_reflection_is_validated_and_idempotent(
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
         assert reading.engine_version == "reflective-v1"
-        assert reading.prompt_version == "mystical-psychologist-v1"
+        assert reading.prompt_version == "mystical-psychologist-v2"
         assert reading.schema_version == "reading-result-v1"
 
 
@@ -284,7 +284,7 @@ async def test_diagnosis_and_dependency_are_rejected_before_persistence(
         persona = Persona(
             code="mystical_psychologist",
             display_name="Mystical Psychologist",
-            prompt_version="mystical-psychologist-v1",
+            prompt_version="mystical-psychologist-v2",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))

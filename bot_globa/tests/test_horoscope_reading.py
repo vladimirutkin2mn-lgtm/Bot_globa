@@ -45,7 +45,7 @@ class CapturingHoroscopeGeneration:
         return HoroscopeGenerationResult(HoroscopeGenerationStatus.COMPLETED)
 
 
-def test_astrologer_prompt_accepts_only_calculated_fact_references() -> None:
+def test_astrologer_legacy_prompt_remains_available() -> None:
     prompt = load_horoscope_prompts("astrologer-v1")
 
     assert "FACT_BUNDLE_JSON" in prompt.system
@@ -83,7 +83,7 @@ async def test_use_case_freezes_astrology_versions_without_raw_birth_fields() ->
         date(2026, 8, 3),
     )
     assert request.engine_version == "astrology-calculation-v1"
-    assert request.prompt_version == "astrologer-v1"
+    assert request.prompt_version == "astrologer-v2"
     assert request.schema_version == "astrology-reading-result-v1"
     assert request.cost_units == 0
     assert generation.calls == [

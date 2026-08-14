@@ -183,7 +183,7 @@ class HoroscopeReadingUseCase:
             raise HoroscopeConfigurationError("astrologer must use the astrology engine")
         if persona.engine_version != "astrology-calculation-v1":
             raise HoroscopeConfigurationError("astrologer engine version is incompatible")
-        if persona.prompt_version != "astrologer-v1":
+        if persona.prompt_version != "astrologer-v2":
             raise HoroscopeConfigurationError("astrologer prompt version is incompatible")
         if persona.schema_version != "astrology-reading-result-v1":
             raise HoroscopeConfigurationError("astrologer result schema is incompatible")
