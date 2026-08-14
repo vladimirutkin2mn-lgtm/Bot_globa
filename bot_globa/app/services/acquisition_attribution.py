@@ -6,6 +6,7 @@ payload and persists the first observed attribution atomically.
 """
 
 import re
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -47,6 +48,17 @@ def parse_partizan_start_command(text: str | None) -> UUID | None:
     return parse_partizan_start_payload(arguments)
 
 
+class AcquisitionAttributionWriter(Protocol):
+    """Minimal persistence contract required by attributed onboarding."""
+
+    async def capture_first_touch(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+    ) -> tuple[object, bool]: ...
+
+
 class AcquisitionAttributionRepository:
     """Capture immutable first-touch attribution with concurrency safety."""
 
@@ -86,7 +98,7 @@ class AttributingUserRepository:
     def __init__(
         self,
         users: UserRepository,
-        attributions: AcquisitionAttributionRepository,
+        attributions: AcquisitionAttributionWriter,
         experiment_id: UUID,
     ) -> None:
         self._users = users
