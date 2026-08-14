@@ -45,9 +45,9 @@ echo "==> Refusing to continue without a production environment file"
 run_remote "test -f ${DEPLOY_PATH}/.env.prod"
 
 if [[ "${REQUIRE_ORACLE_ROLLOUT_ZERO}" == "1" ]]; then
-  echo "==> Verifying first-deploy Oracle rollout is exactly zero"
-  if ! run_remote "grep -Eq '^ORACLE_ROLLOUT_PERCENTAGE=0$' ${DEPLOY_PATH}/.env.prod"; then
-    echo "Refusing first-deploy verification: set ORACLE_ROLLOUT_PERCENTAGE=0 in the server-side .env.prod"
+  echo "==> Ensuring first-deploy Oracle rollout is explicitly zero"
+  if ! run_remote "cd ${DEPLOY_PATH} && bash tools/ensure_oracle_rollout_zero.sh .env.prod"; then
+    echo "Refusing first-deploy verification: ORACLE_ROLLOUT_PERCENTAGE must be absent or exactly one explicit zero entry."
     exit 1
   fi
 fi
