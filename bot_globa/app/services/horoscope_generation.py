@@ -312,6 +312,14 @@ class HoroscopeGenerationService:
                 completion,
             )
         except InvalidHoroscopeResultError as error:
+            # Field paths and codes only, never generated or private text, so a rejection
+            # can be diagnosed from the logs without reproducing the call.
+            logger.warning(
+                "horoscope_output_rejected reading_id=%s code=%s issues=%s",
+                reading_id,
+                error.code,
+                ";".join(error.issues[:20]),
+            )
             return await self._fail_observed(
                 context,
                 f"horoscope_{error.code}",

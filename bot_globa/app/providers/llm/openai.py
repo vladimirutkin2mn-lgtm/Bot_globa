@@ -38,6 +38,16 @@ _UNSUPPORTED_STRICT_SCHEMA_KEYS = frozenset(
     }
 )
 
+_NAME_KEYED_SCHEMA_CONTAINERS = frozenset(
+    {
+        "$defs",
+        "definitions",
+        "dependentSchemas",
+        "patternProperties",
+        "properties",
+    }
+)
+
 
 def openai_strict_schema(value: object) -> object:
     """Remove validation keywords unsupported by OpenAI strict structured outputs.
@@ -46,13 +56,21 @@ def openai_strict_schema(value: object) -> object:
     provider hint does not weaken domain validation — but it does hide the rules from the
     model, which then breaks them and has its answer rejected for a limit it was never
     shown. Whatever is removed here has to be restated in words: see `schema_constraints`.
+
+    Only the keywords of a schema node are removed. Inside `properties` and the other
+    containers below the keys are *names* chosen by the domain, and a field called `title`
+    or `pattern` has to survive: dropping it left the model unable to return a field the
+    contract then demanded, which failed every reading and every horoscope in production.
     """
     if isinstance(value, dict):
-        converted = {
-            key: openai_strict_schema(item)
-            for key, item in value.items()
-            if key not in _UNSUPPORTED_STRICT_SCHEMA_KEYS
-        }
+        converted: dict[str, object] = {}
+        for key, item in value.items():
+            if key in _UNSUPPORTED_STRICT_SCHEMA_KEYS:
+                continue
+            if key in _NAME_KEYED_SCHEMA_CONTAINERS and isinstance(item, dict):
+                converted[key] = {name: openai_strict_schema(child) for name, child in item.items()}
+            else:
+                converted[key] = openai_strict_schema(item)
         properties = converted.get("properties")
         if converted.get("type") == "object" and isinstance(properties, dict):
             converted["required"] = list(properties)

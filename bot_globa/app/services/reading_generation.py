@@ -266,6 +266,14 @@ class ReadingGenerationService:
                 last_completion,
             )
         except InvalidReadingResultError as error:
+            # The issues carry field paths and codes only — never generated or private text —
+            # so the reason a reading was rejected is recoverable from the logs alone.
+            logger.warning(
+                "reading_output_rejected reading_id=%s code=%s issues=%s",
+                reading_id,
+                error.code,
+                ";".join(error.issues[:20]),
+            )
             return await self._fail_observed(
                 context,
                 f"reading_{error.code}",
