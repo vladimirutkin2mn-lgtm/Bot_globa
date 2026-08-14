@@ -91,6 +91,12 @@ To repeat only the public + internal smoke after a routing change:
 PUBLIC_ORACLE_URL=https://predict.mypresence.ru make smoke-prod-remote
 ```
 
+The same check is available without local SSH through the manual GitHub Actions workflow
+**Bot Globa deploy prod**. Choose `smoke_only=true` and set
+`public_oracle_url=https://predict.mypresence.ru`. The workflow uses the existing
+production deploy secrets and runs the same strict smoke. A normal manual deploy also
+keeps the zero-rollout launch guard enabled until the live gates in #41 are complete.
+
 `.env.prod` lives only on the server. The sync excludes it explicitly, and the deploy
 refuses to continue if it is missing. Start from
 [`.env.prod.example`](../../bot_globa/.env.prod.example).
