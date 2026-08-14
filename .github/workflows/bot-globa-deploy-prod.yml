@@ -75,6 +75,4 @@ jobs:
           SKIP_MIGRATIONS: ${{ inputs.skip_migrations && '1' || '0' }}
           RUN_SMOKE: "1"
           PUBLIC_ORACLE_URL: ${{ inputs.public_oracle_url }}
-          # Launch guard: keep acquisition disabled until #41 live gates are complete.
-          REQUIRE_ORACLE_ROLLOUT_ZERO: "1"
         run: bash tools/deploy_prod_remote.sh

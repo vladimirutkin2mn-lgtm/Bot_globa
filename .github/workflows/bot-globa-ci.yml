@@ -191,6 +191,4 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
           RUN_SMOKE: "1"
-          # Launch guard: keep acquisition disabled until #41 live gates are complete.
-          REQUIRE_ORACLE_ROLLOUT_ZERO: "1"
         run: bash tools/deploy_prod_remote.sh
