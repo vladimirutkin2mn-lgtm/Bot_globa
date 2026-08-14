@@ -87,8 +87,9 @@ def test_acquisition_route_fails_closed_until_bot_username_is_configured() -> No
 
 
 def test_bot_username_is_normalized_and_validated() -> None:
-    assert DeploymentSettings(telegram_bot_username="@NumaOracleBot").telegram_bot_username == (
-        "NumaOracleBot"
+    assert (
+        DeploymentSettings(telegram_bot_username="@NumaOracleBot").telegram_bot_username
+        == "NumaOracleBot"
     )
     with pytest.raises(ValidationError):
         DeploymentSettings(telegram_bot_username="not a bot")
