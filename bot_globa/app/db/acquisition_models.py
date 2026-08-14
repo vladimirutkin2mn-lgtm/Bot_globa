@@ -24,6 +24,10 @@ class AcquisitionAttribution(Base):
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    source: Mapped[str] = mapped_column(String(16), default="partizan", server_default="partizan")
+    source: Mapped[str] = mapped_column(
+        String(16), default="partizan", server_default="partizan"
+    )
     experiment_id: Mapped[UUID] = mapped_column(nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
