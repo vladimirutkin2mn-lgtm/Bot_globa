@@ -48,7 +48,11 @@ def test_payment_success_returns_to_the_reading_that_started_checkout() -> None:
     resume = f"love:unlock:{reading_id}"
     paywall = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 полный разбор", callback_data="credits:buy:reading_single")],
+            [
+                InlineKeyboardButton(
+                    text="1 полный разбор", callback_data="credits:buy:reading_single"
+                )
+            ],
             [InlineKeyboardButton(text="После оплаты открыть разбор", callback_data=resume)],
         ]
     )
