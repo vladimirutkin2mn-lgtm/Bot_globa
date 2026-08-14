@@ -90,7 +90,7 @@ async def _clear_payment_state(state: FSMContext, data: dict[str, object]) -> No
     resume = _stored_resume(data)
     await state.clear()
     if resume is not None:
-        await state.update_data(**{_PAYMENT_RESUME_KEY: resume})
+        await state.update_data({_PAYMENT_RESUME_KEY: resume})
 
 
 async def _show_onboarding_step(
@@ -555,7 +555,7 @@ async def buy_credits(
         return
     resume = reading_resume_callback(callback.message.reply_markup)
     if resume is not None:
-        await state.update_data(**{_PAYMENT_RESUME_KEY: resume})
+        await state.update_data({_PAYMENT_RESUME_KEY: resume})
     product_code = _callback_parts(callback)[-1]
     if payments is None or billing_settings.billing_enabled:
         market = payment_market_keyboard(
