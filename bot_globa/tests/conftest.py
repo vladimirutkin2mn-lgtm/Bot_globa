@@ -1,6 +1,7 @@
 """Shared test fixtures."""
 
 import os
+import re
 
 import pytest
 from pydantic import SecretStr
@@ -8,6 +9,7 @@ from pydantic import SecretStr
 from app.config import Settings
 
 pytest_plugins = ("tests.payment_postgres_helpers",)
+_REVISION_ID = re.compile(r"^\d{8}_\d+$")
 
 # Application modules expose an ASGI entry point at import time. Provide isolated,
 # non-production values so test collection never depends on a developer's .env file.
@@ -28,16 +30,26 @@ def bind_migration_safety_tests_to_current_head(
 ) -> None:
     """Keep historical downgrade guards anchored to the current repo head.
 
-    Individual migration safety modules own their downgrade target, but their
-    ``_HEAD`` assertion means "the currently deployable schema head". Binding
-    that value here prevents every historical safety test from becoming stale
-    when a later, unrelated migration is appended. ``test_schema_health`` still
-    pins the exact expected head explicitly, so schema-head changes remain an
-    intentional reviewed update.
+    Individual migration safety modules own their downgrade target, while module-level
+    revision constants containing ``HEAD`` mean "the currently deployable schema head".
+    Binding only those revision-shaped constants prevents historical safety tests from
+    becoming stale when a later migration is appended. ``test_schema_health`` is not a
+    migration module and still pins the exact expected head explicitly, so schema-head
+    changes remain an intentional reviewed update.
     """
 
     module = request.module
-    if "migration" not in module.__name__ or not hasattr(module, "_HEAD"):
+    if "migration" not in module.__name__:
+        return
+    head_constants = [
+        name
+        for name, value in vars(module).items()
+        if name.startswith("_")
+        and "HEAD" in name
+        and isinstance(value, str)
+        and _REVISION_ID.fullmatch(value) is not None
+    ]
+    if not head_constants:
         return
 
     from app.services.schema_health import expected_schema_heads
@@ -45,7 +57,8 @@ def bind_migration_safety_tests_to_current_head(
     expected_schema_heads.cache_clear()
     heads = expected_schema_heads()
     assert len(heads) == 1
-    monkeypatch.setattr(module, "_HEAD", heads[0])
+    for name in head_constants:
+        monkeypatch.setattr(module, name, heads[0])
 
 
 @pytest.fixture
