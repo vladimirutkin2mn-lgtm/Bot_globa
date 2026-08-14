@@ -57,9 +57,7 @@ class AcquisitionAttributionRepository:
         await self._session.commit()
         attribution = await self.get_for_user(user_id)
         if attribution is None:  # pragma: no cover - protected by the database constraint
-            raise RuntimeError(
-                "Attribution insert did not produce a persisted first-touch row"
-            )
+            raise RuntimeError("Attribution insert did not produce a persisted first-touch row")
         return attribution, inserted_user_id is not None
 
     async def get_for_user(self, user_id: UUID) -> AcquisitionAttribution | None:
