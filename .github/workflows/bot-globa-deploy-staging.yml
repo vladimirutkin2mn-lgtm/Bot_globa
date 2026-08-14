@@ -1,0 +1,93 @@
+name: Bot Globa deploy staging
+
+# Manual, isolated environment used only to execute and attest the five live release gates.
+on:
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: Skip schema migration because this exact release is already current
+        type: boolean
+        default: false
+      smoke_only:
+        description: Verify the deployed staging release without syncing or rebuilding
+        type: boolean
+        default: false
+      public_staging_url:
+        description: Optional public HTTPS base URL to verify through DNS/TLS/Caddy
+        type: string
+        required: false
+        default: ""
+      release_checklist_version:
+        description: Release-gate checklist identity
+        type: string
+        required: true
+        default: m5-live-v1
+
+concurrency:
+  group: bot-globa-deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: bot_globa
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Require dedicated staging SSH configuration
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "${DEPLOY_HOST}" || { echo 'Missing staging DEPLOY_HOST'; exit 1; }
+          test -n "${DEPLOY_SSH_KEY}" || { echo 'Missing staging DEPLOY_SSH_KEY'; exit 1; }
+          test -n "${DEPLOY_SSH_KNOWN_HOSTS}" || { echo 'Missing staging DEPLOY_SSH_KNOWN_HOSTS'; exit 1; }
+
+      - name: Load the staging deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Pin the staging host key
+        env:
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify the staging host answers before changing anything
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: ssh -o BatchMode=yes "${DEPLOY_HOST}" 'echo staging-remote-ok'
+
+      - name: Smoke the deployed staging release
+        if: inputs.smoke_only
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa_staging' }}
+          PUBLIC_STAGING_URL: ${{ inputs.public_staging_url }}
+        run: bash tools/smoke_staging_remote.sh
+
+      - name: Deploy, migrate and smoke staging
+        if: ${{ !inputs.smoke_only }}
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa_staging' }}
+          RELEASE_CODE_SHA: ${{ github.sha }}
+          RELEASE_CHECKLIST_VERSION: ${{ inputs.release_checklist_version }}
+          PUBLIC_STAGING_URL: ${{ inputs.public_staging_url }}
+          SKIP_MIGRATIONS: ${{ inputs.skip_migrations && '1' || '0' }}
+          RUN_SMOKE: "1"
+        run: bash tools/deploy_staging_remote.sh
