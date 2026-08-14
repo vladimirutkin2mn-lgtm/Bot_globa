@@ -100,12 +100,13 @@ def test_default_delivery_migration_backfills_active_users_and_preserves_opt_out
             _execute(
                 url,
                 schema,
-                "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) VALUES "
-                f"('{default_user}',975201,'Default','active'),"
-                f"('{evening_user}',975202,'Evening','active'),"
-                f"('{on_request_user}',975203,'On request','active'),"
-                f"('{disabled_user}',975204,'Disabled','active'),"
-                f"('{deleted_user}',NULL,'Deleted','deleted')",
+                "INSERT INTO users "
+                "(id,telegram_user_id,first_name,privacy_status,deleted_at) VALUES "
+                f"('{default_user}',975201,'Default','active',NULL),"
+                f"('{evening_user}',975202,'Evening','active',NULL),"
+                f"('{on_request_user}',975203,'On request','active',NULL),"
+                f"('{disabled_user}',975204,'Disabled','active',NULL),"
+                f"('{deleted_user}',NULL,NULL,'deleted',CURRENT_TIMESTAMP)",
             )
         )
         asyncio.run(
