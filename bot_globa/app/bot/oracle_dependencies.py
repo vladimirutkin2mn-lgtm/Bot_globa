@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject
+from aiogram.types import TelegramObject, Update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
@@ -12,8 +12,12 @@ from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
 from app.providers.payments.base import PaymentProvider
-from app.repositories.users import SqlAlchemyUserRepository
-from app.services.acquisition_attribution import AcquisitionAttributionRepository
+from app.repositories.users import SqlAlchemyUserRepository, UserRepository
+from app.services.acquisition_attribution import (
+    AcquisitionAttributionRepository,
+    AttributingUserRepository,
+    parse_partizan_start_command,
+)
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
@@ -70,10 +74,20 @@ class OracleDependencyMiddleware(BaseMiddleware):
                 decode_configured_key(self._settings.content_encryption_key.get_secret_value())
             )
             daily_horoscopes = DailyHoroscopePreferenceService(self._sessions)
-            data["onboarding"] = OnboardingService(
-                SqlAlchemyUserRepository(session), self._analytics, daily_horoscopes
+            users: UserRepository = SqlAlchemyUserRepository(session)
+            start_text = (
+                event.message.text
+                if isinstance(event, Update) and event.message is not None
+                else None
             )
-            data["acquisition_attribution"] = AcquisitionAttributionRepository(session)
+            experiment_id = parse_partizan_start_command(start_text)
+            if experiment_id is not None:
+                users = AttributingUserRepository(
+                    users,
+                    AcquisitionAttributionRepository(session),
+                    experiment_id,
+                )
+            data["onboarding"] = OnboardingService(users, self._analytics, daily_horoscopes)
             data["oracle_memory"] = QualityManagedOracleMemoryService(self._sessions, cipher)
             data["credits"] = CreditsService(self._sessions)
             data["previews"] = PreviewEntitlementService(self._sessions)
