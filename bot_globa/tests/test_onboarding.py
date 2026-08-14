@@ -2,7 +2,8 @@
 
 import asyncio
 from collections.abc import Mapping
-from uuid import uuid4
+from datetime import datetime
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -62,6 +63,14 @@ class AnalyticsSpy:
         self.events.append((user_id, event, properties))
 
 
+class DailyDefaultsSpy:
+    def __init__(self) -> None:
+        self.users: list[UUID] = []
+
+    async def ensure_default(self, user_id: UUID, *, now: datetime | None = None) -> None:
+        self.users.append(user_id)
+
+
 @pytest.fixture
 def identity() -> TelegramIdentity:
     return TelegramIdentity(42, "hearts", "Анна", "ru")
@@ -86,6 +95,18 @@ async def test_new_start_persists_user_and_repeated_start_is_idempotent(
     assert repeated_step is OnboardingStep.CONSENT
     assert first.id == second.id
     assert len(users.users) == 1
+
+
+async def test_start_provisions_default_daily_delivery_for_every_user(
+    identity: TelegramIdentity,
+) -> None:
+    users = MemoryUsers()
+    defaults = DailyDefaultsSpy()
+    service = OnboardingService(users, AnalyticsSpy(), defaults)
+
+    user, _ = await service.start(identity)
+
+    assert defaults.users == [user.id]
 
 
 async def test_consent_completes_onboarding_without_an_age_gate(

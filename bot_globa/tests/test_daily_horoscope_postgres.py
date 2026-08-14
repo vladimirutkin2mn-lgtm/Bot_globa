@@ -1,4 +1,4 @@
-"""PostgreSQL delivery invariants for the voluntary common daily digest."""
+"""PostgreSQL delivery invariants for the default-on common daily digest."""
 
 from datetime import UTC, datetime
 
@@ -11,31 +11,35 @@ from app.domain.daily_horoscope import DailyHoroscopeMode
 from app.providers.analytics import NoOpAnalyticsClient
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionOutcome, DataDeletionService
+from app.services.onboarding import CURRENT_CONSENT_VERSION
 
 pytestmark = pytest.mark.postgres
 
 
-async def _user(sessions: async_sessionmaker[AsyncSession], telegram_id: int) -> User:
+async def _user(
+    sessions: async_sessionmaker[AsyncSession],
+    telegram_id: int,
+    *,
+    consent: str | None = CURRENT_CONSENT_VERSION,
+) -> User:
     async with sessions.begin() as session:
-        user = User(telegram_user_id=telegram_id, first_name="Daily")
+        user = User(telegram_user_id=telegram_id, first_name="Daily", consent_version=consent)
         session.add(user)
         await session.flush()
         return user
 
 
-async def test_opt_in_is_leased_once_and_rescheduled_after_delivery(
+async def test_default_morning_is_leased_once_and_rescheduled_after_delivery(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 975001)
     service = DailyHoroscopePreferenceService(payment_db)
     before = datetime(2026, 8, 13, 4, 59, tzinfo=UTC)
 
+    await service.ensure_default(user.id, now=before)
     default = await service.current(user.id)
-    assert default.mode is DailyHoroscopeMode.ON_REQUEST
-    assert default.next_delivery_at is None
-
-    configured = await service.configure(user.id, DailyHoroscopeMode.MORNING, now=before)
-    assert configured.next_delivery_at == datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
+    assert default.mode is DailyHoroscopeMode.MORNING
+    assert default.next_delivery_at == datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
     assert await service.claim_due(now=before) is None
 
     due = datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
@@ -100,13 +104,88 @@ async def test_opt_out_invalidates_an_in_flight_delivery_claim(
     assert await service.claim_due(now=due) is None
 
 
+async def test_moscow_difference_moves_the_same_local_08_schedule(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 975006)
+    service = DailyHoroscopePreferenceService(payment_db)
+    before = datetime(2026, 8, 13, 2, 59, tzinfo=UTC)
+    await service.ensure_default(user.id, now=before)
+
+    configured = await service.set_moscow_time_difference(user.id, 2, now=before)
+
+    assert configured.mode is DailyHoroscopeMode.MORNING
+    assert configured.timezone == "Etc/GMT-5"
+    assert configured.next_delivery_at == datetime(2026, 8, 13, 3, 0, tzinfo=UTC)
+    assert await service.claim_due(now=before) is None
+    claim = await service.claim_due(now=datetime(2026, 8, 13, 3, 0, tzinfo=UTC))
+    assert claim is not None
+    assert claim.delivery_date.isoformat() == "2026-08-13"
+
+
+async def test_a_provisioned_schedule_waits_for_consent_and_delivers_after_it(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """A default-on row is created at /start, before the terms screen is answered."""
+
+    user = await _user(payment_db, 975007, consent=None)
+    service = DailyHoroscopePreferenceService(payment_db)
+    due = datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
+    await service.ensure_default(user.id, now=datetime(2026, 8, 13, 4, 59, tzinfo=UTC))
+
+    assert await service.claim_due(now=due) is None
+
+    async with payment_db.begin() as session:
+        stored = await session.get(User, user.id)
+        assert stored is not None
+        stored.consent_version = CURRENT_CONSENT_VERSION
+
+    claim = await service.claim_due(now=due)
+    assert claim is not None
+    assert claim.user_id == user.id
+
+
+async def test_reading_the_settings_never_provisions_or_locks(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """The settings screen is a read: it must not enrol anyone as a side effect."""
+
+    user = await _user(payment_db, 975008)
+    service = DailyHoroscopePreferenceService(payment_db)
+
+    view = await service.current(user.id)
+
+    assert view.mode is DailyHoroscopeMode.MORNING
+    assert view.next_delivery_at is None
+    async with payment_db() as session:
+        assert await session.get(DailyHoroscopePreference, user.id) is None
+    assert await service.claim_due(now=datetime(2026, 8, 13, 5, 0, tzinfo=UTC)) is None
+
+
+async def test_reading_the_settings_of_a_deleted_account_reports_the_default(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """`current` must not raise where the old read-only version returned a default view."""
+
+    user = await _user(payment_db, 975009)
+    service = DailyHoroscopePreferenceService(payment_db)
+    await service.ensure_default(user.id, now=datetime(2026, 8, 13, 4, 59, tzinfo=UTC))
+    async with payment_db() as session:
+        await DataDeletionService(session, NoOpAnalyticsClient()).delete_account(user.id)
+
+    view = await service.current(user.id)
+
+    assert view.mode is DailyHoroscopeMode.MORNING
+    assert view.next_delivery_at is None
+
+
 async def test_account_deletion_removes_daily_delivery_preference(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 975003)
     await DailyHoroscopePreferenceService(payment_db).configure(
         user.id,
-        DailyHoroscopeMode.EVENING,
+        DailyHoroscopeMode.MORNING,
         now=datetime(2026, 8, 13, 5, 0, tzinfo=UTC),
     )
 

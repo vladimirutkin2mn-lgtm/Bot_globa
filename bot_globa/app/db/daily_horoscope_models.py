@@ -1,4 +1,4 @@
-"""Persistence for voluntary daily-horoscope delivery settings."""
+"""Persistence for default-on daily-horoscope delivery settings."""
 
 from datetime import date, datetime
 from uuid import UUID
@@ -31,7 +31,11 @@ class DailyHoroscopePreference(Base):
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    mode: Mapped[str] = mapped_column(String(16), default="on_request", server_default="on_request")
+    # No default: `ck_daily_horoscope_preferences_schedule` ties the mode to whether
+    # `next_delivery_at` is set, and that column cannot have a default. Any default here
+    # would therefore guarantee a check violation for the insert that relies on it, so
+    # every writer states both columns explicitly.
+    mode: Mapped[str] = mapped_column(String(16))
     timezone: Mapped[str] = mapped_column(
         String(64), default="Europe/Moscow", server_default="Europe/Moscow"
     )

@@ -6,7 +6,7 @@ from app.bot import texts
 from app.bot.pricing import product_price_label
 from app.config import Settings
 from app.domain.billing import BillingCatalog
-from app.domain.daily_horoscope import DailyHoroscopeMode
+from app.domain.daily_horoscope import DailyHoroscopeMode, daily_horoscope_enabled
 from app.domain.products import READING_PURCHASE_CODES, ProductCode, format_user_price
 from app.providers.payments.base import BillingMarket
 
@@ -80,31 +80,42 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
                     callback_data="menu:home",
                 )
             ],
-            [InlineKeyboardButton(text="Получать каждый день", callback_data="daily:settings")],
+            [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
         ]
     )
 
 
 def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> InlineKeyboardMarkup:
-    """Offer the four delivery choices and mark the one already saved."""
+    """Offer one delivery switch plus the user's local-time setting."""
 
-    options = (
-        ("Да, утром", DailyHoroscopeMode.MORNING),
-        ("Да, вечером", DailyHoroscopeMode.EVENING),
-        ("Только по запросу", DailyHoroscopeMode.ON_REQUEST),
-        ("Не присылать", DailyHoroscopeMode.DISABLED),
-    )
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=f"✓ {label}" if mode is current else label,
-                callback_data=f"daily:set:{mode.value}",
-            )
+    enabled = daily_horoscope_enabled(current or DailyHoroscopeMode.MORNING)
+    toggle_mode = DailyHoroscopeMode.DISABLED if enabled else DailyHoroscopeMode.MORNING
+    toggle_label = "Отключить ежедневный гороскоп" if enabled else "Включить ежедневный гороскоп"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=toggle_label,
+                    callback_data=f"daily:set:{toggle_mode.value}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Изменить часовой пояс",
+                    callback_data="daily:timezone",
+                )
+            ],
+            [InlineKeyboardButton(text="Вернуться к гороскопу", callback_data="menu:daily")],
         ]
-        for label, mode in options
-    ]
-    rows.append([InlineKeyboardButton(text="Главное меню", callback_data="menu:home")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    )
+
+
+def daily_timezone_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад в настройки", callback_data="daily:settings")]
+        ]
+    )
 
 
 def privacy_keyboard() -> InlineKeyboardMarkup:

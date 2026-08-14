@@ -97,8 +97,13 @@ configuration and authentication, delivery errors and the update backlog.
 
 Processes to run: the API (webhook ingress), the Telegram worker, the billing worker, the
 maintenance worker, the oracle-memory worker and the daily-horoscope worker. The daily
-worker only claims explicit morning/evening opt-ins. Telegram ingress is at-least-once,
-so every worker must be idempotent — they are, but a fork must stay that way.
+worker claims enabled 08:00 schedules; consented active users receive one by default and can
+disable it in the horoscope settings. Because the whole base shares one local 08:00, that
+worker is a broadcast: `DAILY_HOROSCOPE_SEND_INTERVAL_SECONDS` paces it under Telegram's
+global rate limit and `DAILY_HOROSCOPE_SEND_MAX_ATTEMPTS` bounds the 429 retries. Watch
+`daily_horoscope_throttled` after a rollout — a steady stream of it means the interval is
+too aggressive for the current base size. Telegram ingress is at-least-once, so every worker
+must be idempotent — they are, but a fork must stay that way.
 
 ## 4. First traffic
 
