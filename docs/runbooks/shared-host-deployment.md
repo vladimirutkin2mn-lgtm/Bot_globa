@@ -26,6 +26,13 @@ product possible at all. This stack joins that network and **publishes no port**
 cannot collide with anything already listening on the host. Its database is its own — it
 does not share the other products' PostgreSQL.
 
+The API joins `web` with the stable alias `bot-globa-api`. Deployment verifies that the
+running API container actually has that alias before smoke succeeds. The deployment
+tooling also treats `web` as proxy-owned infrastructure and fails closed when that
+network is absent. It must never create a replacement `web` network on behalf of the
+proxy stack, because that can produce a healthy isolated application that Caddy cannot
+reach.
+
 ## The one change outside this repository
 
 Caddy owns TLS and routing, so the route has to be declared in its config, which lives
@@ -40,7 +47,11 @@ with the product that runs the proxy:
 ```
 
 That subdomain currently points at a service that does not exist in the proxy owner's
-compose file, so it answers 502 today. Nothing is taken away by repointing it.
+compose file, so the documented state is 502 until the route is repointed. Nothing is
+taken away by repointing it.
+
+Do not repoint Caddy until `bot-globa-api` is verified on the shared `web` network. After
+repointing, the public smoke below must pass before any acquisition traffic is enabled.
 
 This is the only edit outside this repository. No application code of the other products
 is touched.
@@ -53,6 +64,31 @@ export DEPLOY_PATH=/opt/bot_globa
 
 make deploy-prod-remote      # sync, build, migrate under an advisory lock, smoke
 make smoke-prod-remote       # verify an already deployed release
+```
+
+For the **first Oracle deployment**, keep rollout at zero and require a real public-route
+smoke in the same operation:
+
+```bash
+REQUIRE_ORACLE_ROLLOUT_ZERO=1 \
+PUBLIC_ORACLE_URL=https://predict.mypresence.ru \
+make deploy-prod-remote
+```
+
+The guarded deploy refuses to continue when the proxy-owned `web` network is missing,
+when `ORACLE_ROLLOUT_PERCENTAGE=0` is not present in the server-side `.env.prod`, or when
+the running API container lacks the `bot-globa-api` alias on `web`.
+
+When `PUBLIC_ORACLE_URL` is set, smoke requires a clean `https://` base URL and verifies
+`/health/live` and `/health/ready` through the public route after the internal container
+checks and deployment verification pass. Redirects are not followed: both endpoints must
+return **direct HTTP 200**. This catches DNS, TLS, Caddy and upstream-routing failures
+that an internal health probe cannot see.
+
+To repeat only the public + internal smoke after a routing change:
+
+```bash
+PUBLIC_ORACLE_URL=https://predict.mypresence.ru make smoke-prod-remote
 ```
 
 `.env.prod` lives only on the server. The sync excludes it explicitly, and the deploy
