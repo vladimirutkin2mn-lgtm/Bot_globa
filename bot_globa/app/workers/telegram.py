@@ -13,6 +13,7 @@ from app.db.session import create_engine, create_session_factory
 from app.deployment import (
     DeploymentSettings,
     get_deployment_settings,
+    validate_production_providers,
     validate_telegram_worker,
 )
 from app.logging import configure_logging
@@ -30,6 +31,7 @@ async def run(
     resolved = settings or get_settings()
     runtime = deployment or get_deployment_settings()
     validate_telegram_worker(resolved, runtime)
+    validate_production_providers(resolved)
     configure_logging(resolved.log_level)
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)

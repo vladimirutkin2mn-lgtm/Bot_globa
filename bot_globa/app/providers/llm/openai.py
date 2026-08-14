@@ -42,8 +42,10 @@ _UNSUPPORTED_STRICT_SCHEMA_KEYS = frozenset(
 def openai_strict_schema(value: object) -> object:
     """Remove validation keywords unsupported by OpenAI strict structured outputs.
 
-    The complete Pydantic contract is always applied after receipt, so simplifying
-    the provider hint does not weaken domain validation.
+    The complete Pydantic contract is always applied after receipt, so simplifying the
+    provider hint does not weaken domain validation — but it does hide the rules from the
+    model, which then breaks them and has its answer rejected for a limit it was never
+    shown. Whatever is removed here has to be restated in words: see `schema_constraints`.
     """
     if isinstance(value, dict):
         converted = {
@@ -59,6 +61,76 @@ def openai_strict_schema(value: object) -> object:
     if isinstance(value, list):
         return [openai_strict_schema(item) for item in value]
     return value
+
+
+_CONSTRAINT_WORDING = {
+    "minItems": "at least {value} item(s)",
+    "maxItems": "at most {value} item(s)",
+    "minLength": "at least {value} character(s)",
+    "maxLength": "at most {value} character(s)",
+    "minimum": "not below {value}",
+    "maximum": "not above {value}",
+    "pattern": "matching the regular expression {value}",
+}
+
+
+def schema_constraints(schema: object) -> tuple[str, ...]:
+    """State, in words, every rule strict mode forced out of the schema.
+
+    Derived from the schema rather than written by hand so the wording cannot drift from
+    the contract it describes: a limit added to a Pydantic model appears here by itself.
+    """
+
+    found: list[str] = []
+    _collect_constraints(schema, (), found)
+    return tuple(sorted(found))
+
+
+def _collect_constraints(value: object, path: tuple[str, ...], found: list[str]) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _collect_constraints(item, path, found)
+        return
+    if not isinstance(value, dict):
+        return
+    described = [
+        _CONSTRAINT_WORDING[key].format(value=value[key])
+        for key in _CONSTRAINT_WORDING
+        if key in value
+    ]
+    if described and path:
+        found.append(f"{'.'.join(path)}: {', '.join(described)}")
+    for key, item in value.items():
+        if key == "properties" and isinstance(item, dict):
+            for name, child in item.items():
+                _collect_constraints(child, (*path, str(name)), found)
+        elif key in {"items", "prefixItems"}:
+            _collect_constraints(item, (*path, "each item"), found)
+        elif key in {"$defs", "definitions"} and isinstance(item, dict):
+            # Nested models live here and are reached by `$ref`, so each definition is
+            # named after itself; without this their limits would never be stated.
+            for name, child in item.items():
+                _collect_constraints(child, (str(name),), found)
+        elif key in {"anyOf", "allOf", "oneOf"}:
+            _collect_constraints(item, path, found)
+
+
+def _with_constraints(request: LLMRequest) -> str:
+    """Append the rules the strict schema cannot carry to the request itself.
+
+    Without this the model is judged against limits it was never given — the failure that
+    made every persona answer "не удалось завершить разбор" in production.
+    """
+
+    constraints = schema_constraints(request.schema)
+    if not constraints:
+        return request.user_prompt
+    rules = "\n".join(f"- {line}" for line in constraints)
+    return (
+        f"{request.user_prompt}\n\n"
+        "The schema cannot express these limits, and the answer is rejected if any is "
+        f"broken:\n{rules}"
+    )
 
 
 class OpenAILLMClient:
@@ -98,7 +170,7 @@ class OpenAILLMClient:
                 user_message: EasyInputMessageParam = {
                     "type": "message",
                     "role": "user",
-                    "content": request.user_prompt,
+                    "content": _with_constraints(request),
                 }
                 input_messages: ResponseInputParam = [system_message, user_message]
                 converted_schema = cast("dict[str, object]", openai_strict_schema(request.schema))

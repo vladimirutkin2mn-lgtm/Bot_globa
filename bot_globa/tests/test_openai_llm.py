@@ -19,7 +19,11 @@ from app.providers.llm.base import (
     LLMTransientError,
     LLMUnexpectedError,
 )
-from app.providers.llm.openai import OpenAILLMClient, openai_strict_schema
+from app.providers.llm.openai import (
+    OpenAILLMClient,
+    openai_strict_schema,
+    schema_constraints,
+)
 
 SECRET = "SECRET-PRIVATE-CONTENT"
 
@@ -77,10 +81,11 @@ async def test_request_contract_and_metadata_extraction() -> None:
     completion = await adapter(client).generate_structured(request())
     call = client.responses.calls[0]
     assert call["model"] == "configured-model"
-    assert call["input"] == [
-        {"type": "message", "role": "system", "content": "system " + SECRET},
-        {"type": "message", "role": "user", "content": "user " + SECRET},
-    ]
+    system, user = cast("list[dict[str, Any]]", call["input"])
+    assert system == {"type": "message", "role": "system", "content": "system " + SECRET}
+    assert user["type"] == "message" and user["role"] == "user"
+    # The prompt is sent unchanged; the limits strict mode strips from the schema follow it.
+    assert user["content"].startswith("user " + SECRET)
     format_ = cast_dict(cast_dict(call["text"])["format"])
     assert format_["type"] == "json_schema" and format_["strict"] is True
     assert format_["name"] == "structured_result"
@@ -195,3 +200,70 @@ async def test_unexpected_sdk_error_is_mapped_without_private_logging(
     with pytest.raises(LLMUnexpectedError):
         await adapter(client).generate_structured(request())
     assert SECRET not in caplog.text
+
+
+def _stripped_keywords(schema: object, found: set[str] | None = None) -> set[str]:
+    """Every constraint keyword strict mode forces out of the schema we send."""
+
+    found = set() if found is None else found
+    if isinstance(schema, dict):
+        found.update(key for key in schema if key in _CONSTRAINT_KEYWORDS)
+        for item in schema.values():
+            _stripped_keywords(item, found)
+    elif isinstance(schema, list):
+        for item in schema:
+            _stripped_keywords(item, found)
+    return found
+
+
+_CONSTRAINT_KEYWORDS = {
+    "minItems",
+    "maxItems",
+    "minLength",
+    "maxLength",
+    "minimum",
+    "maximum",
+    "pattern",
+}
+
+
+async def test_every_limit_removed_from_the_schema_is_stated_in_the_request() -> None:
+    """The failure that killed every reading in production: rules enforced but never sent.
+
+    Strict structured outputs reject these keywords, so the schema cannot carry them. If
+    they are not restated in words the model breaks a limit it was never shown, and the
+    answer is discarded for a rule it had no way to satisfy.
+    """
+
+    client = FakeClient(FakeResponse())
+    outgoing = request()
+    assert _stripped_keywords(outgoing.schema), "the schema under test carries no limits"
+
+    await adapter(client).generate_structured(outgoing)
+
+    sent = cast("list[dict[str, Any]]", client.responses.calls[0]["input"])[1]["content"]
+    for expected in (
+        "patterns: at most 7 item(s)",
+        "possible_scenarios: at least 1 item(s), at most 5 item(s)",
+        "ReadingScenario.conditions.each item: at least 1 character(s), at most 500 character(s)",
+    ):
+        assert expected in sent, expected
+
+
+async def test_the_stated_limits_follow_the_model_rather_than_a_hand_written_list() -> None:
+    """A limit added to a Pydantic model has to appear without anyone editing a prompt."""
+
+    described = schema_constraints(ReadingResult.model_json_schema())
+
+    assert any(line == "symbols: at most 12 item(s)" for line in described)
+    assert any(line.startswith("ReadingSymbolResult.symbol_id:") for line in described)
+
+
+async def test_a_schema_without_limits_adds_nothing_to_the_prompt() -> None:
+    client = FakeClient(FakeResponse())
+    plain = LLMRequest("system", "user", {"type": "object", "properties": {}}, ("r",), ())
+
+    await adapter(client).generate_structured(plain)
+
+    messages = cast("list[dict[str, Any]]", client.responses.calls[0]["input"])
+    assert messages[1]["content"] == "user"
