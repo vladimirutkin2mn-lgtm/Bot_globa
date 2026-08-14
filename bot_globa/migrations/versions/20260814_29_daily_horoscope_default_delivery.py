@@ -15,7 +15,7 @@ down_revision: str | None = "20260813_28"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_MOVE_LEGACY_MODES_TO_MORNING = """
+_MOVE_EVENING_OPT_INS_TO_MORNING = """
 UPDATE daily_horoscope_preferences
 SET mode = 'morning',
     next_delivery_at = (
@@ -28,7 +28,7 @@ SET mode = 'morning',
     claim_id = NULL,
     lease_until = NULL,
     updated_at = CURRENT_TIMESTAMP
-WHERE mode IN ('evening', 'on_request')
+WHERE mode = 'evening'
 """
 
 _BACKFILL_DEFAULT_MORNINGS = """
@@ -65,19 +65,28 @@ ON CONFLICT (user_id) DO NOTHING
 
 def upgrade() -> None:
     connection = op.get_bind()
+    # Drop the column default rather than move it to 'morning'. The schedule check
+    # constraint ties the mode to whether `next_delivery_at` is set, and that column
+    # cannot carry a default, so a 'morning' default would make every insert that relies
+    # on it fail. Every writer states both columns instead.
     op.alter_column(
         "daily_horoscope_preferences",
         "mode",
         existing_type=sa.String(length=16),
-        server_default="morning",
+        server_default=None,
         existing_nullable=False,
     )
 
-    # `on_request` was the old default, not an explicit opt-out. Move it and the old
-    # evening opt-in to the new single 08:00 slot; leave only explicit `disabled` rows off.
-    connection.execute(sa.text(_MOVE_LEGACY_MODES_TO_MORNING))
-    # Everyone who has not made a delivery choice starts with tomorrow's/today's 08:00
-    # Moscow schedule. New accounts receive the same row from OnboardingService.
+    # Only `evening` moves: it was an explicit opt-in to a scheduled digest, and the new
+    # product has a single 08:00 slot. `on_request` is left alone on purpose — this table
+    # has never been backfilled (revision 20260813_27 creates it empty) and the only writer
+    # was an explicit tap on `daily:set:*`, so every `on_request` row is a user who chose
+    # "Только по запросу" and was told automatic delivery was off. Re-enabling those would
+    # push an unsolicited daily message to someone who declined it.
+    connection.execute(sa.text(_MOVE_EVENING_OPT_INS_TO_MORNING))
+    # Everyone who never opened the settings screen at all starts with the default 08:00
+    # Moscow schedule. New accounts receive the same row from OnboardingService, and
+    # delivery waits for consent in `claim_due` either way.
     connection.execute(sa.text(_BACKFILL_DEFAULT_MORNINGS))
 
 

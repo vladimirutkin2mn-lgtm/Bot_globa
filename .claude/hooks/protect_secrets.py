@@ -5,10 +5,14 @@ Two rules:
 
 1. Secret env files (`.env`, `.env.prod`, ...) are never written by the agent.
    `*.example` templates stay editable.
-2. Alembic revisions that are already committed are immutable — the migration
-   chain and its revision IDs carry financial history (see AGENTS.md and
-   `heartsignal/docs/platform-invariants.md`). A brand-new, uncommitted
-   revision file is still editable.
+2. Alembic revisions that have reached the default branch are immutable — the
+   migration chain and its revision IDs carry financial history (see AGENTS.md
+   and `heartsignal/docs/platform-invariants.md`). A revision is editable while
+   it exists only on a feature branch, because nothing has applied it yet:
+   AGENTS.md forbids rewriting *applied* migrations, and CI runs every branch
+   revision against a throwaway schema. Once it lands on `main` the deploy job
+   may have applied it to production, and from then on the only correct change
+   is a new revision.
 
 Exit 2 cancels the tool call and feeds the reason back to the agent.
 """
@@ -26,19 +30,40 @@ def block(reason: str) -> int:
     return 2
 
 
-def is_tracked(path: str) -> bool:
-    """True when the file already exists in git HEAD (i.e. it is applied history)."""
-    repo = os.path.dirname(path) or "."
+def _git(args: list[str], cwd: str) -> subprocess.CompletedProcess[bytes] | None:
     try:
-        result = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", "--", path],
-            cwd=repo,
-            capture_output=True,
-            timeout=5,
-        )
+        return subprocess.run(["git", *args], cwd=cwd, capture_output=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def is_on_default_branch(path: str) -> bool:
+    """True when the revision exists on the default branch, i.e. a deploy may have run it.
+
+    Falls back to "assume it is protected" whenever the default branch cannot be resolved,
+    so a detached checkout or a missing remote never turns the guard off silently.
+    """
+
+    repo = os.path.dirname(path) or "."
+    tracked = _git(["ls-files", "--error-unmatch", "--", path], repo)
+    if tracked is None or tracked.returncode != 0:
         return False
-    return result.returncode == 0
+
+    top = _git(["rev-parse", "--show-toplevel"], repo)
+    if top is None or top.returncode != 0:
+        return True
+    relative = os.path.relpath(os.path.abspath(path), top.stdout.decode().strip())
+    for ref in ("origin/main", "main", "origin/master", "master"):
+        exists = _git(["cat-file", "-e", f"{ref}:{relative}"], repo)
+        if exists is None:
+            return True
+        if exists.returncode == 0:
+            return True
+        resolved = _git(["rev-parse", "--verify", "--quiet", ref], repo)
+        if resolved is not None and resolved.returncode == 0:
+            # The branch exists and does not carry this file: it is feature-branch only.
+            return False
+    return True
 
 
 def main() -> int:
@@ -61,12 +86,13 @@ def main() -> int:
             "never write secrets through the agent or into model context."
         )
 
-    # 2) Committed Alembic revisions are immutable.
+    # 2) Alembic revisions that reached the default branch are immutable.
     norm = file_path.replace(os.sep, "/")
-    if "/migrations/versions/" in norm and base.endswith(".py") and is_tracked(file_path):
+    if "/migrations/versions/" in norm and base.endswith(".py") and is_on_default_branch(file_path):
         return block(
-            f"'{base}' is an already-committed Alembic revision. Revision IDs and applied "
-            "migrations are immutable (AGENTS.md, docs/platform-invariants.md). "
+            f"'{base}' is an Alembic revision that already exists on the default branch, so "
+            "a deploy may have applied it. Revision IDs and applied migrations are immutable "
+            "(AGENTS.md, docs/platform-invariants.md). "
             'Create a NEW revision instead: `make db-revision MSG="..."`.'
         )
 

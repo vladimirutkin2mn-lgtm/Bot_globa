@@ -197,6 +197,18 @@ async def readings_screen(callback: CallbackQuery, state: FSMContext) -> None:
         )
 
 
+async def _leave_timezone_input(state: FSMContext) -> None:
+    """Close the time-difference prompt without touching any other live scenario.
+
+    The digest the worker pushes carries these buttons, so they are tapped in the middle
+    of whatever the user was doing. A blanket `state.clear()` here would silently discard
+    an intake question or a receipt contact the user had already typed.
+    """
+
+    if await state.get_state() == DailyHoroscopeStates.waiting_for_timezone_difference.state:
+        await state.set_state(None)
+
+
 @router.callback_query(F.data == "menu:daily")
 async def daily_horoscope_screen(
     callback: CallbackQuery,
@@ -206,7 +218,7 @@ async def daily_horoscope_screen(
 ) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
-        await state.clear()
+        await _leave_timezone_input(state)
         timezone = DEFAULT_DAILY_HOROSCOPE_TIMEZONE
         user = await onboarding.current_user(callback.from_user.id)
         if user is not None:
@@ -231,7 +243,7 @@ async def daily_horoscope_settings(
     await callback.answer()
     if not isinstance(callback.message, Message):
         return
-    await state.clear()
+    await _leave_timezone_input(state)
     user = await onboarding.current_user(callback.from_user.id)
     preference = (
         await daily_horoscopes.current(user.id)
@@ -318,7 +330,7 @@ async def set_daily_horoscope_timezone(
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
-        await state.clear()
+        await _leave_timezone_input(state)
         await message.answer("Сначала отправьте /start.")
         return
     try:
@@ -333,7 +345,7 @@ async def set_daily_horoscope_timezone(
             state=state,
         )
         return
-    await state.clear()
+    await _leave_timezone_input(state)
     await show_screen(
         message,
         Scene.DAILY_SETTINGS,

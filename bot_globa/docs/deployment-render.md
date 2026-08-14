@@ -16,7 +16,8 @@ This runbook describes the first supported production topology for HeartSignal. 
 - `bot-globa-billing-worker` processes durable billing jobs, payment reconciliation and the billing outbox. Billing remains disabled until provider credentials and product configuration are complete.
 - `bot-globa-maintenance-worker` runs the periodic retention and recovery passes.
 - `bot-globa-daily-horoscope-worker` leases and delivers the default-on common digest at
-  08:00 in each saved local clock; delivery preferences and opt-outs remain in PostgreSQL.
+  08:00 in each saved local clock, to consented accounts only, paced under Telegram's rate
+  limit; delivery preferences and opt-outs remain in PostgreSQL.
 - `bot-globa-db` is the source of truth for product, billing, deletion, analytics, Telegram inbox and FSM state.
 
 The image runs as a non-root user, exposes `/health/live` and `/health/ready`, and handles `SIGTERM` with a bounded graceful-shutdown window.

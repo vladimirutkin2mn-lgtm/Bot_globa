@@ -16,6 +16,13 @@ from app.domain.daily_horoscope import (
     DailyHoroscopePreferenceView,
     timezone_for_moscow_time_difference,
 )
+from app.services.onboarding import CURRENT_CONSENT_VERSION
+
+_DEFAULT_VIEW = DailyHoroscopePreferenceView(
+    DailyHoroscopeMode.MORNING,
+    DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+    None,
+)
 
 _DELIVERY_TIMES = {
     DailyHoroscopeMode.MORNING: time(8, 0),
@@ -56,21 +63,24 @@ class DailyHoroscopePreferenceService:
             return _view(preference)
 
     async def ensure_default(self, user_id: UUID, *, now: datetime | None = None) -> None:
-        """Provision the default morning schedule when a Telegram account first appears."""
+        """Provision the default morning schedule when a Telegram account first appears.
 
-        await self.current(user_id, now=now)
+        This is the only write on the default path, and it is deliberately not folded into
+        `current`: reading the settings screen must not lock the user row or fail when the
+        account is being deleted underneath it.
+        """
 
-    async def current(
-        self,
-        user_id: UUID,
-        *,
-        now: datetime | None = None,
-    ) -> DailyHoroscopePreferenceView:
         current = _utc(now)
         async with self._sessions.begin() as session:
-            preference = await _locked_preference(session, user_id, current)
+            await _locked_preference(session, user_id, current)
             await session.flush()
-            return _view(preference)
+
+    async def current(self, user_id: UUID) -> DailyHoroscopePreferenceView:
+        """Report the saved settings without writing, locking or requiring an active user."""
+
+        async with self._sessions() as session:
+            preference = await session.get(DailyHoroscopePreference, user_id)
+            return _DEFAULT_VIEW if preference is None else _view(preference)
 
     async def set_moscow_time_difference(
         self,
@@ -129,6 +139,11 @@ class DailyHoroscopePreferenceService:
                         ),
                         User.telegram_user_id.is_not(None),
                         User.privacy_status != "deleted",
+                        # A default-on schedule is provisioned at /start, before the terms
+                        # are answered. Sending to someone who abandoned the consent screen
+                        # would be an unsolicited recurring message, so the row waits here
+                        # until they accept and starts delivering on its own afterwards.
+                        User.consent_version == CURRENT_CONSENT_VERSION,
                     )
                     .order_by(DailyHoroscopePreference.next_delivery_at)
                     .with_for_update(of=DailyHoroscopePreference, skip_locked=True)
@@ -184,6 +199,15 @@ class DailyHoroscopePreferenceService:
         *,
         now: datetime | None = None,
     ) -> bool:
+        """Drop the lease without reopening the day.
+
+        `last_delivered_on` stays reserved on purpose: the caller reaches this path only
+        after an *ambiguous* failure, where Telegram may already have delivered the
+        message. A failure Telegram reports unambiguously — a 429 — is retried inside the
+        worker against the same claim instead of coming here, so throttling costs the user
+        a delay rather than the whole digest.
+        """
+
         _utc(now)
         async with self._sessions.begin() as session:
             preference = await session.get(

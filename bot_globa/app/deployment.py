@@ -25,6 +25,11 @@ class DeploymentSettings(BaseSettings):
     telegram_worker_idle_seconds: float = Field(default=0.5, gt=0, le=60)
     daily_horoscope_lease_seconds: int = Field(default=120, ge=30, le=3600)
     daily_horoscope_worker_idle_seconds: float = Field(default=5, gt=0, le=60)
+    # The whole active base shares one 08:00 local schedule, so the digest is a broadcast
+    # rather than a trickle. Pace it below Telegram's ~30 messages/second global ceiling and
+    # keep a retry budget for the 429s that a burst still produces.
+    daily_horoscope_send_interval_seconds: float = Field(default=0.05, ge=0, le=5)
+    daily_horoscope_send_max_attempts: int = Field(default=4, ge=1, le=10)
     maintenance_interval_seconds: float = Field(default=300, gt=0)
     maintenance_batch_size: int = Field(default=100, ge=1, le=10_000)
 

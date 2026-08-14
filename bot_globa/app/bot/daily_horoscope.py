@@ -77,6 +77,10 @@ def render_daily_horoscope(for_date: date) -> str:
         "",
     ]
     lines.extend(f"{emoji} {name} — {advice}." for emoji, name, advice in _SIGNS)
+    # The digest is the one message this product sends unprompted, and it now goes to the
+    # whole active base. Its framing as entertainment travels with the text rather than
+    # living on the screen the user opened it from.
+    lines.extend(("", "Это общий развлекательный прогноз."))
     return "\n".join(lines)
 
 

@@ -150,7 +150,7 @@ def test_daily_digest_is_common_bounded_and_has_all_signs() -> None:
     assert len(digest) <= TELEGRAM_CAPTION_LIMIT
     assert digest.count("\n♈") == 1
     assert all(sign in digest for sign in ("Овен", "Телец", "Близнецы", "Рыбы"))
-    assert "общий развлекательный прогноз" not in digest
+    assert "общий развлекательный прогноз" in digest
 
 
 def test_daily_delivery_is_default_on_and_can_be_configured_or_disabled() -> None:

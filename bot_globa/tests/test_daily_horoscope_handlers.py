@@ -23,7 +23,7 @@ from app.bot.core_handlers import (
     set_daily_horoscope,
     set_daily_horoscope_timezone,
 )
-from app.bot.states import DailyHoroscopeStates
+from app.bot.states import DailyHoroscopeStates, TarotStates
 from app.db.models import User
 from app.domain.daily_horoscope import (
     DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
@@ -320,3 +320,53 @@ async def test_invalid_timezone_difference_keeps_the_input_open(
 
     assert "целое число от -15 до +11" in _copy(session)[-1]
     assert await state.get_state() == DailyHoroscopeStates.waiting_for_timezone_difference.state
+
+
+async def test_the_pushed_digest_buttons_never_discard_another_live_scenario(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    """The worker pushes this keyboard mid-conversation, so it may not reset the FSM.
+
+    A blanket `state.clear()` here would drop an intake question or a receipt contact the
+    user had already typed, and there is no way to get either back.
+    """
+
+    instance, _session = bot
+    state = _state(instance)
+    await state.set_state(TarotStates.waiting_for_context)
+    await state.update_data(question="что меня ждёт")
+
+    await daily_horoscope_screen(
+        _callback(instance, "menu:daily"),
+        state,
+        FakeOnboarding(),
+        FakePreferences(),
+    )
+    await daily_horoscope_settings(
+        _callback(instance, "daily:settings"),
+        state,
+        FakeOnboarding(),
+        FakePreferences(),
+    )
+
+    assert await state.get_state() == TarotStates.waiting_for_context.state
+    assert (await state.get_data())["question"] == "что меня ждёт"
+
+
+async def test_returning_to_the_settings_closes_the_timezone_prompt(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    """Leaving the prompt open would swallow the user's next unrelated message."""
+
+    instance, _ = bot
+    state = _state(instance)
+    await state.set_state(DailyHoroscopeStates.waiting_for_timezone_difference)
+
+    await daily_horoscope_settings(
+        _callback(instance, "daily:settings"),
+        state,
+        FakeOnboarding(),
+        FakePreferences(),
+    )
+
+    assert await state.get_state() is None

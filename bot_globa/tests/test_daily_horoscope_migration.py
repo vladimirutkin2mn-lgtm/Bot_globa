@@ -143,6 +143,9 @@ def test_default_delivery_migration_enables_active_users_and_preserves_explicit_
             )
             == "morning"
         )
+        # `on_request` was reachable only by tapping "Только по запросу", which answered
+        # "Автоматическая доставка выключена". Turning it into a push would contradict
+        # what the user was told, so it stays off with no schedule.
         assert (
             asyncio.run(
                 _scalar(
@@ -152,7 +155,7 @@ def test_default_delivery_migration_enables_active_users_and_preserves_explicit_
                     f"WHERE user_id='{on_request_user}'",
                 )
             )
-            == "morning"
+            == "on_request"
         )
         assert (
             asyncio.run(
@@ -191,11 +194,25 @@ def test_default_delivery_migration_enables_active_users_and_preserves_explicit_
                 _scalar(
                     url,
                     schema,
-                    "SELECT next_delivery_at IS NOT NULL FROM daily_horoscope_preferences "
+                    "SELECT next_delivery_at IS NULL FROM daily_horoscope_preferences "
                     f"WHERE user_id='{on_request_user}'",
                 )
             )
             is True
+        )
+        # A 'morning' column default would contradict the schedule check constraint, so the
+        # revision drops the default rather than moving it.
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT column_default FROM information_schema.columns "
+                    f"WHERE table_schema='{schema}' "
+                    "AND table_name='daily_horoscope_preferences' AND column_name='mode'",
+                )
+            )
+            is None
         )
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
