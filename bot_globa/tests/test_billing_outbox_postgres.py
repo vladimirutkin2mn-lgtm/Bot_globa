@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import BillingOutboxEvent
@@ -62,6 +63,54 @@ async def create_outbox_event(payment_db: async_sessionmaker[AsyncSession]) -> U
         session.add(event)
         await session.flush()
         return event.id
+
+
+async def test_outbox_idempotency_key_is_unique_in_database(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    idempotency_key = f"outbox:{uuid4()}"
+    async with payment_db.begin() as session:
+        session.add(
+            BillingOutboxEvent(
+                aggregate_type="payment_order",
+                aggregate_id=str(uuid4()),
+                event_type="purchase_completed",
+                payload={},
+                idempotency_key=idempotency_key,
+            )
+        )
+
+    async with payment_db() as session:
+        session.add(
+            BillingOutboxEvent(
+                aggregate_type="payment_order",
+                aggregate_id=str(uuid4()),
+                event_type="purchase_completed",
+                payload={},
+                idempotency_key=idempotency_key,
+            )
+        )
+        with pytest.raises(IntegrityError):
+            await session.commit()
+        await session.rollback()
+
+
+async def test_completed_outbox_event_is_not_delivered_again(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    event_id = await create_outbox_event(payment_db)
+    analytics = RecordingAnalytics()
+    worker = BillingOutboxWorker(payment_db, analytics)
+
+    assert await worker.run_once("completion-worker")
+    assert not await worker.run_once("completion-worker")
+
+    async with payment_db() as session:
+        persisted = await session.get(BillingOutboxEvent, event_id)
+    assert analytics.calls == 1
+    assert persisted is not None
+    assert persisted.status == "completed"
+    assert persisted.completed_at is not None
 
 
 async def test_stale_outbox_delivery_cannot_overwrite_reclaimed_completion(
