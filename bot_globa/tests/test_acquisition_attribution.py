@@ -97,7 +97,7 @@ async def test_onboarding_user_creation_captures_partizan_first_touch() -> None:
     users = _UserRepositoryDouble(user)
     attributions = _AttributionRepositoryDouble()
     experiment_id = uuid4()
-    repository = AttributingUserRepository(  # type: ignore[arg-type]
+    repository = AttributingUserRepository(
         users,
         attributions,
         experiment_id,
