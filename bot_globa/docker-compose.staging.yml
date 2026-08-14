@@ -1,0 +1,138 @@
+# Isolated staging stack used only for the five live release attestations.
+# It shares only the proxy-owned external `web` network with production. Database,
+# Compose project, volume, bot credentials and provider credentials are all separate.
+name: bot_globa_staging
+
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.staging
+      - staging.public.env
+    environment:
+      RELEASE_CODE_SHA: ${RELEASE_CODE_SHA:?deploy staging with an exact release SHA}
+      RELEASE_CHECKLIST_VERSION: ${RELEASE_CHECKLIST_VERSION:-m5-live-v1}
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      default:
+      web:
+        aliases:
+          - bot-globa-staging-api
+    restart: unless-stopped
+
+  telegram-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.staging
+      - staging.public.env
+    command: ["python", "-m", "app.workers.telegram"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  billing-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.staging
+      - staging.public.env
+    command: ["python", "-m", "app.workers.billing"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  maintenance-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.staging
+      - staging.public.env
+    command: ["python", "-m", "app.workers.maintenance"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  oracle-memory-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.staging
+      - staging.public.env
+    command: ["python", "-m", "app.workers.oracle_memory"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  daily-horoscope-worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - .env.staging
+      - staging.public.env
+    command: ["python", "-m", "app.workers.daily_horoscope"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bot_globa_staging}
+      POSTGRES_USER: ${POSTGRES_USER:-bot_globa_staging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.staging}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-bot_globa_staging} -d ${POSTGRES_DB:-bot_globa_staging}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - staging_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
+
+volumes:
+  staging_pgdata:
