@@ -17,6 +17,7 @@ from aiogram.types import (
 
 from app.bot import texts
 from app.bot.consent import ensure_consent
+from app.bot.keyboards import main_menu_keyboard
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.config import Settings
@@ -211,13 +212,14 @@ async def complete_stars_payment(
             state=state,
         )
         return
-    user = await onboarding.current_user(message.from_user.id)
-    balance = None if user is None else await credits.balance(user.id)
-    balance_copy = "" if balance is None else f" Текущий баланс: {balance} кредитов."
+    # Keep the service dependency in the handler signature for compatibility with the
+    # existing dependency graph, but do not expose the internal credit ledger in UX copy.
+    _ = credits
     await show_screen(
         message,
         Scene.SUBSCRIPTION_ACTIVE if completed.subscription else Scene.BALANCE,
-        f"Оплата {completed.credits} кредитов подтверждена.{balance_copy}",
+        "Подписка активна." if completed.subscription else "Оплата подтверждена.",
+        reply_markup=main_menu_keyboard(),
         state=state,
     )
 

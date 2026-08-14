@@ -16,7 +16,7 @@ from app.bot.keyboards import main_menu_keyboard
 from app.bot.persona_flow import FOLLOWUP_NAMESPACE, MENU_BUTTON, NOT_ONBOARDED
 from app.bot.safety_intake import SafetyIntake, state_name
 from app.bot.scene_media import Scene
-from app.bot.screen import show_screen, show_thinking
+from app.bot.screen import send_artifact, show_screen, show_thinking
 from app.bot.states import ReadingFollowUpStates
 from app.bot.typography import quote
 from app.services.onboarding import OnboardingService
@@ -235,7 +235,7 @@ async def _send(
             f"<b>{LIMITATIONS_TITLE}</b>\n" + "\n".join(f"• {quote(v)}" for v in view.limitations)
         )
     body = "\n\n".join(sections)
-    await show_screen(
+    await send_artifact(
         message,
         scene,
         body if prefix is None else f"{prefix}\n\n{body}",
