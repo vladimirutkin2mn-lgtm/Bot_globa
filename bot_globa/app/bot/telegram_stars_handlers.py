@@ -133,7 +133,7 @@ async def create_stars_invoice(
     await show_screen(
         callback.message,
         Scene.CHECKOUT,
-        f"Счёт на {invoice.amount} ⭐ откроется следующим сообщлением. "
+        f"Счёт на {invoice.amount} ⭐ откроется следующим сообщением. "
         "Кредиты начислятся только после подтверждения Telegram. "
         "До оплаты прочитайте /terms; подтверждая счёт, вы принимаете условия.",
         state=state,
