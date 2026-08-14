@@ -75,9 +75,12 @@ PUBLIC_ORACLE_URL=https://predict.mypresence.ru \
 make deploy-prod-remote
 ```
 
-The guarded deploy refuses to continue when the proxy-owned `web` network is missing,
-when `ORACLE_ROLLOUT_PERCENTAGE=0` is not present in the server-side `.env.prod`, or when
-the running API container lacks the `bot-globa-api` alias on `web`.
+The guarded deploy refuses to continue when the proxy-owned `web` network is missing or
+when the running API container lacks the `bot-globa-api` alias on `web`. For the rollout
+guard, an absent `ORACLE_ROLLOUT_PERCENTAGE` entry is safely bootstrapped to the explicit
+non-secret value `0`; one existing explicit `0` is preserved unchanged. Any existing
+non-zero value or duplicate rollout definitions fail closed instead of being rewritten.
+This keeps the first-launch posture auditable without exposing or replacing `.env.prod`.
 
 When `PUBLIC_ORACLE_URL` is set, smoke requires a clean `https://` base URL and verifies
 `/health/live` and `/health/ready` through the public route after the internal container
@@ -98,7 +101,9 @@ production deploy secrets and runs the same strict smoke. A normal manual deploy
 keeps the zero-rollout launch guard enabled until the live gates in #41 are complete.
 
 `.env.prod` lives only on the server. The sync excludes it explicitly, and the deploy
-refuses to continue if it is missing. Start from
+refuses to continue if it is missing. The rollout-zero bootstrap is the only automatic
+edit: it may append that single non-secret launch-control line when absent, and never
+rewrites any existing value. Start from
 [`.env.prod.example`](../../bot_globa/.env.prod.example).
 
 Migrations run through `app.cli.release`, which takes a PostgreSQL advisory lock, so two
