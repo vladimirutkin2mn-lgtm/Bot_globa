@@ -81,7 +81,7 @@ def test_preview_exposes_bounded_sections_without_private_input() -> None:
     text = "\n".join(chunks)
 
     assert "Ваш расклад" in text
-    assert "Практический шаг" in text
+    assert TAROT_FLOW.copy.practical_step_title in text
     assert "развлекательная практика" in text
     assert PRIVATE_MARKER not in text
     assert all(0 < len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
@@ -92,7 +92,7 @@ def test_preview_omits_the_symbol_section_for_a_symbol_free_persona() -> None:
     text = "\n".join(chunks)
 
     assert LOVE_ORACLE_FLOW.copy.drawn_symbols_title not in text
-    assert "Практический шаг" in text
+    assert LOVE_ORACLE_FLOW.copy.practical_step_title in text
     assert "развлекательная практика" in text
 
 
@@ -102,7 +102,7 @@ def test_full_render_names_drawn_symbols_and_stays_within_the_limit() -> None:
     text = "\n".join(chunks)
 
     assert "Полный расклад" in text
-    assert "Карты и позиции" in text
+    assert TAROT_FLOW.copy.result_symbols_title in text
     for context in outcome.symbols:
         assert context.display_name in text
     assert all(len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
@@ -118,7 +118,7 @@ def test_micro_preview_gives_one_signal_without_the_paid_sections() -> None:
     assert "Separate urgency from importance." in text
     assert "развлекательная практика" in text
     # The paid depth is described, never delivered.
-    assert "Практический шаг" not in text
+    assert TAROT_FLOW.copy.practical_step_title not in text
     assert "A pause makes trade-offs clearer." not in text
     assert "Which value needs protection?" not in text
     assert PRIVATE_MARKER not in text
