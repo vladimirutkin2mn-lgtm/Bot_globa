@@ -227,7 +227,7 @@ async def test_a_button_press_still_edits_the_screen_in_place(
     assert _kinds(session) == ["SendMessage", "EditMessageText"]
 
 
-async def test_an_artifact_is_sent_and_the_next_screen_lands_below_it(
+async def test_an_artifact_retires_the_live_screen_and_the_next_screen_lands_below_it(
     chat: tuple[Message, FSMContext, RecordingSession],
 ) -> None:
     message, state, session = chat
@@ -236,7 +236,7 @@ async def test_an_artifact_is_sent_and_the_next_screen_lands_below_it(
     await send_artifact(message, Scene.FULL_READING, "Полный разбор", state=state)
     await show_screen(message, TEXT_SCENE, "Главное меню", state=state)
 
-    assert _kinds(session) == ["SendMessage", "SendPhoto", "SendMessage"]
+    assert _kinds(session) == ["SendMessage", "DeleteMessage", "SendPhoto", "SendMessage"]
 
 
 async def test_clearing_the_scenario_never_loses_the_live_screen(
@@ -255,7 +255,7 @@ async def test_clearing_the_scenario_never_loses_the_live_screen(
     assert _kinds(session) == ["SendMessage", "EditMessageText"]
 
 
-async def test_forgetting_the_screen_starts_a_new_one(
+async def test_forgetting_the_screen_retires_it_before_starting_a_new_one(
     chat: tuple[Message, FSMContext, RecordingSession],
 ) -> None:
     message, state, session = chat
@@ -264,7 +264,7 @@ async def test_forgetting_the_screen_starts_a_new_one(
     await forget_screen(state)
     await show_screen(message, TEXT_SCENE, "Главное меню", state=state)
 
-    assert _kinds(session) == ["SendMessage", "SendMessage"]
+    assert _kinds(session) == ["SendMessage", "DeleteMessage", "SendMessage"]
 
 
 async def test_copy_too_long_for_a_caption_becomes_a_text_screen_that_stays_editable(
