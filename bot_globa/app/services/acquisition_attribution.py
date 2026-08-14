@@ -53,9 +53,7 @@ class AcquisitionAttributionRepository:
             .on_conflict_do_nothing(index_elements=[AcquisitionAttribution.user_id])
             .returning(AcquisitionAttribution.user_id)
         )
-        inserted_user_id = (
-            await self._session.execute(statement)
-        ).scalar_one_or_none()
+        inserted_user_id = (await self._session.execute(statement)).scalar_one_or_none()
         await self._session.commit()
         attribution = await self.get_for_user(user_id)
         if attribution is None:  # pragma: no cover - protected by the database constraint
@@ -66,8 +64,6 @@ class AcquisitionAttributionRepository:
 
     async def get_for_user(self, user_id: UUID) -> AcquisitionAttribution | None:
         result = await self._session.execute(
-            select(AcquisitionAttribution).where(
-                AcquisitionAttribution.user_id == user_id
-            )
+            select(AcquisitionAttribution).where(AcquisitionAttribution.user_id == user_id)
         )
         return result.scalar_one_or_none()
