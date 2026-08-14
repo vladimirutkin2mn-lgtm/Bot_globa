@@ -100,6 +100,7 @@ TAROT_FLOW = PersonaFlow(
     topic_examples=TAROT_TOPIC_EXAMPLES,
     texts=PersonaFlowTexts(
         welcome=(
+            "🔮 Таролог\n\n"
             "Что хотите прояснить? Карты фиксируются один раз до интерпретации, поэтому "
             "ответ не подгоняется под вопрос.\n\nЭто развлекательная практика для рефлексии."
         ),
@@ -136,9 +137,9 @@ LOVE_ORACLE_FLOW = PersonaFlow(
     topic_examples=LOVE_ORACLE_TOPIC_EXAMPLES,
     texts=_reflection_texts(
         welcome=(
+            "💞 Любовный оракул\n\n"
             f"Что в отношениях сейчас не даёт покоя? {texts.BRAND_NAME} разберёт динамику, "
-            "ваши границы "
-            "и возможные следующие шаги — без попыток угадывать чужие мысли."
+            "ваши границы и возможные следующие шаги — без попыток угадывать чужие мысли."
         ),
         unavailable="Любовный оракул временно недоступен. Начните новый разбор позже.",
     ),
@@ -158,6 +159,7 @@ MYSTICAL_PSYCHOLOGIST_FLOW = PersonaFlow(
     topic_examples=MYSTICAL_PSYCHOLOGIST_TOPIC_EXAMPLES,
     texts=_reflection_texts(
         welcome=(
+            "🌙 Мистический психолог\n\n"
             "Какую ситуацию хотите увидеть со стороны? Разберём повторяющийся сценарий, "
             "внутренний конфликт или выбор через метафоры и архетипы.\n\n"
             "Это не заменяет терапию."

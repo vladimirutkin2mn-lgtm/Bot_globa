@@ -14,7 +14,7 @@ from app.providers.payments.base import BillingMarket
 def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Выбрать тему", callback_data="onboarding:intro")]
+            [InlineKeyboardButton(text="Выбрать персонажа", callback_data="onboarding:intro")]
         ]
     )
 
@@ -34,20 +34,10 @@ def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💞 Отношения", callback_data="menu:love")],
-            [
-                InlineKeyboardButton(
-                    text="🔮 Выбор и ближайшие сценарии",
-                    callback_data="menu:tarot",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="🌙 Повторяющаяся ситуация",
-                    callback_data="menu:psy",
-                )
-            ],
-            [InlineKeyboardButton(text="🪐 Натальная карта", callback_data="menu:astro")],
+            [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="menu:love")],
+            [InlineKeyboardButton(text="🔮 Таролог", callback_data="menu:tarot")],
+            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="menu:psy")],
+            [InlineKeyboardButton(text="🪐 Астролог", callback_data="menu:astro")],
             [
                 InlineKeyboardButton(text="☀️ Гороскоп на сегодня", callback_data="menu:daily"),
                 InlineKeyboardButton(text="📚 Мои разборы", callback_data="menu:readings"),
@@ -71,10 +61,10 @@ def more_menu_keyboard() -> InlineKeyboardMarkup:
 def readings_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔮 Расклады", callback_data="tarot:history")],
-            [InlineKeyboardButton(text="💞 Отношения", callback_data="love:history")],
-            [InlineKeyboardButton(text="🌙 Сценарии", callback_data="psy:history")],
-            [InlineKeyboardButton(text="🪐 Астрология", callback_data="astro:history")],
+            [InlineKeyboardButton(text="🔮 Таролог", callback_data="tarot:history")],
+            [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="love:history")],
+            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="psy:history")],
+            [InlineKeyboardButton(text="🪐 Астролог", callback_data="astro:history")],
             [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
         ]
     )
