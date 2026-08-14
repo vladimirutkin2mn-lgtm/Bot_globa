@@ -14,11 +14,7 @@ BACK_LABEL = "← Назад к способам оплаты"
 
 
 def _callbacks(keyboard: InlineKeyboardMarkup) -> dict[str, str | None]:
-    return {
-        button.text: button.callback_data
-        for row in keyboard.inline_keyboard
-        for button in row
-    }
+    return {button.text: button.callback_data for row in keyboard.inline_keyboard for button in row}
 
 
 def test_one_time_provider_steps_return_to_same_product_methods() -> None:
