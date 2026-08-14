@@ -17,6 +17,7 @@ from app.services.reading_output_safety import (
     ReadingOutputSafetyError,
     ReadingOutputSafetyValidator,
 )
+from app.services.validation_issues import describe_validation_issues
 
 
 class InvalidHoroscopeResultError(ValueError):
@@ -86,10 +87,7 @@ class HoroscopeResultValidator:
         try:
             return AstrologyReadingResult.model_validate_json(payload)
         except ValidationError as exc:
-            issues = tuple(
-                ".".join(str(part) for part in error["loc"]) + ":invalid"
-                for error in exc.errors(include_input=False, include_url=False)
-            )
+            issues = describe_validation_issues(exc)
             raise InvalidHoroscopeResultError("invalid_schema", issues) from exc
 
     def _validate_safety(self, result: AstrologyReadingResult) -> None:
