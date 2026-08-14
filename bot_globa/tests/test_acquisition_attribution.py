@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from app.services.acquisition_attribution import (
     encode_partizan_start_payload,
+    parse_partizan_start_command,
     parse_partizan_start_payload,
 )
 
@@ -33,3 +34,15 @@ def test_parser_does_not_accept_extra_tracking_data() -> None:
     experiment_id = UUID("f65824e6-c9ca-4988-b486-2f3f8e2299e0")
 
     assert parse_partizan_start_payload(f"ptz_{experiment_id.hex}&utm_source=telegram") is None
+
+
+def test_telegram_start_command_accepts_only_the_minimal_partizan_payload() -> None:
+    experiment_id = uuid4()
+    payload = encode_partizan_start_payload(experiment_id)
+
+    assert parse_partizan_start_command(f"/start {payload}") == experiment_id
+    assert parse_partizan_start_command(f"/start@NumaOracleBot {payload}") == experiment_id
+    assert parse_partizan_start_command("/start") is None
+    assert parse_partizan_start_command(f"/help {payload}") is None
+    assert parse_partizan_start_command(f"/start {payload} extra") is None
+    assert parse_partizan_start_command(f"/start {payload}&utm_source=telegram") is None
