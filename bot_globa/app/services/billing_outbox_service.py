@@ -63,7 +63,9 @@ class BillingOutboxWorker:
             async with self._sessions.begin() as session:
                 event = await session.get(BillingOutboxEvent, event_id, with_for_update=True)
                 if event and event.claim_id == claim_id:
-                    event.status = "failed" if event.attempt_count >= self._max else "pending"
+                    event.status = (
+                        "manual_review" if event.attempt_count >= self._max else "pending"
+                    )
                     event.last_error_code, event.claimed_by, event.lease_until = (
                         "delivery_failed",
                         None,
