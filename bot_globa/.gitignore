@@ -1,4 +1,7 @@
 .env
+.env.prod
+.env.staging
+.env.staging.release
 .venv/
 __pycache__/
 *.py[cod]
