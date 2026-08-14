@@ -1,16 +1,22 @@
 """Keyboard labels and callback contracts."""
 
 from app.bot import texts
-from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard, readings_menu_keyboard
+from app.bot.commands import BOT_COMMANDS
+from app.bot.keyboards import (
+    main_menu_keyboard,
+    more_menu_keyboard,
+    onboarding_intro_keyboard,
+    readings_menu_keyboard,
+)
 
 
 def test_main_menu_contains_required_sections() -> None:
     keyboard = main_menu_keyboard()
     assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
-        ["💞 Отношения"],
-        ["🔮 Выбор и ближайшие сценарии"],
-        ["🌙 Повторяющаяся ситуация"],
-        ["🪐 Натальная карта"],
+        ["💞 Любовный оракул"],
+        ["🔮 Таролог"],
+        ["🌙 Мистический психолог"],
+        ["🪐 Астролог"],
         ["☀️ Гороскоп на сегодня", "📚 Мои разборы"],
         ["⋯ Ещё"],
     ]
@@ -22,6 +28,22 @@ def test_main_menu_contains_required_sections() -> None:
         ["menu:daily", "menu:readings"],
         ["menu:more"],
     ]
+
+
+def test_entry_copy_explains_the_four_distinct_personas() -> None:
+    assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Выбрать персонажа"
+    assert "Любовный оракул — динамика отношений" in texts.MAIN_MENU
+    assert "Таролог — расклад из трёх карт" in texts.MAIN_MENU
+    assert "Мистический психолог — разбор через метафоры и архетипы" in texts.MAIN_MENU
+    assert "Астролог — натальная карта" in texts.MAIN_MENU
+
+    commands = {command.command: command.description for command in BOT_COMMANDS}
+    assert {name: commands[name] for name in ("love", "tarot", "psy", "astro")} == {
+        "love": "💞 Любовный оракул",
+        "tarot": "🔮 Таролог",
+        "psy": "🌙 Мистический психолог",
+        "astro": "🪐 Астролог",
+    }
 
 
 def test_secondary_navigation_keeps_history_settings_and_privacy_reachable() -> None:
@@ -38,6 +60,15 @@ def test_secondary_navigation_keeps_history_settings_and_privacy_reachable() -> 
         "astro:history",
         "menu:home",
     } == readings
+    assert [
+        [button.text for button in row] for row in readings_menu_keyboard().inline_keyboard
+    ] == [
+        ["🔮 Таролог"],
+        ["💞 Любовный оракул"],
+        ["🌙 Мистический психолог"],
+        ["🪐 Астролог"],
+        ["Главное меню"],
+    ]
 
 
 def test_unimplemented_section_copy_is_exact() -> None:

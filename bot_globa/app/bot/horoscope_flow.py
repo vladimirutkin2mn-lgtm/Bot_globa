@@ -118,7 +118,7 @@ HOROSCOPE_FLOW = ReadingFlow(
     topic_labels=HOROSCOPE_TOPIC_LABELS,
     topic_examples=HOROSCOPE_TOPIC_EXAMPLES,
     texts=PersonaFlowTexts(
-        welcome="Что хотите прояснить с помощью персональной карты?",
+        welcome="🪐 Астролог\n\nЧто хотите прояснить с помощью персональной карты?",
         processing=(
             "Вопрос принят. Фиксирую расчётные опоры и собираю разбор — обычно это "
             "занимает до 30 секунд."

@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 
 BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="start", description="🔮 Начать заново"),
-    BotCommand(command="love", description="💞 Отношения"),
-    BotCommand(command="tarot", description="🔮 Выбор и ближайшие сценарии"),
-    BotCommand(command="psy", description="🌙 Повторяющаяся ситуация"),
-    BotCommand(command="astro", description="🪐 Натальная карта"),
+    BotCommand(command="love", description="💞 Любовный оракул"),
+    BotCommand(command="tarot", description="🔮 Таролог"),
+    BotCommand(command="psy", description="🌙 Мистический психолог"),
+    BotCommand(command="astro", description="🪐 Астролог"),
     BotCommand(command="refund", description="↩️ Возврат покупки"),
     BotCommand(command="paysupport", description="💬 Вопрос по оплате"),
 )
