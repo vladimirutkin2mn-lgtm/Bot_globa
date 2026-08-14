@@ -1,4 +1,4 @@
-"""Graceful worker for voluntary common daily-horoscope deliveries."""
+"""Graceful worker for default-on common daily-horoscope deliveries."""
 
 import asyncio
 import contextlib
@@ -26,7 +26,7 @@ async def run(
     deployment: DeploymentSettings | None = None,
     stop: asyncio.Event | None = None,
 ) -> None:
-    """Deliver due opt-ins until SIGTERM/SIGINT."""
+    """Deliver every due local-morning schedule until SIGTERM/SIGINT."""
 
     resolved = settings or get_settings()
     runtime = deployment or get_deployment_settings()

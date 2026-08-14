@@ -3,12 +3,20 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Protocol
+from uuid import UUID
 
 from app.db.models import User
 from app.providers.analytics import AnalyticsClient
 from app.repositories.users import UserRepository
 
 CURRENT_CONSENT_VERSION = "1.0"
+
+
+class DailyHoroscopeDefaults(Protocol):
+    """Provision the non-sensitive default delivery preference for a Telegram user."""
+
+    async def ensure_default(self, user_id: UUID, *, now: datetime | None = None) -> None: ...
 
 
 class OnboardingStep(StrEnum):
@@ -27,9 +35,15 @@ class TelegramIdentity:
 class OnboardingService:
     """Use PostgreSQL progress as the source of truth across restarts."""
 
-    def __init__(self, users: UserRepository, analytics: AnalyticsClient) -> None:
+    def __init__(
+        self,
+        users: UserRepository,
+        analytics: AnalyticsClient,
+        daily_horoscopes: DailyHoroscopeDefaults | None = None,
+    ) -> None:
         self._users = users
         self._analytics = analytics
+        self._daily_horoscopes = daily_horoscopes
 
     @staticmethod
     def step_for(user: User) -> OnboardingStep:
@@ -44,6 +58,8 @@ class OnboardingService:
             identity.first_name,
             identity.language,
         )
+        if self._daily_horoscopes is not None:
+            await self._daily_horoscopes.ensure_default(user.id)
         await self._analytics.track(str(user.id), "bot_started")
         step = await self._synchronize_completion(user)
         if step is OnboardingStep.COMPLETE:

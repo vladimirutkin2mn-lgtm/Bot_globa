@@ -150,21 +150,19 @@ def test_daily_digest_is_common_bounded_and_has_all_signs() -> None:
     assert len(digest) <= TELEGRAM_CAPTION_LIMIT
     assert digest.count("\n♈") == 1
     assert all(sign in digest for sign in ("Овен", "Телец", "Близнецы", "Рыбы"))
-    assert "общий развлекательный прогноз" in digest
+    assert "общий развлекательный прогноз" not in digest
 
 
-def test_daily_delivery_is_explicitly_opt_in_and_can_be_disabled() -> None:
+def test_daily_delivery_is_default_on_and_can_be_configured_or_disabled() -> None:
     assert _buttons(daily_settings_keyboard()) == [
-        ("Да, утром", "daily:set:morning"),
-        ("Да, вечером", "daily:set:evening"),
-        ("Только по запросу", "daily:set:on_request"),
-        ("Не присылать", "daily:set:disabled"),
-        ("Главное меню", "menu:home"),
+        ("Отключить ежедневный гороскоп", "daily:set:disabled"),
+        ("Изменить часовой пояс", "daily:timezone"),
+        ("Вернуться к гороскопу", "menu:daily"),
     ]
 
 
 def test_daily_settings_show_which_choice_is_already_saved() -> None:
-    marked = _buttons(daily_settings_keyboard(DailyHoroscopeMode.EVENING))
+    disabled = _buttons(daily_settings_keyboard(DailyHoroscopeMode.DISABLED))
 
-    assert ("✓ Да, вечером", "daily:set:evening") in marked
-    assert ("Да, утром", "daily:set:morning") in marked
+    assert ("Включить ежедневный гороскоп", "daily:set:morning") in disabled
+    assert ("Изменить часовой пояс", "daily:timezone") in disabled

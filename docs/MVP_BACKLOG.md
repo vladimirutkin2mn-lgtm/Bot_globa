@@ -218,8 +218,8 @@ legacy-вертикали.
 ### ORA-406 · Subscription and daily messages — P1 / L
 
 - [ ] Exactly-once subscription credits.
-- [ ] Opt-in и quiet hours.
-- [ ] Отдельное отключение daily messages.
+- [x] Общий ежедневный гороскоп всем активным пользователям в 08:00 по их времени.
+- [x] Отдельное отключение и ручная разница в часах относительно Москвы.
 - [ ] Никаких тревожных push-текстов.
 
 ---

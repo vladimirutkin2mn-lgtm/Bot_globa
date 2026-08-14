@@ -68,8 +68,9 @@ class OracleDependencyMiddleware(BaseMiddleware):
             cipher = AESGCMSensitiveContentCipher(
                 decode_configured_key(self._settings.content_encryption_key.get_secret_value())
             )
+            daily_horoscopes = DailyHoroscopePreferenceService(self._sessions)
             data["onboarding"] = OnboardingService(
-                SqlAlchemyUserRepository(session), self._analytics
+                SqlAlchemyUserRepository(session), self._analytics, daily_horoscopes
             )
             data["oracle_memory"] = QualityManagedOracleMemoryService(self._sessions, cipher)
             data["credits"] = CreditsService(self._sessions)
@@ -98,6 +99,6 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["analysis_price"] = self._settings.reading_full_price_credits
             data["analytics"] = self._analytics
             data["data_deletion"] = DataDeletionService(session, self._analytics)
-            data["daily_horoscopes"] = DailyHoroscopePreferenceService(self._sessions)
+            data["daily_horoscopes"] = daily_horoscopes
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
             return await handler(event, data)

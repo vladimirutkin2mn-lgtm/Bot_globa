@@ -1,4 +1,4 @@
-"""The daily digest is opt-in: the screen states the saved choice and never assumes one."""
+"""The daily digest is default-on and lets the user control delivery and local time."""
 
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
@@ -19,8 +19,11 @@ from aiogram.types import User as TelegramUser
 from app.bot.core_handlers import (
     daily_horoscope_screen,
     daily_horoscope_settings,
+    request_daily_horoscope_timezone,
     set_daily_horoscope,
+    set_daily_horoscope_timezone,
 )
+from app.bot.states import DailyHoroscopeStates
 from app.db.models import User
 from app.domain.daily_horoscope import (
     DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
@@ -67,14 +70,16 @@ class FakeOnboarding:
 
 
 class FakePreferences:
-    def __init__(self, mode: DailyHoroscopeMode = DailyHoroscopeMode.ON_REQUEST) -> None:
+    def __init__(self, mode: DailyHoroscopeMode = DailyHoroscopeMode.MORNING) -> None:
         self.mode = mode
+        self.timezone = DEFAULT_DAILY_HOROSCOPE_TIMEZONE
         self.configured: list[tuple[UUID, DailyHoroscopeMode]] = []
+        self.differences: list[tuple[UUID, int]] = []
 
     async def current(self, user_id: UUID) -> DailyHoroscopePreferenceView:
         return DailyHoroscopePreferenceView(
             self.mode,
-            DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+            self.timezone,
             None,
         )
 
@@ -85,6 +90,18 @@ class FakePreferences:
     ) -> DailyHoroscopePreferenceView:
         self.configured.append((user_id, mode))
         self.mode = mode
+        return await self.current(user_id)
+
+    async def set_moscow_time_difference(
+        self,
+        user_id: UUID,
+        difference: int,
+    ) -> DailyHoroscopePreferenceView:
+        self.differences.append((user_id, difference))
+        self.timezone = {2: "Etc/GMT-5", -1: "Etc/GMT-2"}.get(
+            difference,
+            DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+        )
         return await self.current(user_id)
 
 
@@ -114,6 +131,17 @@ def _callback(bot: Bot, data: str) -> CallbackQuery:
     ).as_(bot)
 
 
+def _message(bot: Bot, text: str) -> Message:
+    actor = TelegramUser(id=42, is_bot=False, first_name="Reader")
+    return Message(
+        message_id=2,
+        date=datetime.now(UTC),
+        chat=Chat(id=42, type="private"),
+        from_user=actor,
+        text=text,
+    ).as_(bot)
+
+
 def _copy(session: RecordingSession) -> list[str]:
     return shown_texts(session.methods)
 
@@ -133,15 +161,20 @@ def _markup_labels(session: RecordingSession) -> list[str]:
     return [button.text for row in markup.inline_keyboard for button in row]
 
 
-async def test_the_digest_screen_offers_the_daily_opt_in(
+async def test_the_digest_screen_opens_its_settings(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
 
-    await daily_horoscope_screen(_callback(instance, "menu:daily"), _state(instance))
+    await daily_horoscope_screen(
+        _callback(instance, "menu:daily"),
+        _state(instance),
+        FakeOnboarding(),
+        FakePreferences(),
+    )
 
     assert "Гороскоп на сегодня" in _copy(session)[-1]
-    assert "Получать каждый день" in _markup_labels(session)
+    assert "Настройки" in _markup_labels(session)
 
 
 async def test_the_settings_screen_states_the_choice_already_saved(
@@ -157,11 +190,13 @@ async def test_the_settings_screen_states_the_choice_already_saved(
         preferences,
     )
 
-    assert "Сейчас: каждое утро, около 08:00." in _copy(session)[-1]
-    assert "✓ Да, утром" in _markup_labels(session)
+    assert "Ежедневная отправка: включена." in _copy(session)[-1]
+    assert "Время отправки: 08:00 по вашему времени." in _copy(session)[-1]
+    assert "Отключить ежедневный гороскоп" in _markup_labels(session)
+    assert "Изменить часовой пояс" in _markup_labels(session)
 
 
-async def test_an_unknown_account_sees_the_default_instead_of_a_saved_choice(
+async def test_an_unknown_account_sees_the_enabled_default(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
@@ -173,10 +208,11 @@ async def test_an_unknown_account_sees_the_default_instead_of_a_saved_choice(
         FakePreferences(DailyHoroscopeMode.EVENING),
     )
 
-    assert "Сейчас: только по запросу." in _copy(session)[-1]
+    assert "Ежедневная отправка: включена." in _copy(session)[-1]
+    assert "Разница с Москвой: 0 ч." in _copy(session)[-1]
 
 
-async def test_choosing_a_delivery_time_stores_exactly_that_mode(
+async def test_a_stale_evening_button_is_normalized_to_the_new_morning_schedule(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
@@ -190,8 +226,8 @@ async def test_choosing_a_delivery_time_stores_exactly_that_mode(
         preferences,
     )
 
-    assert preferences.configured == [(onboarding.user.id, DailyHoroscopeMode.EVENING)]
-    assert "около 20:00" in _copy(session)[-1]
+    assert preferences.configured == [(onboarding.user.id, DailyHoroscopeMode.MORNING)]
+    assert "каждый день в 08:00 по вашему времени" in _copy(session)[-1]
 
 
 async def test_an_unknown_delivery_mode_changes_nothing(
@@ -227,3 +263,60 @@ async def test_an_account_that_never_started_is_asked_to_start_first(
     assert preferences.configured == []
     assert _copy(session)[-1] == "Сначала отправьте /start."
     assert isinstance(session.methods[0], AnswerCallbackQuery)
+
+
+async def test_timezone_setting_asks_for_a_difference_from_moscow(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+    state = _state(instance)
+
+    await request_daily_horoscope_timezone(
+        _callback(instance, "daily:timezone"),
+        state,
+        FakeOnboarding(),
+    )
+
+    assert "Напишите одним сообщением" in _copy(session)[-1]
+    assert "Екатеринбург — +2" in _copy(session)[-1]
+    assert await state.get_state() == DailyHoroscopeStates.waiting_for_timezone_difference.state
+
+
+async def test_timezone_difference_is_saved_and_keeps_delivery_enabled(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+    state = _state(instance)
+    onboarding = FakeOnboarding()
+    preferences = FakePreferences()
+    await state.set_state(DailyHoroscopeStates.waiting_for_timezone_difference)
+
+    await set_daily_horoscope_timezone(
+        _message(instance, "+2"),
+        state,
+        onboarding,
+        preferences,
+    )
+
+    assert preferences.differences == [(onboarding.user.id, 2)]
+    assert "Разница с Москвой — +2 ч" in _copy(session)[-1]
+    assert "Разница с Москвой: +2 ч." in _copy(session)[-1]
+    assert await state.get_state() is None
+
+
+async def test_invalid_timezone_difference_keeps_the_input_open(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+    state = _state(instance)
+    await state.set_state(DailyHoroscopeStates.waiting_for_timezone_difference)
+
+    await set_daily_horoscope_timezone(
+        _message(instance, "+20"),
+        state,
+        FakeOnboarding(),
+        FakePreferences(),
+    )
+
+    assert "целое число от -15 до +11" in _copy(session)[-1]
+    assert await state.get_state() == DailyHoroscopeStates.waiting_for_timezone_difference.state

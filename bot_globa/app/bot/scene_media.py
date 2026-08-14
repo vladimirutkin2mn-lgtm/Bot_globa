@@ -98,7 +98,7 @@ class Scene(StrEnum):
     CRISIS = "S-01"
     VIOLENCE = "S-02"
     HIGH_STAKES = "S-03"
-    # Common daily digest and its opt-in settings.
+    # Common daily digest and its delivery settings.
     DAILY_ZODIAC = "E-01"
     DAILY_HOROSCOPE = "E-02"
     DAILY_PERSONAL_CTA = "E-03"

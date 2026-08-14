@@ -10,7 +10,14 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot import texts
 from app.bot.consent import ensure_consent, request_consent
-from app.bot.daily_horoscope import MODE_CONFIRMATIONS, MODE_LABELS, render_daily_horoscope
+from app.bot.daily_horoscope import (
+    MODE_CONFIRMATIONS,
+    TIMEZONE_ERROR,
+    TIMEZONE_PROMPT,
+    render_daily_horoscope,
+    render_daily_settings,
+    render_timezone_saved,
+)
 from app.bot.keyboards import (
     back_to_balance_keyboard,
     checkout_creating_keyboard,
@@ -19,6 +26,7 @@ from app.bot.keyboards import (
     consent_keyboard,
     daily_horoscope_keyboard,
     daily_settings_keyboard,
+    daily_timezone_keyboard,
     has_payment_routes,
     main_menu_keyboard,
     more_menu_keyboard,
@@ -32,12 +40,15 @@ from app.bot.keyboards import (
 )
 from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen
-from app.bot.states import OnboardingStates, PaymentStates
+from app.bot.states import DailyHoroscopeStates, OnboardingStates, PaymentStates
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.daily_horoscope import (
     DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
     DailyHoroscopeMode,
+    DailyHoroscopePreferenceView,
+    daily_horoscope_enabled,
+    parse_moscow_time_difference,
 )
 from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.credits_service import CreditsService
@@ -187,13 +198,24 @@ async def readings_screen(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data == "menu:daily")
-async def daily_horoscope_screen(callback: CallbackQuery, state: FSMContext) -> None:
+async def daily_horoscope_screen(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
+        await state.clear()
+        timezone = DEFAULT_DAILY_HOROSCOPE_TIMEZONE
+        user = await onboarding.current_user(callback.from_user.id)
+        if user is not None:
+            preference = await daily_horoscopes.current(user.id)
+            timezone = preference.timezone
         await send_artifact(
             callback.message,
             Scene.DAILY_HOROSCOPE,
-            render_daily_horoscope(datetime.now(ZoneInfo(DEFAULT_DAILY_HOROSCOPE_TIMEZONE)).date()),
+            render_daily_horoscope(datetime.now(ZoneInfo(timezone)).date()),
             reply_markup=daily_horoscope_keyboard(),
             state=state,
         )
@@ -209,19 +231,22 @@ async def daily_horoscope_settings(
     await callback.answer()
     if not isinstance(callback.message, Message):
         return
+    await state.clear()
     user = await onboarding.current_user(callback.from_user.id)
-    current = (
-        (await daily_horoscopes.current(user.id)).mode
+    preference = (
+        await daily_horoscopes.current(user.id)
         if user is not None
-        else DailyHoroscopeMode.ON_REQUEST
+        else DailyHoroscopePreferenceView(
+            DailyHoroscopeMode.MORNING,
+            DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+            None,
+        )
     )
     await show_screen(
         callback.message,
         Scene.DAILY_SETTINGS,
-        "Присылать короткий общий гороскоп каждый день? "
-        "Утро — около 08:00, вечер — около 20:00 по московскому времени.\n\n"
-        f"Сейчас: {MODE_LABELS[current]}.",
-        reply_markup=daily_settings_keyboard(current),
+        render_daily_settings(preference),
+        reply_markup=daily_settings_keyboard(preference.mode),
         state=state,
     )
 
@@ -241,16 +266,79 @@ async def set_daily_horoscope(
         await callback.message.answer("Сначала отправьте /start.")
         return
     try:
-        mode = DailyHoroscopeMode((callback.data or "").removeprefix("daily:set:"))
-        await daily_horoscopes.configure(user.id, mode)
+        requested_mode = DailyHoroscopeMode((callback.data or "").removeprefix("daily:set:"))
+        mode = (
+            DailyHoroscopeMode.MORNING
+            if daily_horoscope_enabled(requested_mode)
+            else DailyHoroscopeMode.DISABLED
+        )
+        preference = await daily_horoscopes.configure(user.id, mode)
     except (LookupError, ValueError):
         await callback.message.answer("Не удалось сохранить настройку. Попробуйте ещё раз.")
         return
     await show_screen(
         callback.message,
         Scene.DAILY_SETTINGS,
-        MODE_CONFIRMATIONS[mode],
-        reply_markup=main_menu_keyboard(),
+        f"{MODE_CONFIRMATIONS[mode]}\n\n{render_daily_settings(preference)}",
+        reply_markup=daily_settings_keyboard(preference.mode),
+        state=state,
+    )
+
+
+@router.callback_query(F.data == "daily:timezone")
+async def request_daily_horoscope_timezone(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+) -> None:
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    if await onboarding.current_user(callback.from_user.id) is None:
+        await callback.message.answer("Сначала отправьте /start.")
+        return
+    await state.set_state(DailyHoroscopeStates.waiting_for_timezone_difference)
+    await show_screen(
+        callback.message,
+        Scene.DAILY_SETTINGS,
+        TIMEZONE_PROMPT,
+        reply_markup=daily_timezone_keyboard(),
+        state=state,
+    )
+
+
+@router.message(DailyHoroscopeStates.waiting_for_timezone_difference)
+async def set_daily_horoscope_timezone(
+    message: Message,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
+    if message.from_user is None:
+        return
+    user = await onboarding.current_user(message.from_user.id)
+    if user is None:
+        await state.clear()
+        await message.answer("Сначала отправьте /start.")
+        return
+    try:
+        difference = parse_moscow_time_difference(message.text or "")
+        preference = await daily_horoscopes.set_moscow_time_difference(user.id, difference)
+    except (LookupError, ValueError):
+        await show_screen(
+            message,
+            Scene.DAILY_SETTINGS,
+            TIMEZONE_ERROR,
+            reply_markup=daily_timezone_keyboard(),
+            state=state,
+        )
+        return
+    await state.clear()
+    await show_screen(
+        message,
+        Scene.DAILY_SETTINGS,
+        f"{render_timezone_saved(preference)}\n\n{render_daily_settings(preference)}",
+        reply_markup=daily_settings_keyboard(preference.mode),
         state=state,
     )
 

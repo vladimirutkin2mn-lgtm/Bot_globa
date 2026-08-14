@@ -1,4 +1,4 @@
-"""Migration safety for voluntary daily-horoscope delivery settings."""
+"""Migration safety for default-on daily-horoscope delivery settings."""
 
 import asyncio
 import os
@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 pytestmark = pytest.mark.postgres
-_HEAD = "20260813_28"
+_HEAD = "20260814_29"
 _PARENT = "20260811_26"
 
 
@@ -81,6 +81,110 @@ def test_daily_horoscope_migration_round_trip_when_empty() -> None:
             asyncio.run(_scalar(url, schema, "SELECT version_num FROM alembic_version")) == _PARENT
         )
         subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
+    finally:
+        asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+
+
+def test_default_delivery_migration_backfills_active_users_and_preserves_opt_outs() -> None:
+    url = _database_url()
+    schema = _schema(url)
+    environment = _environment(url, schema)
+    default_user = uuid4()
+    evening_user = uuid4()
+    on_request_user = uuid4()
+    disabled_user = uuid4()
+    deleted_user = uuid4()
+    try:
+        subprocess.run(("alembic", "upgrade", "20260813_28"), check=True, env=environment)
+        asyncio.run(
+            _execute(
+                url,
+                schema,
+                "INSERT INTO users (id,telegram_user_id,first_name,privacy_status) VALUES "
+                f"('{default_user}',975201,'Default','active'),"
+                f"('{evening_user}',975202,'Evening','active'),"
+                f"('{on_request_user}',975203,'On request','active'),"
+                f"('{disabled_user}',975204,'Disabled','active'),"
+                f"('{deleted_user}',NULL,'Deleted','deleted')",
+            )
+        )
+        asyncio.run(
+            _execute(
+                url,
+                schema,
+                "INSERT INTO daily_horoscope_preferences "
+                "(user_id,mode,next_delivery_at) VALUES "
+                f"('{evening_user}','evening',CURRENT_TIMESTAMP),"
+                f"('{on_request_user}','on_request',NULL),"
+                f"('{disabled_user}','disabled',NULL)",
+            )
+        )
+
+        subprocess.run(("alembic", "upgrade", "head"), check=True, env=environment)
+
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    f"SELECT mode FROM daily_horoscope_preferences WHERE user_id='{default_user}'",
+                )
+            )
+            == "morning"
+        )
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    f"SELECT mode FROM daily_horoscope_preferences WHERE user_id='{evening_user}'",
+                )
+            )
+            == "morning"
+        )
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT mode FROM daily_horoscope_preferences "
+                    f"WHERE user_id='{on_request_user}'",
+                )
+            )
+            == "disabled"
+        )
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    f"SELECT mode FROM daily_horoscope_preferences WHERE user_id='{disabled_user}'",
+                )
+            )
+            == "disabled"
+        )
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT count(*) FROM daily_horoscope_preferences "
+                    f"WHERE user_id='{deleted_user}'",
+                )
+            )
+            == 0
+        )
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT next_delivery_at IS NOT NULL FROM daily_horoscope_preferences "
+                    f"WHERE user_id='{default_user}'",
+                )
+            )
+            is True
+        )
     finally:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
 

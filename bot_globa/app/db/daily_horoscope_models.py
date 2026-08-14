@@ -1,4 +1,4 @@
-"""Persistence for voluntary daily-horoscope delivery settings."""
+"""Persistence for default-on daily-horoscope delivery settings."""
 
 from datetime import date, datetime
 from uuid import UUID
@@ -31,7 +31,7 @@ class DailyHoroscopePreference(Base):
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    mode: Mapped[str] = mapped_column(String(16), default="on_request", server_default="on_request")
+    mode: Mapped[str] = mapped_column(String(16), default="morning", server_default="morning")
     timezone: Mapped[str] = mapped_column(
         String(64), default="Europe/Moscow", server_default="Europe/Moscow"
     )

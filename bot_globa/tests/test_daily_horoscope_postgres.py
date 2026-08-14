@@ -1,4 +1,4 @@
-"""PostgreSQL delivery invariants for the voluntary common daily digest."""
+"""PostgreSQL delivery invariants for the default-on common daily digest."""
 
 from datetime import UTC, datetime
 
@@ -23,19 +23,16 @@ async def _user(sessions: async_sessionmaker[AsyncSession], telegram_id: int) ->
         return user
 
 
-async def test_opt_in_is_leased_once_and_rescheduled_after_delivery(
+async def test_default_morning_is_leased_once_and_rescheduled_after_delivery(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 975001)
     service = DailyHoroscopePreferenceService(payment_db)
     before = datetime(2026, 8, 13, 4, 59, tzinfo=UTC)
 
-    default = await service.current(user.id)
-    assert default.mode is DailyHoroscopeMode.ON_REQUEST
-    assert default.next_delivery_at is None
-
-    configured = await service.configure(user.id, DailyHoroscopeMode.MORNING, now=before)
-    assert configured.next_delivery_at == datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
+    default = await service.current(user.id, now=before)
+    assert default.mode is DailyHoroscopeMode.MORNING
+    assert default.next_delivery_at == datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
     assert await service.claim_due(now=before) is None
 
     due = datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
@@ -100,13 +97,32 @@ async def test_opt_out_invalidates_an_in_flight_delivery_claim(
     assert await service.claim_due(now=due) is None
 
 
+async def test_moscow_difference_moves_the_same_local_08_schedule(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user = await _user(payment_db, 975006)
+    service = DailyHoroscopePreferenceService(payment_db)
+    before = datetime(2026, 8, 13, 2, 59, tzinfo=UTC)
+    await service.ensure_default(user.id, now=before)
+
+    configured = await service.set_moscow_time_difference(user.id, 2, now=before)
+
+    assert configured.mode is DailyHoroscopeMode.MORNING
+    assert configured.timezone == "Etc/GMT-5"
+    assert configured.next_delivery_at == datetime(2026, 8, 13, 3, 0, tzinfo=UTC)
+    assert await service.claim_due(now=before) is None
+    claim = await service.claim_due(now=datetime(2026, 8, 13, 3, 0, tzinfo=UTC))
+    assert claim is not None
+    assert claim.delivery_date.isoformat() == "2026-08-13"
+
+
 async def test_account_deletion_removes_daily_delivery_preference(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 975003)
     await DailyHoroscopePreferenceService(payment_db).configure(
         user.id,
-        DailyHoroscopeMode.EVENING,
+        DailyHoroscopeMode.MORNING,
         now=datetime(2026, 8, 13, 5, 0, tzinfo=UTC),
     )
 

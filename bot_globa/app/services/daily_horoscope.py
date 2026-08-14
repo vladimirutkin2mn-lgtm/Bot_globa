@@ -1,4 +1,4 @@
-"""Durable opt-in and lease-based delivery for the common daily digest."""
+"""Durable default-on and lease-based delivery for the common daily digest."""
 
 from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
@@ -14,6 +14,7 @@ from app.domain.daily_horoscope import (
     DailyHoroscopeClaim,
     DailyHoroscopeMode,
     DailyHoroscopePreferenceView,
+    timezone_for_moscow_time_difference,
 )
 
 _DELIVERY_TIMES = {
@@ -23,7 +24,7 @@ _DELIVERY_TIMES = {
 
 
 class DailyHoroscopePreferenceService:
-    """Store a voluntary schedule and let one worker lease each due delivery."""
+    """Store each user's local 08:00 schedule and lease every due delivery once."""
 
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -33,42 +34,63 @@ class DailyHoroscopePreferenceService:
         user_id: UUID,
         mode: DailyHoroscopeMode,
         *,
+        timezone: str | None = None,
         now: datetime | None = None,
     ) -> DailyHoroscopePreferenceView:
         current = _utc(now)
+        if timezone is not None:
+            ZoneInfo(timezone)
         async with self._sessions.begin() as session:
-            user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
-            if user is None or user.privacy_status == "deleted" or user.telegram_user_id is None:
-                raise LookupError("active Telegram user is required")
-            preference = await session.get(
-                DailyHoroscopePreference,
-                user_id,
-                with_for_update=True,
-            )
-            if preference is None:
-                preference = DailyHoroscopePreference(user_id=user_id)
-                session.add(preference)
+            preference = await _locked_preference(session, user_id, current)
             preference.mode = mode.value
-            preference.timezone = DEFAULT_DAILY_HOROSCOPE_TIMEZONE
+            if timezone is not None:
+                preference.timezone = timezone
             preference.next_delivery_at = _next_delivery(
                 mode,
                 current,
-                DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+                preference.timezone,
             )
             preference.claim_id = None
             preference.lease_until = None
             await session.flush()
             return _view(preference)
 
-    async def current(self, user_id: UUID) -> DailyHoroscopePreferenceView:
-        async with self._sessions() as session:
-            preference = await session.get(DailyHoroscopePreference, user_id)
-            if preference is None:
-                return DailyHoroscopePreferenceView(
-                    DailyHoroscopeMode.ON_REQUEST,
-                    DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
-                    None,
-                )
+    async def ensure_default(self, user_id: UUID, *, now: datetime | None = None) -> None:
+        """Provision the default morning schedule when a Telegram account first appears."""
+
+        await self.current(user_id, now=now)
+
+    async def current(
+        self,
+        user_id: UUID,
+        *,
+        now: datetime | None = None,
+    ) -> DailyHoroscopePreferenceView:
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            preference = await _locked_preference(session, user_id, current)
+            await session.flush()
+            return _view(preference)
+
+    async def set_moscow_time_difference(
+        self,
+        user_id: UUID,
+        difference: int,
+        *,
+        now: datetime | None = None,
+    ) -> DailyHoroscopePreferenceView:
+        """Keep the saved delivery mode while moving 08:00 to a new fixed local clock."""
+
+        timezone = timezone_for_moscow_time_difference(difference)
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            preference = await _locked_preference(session, user_id, current)
+            preference.timezone = timezone
+            mode = DailyHoroscopeMode(preference.mode)
+            preference.next_delivery_at = _next_delivery(mode, current, timezone)
+            preference.claim_id = None
+            preference.lease_until = None
+            await session.flush()
             return _view(preference)
 
     async def claim_due(
@@ -182,6 +204,34 @@ def _view(preference: DailyHoroscopePreference) -> DailyHoroscopePreferenceView:
         timezone=preference.timezone,
         next_delivery_at=preference.next_delivery_at,
     )
+
+
+async def _locked_preference(
+    session: AsyncSession,
+    user_id: UUID,
+    now: datetime,
+) -> DailyHoroscopePreference:
+    user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
+    if user is None or user.privacy_status == "deleted" or user.telegram_user_id is None:
+        raise LookupError("active Telegram user is required")
+    preference = await session.get(
+        DailyHoroscopePreference,
+        user_id,
+        with_for_update=True,
+    )
+    if preference is None:
+        preference = DailyHoroscopePreference(
+            user_id=user_id,
+            mode=DailyHoroscopeMode.MORNING.value,
+            timezone=DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+            next_delivery_at=_next_delivery(
+                DailyHoroscopeMode.MORNING,
+                now,
+                DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+            ),
+        )
+        session.add(preference)
+    return preference
 
 
 def _utc(value: datetime | None) -> datetime:

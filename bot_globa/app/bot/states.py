@@ -16,6 +16,10 @@ class PaymentStates(StatesGroup):
     waiting_for_receipt_contact = State()
 
 
+class DailyHoroscopeStates(StatesGroup):
+    waiting_for_timezone_difference = State()
+
+
 class TarotStates(StatesGroup):
     waiting_for_question = State()
     waiting_for_context = State()

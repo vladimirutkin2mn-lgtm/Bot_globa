@@ -3,30 +3,42 @@
 from datetime import date
 from types import MappingProxyType
 
-from app.domain.daily_horoscope import DailyHoroscopeMode
-
-MODE_LABELS = MappingProxyType(
-    {
-        DailyHoroscopeMode.MORNING: "каждое утро, около 08:00",
-        DailyHoroscopeMode.EVENING: "каждый вечер, около 20:00",
-        DailyHoroscopeMode.ON_REQUEST: "только по запросу",
-        DailyHoroscopeMode.DISABLED: "не присылать",
-    }
+from app.domain.daily_horoscope import (
+    DailyHoroscopeMode,
+    DailyHoroscopePreferenceView,
+    daily_horoscope_enabled,
+    moscow_time_difference_for_timezone,
 )
 
 MODE_CONFIRMATIONS = MappingProxyType(
     {
         DailyHoroscopeMode.MORNING: (
-            "Готово. Буду присылать общий гороскоп около 08:00 по московскому времени."
+            "Готово. Гороскоп будет приходить каждый день в 08:00 по вашему времени."
         ),
         DailyHoroscopeMode.EVENING: (
-            "Готово. Буду присылать общий гороскоп около 20:00 по московскому времени."
+            "Готово. Гороскоп будет приходить каждый день в 08:00 по вашему времени."
         ),
         DailyHoroscopeMode.ON_REQUEST: (
-            "Готово. Автоматическая доставка выключена — гороскоп останется доступен в меню."
+            "Готово. Ежедневная отправка отключена — гороскоп останется доступен здесь."
         ),
-        DailyHoroscopeMode.DISABLED: "Готово. Гороскопы автоматически приходить не будут.",
+        DailyHoroscopeMode.DISABLED: (
+            "Готово. Ежедневная отправка отключена — гороскоп останется доступен здесь."
+        ),
     }
+)
+
+TIMEZONE_PROMPT = (
+    "Разница с Москвой\n\n"
+    "Напишите одним сообщением, на сколько часов ваше время отличается от московского.\n\n"
+    "Москва — 0\n"
+    "Екатеринбург — +2\n"
+    "Калининград — -1\n\n"
+    "Если разница меняется летом и зимой, обновите её здесь."
+)
+
+TIMEZONE_ERROR = (
+    "Не получилось распознать разницу с Москвой. Отправьте целое число от -15 до +11, "
+    "например: 0, +2 или -1."
 )
 
 _THEMES = (
@@ -65,5 +77,43 @@ def render_daily_horoscope(for_date: date) -> str:
         "",
     ]
     lines.extend(f"{emoji} {name} — {advice}." for emoji, name, advice in _SIGNS)
-    lines.extend(("", "Это общий развлекательный прогноз."))
     return "\n".join(lines)
+
+
+def render_daily_settings(preference: DailyHoroscopePreferenceView) -> str:
+    """Render the saved delivery switch and Moscow-relative clock in user language."""
+
+    status = "включена" if daily_horoscope_enabled(preference.mode) else "отключена"
+    difference = moscow_time_difference_for_timezone(preference.timezone)
+    timezone_label = (
+        _format_time_difference(difference)
+        if difference is not None
+        else f"сохранённый часовой пояс: {preference.timezone}"
+    )
+    return (
+        "Настройки гороскопа\n\n"
+        f"Ежедневная отправка: {status}.\n"
+        "Время отправки: 08:00 по вашему времени.\n"
+        f"Разница с Москвой: {timezone_label}."
+    )
+
+
+def render_timezone_saved(preference: DailyHoroscopePreferenceView) -> str:
+    """Confirm a clock update without implying delivery is enabled after an opt-out."""
+
+    difference = moscow_time_difference_for_timezone(preference.timezone)
+    timezone_label = _format_time_difference(difference) if difference is not None else "сохранена"
+    if daily_horoscope_enabled(preference.mode):
+        return (
+            f"Готово. Разница с Москвой — {timezone_label}. "
+            "Гороскоп будет приходить в 08:00 по вашему времени."
+        )
+    return f"Готово. Разница с Москвой — {timezone_label}. Она применится после включения."
+
+
+def _format_time_difference(difference: int) -> str:
+    if difference > 0:
+        return f"+{difference} ч"
+    if difference < 0:
+        return f"−{abs(difference)} ч"
+    return "0 ч"
