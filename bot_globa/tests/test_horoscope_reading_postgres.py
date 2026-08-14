@@ -174,7 +174,7 @@ async def _setup(
         persona = Persona(
             code="astrologer",
             display_name="Astrologer",
-            prompt_version="astrologer-v1",
+            prompt_version="astrologer-v2",
             schema_version="astrology-reading-result-v1",
         )
         session.add_all((user, persona))
@@ -270,7 +270,7 @@ async def test_postgres_horoscope_is_fact_bound_rendered_and_idempotent(
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
         assert reading.engine_version == "astrology-calculation-v1"
-        assert reading.prompt_version == "astrologer-v1"
+        assert reading.prompt_version == "astrologer-v2"
         assert reading.schema_version == "astrology-reading-result-v1"
 
 
