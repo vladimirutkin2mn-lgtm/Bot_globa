@@ -4,13 +4,14 @@ import re
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config import Settings
 
 _TELEGRAM_WEBHOOK_PATH = "/telegram/webhook"
 _TELEGRAM_SECRET = re.compile(r"[A-Za-z0-9_-]{1,256}\Z")
+_TELEGRAM_BOT_USERNAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{4,31}\Z")
 
 
 class DeploymentSettings(BaseSettings):
@@ -18,6 +19,7 @@ class DeploymentSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    telegram_bot_username: str = ""
     telegram_webhook_max_bytes: int = Field(default=1_048_576, gt=0, le=10_485_760)
     telegram_update_lease_seconds: int = Field(default=300, ge=30, le=3600)
     telegram_update_retry_base_seconds: int = Field(default=5, ge=1, le=3600)
@@ -32,6 +34,18 @@ class DeploymentSettings(BaseSettings):
     daily_horoscope_send_max_attempts: int = Field(default=4, ge=1, le=10)
     maintenance_interval_seconds: float = Field(default=300, gt=0)
     maintenance_batch_size: int = Field(default=100, ge=1, le=10_000)
+
+    @field_validator("telegram_bot_username")
+    @classmethod
+    def valid_telegram_bot_username(cls, value: str) -> str:
+        normalized = value.strip().removeprefix("@")
+        if not normalized:
+            return ""
+        if _TELEGRAM_BOT_USERNAME.fullmatch(normalized) is None:
+            raise ValueError("Telegram bot username must be a valid public username")
+        if not normalized.casefold().endswith("bot"):
+            raise ValueError("Telegram bot username must end with 'bot'")
+        return normalized
 
 
 def validate_telegram_webhook(settings: Settings) -> None:
