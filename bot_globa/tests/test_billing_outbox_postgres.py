@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -50,7 +50,7 @@ class FailOnceAnalytics:
             raise RuntimeError("transient analytics failure")
 
 
-async def create_outbox_event(payment_db: async_sessionmaker[AsyncSession]):
+async def create_outbox_event(payment_db: async_sessionmaker[AsyncSession]) -> UUID:
     async with payment_db.begin() as session:
         event = BillingOutboxEvent(
             aggregate_type="payment_order",
