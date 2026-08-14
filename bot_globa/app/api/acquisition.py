@@ -26,7 +26,10 @@ async def partizan_acquisition_redirect(
 
     username = request.app.state.deployment_settings.telegram_bot_username
     if not username:
-        raise HTTPException(status_code=503, detail="Telegram acquisition route is not configured")
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram acquisition route is not configured",
+        )
 
     destination = f"https://t.me/{quote(username, safe='')}"
     if ptz_experiment is not None:
