@@ -32,7 +32,7 @@ def test_main_menu_contains_required_sections() -> None:
 
 def test_entry_copy_explains_the_four_distinct_personas() -> None:
     assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Выбрать персонажа"
-    assert "Любовный оракул — динамика отношений" in texts.MAIN_MENU
+    assert "Любовный оракул — чувства, притяжение и динамика отношений" in texts.MAIN_MENU
     assert "Таролог — расклад из трёх карт" in texts.MAIN_MENU
     assert "Мистический психолог — разбор через метафоры и архетипы" in texts.MAIN_MENU
     assert "Астролог — натальная карта" in texts.MAIN_MENU

@@ -111,7 +111,7 @@ def test_a_model_answer_cannot_inject_its_own_markup_into_a_reading() -> None:
     assert "<script>" not in rendered
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in rendered
     # The renderer's own emphasis survives; only the model's markup is neutralised.
-    assert "<b>Практический шаг:</b>" in rendered
+    assert f"<b>{TAROT_FLOW.copy.practical_step_title}:</b>" in rendered
 
 
 def test_every_message_is_parsed_as_html_by_default(bot: tuple[Bot, FlakySession]) -> None:

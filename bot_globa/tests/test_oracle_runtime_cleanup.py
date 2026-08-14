@@ -61,14 +61,12 @@ def test_active_dependency_middleware_does_not_build_analysis_stack() -> None:
 
 def test_active_client_copy_uses_consumer_brand() -> None:
     daily_button = daily_horoscope_keyboard().inline_keyboard[1][0].text
-    branded_copy = (
-        texts.WELCOME,
-        texts.MEMORY_CONSENT_OFFER,
-        LOVE_ORACLE_FLOW.texts.welcome,
-        daily_button,
-    )
+    branded_copy = (texts.WELCOME, texts.MEMORY_CONSENT_OFFER)
+    persona_copy = LOVE_ORACLE_FLOW.texts.welcome
 
     assert texts.BRAND_NAME == "Numa"
-    assert all("HeartSignal" not in value for value in branded_copy)
-    assert all("Globa" not in value for value in branded_copy)
+    assert all("HeartSignal" not in value for value in (*branded_copy, persona_copy, daily_button))
+    assert all("Globa" not in value for value in (*branded_copy, persona_copy, daily_button))
     assert all(texts.BRAND_NAME in value for value in branded_copy)
+    assert persona_copy.startswith("💞 Любовный оракул")
+    assert daily_button == "Выбрать оракула"

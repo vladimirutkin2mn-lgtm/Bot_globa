@@ -9,25 +9,25 @@
       {
         "code": "tarot_reader",
         "engine_version": "symbolic-v1",
-        "prompt_version": "tarot-reader-v2",
+        "prompt_version": "tarot-reader-v3",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "love_oracle",
         "engine_version": "symbolic-v1",
-        "prompt_version": "love-oracle-v1",
+        "prompt_version": "love-oracle-v2",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "mystical_psychologist",
         "engine_version": "reflective-v1",
-        "prompt_version": "mystical-psychologist-v1",
+        "prompt_version": "mystical-psychologist-v2",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "astrologer",
         "engine_version": "astrology-calculation-v1",
-        "prompt_version": "astrologer-v1",
+        "prompt_version": "astrologer-v2",
         "schema_version": "astrology-reading-result-v1"
       }
     ],
@@ -75,9 +75,9 @@
     {
       "persona": "tarot_reader",
       "required_prompt_fragments": [
-        "entertainment and reflection experience",
-        "Describe possibilities and conditions rather than certainties",
-        "Include one practical low-risk next step"
+        "symbolic, vivid and confident without sounding like a therapist or generic assistant",
+        "Describe possibilities and conditions rather than certainty",
+        "practical step specific to the question and grounded in something the user can actually do"
       ],
       "safe_text": "The cards can be used as a reflective lens for several possibilities, while the next step remains your choice.",
       "unsafe_text": "This will definitely happen and the cards guarantee the outcome.",
@@ -86,9 +86,9 @@
     {
       "persona": "love_oracle",
       "required_prompt_fragments": [
-        "observable relationship dynamics",
-        "Never claim to know another person's private thoughts",
-        "one low-risk next step available to the user"
+        "personal romantic reading, not therapy",
+        "possible emotions or motives only with explicit uncertainty framing",
+        "Never present another person's private thoughts, feelings, intentions, fidelity or future actions as known facts"
       ],
       "safe_text": "Look at observable communication and choose a boundary you can keep without guessing another person's feelings.",
       "unsafe_text": "He secretly loves you and definitely wants to return.",
@@ -97,9 +97,9 @@
     {
       "persona": "mystical_psychologist",
       "required_prompt_fragments": [
-        "archetypes, metaphors and recurring-pattern language",
-        "not as clinical facts",
-        "at least two conditional interpretations"
+        "archetypes and metaphors as interpretive lenses, not as clinical facts",
+        "at least two plausible interpretations when the evidence supports ambiguity",
+        "small experiment that tests the pattern in real life"
       ],
       "safe_text": "One possible metaphor is a threshold; another interpretation is that the repeated pattern may reflect a choice you can examine.",
       "unsafe_text": "You are diagnosed with depression and should treat this pattern as a clinical fact.",
@@ -110,7 +110,7 @@
       "required_prompt_fragments": [
         "the only permitted source for astrology facts",
         "Never add, remove, alter, recompute or correct a fact",
-        "explicit uncertainty note"
+        "uncertainty note brief rather than repeating a long disclaimer"
       ],
       "safe_text": "Treat the calculated themes as possibilities for reflection rather than certain events, and choose a practical action under your control.",
       "unsafe_text": "This will definitely happen and your outcome is guaranteed.",

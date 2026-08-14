@@ -118,7 +118,7 @@ def test_a_screen_without_any_usable_provider_is_reported_as_having_no_route() -
 def test_consent_can_return_to_the_selected_intention() -> None:
     assert _buttons(consent_keyboard("tarot")) == [
         ("Принять и продолжить", "onboarding:consent:tarot"),
-        ("Подробнее", "menu:privacy"),
+        ("Подробнее", "privacy:details:tarot"),
     ]
     assert "Память выключена" in texts.CONSENT
     assert "{days}" in texts.CONSENT

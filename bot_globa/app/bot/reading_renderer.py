@@ -64,7 +64,6 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
             f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
             _locked_teaser(result, copy),
-            f"<b>{copy.uncertainty_title}:</b>\n{quote(result.uncertainty_note)}",
             DISCLAIMER,
         ]
     )
@@ -130,7 +129,6 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
     sections.extend(
         [
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
-            f"<b>{copy.uncertainty_title}:</b>\n{quote(result.uncertainty_note)}",
             DISCLAIMER,
             (
                 "Разбор сохранён в «Моих разборах». Хотите уточнить один момент? "

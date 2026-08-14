@@ -35,6 +35,7 @@ from app.bot.keyboards import (
     privacy_confirmation_keyboard,
     privacy_keyboard,
     products_keyboard,
+    reading_resume_callback,
     readings_menu_keyboard,
     receipt_contact_keyboard,
 )
@@ -59,6 +60,8 @@ from app.services.payment_service import CheckoutOutcome, PaymentService
 from app.services.receipt_contact import InvalidReceiptContactError, validate_receipt_contact
 
 router = Router(name="oracle_core")
+_PAYMENT_RESUME_KEY = "payment_resume_callback"
+_CONSENT_DESTINATIONS = frozenset({"tarot", "love", "psy", "astro"})
 
 
 def _identity(callback: CallbackQuery) -> TelegramIdentity:
@@ -69,6 +72,25 @@ def _identity(callback: CallbackQuery) -> TelegramIdentity:
         first_name=telegram_user.first_name,
         language=telegram_user.language_code,
     )
+
+
+def _consent_destination(data: str | None, prefix: str) -> str | None:
+    value = (data or "").removeprefix(prefix)
+    return value if value in _CONSENT_DESTINATIONS else None
+
+
+def _stored_resume(data: dict[str, object]) -> str | None:
+    value = data.get(_PAYMENT_RESUME_KEY)
+    return value if isinstance(value, str) else None
+
+
+async def _clear_payment_state(state: FSMContext, data: dict[str, object]) -> None:
+    """Drop receipt data while keeping the concrete reading the purchase should return to."""
+
+    resume = _stored_resume(data)
+    await state.clear()
+    if resume is not None:
+        await state.update_data({_PAYMENT_RESUME_KEY: resume})
 
 
 async def _show_onboarding_step(
@@ -372,18 +394,47 @@ async def return_to_menu(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(F.data == "menu:privacy")
+@router.callback_query(F.data.startswith("privacy:details:"))
 async def privacy_screen(
     callback: CallbackQuery, state: FSMContext, privacy_retention_days: int
 ) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
+        destination = _consent_destination(callback.data, "privacy:details:")
         await show_screen(
             callback.message,
             Scene.PRIVACY,
             texts.PRIVACY_INFO.format(days=privacy_retention_days),
-            reply_markup=privacy_keyboard(),
+            reply_markup=privacy_keyboard(destination),
             state=state,
         )
+
+
+@router.callback_query(F.data.startswith("privacy:back:"))
+async def privacy_back_to_consent(
+    callback: CallbackQuery,
+    state: FSMContext,
+    privacy_retention_days: int,
+) -> None:
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    destination = _consent_destination(callback.data, "privacy:back:")
+    if destination is None:
+        await show_screen(
+            callback.message,
+            Scene.MAIN_MENU,
+            texts.MAIN_MENU,
+            reply_markup=main_menu_keyboard(),
+            state=state,
+        )
+        return
+    await request_consent(
+        callback.message,
+        state,
+        privacy_retention_days,
+        destination=destination,
+    )
 
 
 @router.callback_query(F.data == "privacy:delete_all")
@@ -457,13 +508,18 @@ async def balance_screen(
     if user is None:
         return
     balance = await credits.balance(user.id)
+    resume = _stored_resume(await state.get_data())
     await show_screen(
         callback.message,
         Scene.BALANCE,
         f"Доступно полных разборов: "
         f"{balance // billing_settings.reading_full_price_credits}.\n\n"
         "Выберите вариант:",
-        reply_markup=products_keyboard(billing_catalog, billing_settings),
+        reply_markup=products_keyboard(
+            billing_catalog,
+            billing_settings,
+            resume_callback=resume,
+        ),
         state=state,
     )
 
@@ -497,6 +553,9 @@ async def buy_credits(
     user = await onboarding.current_user(callback.from_user.id)
     if user is None:
         return
+    resume = reading_resume_callback(callback.message.reply_markup)
+    if resume is not None:
+        await state.update_data({_PAYMENT_RESUME_KEY: resume})
     product_code = _callback_parts(callback)[-1]
     if payments is None or billing_settings.billing_enabled:
         market = payment_market_keyboard(
@@ -593,7 +652,7 @@ async def create_production_checkout(
     _, _, product_code, market, currency = parts
     if billing_settings.yookassa_receipts_required and market == "RU" and currency == "RUB":
         await state.set_state(PaymentStates.waiting_for_receipt_contact)
-        await state.set_data({"product_code": product_code, "market": market, "currency": currency})
+        await state.update_data(product_code=product_code, market=market, currency=currency)
         await show_screen(
             callback.message,
             Scene.RECEIPT_CONTACT,
@@ -649,7 +708,7 @@ async def receive_receipt_contact(
         await request_consent(message, state, privacy_retention_days)
         return
     if message.from_user is None or not message.text:
-        await state.clear()
+        await _clear_payment_state(state, data)
         await show_screen(
             message,
             Scene.CHECKOUT_UNAVAILABLE,
@@ -682,7 +741,7 @@ async def receive_receipt_contact(
         )
         return
     except (CheckoutRejectedError, KeyError):
-        await state.clear()
+        await _clear_payment_state(state, data)
         await show_screen(
             message,
             Scene.CHECKOUT_UNAVAILABLE,
@@ -697,7 +756,7 @@ async def receive_receipt_contact(
             state=state,
         )
         return
-    await state.clear()
+    await _clear_payment_state(state, data)
     if result.url:
         await show_screen(
             message,

@@ -144,8 +144,12 @@ class ReadingFollowUpHandlers:
         await callback.answer()
         await state.clear()
         if isinstance(callback.message, Message):
-            await callback.message.answer(
-                "Уточняющий вопрос отменён.", reply_markup=main_menu_keyboard()
+            await show_screen(
+                callback.message,
+                Scene.MAIN_MENU,
+                "Уточняющий вопрос отменён.",
+                reply_markup=main_menu_keyboard(),
+                state=state,
             )
 
     async def receive_question(
@@ -182,7 +186,15 @@ class ReadingFollowUpHandlers:
             await _send(message, state, outcome)
             return
         if outcome.status is ReadingFollowUpStatus.INVALID_QUESTION:
-            await show_screen(message, Scene.FOLLOW_UP_QUESTION, INVALID, state=state)
+            await state.set_state(ReadingFollowUpStates.waiting_for_question)
+            await state.update_data(reading_id=str(reading_id))
+            await show_screen(
+                message,
+                Scene.FOLLOW_UP_QUESTION,
+                INVALID,
+                reply_markup=_cancel_keyboard(),
+                state=state,
+            )
             return
         if outcome.status is ReadingFollowUpStatus.PROCESSING:
             await show_screen(
