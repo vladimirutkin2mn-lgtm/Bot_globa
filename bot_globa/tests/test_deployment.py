@@ -159,14 +159,14 @@ def test_remote_deploy_fails_closed_on_shared_host_preflight() -> None:
     assert "REQUIRE_ORACLE_ROLLOUT_ZERO" in script
     assert "^ORACLE_ROLLOUT_PERCENTAGE=0$" in script
     assert ".NetworkSettings.Networks.web.Aliases" in script
-    assert 'grep -Fq \'"bot-globa-api"\'' in script
+    assert "grep -Fq '\"bot-globa-api\"'" in script
 
 
 def test_public_oracle_smoke_requires_direct_https_200() -> None:
     script = (Path(__file__).parents[1] / "tools" / "smoke_prod_remote.sh").read_text()
 
     assert "PUBLIC_ORACLE_URL" in script
-    assert '!= https://*' in script
+    assert "!= https://*" in script
     assert "--write-out '%{http_code}'" in script
     assert '[[ "${status}" != "200" ]]' in script
     assert "--location" not in script
