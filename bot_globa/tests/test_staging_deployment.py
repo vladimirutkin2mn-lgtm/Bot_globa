@@ -7,7 +7,6 @@ import subprocess
 
 import pytest
 
-
 ROOT = pathlib.Path(__file__).parents[1]
 
 
