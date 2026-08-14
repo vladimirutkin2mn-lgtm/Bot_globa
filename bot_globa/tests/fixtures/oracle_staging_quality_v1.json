@@ -9,25 +9,25 @@
       {
         "code": "tarot_reader",
         "engine_version": "symbolic-v1",
-        "prompt_version": "tarot-reader-v2",
+        "prompt_version": "tarot-reader-v3",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "love_oracle",
         "engine_version": "symbolic-v1",
-        "prompt_version": "love-oracle-v1",
+        "prompt_version": "love-oracle-v2",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "mystical_psychologist",
         "engine_version": "reflective-v1",
-        "prompt_version": "mystical-psychologist-v1",
+        "prompt_version": "mystical-psychologist-v2",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "astrologer",
         "engine_version": "astrology-calculation-v1",
-        "prompt_version": "astrologer-v1",
+        "prompt_version": "astrologer-v2",
         "schema_version": "astrology-reading-result-v1"
       }
     ],
