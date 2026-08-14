@@ -7,6 +7,7 @@ from aiogram import Bot
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.api.acquisition import router as acquisition_router
 from app.api.admin import router as admin_router
 from app.api.health import router as health_router
 from app.api.payments import router as payments_router
@@ -171,6 +172,7 @@ def create_app(
     application.state.payment_completion_service = completion_service
     application.state.telegram_stars_service = telegram_stars_service
     application.state.webhook_inbox = WebhookInboxService(sessions)
+    application.include_router(acquisition_router)
     application.include_router(health_router)
     application.include_router(admin_router)
     application.include_router(payments_router)
