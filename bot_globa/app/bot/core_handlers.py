@@ -739,9 +739,7 @@ async def receive_receipt_contact(
             message,
             Scene.RECEIPT_CONTACT,
             "Некорректный email или телефон. Проверьте формат и отправьте ещё раз.",
-            reply_markup=receipt_contact_keyboard(
-                str(data.get("product_code", "reading_single"))
-            ),
+            reply_markup=receipt_contact_keyboard(str(data.get("product_code", "reading_single"))),
             state=state,
         )
         return
