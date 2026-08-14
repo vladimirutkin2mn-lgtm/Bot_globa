@@ -65,10 +65,10 @@ def test_active_client_copy_uses_consumer_brand() -> None:
         texts.WELCOME,
         texts.MEMORY_CONSENT_OFFER,
         LOVE_ORACLE_FLOW.texts.welcome,
-        daily_button,
     )
 
     assert texts.BRAND_NAME == "Numa"
-    assert all("HeartSignal" not in value for value in branded_copy)
-    assert all("Globa" not in value for value in branded_copy)
+    assert all("HeartSignal" not in value for value in (*branded_copy, daily_button))
+    assert all("Globa" not in value for value in (*branded_copy, daily_button))
     assert all(texts.BRAND_NAME in value for value in branded_copy)
+    assert daily_button == "Выбрать оракула"
