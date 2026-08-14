@@ -62,6 +62,16 @@ _LIMITATION_LABELS = {
         "Астрологический текст описывает возможные темы, а не гарантированные события."
     ),
 }
+_GENERIC_LIMITATIONS = frozenset(
+    {
+        HoroscopeLimitation.ENTERTAINMENT_ONLY,
+        HoroscopeLimitation.NO_CERTAIN_PREDICTION,
+    }
+)
+DISCLAIMER = (
+    "<i>Астрология здесь — развлекательный инструмент для рефлексии, "
+    "а не достоверное предсказание или профессиональная консультация.</i>"
+)
 
 
 class HoroscopeRenderError(ValueError):
@@ -195,9 +205,12 @@ class HoroscopeRenderer:
 
     @staticmethod
     def _closing_lines(result: AstrologyReadingResult) -> list[str]:
-        lines = ["", "<b>Ограничения расчёта:</b>"]
-        lines.extend(f"• {_LIMITATION_LABELS[value]}" for value in result.limitations)
-        lines.extend(("", f"<i>{quote(result.uncertainty_note)}</i>"))
+        technical = [value for value in result.limitations if value not in _GENERIC_LIMITATIONS]
+        lines: list[str] = []
+        if technical:
+            lines.extend(("", "<b>Ограничения расчёта:</b>"))
+            lines.extend(f"• {_LIMITATION_LABELS[value]}" for value in technical)
+        lines.extend(("", DISCLAIMER))
         return lines
 
     @staticmethod
