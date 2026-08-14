@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=45, gt=0)
     llm_max_transport_attempts: int = Field(default=2, ge=1, le=5)
     llm_max_repair_attempts: int = Field(default=1, ge=0, le=1)
-    geocoding_provider: Literal["stub", "opencage"] = "stub"
+    geocoding_provider: Literal["offline", "stub", "opencage"] = "offline"
     geocoding_api_key: SecretStr = Field(default=SecretStr(""))
     geocoding_timeout_seconds: float = Field(default=8, gt=0)
     geocoding_max_transport_attempts: int = Field(default=2, ge=1, le=5)

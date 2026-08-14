@@ -2,11 +2,14 @@
 
 from app.config import Settings
 from app.providers.geocoding.base import GeocodingClient
+from app.providers.geocoding.offline import OfflineGeocodingClient
 from app.providers.geocoding.opencage import OpenCageGeocodingClient
 from app.providers.geocoding.stub import StubGeocodingClient
 
 
 def create_geocoding_client(settings: Settings) -> GeocodingClient:
+    if settings.geocoding_provider == "offline":
+        return OfflineGeocodingClient()
     if settings.geocoding_provider == "stub":
         return StubGeocodingClient()
     if settings.geocoding_provider == "opencage":

@@ -19,6 +19,7 @@ from app.db.session import create_engine, create_session_factory
 from app.deployment import (
     DeploymentSettings,
     get_deployment_settings,
+    validate_production_providers,
     validate_telegram_webhook,
 )
 from app.domain.billing import BillingCatalog
@@ -91,6 +92,7 @@ def create_app(
     owns_bot = False
     if resolved_settings.webhook_enabled:
         validate_telegram_webhook(resolved_settings)
+        validate_production_providers(resolved_settings)
         resolved_bot = telegram_bot or create_bot(
             resolved_settings.telegram_bot_token.get_secret_value()
         )
