@@ -76,7 +76,12 @@ class _AttributionRepositoryDouble:
     def __init__(self) -> None:
         self.captured: list[tuple[UUID, UUID]] = []
 
-    async def capture_first_touch(self, *, user_id: UUID, experiment_id: UUID) -> tuple[object, bool]:
+    async def capture_first_touch(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+    ) -> tuple[object, bool]:
         self.captured.append((user_id, experiment_id))
         return object(), True
 
@@ -92,7 +97,11 @@ async def test_onboarding_user_creation_captures_partizan_first_touch() -> None:
     users = _UserRepositoryDouble(user)
     attributions = _AttributionRepositoryDouble()
     experiment_id = uuid4()
-    repository = AttributingUserRepository(users, attributions, experiment_id)  # type: ignore[arg-type]
+    repository = AttributingUserRepository(  # type: ignore[arg-type]
+        users,
+        attributions,
+        experiment_id,
+    )
 
     returned, created = await repository.get_or_create(123, "oracle_user", "Oracle", "en")
 
