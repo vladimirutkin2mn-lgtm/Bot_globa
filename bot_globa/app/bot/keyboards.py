@@ -10,6 +10,13 @@ from app.domain.daily_horoscope import DailyHoroscopeMode, daily_horoscope_enabl
 from app.domain.products import READING_PURCHASE_CODES, ProductCode, format_user_price
 from app.providers.payments.base import BillingMarket
 
+_READING_RESUME_PREFIXES = (
+    "tarot:unlock:",
+    "love:unlock:",
+    "psy:unlock:",
+    "astro:unlock:",
+)
+
 
 def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
@@ -21,12 +28,14 @@ def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
 
 def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
     callback = "onboarding:consent"
+    privacy_callback = "menu:privacy"
     if destination is not None:
         callback = f"{callback}:{destination}"
+        privacy_callback = f"privacy:details:{destination}"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Принять и продолжить", callback_data=callback)],
-            [InlineKeyboardButton(text="Подробнее", callback_data="menu:privacy")],
+            [InlineKeyboardButton(text="Подробнее", callback_data=privacy_callback)],
         ]
     )
 
@@ -74,12 +83,7 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Мой персональный прогноз", callback_data="menu:astro")],
-            [
-                InlineKeyboardButton(
-                    text=f"Задать вопрос {texts.BRAND_NAME}",
-                    callback_data="menu:home",
-                )
-            ],
+            [InlineKeyboardButton(text="Выбрать оракула", callback_data="menu:home")],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
         ]
     )
@@ -118,7 +122,9 @@ def daily_timezone_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def privacy_keyboard() -> InlineKeyboardMarkup:
+def privacy_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
+    return_callback = "privacy:menu" if destination is None else f"privacy:back:{destination}"
+    return_label = "Вернуться в меню" if destination is None else "Назад к согласию"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -126,7 +132,7 @@ def privacy_keyboard() -> InlineKeyboardMarkup:
                     text="Удалить все мои данные", callback_data="privacy:delete_all"
                 )
             ],
-            [InlineKeyboardButton(text="Вернуться в меню", callback_data="privacy:menu")],
+            [InlineKeyboardButton(text=return_label, callback_data=return_callback)],
         ]
     )
 
@@ -184,6 +190,31 @@ def products_keyboard(
     else:
         rows.append([InlineKeyboardButton(text="Обновить доступ", callback_data="credits:refresh")])
     rows.append([InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def reading_resume_callback(keyboard: InlineKeyboardMarkup | None) -> str | None:
+    """Recover the concrete reading a paywall was opened for, without exposing it in checkout."""
+
+    if keyboard is None:
+        return None
+    for row in keyboard.inline_keyboard:
+        for button in row:
+            callback = button.callback_data
+            if callback is not None and callback.startswith(_READING_RESUME_PREFIXES):
+                return callback
+    return None
+
+
+def payment_success_keyboard(resume_callback: str | None = None) -> InlineKeyboardMarkup:
+    """Return a buyer to the thing they paid to unlock before offering generic navigation."""
+
+    rows: list[list[InlineKeyboardButton]] = []
+    if resume_callback is not None and resume_callback.startswith(_READING_RESUME_PREFIXES):
+        rows.append(
+            [InlineKeyboardButton(text="Открыть полный разбор", callback_data=resume_callback)]
+        )
+    rows.append([InlineKeyboardButton(text="Главное меню", callback_data="menu:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
