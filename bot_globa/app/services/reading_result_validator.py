@@ -11,6 +11,7 @@ from app.domain.reading_result import (
     ReadingSemanticValidationError,
     validate_reading_semantics,
 )
+from app.services.presentation_limits import clamp_presentation
 from app.services.reading_output_safety import (
     ReadingOutputSafetyError,
     ReadingOutputSafetyValidator,
@@ -54,11 +55,14 @@ class ReadingResultValidator:
         expected_symbols: list[ReadingSymbolInput],
     ) -> ReadingResultValidation:
         try:
-            json.loads(payload)
+            parsed = json.loads(payload)
         except json.JSONDecodeError as exc:
             raise InvalidReadingResultError("invalid_json") from exc
+        # Layout overflow is trimmed rather than rejected: a sentence that runs long is
+        # not a reason to discard a reading the user is waiting for.
+        parsed = clamp_presentation(parsed, ReadingResult.model_json_schema())
         try:
-            result = ReadingResult.model_validate_json(payload)
+            result = ReadingResult.model_validate_json(json.dumps(parsed, ensure_ascii=False))
         except ValidationError as exc:
             issues = describe_validation_issues(exc)
             raise InvalidReadingResultError("invalid_schema", issues) from exc

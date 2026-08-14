@@ -13,6 +13,7 @@ from app.domain.horoscope import (
     validate_astrology_reading_semantics,
     visible_astrology_texts,
 )
+from app.services.presentation_limits import clamp_presentation
 from app.services.reading_output_safety import (
     ReadingOutputSafetyError,
     ReadingOutputSafetyValidator,
@@ -81,11 +82,16 @@ class HoroscopeResultValidator:
 
     def _parse(self, payload: str) -> AstrologyReadingResult:
         try:
-            json.loads(payload)
+            parsed = json.loads(payload)
         except json.JSONDecodeError as exc:
             raise InvalidHoroscopeResultError("invalid_json") from exc
+        # Layout overflow is trimmed rather than rejected: a sentence that runs long is
+        # not a reason to discard a reading the user is waiting for.
+        parsed = clamp_presentation(parsed, AstrologyReadingResult.model_json_schema())
         try:
-            return AstrologyReadingResult.model_validate_json(payload)
+            return AstrologyReadingResult.model_validate_json(
+                json.dumps(parsed, ensure_ascii=False)
+            )
         except ValidationError as exc:
             issues = describe_validation_issues(exc)
             raise InvalidHoroscopeResultError("invalid_schema", issues) from exc
