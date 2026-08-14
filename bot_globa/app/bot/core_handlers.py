@@ -553,6 +553,9 @@ async def buy_credits(
     user = await onboarding.current_user(callback.from_user.id)
     if user is None:
         return
+    state_data = await state.get_data()
+    if await state.get_state() == PaymentStates.waiting_for_receipt_contact.state:
+        await _clear_payment_state(state, state_data)
     resume = reading_resume_callback(callback.message.reply_markup)
     if resume is not None:
         await state.update_data({_PAYMENT_RESUME_KEY: resume})
@@ -610,7 +613,7 @@ async def buy_credits(
         callback.message,
         Scene.CHECKOUT,
         "Тестовая оплата — реальные деньги не списываются.",
-        reply_markup=checkout_keyboard(outcome.checkout.url),
+        reply_markup=checkout_keyboard(outcome.checkout.url, product_code),
         state=state,
     )
 
@@ -657,7 +660,7 @@ async def create_production_checkout(
             callback.message,
             Scene.RECEIPT_CONTACT,
             texts.RECEIPT_CONTACT,
-            reply_markup=receipt_contact_keyboard(),
+            reply_markup=receipt_contact_keyboard(product_code),
             state=state,
         )
         return
@@ -685,7 +688,7 @@ async def create_production_checkout(
         callback.message,
         Scene.CHECKOUT,
         "Откройте защищённую страницу платёжного провайдера.",
-        reply_markup=checkout_keyboard(result.url),
+        reply_markup=checkout_keyboard(result.url, product_code),
         state=state,
     )
 
@@ -736,7 +739,9 @@ async def receive_receipt_contact(
             message,
             Scene.RECEIPT_CONTACT,
             "Некорректный email или телефон. Проверьте формат и отправьте ещё раз.",
-            reply_markup=receipt_contact_keyboard(),
+            reply_markup=receipt_contact_keyboard(
+                str(data.get("product_code", "reading_single"))
+            ),
             state=state,
         )
         return
@@ -762,7 +767,7 @@ async def receive_receipt_contact(
             message,
             Scene.CHECKOUT,
             "Откройте защищённую страницу платёжного провайдера.",
-            reply_markup=checkout_keyboard(result.url),
+            reply_markup=checkout_keyboard(result.url, product_code),
             state=state,
         )
     else:

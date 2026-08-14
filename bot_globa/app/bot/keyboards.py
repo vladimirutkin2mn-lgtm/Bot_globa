@@ -218,11 +218,21 @@ def payment_success_keyboard(resume_callback: str | None = None) -> InlineKeyboa
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def checkout_keyboard(url: str) -> InlineKeyboardMarkup:
+def payment_methods_back_button(product_code: str) -> InlineKeyboardButton:
+    """Return from a provider-specific step to the methods for the same purchase."""
+
+    return InlineKeyboardButton(
+        text="← Назад к способам оплаты",
+        callback_data=f"credits:buy:{product_code}",
+    )
+
+
+def checkout_keyboard(url: str, product_code: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Открыть оплату", url=url)],
             [InlineKeyboardButton(text="Обновить доступ", callback_data="credits:refresh")],
+            [payment_methods_back_button(product_code)],
         ]
     )
 
@@ -299,10 +309,11 @@ def has_payment_routes(keyboard: InlineKeyboardMarkup) -> bool:
     )
 
 
-def receipt_contact_keyboard() -> InlineKeyboardMarkup:
+def receipt_contact_keyboard(product_code: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Отменить", callback_data="credits:receipt:cancel")]
+            [payment_methods_back_button(product_code)],
+            [InlineKeyboardButton(text="Отменить покупку", callback_data="credits:receipt:cancel")],
         ]
     )
 
@@ -316,7 +327,7 @@ def checkout_creating_keyboard(product_code: str) -> InlineKeyboardMarkup:
                     callback_data=f"credits:buy:{product_code}",
                 )
             ],
-            [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
+            [payment_methods_back_button(product_code)],
         ]
     )
 
@@ -334,12 +345,7 @@ def checkout_unavailable_keyboard(
                     callback_data=f"credits:offer:{product_code}:{market}:{currency}",
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    text="Другой способ",
-                    callback_data=f"credits:buy:{product_code}",
-                )
-            ],
+            [payment_methods_back_button(product_code)],
             [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
         ]
     )

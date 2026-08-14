@@ -17,7 +17,7 @@ from aiogram.types import (
 
 from app.bot import texts
 from app.bot.consent import ensure_consent
-from app.bot.keyboards import payment_success_keyboard
+from app.bot.keyboards import payment_methods_back_button, payment_success_keyboard
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.config import Settings
@@ -78,6 +78,10 @@ def _invoice_description(invoice: TelegramStarsInvoice) -> str:
     return f"{invoice.title}.{suffix}"[:255]
 
 
+def _payment_methods_keyboard(product_code: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[payment_methods_back_button(product_code)]])
+
+
 @router.callback_query(F.data.startswith("credits:stars:"))
 async def create_stars_invoice(
     callback: CallbackQuery,
@@ -109,6 +113,7 @@ async def create_stars_invoice(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Оплата звёздами сейчас недоступна. Попробуйте позже.",
+            reply_markup=_payment_methods_keyboard(product_code),
             state=state,
         )
         return
@@ -132,11 +137,7 @@ async def create_stars_invoice(
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [InlineKeyboardButton(text=f"Оплатить {invoice.amount} ⭐", url=link)],
-                    [
-                        InlineKeyboardButton(
-                            text="Вернуться", callback_data="credits:buy:subscription_monthly"
-                        )
-                    ],
+                    [payment_methods_back_button(product_code)],
                 ]
             ),
             state=state,
@@ -146,9 +147,10 @@ async def create_stars_invoice(
     await show_screen(
         callback.message,
         Scene.CHECKOUT,
-        f"Счёт на {invoice.amount} ⭐ откроется следующим сообщением. "
+        f"Счёт на {invoice.amount} ⭐ откроется следующим сообщлением. "
         "Доступ откроется только после подтверждения Telegram. "
         "До оплаты прочитайте /terms; подтверждая счёт, вы принимаете условия.",
+        reply_markup=_payment_methods_keyboard(product_code),
         state=state,
     )
     await bot.send_invoice(
@@ -158,6 +160,12 @@ async def create_stars_invoice(
         payload=invoice.payload,
         currency="XTR",
         prices=[LabeledPrice(label=invoice.price_label, amount=invoice.amount)],
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=f"Оплатить {invoice.amount} ⭐", pay=True)],
+                [payment_methods_back_button(product_code)],
+            ]
+        ),
     )
 
 
