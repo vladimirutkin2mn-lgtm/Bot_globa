@@ -138,9 +138,25 @@ async def send_artifact(
     state: FSMContext,
     reply_markup: InlineKeyboardMarkup | None = None,
 ) -> None:
-    """Deliver something the user keeps, and let the next screen appear below it."""
+    """Deliver something the user keeps after retiring the transient live screen."""
 
+    await retire_screen(message, state)
     await answer_scene(message, scene, text, reply_markup=reply_markup)
+
+
+async def retire_screen(message: Message, state: FSMContext) -> None:
+    """Remove the current live screen and forget its pointer.
+
+    Permanent results should never leave a stale ``Generating…`` or intake screen above
+    them. Deletion is best-effort because Telegram may reject old messages; the pointer is
+    cleared either way so future navigation starts below the permanent artifact.
+    """
+
+    screen = _screen_state(state)
+    pointer = ScreenPointer.restore((await screen.get_data()).get(SCREEN_KEY))
+    bot = message.bot
+    if pointer is not None and bot is not None:
+        await _retire(bot, message.chat.id, pointer.message_id)
     await forget_screen(state)
 
 
