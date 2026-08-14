@@ -32,6 +32,4 @@ def test_partizan_start_payload_rejects_non_partizan_or_malformed_values() -> No
 def test_parser_does_not_accept_extra_tracking_data() -> None:
     experiment_id = UUID("f65824e6-c9ca-4988-b486-2f3f8e2299e0")
 
-    assert parse_partizan_start_payload(
-        f"ptz_{experiment_id.hex}&utm_source=telegram"
-    ) is None
+    assert parse_partizan_start_payload(f"ptz_{experiment_id.hex}&utm_source=telegram") is None
