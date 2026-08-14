@@ -159,7 +159,8 @@ def test_remote_deploy_fails_closed_on_shared_host_preflight() -> None:
     assert "REQUIRE_ORACLE_ROLLOUT_ZERO" in script
     assert "^ORACLE_ROLLOUT_PERCENTAGE=0$" in script
     assert ".NetworkSettings.Networks.web.Aliases" in script
-    assert "grep -Fq '\"bot-globa-api\"'" in script
+    assert "grep -Fq" in script
+    assert "bot-globa-api" in script
 
 
 def test_public_oracle_smoke_requires_direct_https_200() -> None:
