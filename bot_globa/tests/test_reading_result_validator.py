@@ -105,8 +105,9 @@ def test_extra_field_and_wrong_scalar_type_are_rejected() -> None:
         ReadingResultValidator().validate(json.dumps(payload), _expected_symbols())
 
     assert captured.value.code == "invalid_schema"
-    assert "title:invalid" in captured.value.issues
-    assert "unexpected:invalid" in captured.value.issues
+    # The repair retry needs the rule that was broken, not only the field that broke it.
+    assert "title: string_type" in captured.value.issues
+    assert "unexpected: extra_forbidden" in captured.value.issues
 
 
 @pytest.mark.parametrize(

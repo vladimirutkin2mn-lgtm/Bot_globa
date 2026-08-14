@@ -1,5 +1,6 @@
 """Deployment policy, managed database URL, and release-command tests."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -142,3 +143,37 @@ def test_remote_deploy_migrates_before_starting_the_application_stack() -> None:
     assert build < database < migration < application
     assert "${COMPOSE} up -d --build" not in script
     assert "${COMPOSE} logs --tail=200 api" in script
+
+
+def test_production_compose_exposes_stable_caddy_alias() -> None:
+    compose = (Path(__file__).parents[1] / "docker-compose.prod.yml").read_text()
+
+    assert "      web:\n        aliases:\n          - bot-globa-api" in compose
+
+
+def test_remote_deploy_fails_closed_on_shared_host_preflight() -> None:
+    script = (Path(__file__).parents[1] / "tools" / "deploy_prod_remote.sh").read_text()
+
+    assert "docker network inspect web >/dev/null 2>&1" in script
+    assert "docker network create web" not in script
+    assert "REQUIRE_ORACLE_ROLLOUT_ZERO" in script
+    assert "^ORACLE_ROLLOUT_PERCENTAGE=0$" in script
+    assert ".NetworkSettings.Networks.web.Aliases" in script
+    assert "grep -Fq" in script
+    assert "bot-globa-api" in script
+
+
+def test_public_oracle_smoke_requires_direct_https_200() -> None:
+    script = (Path(__file__).parents[1] / "tools" / "smoke_prod_remote.sh").read_text()
+
+    assert "PUBLIC_ORACLE_URL" in script
+    assert "!= https://*" in script
+    assert "--write-out '%{http_code}'" in script
+    assert '[[ "${status}" != "200" ]]' in script
+    assert "--location" not in script
+
+
+def test_remote_deploy_scripts_have_valid_bash_syntax() -> None:
+    root = Path(__file__).parents[1] / "tools"
+    for name in ("deploy_prod_remote.sh", "smoke_prod_remote.sh"):
+        subprocess.run(["bash", "-n", str(root / name)], check=True)

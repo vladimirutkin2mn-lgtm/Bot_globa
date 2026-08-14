@@ -11,6 +11,7 @@ from app.providers.geocoding.base import (
     GeocodingUnexpectedError,
 )
 from app.providers.geocoding.factory import create_geocoding_client
+from app.providers.geocoding.offline import OfflineGeocodingClient
 from app.providers.geocoding.opencage import OpenCageGeocodingClient
 from app.providers.geocoding.stub import StubGeocodingClient
 
@@ -132,8 +133,16 @@ async def test_stub_returns_nothing_for_an_unknown_place() -> None:
     assert await StubGeocodingClient().search("несуществующий-город", limit=5) == ()
 
 
-def test_factory_defaults_to_the_offline_stub(settings: Settings) -> None:
-    assert isinstance(create_geocoding_client(settings), StubGeocodingClient)
+def test_factory_builds_the_bundled_directory_by_default(settings: Settings) -> None:
+    """Production must never fall back to the 44-city development table by accident."""
+
+    assert isinstance(create_geocoding_client(settings), OfflineGeocodingClient)
+
+
+def test_the_development_stub_is_still_available_when_asked_for(settings: Settings) -> None:
+    configured = settings.model_copy(update={"geocoding_provider": "stub"})
+
+    assert isinstance(create_geocoding_client(configured), StubGeocodingClient)
 
 
 def test_factory_refuses_opencage_without_a_key(settings: Settings) -> None:

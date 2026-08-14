@@ -182,8 +182,11 @@ def test_profile_summary_shows_the_place_and_moment_but_never_coordinates() -> N
     assert "55.7" not in exact and "37.6" not in exact
 
 
-def test_consent_screen_names_the_external_lookup_before_any_field_is_asked() -> None:
-    assert "внешнему геокодеру" in flow.CONSENT
+def test_consent_screen_states_where_the_place_is_looked_up_before_any_field_is_asked() -> None:
+    """The lookup is now a bundled file, so the copy may not claim an outbound transfer."""
+
+    assert "никуда не передаются" in flow.CONSENT
+    assert "внешнему геокодеру" not in flow.CONSENT
     assert "зашифрован" in flow.CONSENT
     callbacks = [
         button.callback_data or ""

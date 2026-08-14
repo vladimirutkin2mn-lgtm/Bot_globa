@@ -35,12 +35,14 @@ HOROSCOPE_TOPIC_EXAMPLES = MappingProxyType(
     }
 )
 
+# The second paragraph describes the offline provider, which is the default and what
+# production runs. Configuring `opencage` sends the city name to a third party again and
+# would make this copy untrue — restore the outbound-transfer disclosure if that happens.
 CONSENT = (
     "Для персональной карты нужны дата и место рождения; время — если знаете. Место "
     "используется для расчёта координат и часового пояса. Данные хранятся в зашифрованном "
     "виде и их можно удалить в любой момент.\n\n"
-    "Для поиска места название города передаётся внешнему геокодеру; остальные данные "
-    "ему не отправляются."
+    "Место ищется по справочнику внутри сервиса — данные о рождении никуда не передаются."
 )
 CONSENT_DECLINED = (
     "Без данных рождения натальную карту рассчитать нельзя. Остальные направления доступны "

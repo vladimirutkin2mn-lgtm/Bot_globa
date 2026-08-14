@@ -27,8 +27,10 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - default
-      - web
+      default:
+      web:
+        aliases:
+          - bot-globa-api
     restart: unless-stopped
 
   telegram-worker:

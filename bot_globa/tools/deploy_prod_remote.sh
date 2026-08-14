@@ -14,6 +14,7 @@ DEPLOY_SSH_OPTS="${DEPLOY_SSH_OPTS:-}"
 SKIP_SYNC="${SKIP_SYNC:-0}"
 SKIP_MIGRATIONS="${SKIP_MIGRATIONS:-0}"
 RUN_SMOKE="${RUN_SMOKE:-1}"
+REQUIRE_ORACLE_ROLLOUT_ZERO="${REQUIRE_ORACLE_ROLLOUT_ZERO:-0}"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
 SSH_ARGS=()
@@ -43,8 +44,19 @@ fi
 echo "==> Refusing to continue without a production environment file"
 run_remote "test -f ${DEPLOY_PATH}/.env.prod"
 
-echo "==> Ensuring the proxy network exists"
-run_remote "docker network inspect web >/dev/null 2>&1 || docker network create web"
+if [[ "${REQUIRE_ORACLE_ROLLOUT_ZERO}" == "1" ]]; then
+  echo "==> Verifying first-deploy Oracle rollout is exactly zero"
+  if ! run_remote "grep -Eq '^ORACLE_ROLLOUT_PERCENTAGE=0$' ${DEPLOY_PATH}/.env.prod"; then
+    echo "Refusing first-deploy verification: set ORACLE_ROLLOUT_PERCENTAGE=0 in the server-side .env.prod"
+    exit 1
+  fi
+fi
+
+echo "==> Verifying the proxy-owned network already exists"
+if ! run_remote "docker network inspect web >/dev/null 2>&1"; then
+  echo "Refusing deployment: external Docker network 'web' is missing. Start/fix the proxy stack first."
+  exit 1
+fi
 
 echo "==> Building release images"
 run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} build"
@@ -63,6 +75,12 @@ echo "==> Starting the application stack"
 if ! run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} up -d --no-build --wait --wait-timeout 180"; then
   echo "==> Stack failed to become healthy; collecting safe diagnostics"
   run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} ps && ${COMPOSE} logs --tail=200 api"
+  exit 1
+fi
+
+echo "==> Verifying the stable API alias on external network web"
+if ! run_remote "cd ${DEPLOY_PATH} && api_container=\$(${COMPOSE} ps -q api) && test -n \"\$api_container\" && docker inspect \"\$api_container\" --format '{{json .NetworkSettings.Networks.web.Aliases}}' | grep -Fq '\"bot-globa-api\"'"; then
+  echo "Refusing deployment verification: API container is missing alias 'bot-globa-api' on network 'web'."
   exit 1
 fi
 

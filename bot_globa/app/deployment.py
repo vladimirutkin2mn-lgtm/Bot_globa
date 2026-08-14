@@ -46,6 +46,30 @@ def validate_telegram_webhook(settings: Settings) -> None:
             raise ValueError("production Telegram webhook requires a strong secret")
 
 
+def validate_production_providers(settings: Settings) -> None:
+    """Refuse to serve production from a development stub.
+
+    Both provider settings default to something that answers without a network, which is
+    what tests and local development need — and which production accepted silently. A
+    stub geocoder knows forty-four cities and a stub model returns a fixture, so the
+    deployment reports itself healthy while the product cannot do its job. It is better
+    to fail at boot, loudly, than to answer users with "временно недоступно".
+    """
+
+    if settings.app_env != "production":
+        return
+    stubs = [
+        name
+        for name, value in (
+            ("LLM_PROVIDER", settings.llm_provider),
+            ("GEOCODING_PROVIDER", settings.geocoding_provider),
+        )
+        if value == "stub"
+    ]
+    if stubs:
+        raise ValueError(f"production must not run on development stubs: {', '.join(stubs)}")
+
+
 def validate_telegram_worker(settings: Settings, deployment: DeploymentSettings) -> None:
     """Keep a live analysis inside its claim lease under the configured retry budget."""
     if not settings.webhook_enabled:
