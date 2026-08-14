@@ -13,6 +13,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.acquisition_models import AcquisitionAttribution
+from app.db.models import User
+from app.repositories.users import UserRepository
 
 _PARTIZAN_START_RE = re.compile(r"^ptz_([0-9a-f]{32})$")
 
@@ -32,6 +34,17 @@ def parse_partizan_start_payload(payload: str | None) -> UUID | None:
     if match is None:
         return None
     return UUID(hex=match.group(1))
+
+
+def parse_partizan_start_command(text: str | None) -> UUID | None:
+    """Extract only a strict Partizan payload from a Telegram `/start` command."""
+
+    if not text:
+        return None
+    command, separator, arguments = text.strip().partition(" ")
+    if command.partition("@")[0].casefold() != "/start" or not separator:
+        return None
+    return parse_partizan_start_payload(arguments)
 
 
 class AcquisitionAttributionRepository:
@@ -65,3 +78,42 @@ class AcquisitionAttributionRepository:
             select(AcquisitionAttribution).where(AcquisitionAttribution.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+
+class AttributingUserRepository:
+    """Decorate onboarding persistence with one immutable Partizan first touch."""
+
+    def __init__(
+        self,
+        users: UserRepository,
+        attributions: AcquisitionAttributionRepository,
+        experiment_id: UUID,
+    ) -> None:
+        self._users = users
+        self._attributions = attributions
+        self._experiment_id = experiment_id
+
+    async def get_or_create(
+        self,
+        telegram_user_id: int,
+        username: str | None,
+        first_name: str,
+        language: str | None,
+    ) -> tuple[User, bool]:
+        user, created = await self._users.get_or_create(
+            telegram_user_id,
+            username,
+            first_name,
+            language,
+        )
+        await self._attributions.capture_first_touch(
+            user_id=user.id,
+            experiment_id=self._experiment_id,
+        )
+        return user, created
+
+    async def get_by_telegram_id(self, telegram_user_id: int) -> User | None:
+        return await self._users.get_by_telegram_id(telegram_user_id)
+
+    async def save(self, user: User) -> None:
+        await self._users.save(user)
