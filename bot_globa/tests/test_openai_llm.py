@@ -8,7 +8,9 @@ import httpx
 import openai
 import pytest
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
+from app.domain.horoscope import AstrologyReadingResult
 from app.domain.reading_result import ReadingResult
 from app.providers.llm.base import (
     LLMAuthenticationError,
@@ -104,29 +106,44 @@ async def test_missing_usage_is_safe() -> None:
     assert completion.input_tokens is None and completion.output_tokens is None
 
 
+_FORBIDDEN_STRICT_KEYWORDS = {
+    "default",
+    "examples",
+    "format",
+    "maxItems",
+    "maxLength",
+    "maximum",
+    "minItems",
+    "minLength",
+    "minimum",
+    "pattern",
+    "title",
+}
+
+_NAME_KEYED_CONTAINERS = {
+    "$defs",
+    "definitions",
+    "dependentSchemas",
+    "patternProperties",
+    "properties",
+}
+
+
 def test_provider_schema_removes_unsupported_keywords_recursively() -> None:
     schema = cast_dict(openai_strict_schema(ReadingResult.model_json_schema()))
-    forbidden = {
-        "default",
-        "examples",
-        "format",
-        "maxItems",
-        "maxLength",
-        "maximum",
-        "minItems",
-        "minLength",
-        "minimum",
-        "pattern",
-        "title",
-    }
 
     def visit(value: object) -> None:
         if isinstance(value, dict):
-            assert forbidden.isdisjoint(value)
+            assert _FORBIDDEN_STRICT_KEYWORDS.isdisjoint(value)
             if value.get("type") == "object" and isinstance(value.get("properties"), dict):
                 assert value["required"] == list(value["properties"])
                 assert value["additionalProperties"] is False
-            for child in value.values():
+            for key, child in value.items():
+                if key in _NAME_KEYED_CONTAINERS and isinstance(child, dict):
+                    # The keys here are domain field and definition names, not keywords.
+                    for node in child.values():
+                        visit(node)
+                    continue
                 visit(child)
         elif isinstance(value, list):
             for child in value:
@@ -134,6 +151,23 @@ def test_provider_schema_removes_unsupported_keywords_recursively() -> None:
 
     visit(schema)
     assert schema["additionalProperties"] is False and "$defs" in schema
+
+
+@pytest.mark.parametrize("model", [ReadingResult, AstrologyReadingResult])
+def test_a_field_named_like_a_stripped_keyword_survives(model: type[BaseModel]) -> None:
+    """The failure that broke every reading and horoscope in production.
+
+    `title` is both a JSON Schema annotation and a real field of the contract. Filtering the
+    keys of `properties` deleted the field, so the model never returned it and its answer was
+    rejected for omitting something it was never asked for.
+    """
+
+    original = model.model_json_schema()
+    converted = cast_dict(openai_strict_schema(original))
+
+    assert "title" in cast_dict(original["properties"])
+    assert sorted(cast_dict(converted["properties"])) == sorted(cast_dict(original["properties"]))
+    assert converted["required"] == list(cast_dict(converted["properties"]))
 
 
 def sdk_request() -> httpx.Request:
