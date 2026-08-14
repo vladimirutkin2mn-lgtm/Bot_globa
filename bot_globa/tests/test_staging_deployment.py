@@ -47,9 +47,7 @@ def test_staging_runtime_is_separate_from_production() -> None:
 def test_staging_deploy_is_exact_release_and_fail_closed() -> None:
     deploy = (ROOT / "tools" / "deploy_staging_remote.sh").read_text()
     smoke = (ROOT / "tools" / "smoke_staging_remote.sh").read_text()
-    workflow = (
-        ROOT.parent / ".github" / "workflows" / "bot-globa-deploy-staging.yml"
-    ).read_text()
+    workflow = (ROOT.parent / ".github" / "workflows" / "bot-globa-deploy-staging.yml").read_text()
 
     assert "^[0-9a-f]{40}$" in deploy
     assert ".env.staging.release" in deploy
@@ -70,11 +68,15 @@ def test_staging_deploy_is_exact_release_and_fail_closed() -> None:
         subprocess.run(["bash", "-n", str(ROOT / "tools" / name)], check=True)
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker is required for Compose validation")
+@pytest.mark.skipif(
+    shutil.which("docker") is None, reason="Docker is required for Compose validation"
+)
 def test_staging_compose_configuration_renders_without_real_secrets(tmp_path: Path) -> None:
     compose = (ROOT / "docker-compose.staging.yml").read_text()
-    example = (ROOT / ".env.staging.example").read_text().replace(
-        "POSTGRES_PASSWORD=", "POSTGRES_PASSWORD=ci-only", 1
+    example = (
+        (ROOT / ".env.staging.example")
+        .read_text()
+        .replace("POSTGRES_PASSWORD=", "POSTGRES_PASSWORD=ci-only", 1)
     )
     public_env = (ROOT / "staging.public.env").read_text()
 
