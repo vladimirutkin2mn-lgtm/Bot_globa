@@ -85,7 +85,7 @@ def test_daily_horoscope_migration_round_trip_when_empty() -> None:
         asyncio.run(_execute(url, "public", f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
 
 
-def test_default_delivery_migration_backfills_active_users_and_preserves_opt_outs() -> None:
+def test_default_delivery_migration_enables_active_users_and_preserves_explicit_opt_outs() -> None:
     url = _database_url()
     schema = _schema(url)
     environment = _environment(url, schema)
@@ -152,7 +152,7 @@ def test_default_delivery_migration_backfills_active_users_and_preserves_opt_out
                     f"WHERE user_id='{on_request_user}'",
                 )
             )
-            == "disabled"
+            == "morning"
         )
         assert (
             asyncio.run(
@@ -182,6 +182,17 @@ def test_default_delivery_migration_backfills_active_users_and_preserves_opt_out
                     schema,
                     "SELECT next_delivery_at IS NOT NULL FROM daily_horoscope_preferences "
                     f"WHERE user_id='{default_user}'",
+                )
+            )
+            is True
+        )
+        assert (
+            asyncio.run(
+                _scalar(
+                    url,
+                    schema,
+                    "SELECT next_delivery_at IS NOT NULL FROM daily_horoscope_preferences "
+                    f"WHERE user_id='{on_request_user}'",
                 )
             )
             is True

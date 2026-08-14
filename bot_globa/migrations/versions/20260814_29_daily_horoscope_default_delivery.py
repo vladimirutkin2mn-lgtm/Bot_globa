@@ -15,7 +15,7 @@ down_revision: str | None = "20260813_28"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_MOVE_EVENING_TO_MORNING = """
+_MOVE_LEGACY_MODES_TO_MORNING = """
 UPDATE daily_horoscope_preferences
 SET mode = 'morning',
     next_delivery_at = (
@@ -28,7 +28,7 @@ SET mode = 'morning',
     claim_id = NULL,
     lease_until = NULL,
     updated_at = CURRENT_TIMESTAMP
-WHERE mode = 'evening'
+WHERE mode IN ('evening', 'on_request')
 """
 
 _BACKFILL_DEFAULT_MORNINGS = """
@@ -73,22 +73,9 @@ def upgrade() -> None:
         existing_nullable=False,
     )
 
-    # The old evening choice remains an opt-in, so move it to the new single 08:00 slot.
-    connection.execute(sa.text(_MOVE_EVENING_TO_MORNING))
-    # Preserve both historical ways a user could explicitly decline automatic messages.
-    connection.execute(
-        sa.text(
-            """
-            UPDATE daily_horoscope_preferences
-            SET mode = 'disabled',
-                next_delivery_at = NULL,
-                claim_id = NULL,
-                lease_until = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE mode = 'on_request'
-            """
-        )
-    )
+    # `on_request` was the old default, not an explicit opt-out. Move it and the old
+    # evening opt-in to the new single 08:00 slot; leave only explicit `disabled` rows off.
+    connection.execute(sa.text(_MOVE_LEGACY_MODES_TO_MORNING))
     # Everyone who has not made a delivery choice starts with tomorrow's/today's 08:00
     # Moscow schedule. New accounts receive the same row from OnboardingService.
     connection.execute(sa.text(_BACKFILL_DEFAULT_MORNINGS))
