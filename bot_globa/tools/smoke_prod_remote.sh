@@ -5,6 +5,7 @@ set -euo pipefail
 DEPLOY_HOST="${DEPLOY_HOST:?Set DEPLOY_HOST, for example root@example.host}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/bot_globa}"
 DEPLOY_SSH_OPTS="${DEPLOY_SSH_OPTS:-}"
+PUBLIC_ORACLE_URL="${PUBLIC_ORACLE_URL:-}"
 COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
 SSH_ARGS=()
@@ -35,3 +36,29 @@ for path in ('/health/live', '/health/ready'):
 
 echo "==> Deployment verification (webhook configuration, delivery, backlog)"
 run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} exec -T api python -m app.cli.verify_deployment"
+
+if [[ -n "${PUBLIC_ORACLE_URL}" ]]; then
+  PUBLIC_ORACLE_URL="${PUBLIC_ORACLE_URL%/}"
+  if [[ "${PUBLIC_ORACLE_URL}" != https://* ]]; then
+    echo "Refusing public smoke: PUBLIC_ORACLE_URL must use https://"
+    exit 1
+  fi
+  if [[ "${PUBLIC_ORACLE_URL}" == *\?* || "${PUBLIC_ORACLE_URL}" == *\#* ]]; then
+    echo "Refusing public smoke: PUBLIC_ORACLE_URL must be a clean base URL without query or fragment"
+    exit 1
+  fi
+
+  echo "==> Public HTTPS liveness and readiness"
+  for path in /health/live /health/ready; do
+    status="$(
+      curl --silent --show-error --max-time 15 \
+        --output /dev/null --write-out '%{http_code}' \
+        "${PUBLIC_ORACLE_URL}${path}"
+    )"
+    if [[ "${status}" != "200" ]]; then
+      echo "Public smoke failed: ${PUBLIC_ORACLE_URL}${path} returned HTTP ${status}; direct HTTP 200 required"
+      exit 1
+    fi
+    echo "${PUBLIC_ORACLE_URL}${path} 200"
+  done
+fi
