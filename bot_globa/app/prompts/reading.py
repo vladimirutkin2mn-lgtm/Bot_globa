@@ -164,13 +164,14 @@ _LOVE_ORACLE_V2 = ReadingPromptSet(
         "result symbols array must both be empty. The title should sound like a meaningful romantic "
         "insight about this exact situation, not a generic inspirational headline. In opening, give "
         "the clearest bounded answer first, then explain what makes that interpretation plausible. "
-        "patterns should describe 2-4 specific forces in the relationship rather than universal "
-        "advice. possible_scenarios must show distinct relationship trajectories and the observable "
-        "conditions that would make each one more likely. reflection_questions should be concrete "
-        "and emotionally relevant; practical_step should help the user learn something from actions "
-        "rather than force a confession. Use relevant memory_context only when it improves specificity "
-        "and never announce memory. Keep share_card anonymous, non-accusatory and free of private or "
-        "sensitive details."
+        "Do not answer by inventing the other person's inner state; infer only bounded possibilities "
+        "from the situation and keep them explicitly uncertain. patterns should describe 2-4 specific "
+        "forces in the relationship rather than universal advice. possible_scenarios must show distinct "
+        "relationship trajectories and the observable conditions that would make each one more likely. "
+        "reflection_questions should be concrete and emotionally relevant; practical_step should help "
+        "the user learn something from actions rather than force a confession. Use relevant memory_context "
+        "only when it improves specificity and never announce memory. Keep share_card anonymous, "
+        "non-accusatory and free of private or sensitive details."
     ),
     accepts_memory_context=True,
 )
