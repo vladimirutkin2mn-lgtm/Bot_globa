@@ -157,10 +157,60 @@ def test_remote_deploy_fails_closed_on_shared_host_preflight() -> None:
     assert "docker network inspect web >/dev/null 2>&1" in script
     assert "docker network create web" not in script
     assert "REQUIRE_ORACLE_ROLLOUT_ZERO" in script
-    assert "^ORACLE_ROLLOUT_PERCENTAGE=0$" in script
+    assert "tools/ensure_oracle_rollout_zero.sh .env.prod" in script
     assert ".NetworkSettings.Networks.web.Aliases" in script
     assert "grep -Fq" in script
     assert "bot-globa-api" in script
+
+
+def _run_rollout_zero_guard(
+    tmp_path: Path, content: str
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    env_file = tmp_path / ".env.prod"
+    env_file.write_text(content)
+    script = Path(__file__).parents[1] / "tools" / "ensure_oracle_rollout_zero.sh"
+    result = subprocess.run(
+        ["bash", str(script), str(env_file)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result, env_file
+
+
+def test_rollout_zero_guard_bootstraps_only_a_missing_value(tmp_path: Path) -> None:
+    result, env_file = _run_rollout_zero_guard(tmp_path, "APP_ENV=production\n")
+
+    assert result.returncode == 0
+    assert env_file.read_text().splitlines().count("ORACLE_ROLLOUT_PERCENTAGE=0") == 1
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+def test_rollout_zero_guard_preserves_one_explicit_zero(tmp_path: Path) -> None:
+    original = "APP_ENV=production\nORACLE_ROLLOUT_PERCENTAGE=0\n"
+    result, env_file = _run_rollout_zero_guard(tmp_path, original)
+
+    assert result.returncode == 0
+    assert env_file.read_text() == original
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "APP_ENV=production\nORACLE_ROLLOUT_PERCENTAGE=1\n",
+        "ORACLE_ROLLOUT_PERCENTAGE=0\nORACLE_ROLLOUT_PERCENTAGE=0\n",
+        "ORACLE_ROLLOUT_PERCENTAGE=0\nORACLE_ROLLOUT_PERCENTAGE=1\n",
+    ],
+)
+def test_rollout_zero_guard_refuses_nonzero_or_ambiguous_values(
+    tmp_path: Path, content: str
+) -> None:
+    result, env_file = _run_rollout_zero_guard(tmp_path, content)
+
+    assert result.returncode != 0
+    assert env_file.read_text() == content
+    assert result.stdout == ""
 
 
 def test_public_oracle_smoke_requires_direct_https_200() -> None:
@@ -175,5 +225,9 @@ def test_public_oracle_smoke_requires_direct_https_200() -> None:
 
 def test_remote_deploy_scripts_have_valid_bash_syntax() -> None:
     root = Path(__file__).parents[1] / "tools"
-    for name in ("deploy_prod_remote.sh", "smoke_prod_remote.sh"):
+    for name in (
+        "deploy_prod_remote.sh",
+        "ensure_oracle_rollout_zero.sh",
+        "smoke_prod_remote.sh",
+    ):
         subprocess.run(["bash", "-n", str(root / name)], check=True)
