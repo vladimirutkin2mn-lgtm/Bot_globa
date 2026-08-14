@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import Field, PostgresDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.acquisition import normalize_bot_username
 from app.services.sensitive_content import decode_configured_key
 
 
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: PostgresDsn
     telegram_bot_token: SecretStr
+    telegram_bot_username: str = ""
     telegram_webhook_url: str = ""
     telegram_webhook_secret: SecretStr = Field(default=SecretStr(""))
     llm_provider: Literal["stub", "openai"] = "stub"
@@ -88,6 +90,13 @@ class Settings(BaseSettings):
     provider_request_timeout_seconds: float = Field(default=15, gt=0)
     subscription_grace_period_days: int = Field(default=3, ge=0)
     billing_consent_version: str = "billing-v1"
+
+    @field_validator("telegram_bot_username")
+    @classmethod
+    def valid_telegram_bot_username(cls, value: str) -> str:
+        if not value.strip():
+            return ""
+        return normalize_bot_username(value)
 
     @field_validator("payment_currency")
     @classmethod
