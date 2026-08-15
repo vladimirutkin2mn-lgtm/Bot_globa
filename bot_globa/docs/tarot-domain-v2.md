@@ -12,6 +12,8 @@ The domain model was built against primary/historical descriptions of the Waite 
 
 The implementation paraphrases meanings into compact Russian application data. It does not reproduce source passages verbatim.
 
+Waite documents general divination layouts, including the Celtic method, but does not define a canonical modern set of separate "love", "work", "decision" or "repeating pattern" spreads. The topic-specific layouts below are therefore explicitly **product-owned RWS layouts**: RWS supplies the card tradition, while Numa owns the role assigned to each position.
+
 ## Deck contract
 
 `rws-78-v1` contains the full 78-card structure:
@@ -54,9 +56,27 @@ The interpretation is expected to work at three levels:
 
 1. **Card in position.** What this exact card contributes to the role it occupies in the spread.
 2. **Relationships between cards.** Reinforcement, contrast, transition or a repeated motif across the spread.
-3. **Answer to the question.** A coherent reading of the user's concrete situation rather than three independent dictionary entries.
+3. **Answer to the question.** A coherent reading of the user's concrete situation rather than independent dictionary entries.
 
 Major Arcana may be treated as broader archetypal pressure and Minor Arcana as more situational texture when that distinction helps the reading, while all concrete claims remain bounded by the application-provided card data.
+
+## Topic-specific spread contract
+
+A new Tarot draft selects one spread from its explicit topic and immediately persists the chosen stable code as `Reading.symbol_set_code`. The topic router is used **only at draft creation**. Retry, worker replay and process restart load the persisted code instead of asking the current router to choose again.
+
+Current layouts are five-card, versioned product layouts:
+
+| Topic | Spread code | Positions |
+|---|---|---|
+| Relationships | `relationship_five_v1` | current relationship dynamic; bond/attraction; distance/friction; unspoken factor; direction under current conditions |
+| Work and money | `work_five_v1` | current work situation; opportunity; constraint; available resource; next step |
+| Choice | `decision_five_v1` | core of the decision; option A potential; option A cost; option B potential; option B cost |
+| Repeating pattern | `pattern_five_v1` | trigger; hidden need/motive; reinforcement; break point; alternative response |
+| Open question | `open_question_five_v1` | central theme; emerging influence; fading influence; blind spot; near-term direction under current conditions |
+
+The position descriptions deliberately preserve product safety boundaries. For example, an "unspoken factor" can describe ambiguity, behavior or an unobserved dynamic, but does not authorize factual claims about another person's private thoughts or feelings. A direction position describes a conditional trajectory rather than a guaranteed future.
+
+Legacy `three_card_v1` and `one_card_v1` remain resolvable for historical readings and tests; they are not silently remapped to a newer layout.
 
 ## Visual card contract
 
@@ -80,18 +100,9 @@ New Tarot readings use:
 - catalog: `rws-78-v1`;
 - engine: `tarot-symbolic-v2`;
 - prompt: `tarot-reader-v4`;
-- result schema: `reading-result-v1`.
+- result schema: `reading-result-v1`;
+- persisted spread contract: `Reading.symbol_set_code`.
 
-The deterministic draw is still seeded by the reading ID, engine version, catalog version and spread code, so retries of the same reading produce the same cards and orientations.
+The deterministic draw is seeded by the reading ID, engine version, catalog version and persisted spread code, so retries of the same reading produce the same positions, cards and orientations.
 
-## Spread scope in this release
-
-This version deliberately keeps `three_card_v1`:
-
-- `current_influence`;
-- `hidden_factor`;
-- `next_step`.
-
-Topic-specific spreads are a separate domain change. Before adding them, the chosen spread must itself be frozen/persisted as part of the reading contract so a retry or worker replay can never switch the spread after a draft has been created.
-
-This separation gives the product a full Tarot knowledge layer now without coupling it to an unsafe migration of existing Reading replay semantics.
+The migration introducing `symbol_set_code` backfills all Tarot readings produced by earlier `tarot-symbolic-v1` / `tarot-symbolic-v2` deployments to `three_card_v1`, because that was the only Tarot layout available before topic-specific routing existed. Non-symbolic personas retain `none`.
