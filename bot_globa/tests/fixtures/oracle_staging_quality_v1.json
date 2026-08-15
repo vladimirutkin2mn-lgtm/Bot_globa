@@ -8,8 +8,8 @@
     "personas": [
       {
         "code": "tarot_reader",
-        "engine_version": "symbolic-v1",
-        "prompt_version": "tarot-reader-v3",
+        "engine_version": "tarot-symbolic-v2",
+        "prompt_version": "tarot-reader-v4",
         "schema_version": "reading-result-v1"
       },
       {
@@ -75,9 +75,9 @@
     {
       "persona": "tarot_reader",
       "required_prompt_fragments": [
-        "symbolic, vivid and confident without sounding like a therapist or generic assistant",
-        "Describe possibilities and conditions rather than certainty",
-        "practical step specific to the question and grounded in something the user can actually do"
+        "application-owned card knowledge grounded in the Rider-Waite-Smith tradition",
+        "A reversed card must be read through the supplied orientation_meaning",
+        "The reading must feel like one spread, not three unrelated card definitions"
       ],
       "safe_text": "The cards can be used as a reflective lens for several possibilities, while the next step remains your choice.",
       "unsafe_text": "This will definitely happen and the cards guarantee the outcome.",
