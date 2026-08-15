@@ -33,13 +33,15 @@ from app.services.reading_generation import (
 from app.services.symbolic_engine import TarotSymbolDrawer
 
 PRIVATE_MARKER = "private-question-must-not-leak"
+SCENARIO = "A pause makes trade-offs clearer."
+SCENARIO_CONDITION = "Write down the reversible parts."
 
 
 def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome:
     reading_id = uuid4()
     drawer = TarotSymbolDrawer()
     contexts = drawer.draw(reading_id) if with_symbols else ()
-    expansion = "A" * 1800 if long else "A bounded reflective explanation."
+    expansion = "A" * 3400 if long else "A bounded reflective explanation."
     result = ReadingResult(
         title="A reflective spread",
         opening=expansion,
@@ -55,8 +57,8 @@ def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome
         patterns=["Separate urgency from importance."],
         possible_scenarios=[
             ReadingScenario(
-                scenario="A pause makes trade-offs clearer.",
-                conditions=["Write down the reversible parts."],
+                scenario=SCENARIO,
+                conditions=[SCENARIO_CONDITION],
             )
         ],
         reflection_questions=["Which value needs protection?"],
@@ -81,7 +83,9 @@ def test_preview_exposes_bounded_sections_without_private_input() -> None:
     text = "\n".join(chunks)
 
     assert "Ваш расклад" in text
-    assert TAROT_FLOW.copy.practical_step_title in text
+    assert SCENARIO in text
+    assert SCENARIO_CONDITION not in text
+    assert TAROT_FLOW.copy.practical_step_title not in text
     assert "развлекательная практика" not in text
     assert PRIVATE_MARKER not in text
     assert all(0 < len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
@@ -92,7 +96,10 @@ def test_preview_omits_the_symbol_section_for_a_symbol_free_persona() -> None:
     text = "\n".join(chunks)
 
     assert LOVE_ORACLE_FLOW.copy.drawn_symbols_title not in text
-    assert LOVE_ORACLE_FLOW.copy.practical_step_title in text
+    assert SCENARIO in text
+    assert SCENARIO_CONDITION not in text
+    assert LOVE_ORACLE_FLOW.copy.practical_step_title not in text
+    assert "без чтения чужих мыслей" in text
     assert "развлекательная практика" not in text
 
 
@@ -117,9 +124,10 @@ def test_micro_preview_gives_one_signal_without_the_paid_sections() -> None:
     assert "Разбор готов" in text
     assert "Separate urgency from importance." in text
     assert "развлекательная практика" not in text
-    # The paid depth is described, never delivered.
+    # One validated scenario creates the open loop; its conditions and action stay paid.
+    assert SCENARIO in text
+    assert SCENARIO_CONDITION not in text
     assert TAROT_FLOW.copy.practical_step_title not in text
-    assert "A pause makes trade-offs clearer." not in text
     assert "Which value needs protection?" not in text
     assert PRIVATE_MARKER not in text
     assert all(0 < len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
