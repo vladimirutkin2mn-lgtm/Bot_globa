@@ -79,6 +79,7 @@ class ReadingService:
                 "engine_version": request.engine_version,
                 "prompt_version": request.prompt_version,
                 "schema_version": request.schema_version,
+                "symbol_set_code": request.symbol_set_code,
             },
         )
         return reading
@@ -162,6 +163,19 @@ class ReadingService:
     async def load_result(self, reading_id: UUID, user_id: UUID) -> dict[str, object] | None:
         async with self._sessions() as session:
             return await self._repository(session).load_result(reading_id, user_id)
+
+    async def load_symbol_contract(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> tuple[str, str] | None:
+        """Return the frozen engine and symbol-set versions for deterministic replay."""
+
+        async with self._sessions() as session:
+            reading = await self._repository(session).get_owned(reading_id, user_id)
+            if reading is None:
+                return None
+            return reading.engine_version, reading.symbol_set_code
 
     def _repository(self, session: AsyncSession) -> SqlAlchemyReadingRepository:
         return SqlAlchemyReadingRepository(
