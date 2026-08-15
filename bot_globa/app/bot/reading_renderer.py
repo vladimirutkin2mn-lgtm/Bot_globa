@@ -20,11 +20,6 @@ TEASER_LIMIT = 140
 REVEAL_TITLE = "Расклад складывается"
 REVEAL_CLOSING = "Читаю расклад…"
 
-DISCLAIMER = (
-    "<i>Это развлекательная практика для рефлексии, а не достоверное предсказание "
-    "или профессиональная консультация.</i>"
-)
-
 
 @dataclass(frozen=True, slots=True)
 class ReadingCopy:
@@ -64,7 +59,6 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
             f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
             _locked_teaser(result, copy),
-            DISCLAIMER,
         ]
     )
     return chunk_sections(tuple(sections))
@@ -83,7 +77,6 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
         (
             f"<b>{copy.main_theme_title}</b> — {quote(insight)}",
             "Полная версия покажет развитие темы, возможные сценарии и следующий шаг.",
-            DISCLAIMER,
         )
     )
     return chunk_sections(tuple(sections))
@@ -129,7 +122,6 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
     sections.extend(
         [
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
-            DISCLAIMER,
             (
                 "Разбор сохранён в «Моих разборах». Хотите уточнить один момент? "
                 "Этот вопрос уже включён в покупку."

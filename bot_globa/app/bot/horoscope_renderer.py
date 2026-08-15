@@ -68,10 +68,6 @@ _GENERIC_LIMITATIONS = frozenset(
         HoroscopeLimitation.NO_CERTAIN_PREDICTION,
     }
 )
-DISCLAIMER = (
-    "<i>Астрология здесь — развлекательный инструмент для рефлексии, "
-    "а не достоверное предсказание или профессиональная консультация.</i>"
-)
 
 
 class HoroscopeRenderError(ValueError):
@@ -210,7 +206,6 @@ class HoroscopeRenderer:
         if technical:
             lines.extend(("", "<b>Ограничения расчёта:</b>"))
             lines.extend(f"• {_LIMITATION_LABELS[value]}" for value in technical)
-        lines.extend(("", DISCLAIMER))
         return lines
 
     @staticmethod
