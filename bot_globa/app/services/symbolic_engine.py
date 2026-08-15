@@ -1,4 +1,4 @@
-"""Deterministic symbolic selection independent from the LLM provider."""
+"""Deterministic Tarot selection independent from the LLM provider."""
 
 import hashlib
 from dataclasses import dataclass
@@ -7,11 +7,12 @@ from uuid import UUID
 from app.domain.reading import ReadingSymbolInput, SymbolOrientation
 from app.domain.reading_generation import ReadingSymbolContext
 from app.domain.tarot import (
-    MAJOR_ARCANA_V1,
+    RWS_78_V1,
     THREE_CARD_SPREAD,
     TarotCard,
     TarotCatalog,
     TarotSpread,
+    card_knowledge,
     tarot_spread,
 )
 
@@ -30,9 +31,13 @@ class SelectedTarotCard:
 
     @property
     def interpretation_theme(self) -> str:
-        if self.orientation is SymbolOrientation.REVERSED:
-            return self.card.reversed_theme
-        return self.card.upright_theme
+        """Application-owned card knowledge for this exact position and orientation."""
+
+        return card_knowledge(
+            self.card,
+            self.position,
+            reversed=self.orientation is SymbolOrientation.REVERSED,
+        )
 
     def to_reading_symbol(self) -> ReadingSymbolInput:
         return ReadingSymbolInput(
@@ -44,11 +49,11 @@ class SelectedTarotCard:
 
 
 class TarotSymbolicEngine:
-    """Select unique cards deterministically from a reading-scoped seed."""
+    """Select unique cards deterministically from the versioned RWS deck."""
 
-    version = "tarot-symbolic-v1"
+    version = "tarot-symbolic-v2"
 
-    def __init__(self, catalog: TarotCatalog = MAJOR_ARCANA_V1) -> None:
+    def __init__(self, catalog: TarotCatalog = RWS_78_V1) -> None:
         self._catalog = catalog
 
     def draw(self, reading_id: UUID, spread_code: str) -> tuple[SelectedTarotCard, ...]:
@@ -97,7 +102,7 @@ class TarotSymbolicEngine:
 
 
 class TarotSymbolDrawer:
-    """Adapt the deterministic tarot engine to the persona-neutral drawing contract."""
+    """Adapt the deterministic Tarot engine to the persona-neutral drawing contract."""
 
     def __init__(
         self,
