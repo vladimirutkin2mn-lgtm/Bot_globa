@@ -36,6 +36,17 @@ class CapturingDraftService:
         self.requests.append((user_id, request))
         return Reading(id=self.reading_id)
 
+    async def load_symbol_contract(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> tuple[str, str] | None:
+        del user_id
+        if reading_id != self.reading_id or not self.requests:
+            return None
+        request = self.requests[-1][1]
+        return request.engine_version, request.symbol_set_code
+
 
 class CapturingGenerationService:
     def __init__(self) -> None:
@@ -100,7 +111,7 @@ class StructuredTarotLLM:
         )
 
 
-async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> None:
+async def test_use_case_freezes_versions_and_passes_topic_specific_symbols() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()
     use_case = PersonaReadingUseCase("tarot_reader", drafts, generation, drawer=TarotSymbolDrawer())
@@ -122,19 +133,23 @@ async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> N
     assert request.engine_version == "tarot-symbolic-v2"
     assert request.prompt_version == "tarot-reader-v4"
     assert request.schema_version == "reading-result-v1"
+    assert request.symbol_set_code == "decision_five_v1"
     assert request.cost_units == 0
-    assert first.symbol_set_code == "three_card_v1"
+    assert first.symbol_set_code == "decision_five_v1"
     assert first.symbols == replay.symbols
-    assert len(first.symbols) == 3
+    assert len(first.symbols) == 5
     assert tuple(item.symbol.position for item in first.symbols) == (
-        "current_influence",
-        "hidden_factor",
-        "next_step",
+        "decision_core",
+        "option_a_potential",
+        "option_a_cost",
+        "option_b_potential",
+        "option_b_cost",
     )
     assert len(generation.calls) == 2
     assert generation.calls[0][2] == first.symbols
     assert all(item.display_name and item.interpretation_theme for item in first.symbols)
     assert all("tradition=Rider-Waite-Smith" in item.interpretation_theme for item in first.symbols)
+    assert all("position_focus=" in item.interpretation_theme for item in first.symbols)
 
 
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
@@ -190,13 +205,19 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
             context="Both options are reversible during the next month.",
         ),
     )
-    replay = await use_case.generate_existing_preview(first.reading_id, user.id)
+    # A fresh use-case instance has no in-memory set-code cache. Replaying through it proves
+    # the spread is restored from the Reading rather than recomputed from current topic rules.
+    restarted = PersonaReadingUseCase.from_services(
+        "tarot_reader", readings, generation, drawer=TarotSymbolDrawer()
+    )
+    replay = await restarted.generate_existing_preview(first.reading_id, user.id)
 
     assert first.generation.status is ReadingGenerationStatus.COMPLETED
     assert not first.generation.idempotent
     assert replay.generation.status is ReadingGenerationStatus.COMPLETED
     assert replay.generation.idempotent
     assert replay.symbols == first.symbols
+    assert replay.symbol_set_code == "decision_five_v1"
     assert len(llm.requests) == 1
     assert not llm.requests[0].repair
     assert "tradition=Rider-Waite-Smith" in llm.requests[0].user_prompt
@@ -212,3 +233,4 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
         assert reading.engine_version == "tarot-symbolic-v2"
         assert reading.prompt_version == "tarot-reader-v4"
         assert reading.schema_version == "reading-result-v1"
+        assert reading.symbol_set_code == "decision_five_v1"
