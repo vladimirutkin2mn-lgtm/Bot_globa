@@ -8,7 +8,7 @@ from app.prompts.oracle import load_oracle_reading_prompts
 
 def test_active_personas_use_the_new_prompt_versions() -> None:
     expected = {
-        "tarot_reader": "tarot-reader-v3",
+        "tarot_reader": "tarot-reader-v4",
         "love_oracle": "love-oracle-v2",
         "mystical_psychologist": "mystical-psychologist-v2",
         "astrologer": "astrologer-v2",
@@ -20,9 +20,9 @@ def test_active_personas_use_the_new_prompt_versions() -> None:
     } == expected
 
 
-def test_every_v2_persona_requires_russian_user_facing_prose() -> None:
+def test_every_active_persona_requires_russian_user_facing_prose() -> None:
     systems = (
-        load_oracle_reading_prompts("tarot-reader-v3").system,
+        load_oracle_reading_prompts("tarot-reader-v4").system,
         load_oracle_reading_prompts("love-oracle-v2").system,
         load_oracle_reading_prompts("mystical-psychologist-v2").system,
         load_horoscope_prompts("astrologer-v2").system,
@@ -31,6 +31,18 @@ def test_every_v2_persona_requires_russian_user_facing_prose() -> None:
     for system in systems:
         assert "natural Russian" in system
         assert "never output" in system
+
+
+def test_tarot_v4_is_rws_bound_and_does_not_outsource_card_knowledge_to_the_llm() -> None:
+    prompt = load_oracle_reading_prompts("tarot-reader-v4")
+
+    assert "Rider-Waite-Smith" in prompt.system
+    assert "application-owned card knowledge" in prompt.system
+    assert "orientation_meaning" in prompt.system
+    assert "position_focus" in prompt.system
+    assert "Never invent a different card meaning" in prompt.system
+    assert "one spread, not three unrelated card definitions" in prompt.system
+    assert "synthesize at least two cards" in prompt.request_instruction
 
 
 def test_love_oracle_answers_without_claiming_private_mind_reading() -> None:
