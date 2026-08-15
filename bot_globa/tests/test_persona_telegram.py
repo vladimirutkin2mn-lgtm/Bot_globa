@@ -41,10 +41,11 @@ def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome
     reading_id = uuid4()
     drawer = TarotSymbolDrawer()
     contexts = drawer.draw(reading_id) if with_symbols else ()
-    expansion = "A" * 3400 if long else "A bounded reflective explanation."
+    opening = "A" * 1900 if long else "A bounded reflective explanation."
+    pattern = "B" * 1900 if long else "Separate urgency from importance."
     result = ReadingResult(
         title="A reflective spread",
-        opening=expansion,
+        opening=opening,
         symbols=[
             ReadingSymbolResult(
                 symbol_id=context.symbol.symbol_id,
@@ -54,7 +55,7 @@ def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome
             )
             for context in contexts
         ],
-        patterns=["Separate urgency from importance."],
+        patterns=[pattern],
         possible_scenarios=[
             ReadingScenario(
                 scenario=SCENARIO,
@@ -62,7 +63,7 @@ def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome
             )
         ],
         reflection_questions=["Which value needs protection?"],
-        practical_step=expansion,
+        practical_step="A bounded practical step.",
         uncertainty_note="The spread cannot determine external events.",
         share_card=ShareCardPayload(
             headline="A reflective spread",
