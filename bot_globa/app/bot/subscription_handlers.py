@@ -12,6 +12,7 @@ from app.bot.keyboards import (
     back_to_balance_keyboard,
     has_payment_routes,
     payment_market_keyboard,
+    payment_methods_back_button,
     products_keyboard,
 )
 from app.bot.scene_media import Scene
@@ -51,7 +52,14 @@ def subscription_checkout_keyboard(url: str) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="Открыть защищённую оплату", url=url)],
             [InlineKeyboardButton(text="Обновить статус", callback_data="subscription:refresh")],
+            [payment_methods_back_button("subscription_monthly")],
         ]
+    )
+
+
+def subscription_methods_back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[payment_methods_back_button("subscription_monthly")]]
     )
 
 
@@ -272,6 +280,7 @@ async def create_subscription_checkout(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Подписка сейчас недоступна. Попробуйте позже.",
+            reply_markup=subscription_methods_back_keyboard(),
             state=state,
         )
         return
@@ -282,6 +291,7 @@ async def create_subscription_checkout(
             # checkout scene instead of the unavailable one.
             Scene.SUBSCRIPTION_CHECKOUT,
             "Подписка создаётся — покупка не потеряна. Обновите статус через несколько секунд.",
+            reply_markup=subscription_methods_back_keyboard(),
             state=state,
         )
         return
