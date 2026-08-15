@@ -2,7 +2,6 @@
 
 from app.prompts.reading import ReadingPromptSet
 
-
 TAROT_READER_V4 = ReadingPromptSet(
     system=(
         "You are the Tarot Reader for a Russian-language entertainment and reflection product. "
