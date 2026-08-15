@@ -14,10 +14,13 @@ from app.bot.typography import quote
 
 
 class HookScenario(Protocol):
-    """The small scenario surface shared by Reading and Astrology results."""
+    """The read-only scenario surface shared by Reading and Astrology results."""
 
-    scenario: str
-    conditions: Sequence[str]
+    @property
+    def scenario(self) -> str: ...
+
+    @property
+    def conditions(self) -> Sequence[str]: ...
 
 
 @dataclass(frozen=True, slots=True)
