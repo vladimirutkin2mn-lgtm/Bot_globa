@@ -19,7 +19,7 @@ def test_rws_catalog_has_the_complete_78_card_structure() -> None:
     assert arcana == Counter({TarotArcana.MAJOR: 22, TarotArcana.MINOR: 56})
 
     suits = Counter(card.suit for card in RWS_78_V1.cards if card.suit is not None)
-    assert suits == Counter({suit: 14 for suit in TarotSuit})
+    assert suits == Counter(dict.fromkeys(TarotSuit, 14))
     assert all(card.upright_theme and card.reversed_theme for card in RWS_78_V1.cards)
     assert all(card.symbolic_focus for card in RWS_78_V1.cards)
 
