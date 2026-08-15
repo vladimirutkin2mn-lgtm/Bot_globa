@@ -134,9 +134,7 @@ async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> N
     assert len(generation.calls) == 2
     assert generation.calls[0][2] == first.symbols
     assert all(item.display_name and item.interpretation_theme for item in first.symbols)
-    assert all(
-        "tradition=Rider-Waite-Smith" in item.interpretation_theme for item in first.symbols
-    )
+    assert all("tradition=Rider-Waite-Smith" in item.interpretation_theme for item in first.symbols)
 
 
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
