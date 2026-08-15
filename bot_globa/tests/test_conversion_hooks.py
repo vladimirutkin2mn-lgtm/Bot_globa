@@ -8,6 +8,7 @@ from app.bot.horoscope_renderer import HoroscopeRenderer
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.reading_renderer import render_micro_preview, render_preview
 from app.domain.horoscope import AstrologyReadingResult
+from app.domain.reading import SymbolOrientation
 from app.domain.reading_result import ReadingResult, ReadingScenario
 from app.services.persona_reading import PersonaPreviewOutcome
 from app.services.preview_entitlement import ReadingPreviewVisibility
@@ -18,6 +19,14 @@ from tests.test_reading_result_validator import _valid_payload
 
 def _two_scenario_reading() -> ReadingResult:
     payload = _valid_payload()
+    symbols = payload["symbols"]
+    assert isinstance(symbols, list)
+    for symbol in symbols:
+        assert isinstance(symbol, dict)
+        orientation = symbol["orientation"]
+        assert isinstance(orientation, str)
+        symbol["orientation"] = SymbolOrientation(orientation)
+
     scenarios = payload["possible_scenarios"]
     assert isinstance(scenarios, list)
     scenarios.append(
@@ -92,6 +101,8 @@ def test_micro_preview_keeps_the_same_grounded_open_loop() -> None:
     rendered = "\n".join(render_micro_preview(outcome, TAROT_FLOW.copy))
 
     assert result.patterns[0] in rendered
+    assert result.possible_scenarios[0].scenario in rendered
+    assert result.possible_scenarios[0].conditions[0] not in rendered
     assert result.practical_step not in rendered
     assert "что запускает повторяющийся цикл" in rendered
     assert "точка" in rendered
