@@ -79,7 +79,6 @@ class ReadingService:
                 "engine_version": request.engine_version,
                 "prompt_version": request.prompt_version,
                 "schema_version": request.schema_version,
-                "symbol_set_code": request.symbol_set_code,
             },
         )
         return reading
