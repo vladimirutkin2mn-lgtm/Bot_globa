@@ -68,13 +68,13 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
     PersonaDefinition(
         code="tarot_reader",
         display_name="Таролог",
-        description="Symbolic cards, possible scenarios and one practical next step.",
+        description="A 78-card Rider-Waite-Smith spread interpreted from versioned card knowledge.",
         engine=PersonaEngine.SYMBOLIC,
         supported_topics=("love", "work", "decision", "repeating_pattern", "general_forecast"),
         required_inputs=(PersonaInput.QUESTION,),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT,),
-        engine_version="symbolic-v1",
-        prompt_version="tarot-reader-v3",
+        engine_version="tarot-symbolic-v2",
+        prompt_version="tarot-reader-v4",
         schema_version="reading-result-v1",
     ),
     PersonaDefinition(
