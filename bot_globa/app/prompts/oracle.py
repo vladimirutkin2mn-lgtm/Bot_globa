@@ -5,8 +5,10 @@ from app.prompts.mystical_psychologist import (
     MYSTICAL_PSYCHOLOGIST_V2,
 )
 from app.prompts.reading import ReadingPromptSet, load_reading_prompts
+from app.prompts.tarot_v4 import TAROT_READER_V4
 
 _PERSONA_PACKS: dict[str, ReadingPromptSet] = {
+    "tarot-reader-v4": TAROT_READER_V4,
     "mystical-psychologist-v1": MYSTICAL_PSYCHOLOGIST_V1,
     "mystical-psychologist-v2": MYSTICAL_PSYCHOLOGIST_V2,
 }
