@@ -5,7 +5,7 @@ calculation engine, so it keeps its own use case in `app.services.horoscope_read
 """
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 
 from app.db.reading_models import Reading
@@ -54,6 +54,10 @@ class UnsafePersonaInputError(ValueError):
 
 class ReadingDraftStore(Protocol):
     async def create_draft(self, user_id: UUID, request: ReadingDraftRequest) -> Reading: ...
+
+
+class ReadingSymbolContractStore(Protocol):
+    """Optional persistence capability required only by symbolic personas."""
 
     async def load_symbol_contract(
         self,
@@ -265,7 +269,8 @@ class PersonaReadingUseCase:
     ) -> str | None:
         if self._drawer is None:
             return None
-        contract = await self._readings.load_symbol_contract(reading_id, user_id)
+        store = cast("ReadingSymbolContractStore", self._readings)
+        contract = await store.load_symbol_contract(reading_id, user_id)
         if contract is None:
             raise LookupError("reading symbol contract is unavailable")
         _engine_version, symbol_set_code = contract
