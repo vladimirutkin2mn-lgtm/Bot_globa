@@ -35,9 +35,7 @@ class TarotCard:
     def __post_init__(self) -> None:
         if not self.code or not self.name_ru.strip():
             raise ValueError("tarot card requires code and display name")
-        if self.arcana is TarotArcana.MAJOR and (
-            self.suit is not None or self.rank is not None
-        ):
+        if self.arcana is TarotArcana.MAJOR and (self.suit is not None or self.rank is not None):
             raise ValueError("major arcana cannot have a suit or rank")
         if self.arcana is TarotArcana.MINOR and (self.suit is None or self.rank is None):
             raise ValueError("minor arcana requires suit and rank")
