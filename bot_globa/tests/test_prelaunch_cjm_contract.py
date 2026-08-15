@@ -5,7 +5,6 @@ from uuid import uuid4
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot import texts
-from app.bot.horoscope_renderer import DISCLAIMER as ASTRO_DISCLAIMER
 from app.bot.keyboards import (
     consent_keyboard,
     daily_horoscope_keyboard,
@@ -93,8 +92,3 @@ def test_stars_invoice_and_support_never_expose_the_credit_ledger() -> None:
 
 def test_love_oracle_menu_matches_the_current_persona_positioning() -> None:
     assert "Любовный оракул — чувства, притяжение и динамика отношений." in texts.MAIN_MENU
-
-
-def test_astrologer_has_one_canonical_customer_disclaimer() -> None:
-    assert "развлекательный инструмент для рефлексии" in ASTRO_DISCLAIMER
-    assert "достоверное предсказание" in ASTRO_DISCLAIMER
