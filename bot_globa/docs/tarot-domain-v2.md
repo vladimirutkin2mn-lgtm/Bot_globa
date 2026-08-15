@@ -58,6 +58,19 @@ The interpretation is expected to work at three levels:
 
 Major Arcana may be treated as broader archetypal pressure and Minor Arcana as more situational texture when that distinction helps the reading, while all concrete claims remain bounded by the application-provided card data.
 
+## Visual card contract
+
+The reveal must show the exact card selected by the deterministic engine; a generic scene image is not an acceptable substitute for a known RWS card.
+
+- The existing 22 bespoke Major Arcana illustrations remain local under `app/bot/assets/tarot/` to preserve the product's dark Numa visual language.
+- Minor Arcana use public-domain Rider–Waite imagery from the `mixvlad/TarotCards` mirror.
+- The runtime source is pinned to upstream revision `5c44ca5c94a9d67f9bc06cb6b920c2544fa76c74`, never to a moving `main` URL.
+- Card IDs are mapped by application-owned suit/rank tables; arbitrary symbol IDs cannot become external URLs.
+- Telegram's returned `file_id` is cached under the same stable `tarot:<symbol_id>` key after a successful first send.
+- If Telegram cannot fetch or accept a card image, the reading still degrades to text rather than failing.
+
+This remote fallback is a deployment trade-off, not domain knowledge. A future fully bespoke 78-card art pack can replace the URLs without changing `rws-78-v1`, the draw engine or the interpretation prompt.
+
 ## Versioning and replay
 
 Legacy `tarot-major-v1`, older prompt packs and historical reading versions remain in the repository so previously persisted readings are reproducible.
