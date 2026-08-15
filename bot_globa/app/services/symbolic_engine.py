@@ -12,7 +12,10 @@ from app.domain.tarot import (
     TarotCard,
     TarotCatalog,
     TarotSpread,
-    card_knowledge,
+)
+from app.domain.tarot_spreads import (
+    card_knowledge_for_position,
+    spread_for_topic,
     tarot_spread,
 )
 
@@ -33,7 +36,7 @@ class SelectedTarotCard:
     def interpretation_theme(self) -> str:
         """Application-owned card knowledge for this exact position and orientation."""
 
-        return card_knowledge(
+        return card_knowledge_for_position(
             self.card,
             self.position,
             reversed=self.orientation is SymbolOrientation.REVERSED,
@@ -102,23 +105,42 @@ class TarotSymbolicEngine:
 
 
 class TarotSymbolDrawer:
-    """Adapt the deterministic Tarot engine to the persona-neutral drawing contract."""
+    """Adapt the deterministic Tarot engine to the persona-neutral drawing contract.
+
+    A fixed `spread_code` remains available for legacy/tests. Production draft creation
+    asks `set_code_for_topic()` once and persists that returned code on the Reading.
+    Subsequent retries pass the persisted code back to `draw()`.
+    """
 
     def __init__(
         self,
         engine: TarotSymbolicEngine | None = None,
-        spread_code: str = THREE_CARD_SPREAD.code,
+        spread_code: str | None = None,
     ) -> None:
         self._engine = engine or TarotSymbolicEngine()
         self.version = self._engine.version
-        self.set_code = spread_code
+        self._fixed_spread_code = spread_code
+        self.set_code = spread_code or THREE_CARD_SPREAD.code
 
-    def draw(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
+    def set_code_for_topic(self, topic: str) -> str:
+        if self._fixed_spread_code is not None:
+            return self._fixed_spread_code
+        spread = spread_for_topic(topic)
+        if spread is None:
+            raise UnknownSpreadError(f"no tarot spread for topic: {topic}")
+        return spread.code
+
+    def draw(
+        self,
+        reading_id: UUID,
+        set_code: str | None = None,
+    ) -> tuple[ReadingSymbolContext, ...]:
+        spread_code = set_code or self.set_code
         return tuple(
             ReadingSymbolContext(
                 symbol=card.to_reading_symbol(),
                 display_name=card.card.name_ru,
                 interpretation_theme=card.interpretation_theme,
             )
-            for card in self._engine.draw(reading_id, self.set_code)
+            for card in self._engine.draw(reading_id, spread_code)
         )
