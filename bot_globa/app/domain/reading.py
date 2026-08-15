@@ -83,6 +83,7 @@ class ReadingDraftRequest(StrictReadingModel):
     engine_version: VersionCode
     prompt_version: VersionCode
     schema_version: VersionCode
+    symbol_set_code: VersionCode = "none"
     cost_units: int = Field(default=0, ge=0)
 
 
