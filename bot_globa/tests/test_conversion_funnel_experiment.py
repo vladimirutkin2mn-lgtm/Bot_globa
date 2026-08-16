@@ -63,9 +63,9 @@ def test_persona_preview_wires_the_assigned_arm_into_the_renderer() -> None:
 
 
 def test_billing_projection_uses_the_same_internal_subject_without_private_payload() -> None:
-    migration = Path(
-        "migrations/versions/20260816_33_link_billing_analytics_subject.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("migrations/versions/20260816_33_link_billing_analytics_subject.py").read_text(
+        encoding="utf-8"
+    )
     assert "SELECT user_id::text" in migration
     assert "FROM payment_orders" in migration
     assert "order_user_id" in migration
