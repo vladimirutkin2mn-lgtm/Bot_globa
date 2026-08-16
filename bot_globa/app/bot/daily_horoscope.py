@@ -9,7 +9,8 @@ from app.domain.daily_horoscope import (
     daily_horoscope_enabled,
     moscow_time_difference_for_timezone,
 )
-from app.services.daily_sky import SIGN_LABELS, DailyHoroscopeSnapshot, build_daily_horoscope
+from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
+from app.services.daily_sky import SIGN_LABELS, DailyHoroscopeSnapshot
 
 MODE_CONFIRMATIONS = MappingProxyType(
     {
@@ -46,7 +47,7 @@ TIMEZONE_ERROR = (
 def render_daily_horoscope(value: date | DailyHoroscopeSnapshot) -> str:
     """Render one bounded digest shared by every user for the same calculated snapshot."""
 
-    snapshot = build_daily_horoscope(value) if isinstance(value, date) else value
+    snapshot = build_editorial_daily_horoscope(value) if isinstance(value, date) else value
     lines = [
         f"Гороскоп на сегодня · {snapshot.forecast_date:%d.%m.%Y}",
         f"🌙 Тема дня: {snapshot.theme}.",
