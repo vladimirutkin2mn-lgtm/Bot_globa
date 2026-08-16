@@ -1,10 +1,8 @@
-"""The broadcast survives Telegram throttling instead of forfeiting the digest.
+"""The broadcast survives Telegram throttling after content has been prepared.
 
-Every active user shares one local 08:00, so a 429 is an expected outcome of the burst
-rather than an exceptional one. `claim_due` reserves `last_delivered_on` before the send,
-which means a throttled delivery that falls through to `release()` loses the day for good.
-These tests pin the one failure Telegram reports unambiguously to a retry against the same
-claim, and keep every ambiguous failure on the at-most-once path.
+The worker now calculates and renders the digest before reserving the local delivery day.
+These tests pin the send-side boundary: once Telegram I/O begins, only an explicit 429 is
+retried against the same reserved claim and ambiguous failures stay at-most-once.
 """
 
 import asyncio
@@ -20,7 +18,6 @@ from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.scene_media import Scene
 from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeMode
-from app.services.daily_sky import DailyHoroscopeSnapshot, build_daily_horoscope
 from app.workers import daily_horoscope as worker
 
 
@@ -88,8 +85,8 @@ def _claim() -> DailyHoroscopeClaim:
     )
 
 
-def _snapshot() -> DailyHoroscopeSnapshot:
-    return build_daily_horoscope(date(2026, 8, 13))
+def _caption() -> str:
+    return "Гороскоп на сегодня · 13.08.2026\nПерсональный учитывает вашу натальную карту"
 
 
 async def test_a_throttled_send_is_retried_against_the_same_claim(
@@ -101,21 +98,21 @@ async def test_a_throttled_send_is_retried_against_the_same_claim(
     await worker._send_digest(
         bot,
         _claim(),
-        _snapshot(),
+        _caption(),
         max_attempts=4,
         stopped=asyncio.Event(),
     )
 
     assert recorder.attempts == 3
     assert "Гороскоп на сегодня · 13.08.2026" in recorder.captions[0]
-    assert "персональный учитывает вашу натальную карту" in recorder.captions[0]
+    assert "Персональный учитывает вашу натальную карту" in recorder.captions[0]
 
 
 async def test_throttling_past_the_retry_budget_surfaces_to_the_caller(
     bot: Bot,
     sender: InstallSender,
 ) -> None:
-    """Exhausting the budget must reach the worker's ambiguous-failure path, not pass."""
+    """Exhausting the budget must reach the caller instead of pretending success."""
 
     recorder = sender(5, None)
 
@@ -123,7 +120,7 @@ async def test_throttling_past_the_retry_budget_surfaces_to_the_caller(
         await worker._send_digest(
             bot,
             _claim(),
-            _snapshot(),
+            _caption(),
             max_attempts=2,
             stopped=asyncio.Event(),
         )
@@ -143,7 +140,7 @@ async def test_shutdown_during_a_retry_stops_instead_of_waiting_out_the_limit(
         await worker._send_digest(
             bot,
             _claim(),
-            _snapshot(),
+            _caption(),
             max_attempts=4,
             stopped=stopped,
         )
@@ -166,7 +163,7 @@ async def test_a_blocked_recipient_is_not_retried(bot: Bot, sender: InstallSende
         await worker._send_digest(
             bot,
             _claim(),
-            _snapshot(),
+            _caption(),
             max_attempts=4,
             stopped=asyncio.Event(),
         )
