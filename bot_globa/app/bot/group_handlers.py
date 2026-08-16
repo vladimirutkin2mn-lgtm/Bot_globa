@@ -66,13 +66,13 @@ def group_card_for_day(chat_id: int, for_date: date) -> GroupCard:
         RWS_78_V1.cards,
         key=lambda candidate: _digest(seed.hex(), candidate.code),
     )
-    orientation = (
-        SymbolOrientation.REVERSED if seed[0] & 1 else SymbolOrientation.UPRIGHT
-    )
+    orientation = SymbolOrientation.REVERSED if seed[0] & 1 else SymbolOrientation.UPRIGHT
     return GroupCard(card=card, orientation=orientation)
 
 
-def compatibility_for_day(first_user_id: int, second_user_id: int, for_date: date) -> CompatibilityGame:
+def compatibility_for_day(
+    first_user_id: int, second_user_id: int, for_date: date
+) -> CompatibilityGame:
     """Create a symmetric party-game result for two Telegram users and one date."""
 
     left, right = sorted((first_user_id, second_user_id))
