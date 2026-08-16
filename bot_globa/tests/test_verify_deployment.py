@@ -100,7 +100,7 @@ async def test_verifier_passes_complete_release_contract() -> None:
     stars = next(check for check in checks if check.name == "telegram_stars_configuration")
     assert "single=40, pack_5=200, monthly=280" in stars.detail
     routes = next(check for check in checks if check.name == "telegram_payment_routes")
-    assert routes.detail == "Stars, RUB, EUR, and USD routes are enabled"
+    assert routes.detail == "Stars, RUB, and two visible Stripe routes are enabled"
 
 
 @pytest.mark.asyncio
