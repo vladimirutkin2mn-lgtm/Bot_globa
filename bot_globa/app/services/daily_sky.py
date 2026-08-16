@@ -155,7 +155,7 @@ _NEUTRAL_FORECAST = MappingProxyType(
         NatalBody.MOON: "лучше прислушаться к своему состоянию",
         NatalBody.MERCURY: "важная деталь проявится в разговоре",
         NatalBody.VENUS: "взаимность станет лучшим ориентиром",
-        NatalBody.MARS: "один ясный шаг даст больше суеты",
+        NatalBody.MARS: "один ясный шаг даст больше, чем суета",
         NatalBody.JUPITER: "рост потребует понятной опоры",
         NatalBody.SATURN: "сначала стоит закрыть обязательное",
         NatalBody.URANUS: "новый вариант окажется полезным",
@@ -387,11 +387,7 @@ def _strongest_aspect_for_body(
     body: NatalBody,
 ) -> DailySkyAspect | None:
     return next(
-        (
-            aspect
-            for aspect in sky.aspects
-            if body in (aspect.first_body, aspect.second_body)
-        ),
+        (aspect for aspect in sky.aspects if body in (aspect.first_body, aspect.second_body)),
         None,
     )
 
