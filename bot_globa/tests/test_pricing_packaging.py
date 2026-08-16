@@ -1,10 +1,13 @@
 """Customer pricing is expressed as readings, never as the internal entitlement ledger."""
 
+import inspect
+
 from aiogram.types import InlineKeyboardMarkup
 
-from app.bot import texts
+from app.bot import subscription_handlers, texts
 from app.bot.keyboards import more_menu_keyboard, products_keyboard
 from app.bot.pricing import product_price_label
+from app.bot.telegram_stars_handlers import payment_support_text
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCode
@@ -53,6 +56,7 @@ def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> 
             texts.BALANCE,
             texts.PRIVACY_INFO,
             texts.DELETE_ALL_PROMPT,
+            payment_support_text(),
             " ".join(_button_texts(more_menu_keyboard())),
         )
     ).casefold()
@@ -61,3 +65,10 @@ def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> 
     assert "баланс" not in customer_copy
     assert texts.BALANCE == "💳 Покупки"
     assert "полный разбор по этому вопросу" in texts.PAYWALL.casefold()
+
+
+def test_subscription_cancellation_copy_keeps_value_in_reading_units() -> None:
+    source = inspect.getsource(subscription_handlers)
+
+    assert "начисленные кредиты" not in source.casefold()
+    assert "уже доступные разборы сохраняются" in source.casefold()
