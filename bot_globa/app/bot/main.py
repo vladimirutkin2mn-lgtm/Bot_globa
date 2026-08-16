@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
+from app.bot.daily_conversion_handlers import router as daily_conversion_router
 from app.bot.group_handlers import router as group_router
 from app.bot.horoscope_handlers import create_horoscope_router
 from app.bot.horoscope_renderer import HoroscopeRenderer
@@ -198,6 +199,7 @@ def create_dispatcher(
     dispatcher.include_router(memory_router)
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
+    dispatcher.include_router(daily_conversion_router)
     dispatcher.include_router(create_horoscope_router())
     dispatcher.include_router(reading_feedback_router)
     dispatcher.include_router(create_reading_followup_router())
@@ -305,7 +307,7 @@ async def close_dispatcher(dispatcher: Dispatcher) -> None:
     try:
         await close_geocoding_client(dispatcher["geocoding_client"])
     except Exception:
-        logger.warning("geocoding client shutdown failed")
+        logger.warning("Geocoding client shutdown failed")
     await dispatcher.fsm.close()
     if dispatcher["owns_database_engine"]:
         await dispatcher["database_engine"].dispose()
