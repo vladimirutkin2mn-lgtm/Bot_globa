@@ -159,8 +159,8 @@ def test_payment_choice_shows_stars_and_card_routes_together() -> None:
     assert labels == [
         "Telegram Stars · 75 ⭐",
         "Россия · 199 ₽",
-        "International · 0,99 €",
-        "International · 0,99 $",
+        "Stripe · 0,99 €",
+        "Stripe · 0,99 $",
         "Вернуться",
     ]
 
