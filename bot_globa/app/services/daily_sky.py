@@ -60,43 +60,43 @@ SIGN_LABELS = MappingProxyType(
 
 _HOUSE_FOCUS = MappingProxyType(
     {
-        1: "себе, инициативе и личному темпу",
-        2: "деньгам, ресурсам и ощущению опоры",
-        3: "разговорам, документам и коротким делам",
-        4: "дому, близким и внутренней устойчивости",
-        5: "симпатии, творчеству и удовольствию",
-        6: "ритму, работе и бытовым задачам",
-        7: "отношениям, договорённостям и обратной связи",
-        8: "общим ресурсам, доверию и скрытому напряжению",
-        9: "обучению, дальним планам и новому взгляду",
-        10: "карьере, видимости и результату",
-        11: "друзьям, связям и планам на будущее",
-        12: "отдыху, завершению и тому, что лучше не форсировать",
+        1: "личная инициатива",
+        2: "деньги и опора",
+        3: "разговоры и дела",
+        4: "дом и близкие",
+        5: "симпатии и творчество",
+        6: "работа и режим",
+        7: "отношения и договорённости",
+        8: "общие деньги и доверие",
+        9: "обучение и планы",
+        10: "карьера и результат",
+        11: "друзья и будущее",
+        12: "отдых и завершение",
     }
 )
 
 _BODY_ACTION = MappingProxyType(
     {
-        NatalBody.MOON: "Не принимайте первое чувство за окончательный вывод.",
-        NatalBody.MERCURY: "Говорите конкретно и перепроверяйте детали.",
-        NatalBody.VENUS: "В отношениях важнее тон и взаимность, чем эффектный жест.",
-        NatalBody.MARS: "Энергию лучше направить в один конкретный шаг.",
-        NatalBody.JUPITER: "Расширяйте план только там, где уже есть опора.",
-        NatalBody.SATURN: "Сначала обязательное, затем всё остальное.",
-        NatalBody.URANUS: "Оставьте место неожиданному варианту.",
-        NatalBody.NEPTUNE: "Проверяйте впечатление фактом, прежде чем делать вывод.",
-        NatalBody.PLUTO: "Не давите на ситуацию: ищите точку реального влияния.",
-        NatalBody.SUN: "Выберите одно направление, которому сегодня дадите больше внимания.",
+        NatalBody.MOON: "не спешите с выводом",
+        NatalBody.MERCURY: "проверьте детали",
+        NatalBody.VENUS: "важнее взаимность",
+        NatalBody.MARS: "лучше один ясный шаг",
+        NatalBody.JUPITER: "расширяйте с опорой",
+        NatalBody.SATURN: "сначала обязательное",
+        NatalBody.URANUS: "оставьте место новому",
+        NatalBody.NEPTUNE: "сверьте впечатление с фактом",
+        NatalBody.PLUTO: "ищите точку влияния",
+        NatalBody.SUN: "выберите главный приоритет",
     }
 )
 
 _ASPECT_THEME = MappingProxyType(
     {
-        NatalAspectKind.CONJUNCTION: "две темы сходятся в одну точку — лучше выбрать главный приоритет",
-        NatalAspectKind.SEXTILE: "есть пространство для небольшого шага, который откроет больше возможностей",
-        NatalAspectKind.SQUARE: "противоречие лучше заметить заранее, чем пытаться продавить ситуацию",
-        NatalAspectKind.TRINE: "то, что уже движется, проще поддержать, чем начинать всё заново",
-        NatalAspectKind.OPPOSITION: "важно удержать две стороны ситуации и не выбирать из первого импульса",
+        NatalAspectKind.CONJUNCTION: "две темы сходятся в одну точку — выберите главный приоритет",
+        NatalAspectKind.SEXTILE: "небольшой шаг может открыть больше возможностей",
+        NatalAspectKind.SQUARE: "противоречие лучше заметить до того, как давить на ситуацию",
+        NatalAspectKind.TRINE: "проще поддержать то, что уже движется",
+        NatalAspectKind.OPPOSITION: "важно удержать обе стороны ситуации и не спешить с выбором",
     }
 )
 
@@ -260,8 +260,7 @@ def calculate_daily_sky(forecast_date: date) -> DailySkySnapshot:
     planets = tuple(
         _planet_position(body, engine_body, astro_time) for body, engine_body in _TRANSIT_BODIES
     )
-    aspects = _planet_aspects(planets)
-    return DailySkySnapshot(forecast_date, planets, aspects)
+    return DailySkySnapshot(forecast_date, planets, _planet_aspects(planets))
 
 
 def build_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
@@ -269,16 +268,17 @@ def build_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
 
     sky = calculate_daily_sky(forecast_date)
     driver = _driver_aspect(sky)
-    theme = _ASPECT_THEME[driver.kind] if driver is not None else (
-        "сегодня полезнее держать свой темп и сверять впечатления с фактами"
+    theme = (
+        _ASPECT_THEME[driver.kind]
+        if driver is not None
+        else "сегодня полезнее держать свой темп и сверять впечатления с фактами"
     )
-    action_body = _action_body(driver)
-    action = _BODY_ACTION[action_body]
+    action = _BODY_ACTION[_action_body(driver)]
     moon = next(planet for planet in sky.planets if planet.body is NatalBody.MOON)
     signs = tuple(
         DailySignForecast(
             sign,
-            f"фокус на {_HOUSE_FOCUS[_solar_house(sign, moon.sign)]}; {action}",
+            f"{_HOUSE_FOCUS[_solar_house(sign, moon.sign)]}; {action}",
         )
         for sign in ZodiacSign
     )
