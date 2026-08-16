@@ -45,14 +45,15 @@ PARTY_PROMPTS = (
 
 GROUP_HELP = (
     "🔮 Numa в этом чате\n\n"
-    "/card — карта дня для всего чата\n"
-    "/compatibility — ответьте этой командой на сообщение другого участника\n"
-    "/party — быстрый игровой раунд для компании\n"
-    "/event вечер — расклад на вечер\n"
-    "/event поездка — расклад на поездку\n"
-    "/event событие — расклад на общее событие\n\n"
-    "Numa отвечает только на явные команды: бот не читает историю чата, "
-    "не перебирает участников и не делает выводов о чужих мыслях или чувствах."
+    "Выберите, что попробовать:\n\n"
+    "🔮 /card — карта дня для всего чата\n"
+    "💞 /compatibility — вайб вашего дуэта на сегодня\n"
+    "↳ ответьте командой на сообщение человека\n"
+    "🎉 /party — быстрый вопрос для всей компании\n"
+    "🃏 /event вечер — расклад на ваш вечер\n"
+    "🧳 /event поездка — расклад на поездку\n"
+    "✨ /event событие — расклад на общее событие\n\n"
+    "Все групповые расклады — игровой формат. Личные вопросы лучше задавать Numa один на один."
 )
 
 
@@ -197,7 +198,7 @@ async def group_card(message: Message, bot: Bot) -> None:
         "🔮 Карта дня этого чата\n\n"
         f"{result.card.name_ru} · {orientation}\n"
         f"Сегодняшний мотив: {result.theme}.\n\n"
-        "Считайте это общей игровой темой дня — не предсказанием событий в чате."
+        "Пусть это будет вашей общей темой дня ✨"
     )
     username = await _bot_username(bot)
     keyboard = (
@@ -223,8 +224,8 @@ async def compatibility(message: Message, bot: Bot) -> None:
         return
     if partner is None or partner.is_bot or partner.id == author.id:
         await message.answer(
-            "💞 Ответьте командой /compatibility на сообщение другого участника — "
-            "я соберу игровой расклад вашего дуэта на сегодня."
+            "💞 Чтобы посмотреть вайб вашего дуэта, ответьте /compatibility "
+            "на сообщение другого участника."
         )
         return
 
@@ -232,14 +233,13 @@ async def compatibility(message: Message, bot: Bot) -> None:
     first_name = escape(author.full_name)
     second_name = escape(partner.full_name)
     text = (
-        f"💞 Игровой вайб дуэта: {first_name} × {second_name}\n\n"
+        f"💞 Вайб дуэта на сегодня: {first_name} × {second_name}\n\n"
         f"💬 Ритм общения — {result.communication}%\n"
         f"⚡ Спонтанность — {result.spontaneity}%\n"
         f"🤝 Совместный темп — {result.teamwork}%\n\n"
         f"Карта дуэта — {result.card.name_ru}.\n"
         f"Мотив: {result.card.upright_theme}.\n\n"
-        "Это party-механика по двум аккаунтам и дате: она не определяет реальные чувства, "
-        "намерения или совместимость людей."
+        "Игровой расклад на сегодня — не оценка реальных чувств."
     )
     username = await _bot_username(bot)
     keyboard = (
@@ -260,11 +260,11 @@ async def compatibility(message: Message, bot: Bot) -> None:
 async def party_prompt(message: Message, bot: Bot) -> None:
     result = party_prompt_for_day(message.chat.id, message.date.date())
     text = (
-        "🎉 Быстрый раунд для чата\n\n"
+        "🎉 Кто сегодня кто?\n\n"
         f"{result.prompt}\n\n"
         f"Архетип чата сегодня — {result.archetype.name_ru}.\n"
         f"Мотив: {result.archetype.upright_theme}.\n\n"
-        "Выберите героя сами — Numa не просматривает список участников и никого не назначает."
+        "Выберите героя сами 👀"
     )
     username = await _bot_username(bot)
     keyboard = (
@@ -285,10 +285,7 @@ async def party_prompt(message: Message, bot: Bot) -> None:
 async def group_event(message: Message, bot: Bot) -> None:
     event_kind = _event_kind_from_command(message)
     if event_kind is None:
-        await message.answer(
-            "🃏 Выберите один формат: /event вечер, /event поездка или /event событие. "
-            "Свободный текст я здесь не анализирую."
-        )
+        await message.answer("🃏 Что смотрим?\n\n/event вечер\n/event поездка\n/event событие")
         return
 
     result = group_event_spread_for_day(message.chat.id, message.date.date(), event_kind)
@@ -301,10 +298,9 @@ async def group_event(message: Message, bot: Bot) -> None:
         )
     ]
     text = (
-        f"🃏 Игровой расклад на {label}\n\n"
+        f"🃏 Расклад на {label}\n\n"
         + "\n".join(lines)
-        + "\n\nОдин и тот же чат получает тот же расклад весь день — без перетягивания карт "
-        "до «нужного» результата."
+        + "\n\nКарты этого расклада не меняются до завтра ✨"
     )
     username = await _bot_username(bot)
     keyboard = (
