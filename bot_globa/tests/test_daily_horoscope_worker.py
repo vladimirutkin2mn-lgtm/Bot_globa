@@ -20,7 +20,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.scene_media import Scene
 from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeMode
-from app.services.daily_sky import build_daily_horoscope
+from app.services.daily_sky import DailyHoroscopeSnapshot, build_daily_horoscope
 from app.workers import daily_horoscope as worker
 
 
@@ -88,7 +88,7 @@ def _claim() -> DailyHoroscopeClaim:
     )
 
 
-def _snapshot():
+def _snapshot() -> DailyHoroscopeSnapshot:
     return build_daily_horoscope(date(2026, 8, 13))
 
 
