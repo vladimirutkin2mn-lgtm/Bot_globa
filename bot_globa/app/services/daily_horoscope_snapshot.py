@@ -6,12 +6,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.daily_horoscope_models import DailyHoroscopeSnapshotRow
-from app.services.daily_sky import (
-    DAILY_SKY_VERSION,
-    DAILY_SOLAR_METHOD_VERSION,
-    DailyHoroscopeSnapshot,
-    build_daily_horoscope,
+from app.services.daily_horoscope_editorial import (
+    DAILY_EDITORIAL_METHOD_VERSION,
+    build_editorial_daily_horoscope,
 )
+from app.services.daily_sky import DAILY_SKY_VERSION, DailyHoroscopeSnapshot
 
 
 class DailyHoroscopeSnapshotService:
@@ -28,7 +27,7 @@ class DailyHoroscopeSnapshotService:
                 if _is_current(snapshot):
                     return snapshot
 
-        generated = build_daily_horoscope(forecast_date)
+        generated = build_editorial_daily_horoscope(forecast_date)
         values = {
             "forecast_date": forecast_date,
             "sky_version": generated.sky_version,
@@ -55,7 +54,7 @@ class DailyHoroscopeSnapshotService:
 def _is_current(snapshot: DailyHoroscopeSnapshot) -> bool:
     return (
         snapshot.sky_version == DAILY_SKY_VERSION
-        and snapshot.methodology_version == DAILY_SOLAR_METHOD_VERSION
+        and snapshot.methodology_version == DAILY_EDITORIAL_METHOD_VERSION
     )
 
 
