@@ -4,9 +4,12 @@ import pytest
 
 from app.bot.commands import GROUP_COMMANDS
 from app.bot.group_handlers import (
+    GROUP_EVENT_KINDS,
     GROUP_HELP,
     compatibility_for_day,
     group_card_for_day,
+    group_event_spread_for_day,
+    party_prompt_for_day,
     private_deep_link,
 )
 from app.domain.reading import SymbolOrientation
@@ -38,13 +41,45 @@ def test_compatibility_is_symmetric_and_bounded() -> None:
     assert 45 <= forward.teamwork <= 95
 
 
+def test_party_prompt_is_stable_and_never_selects_a_member() -> None:
+    day = date(2026, 8, 16)
+
+    first = party_prompt_for_day(-1001234567890, day)
+    second = party_prompt_for_day(-1001234567890, day)
+
+    assert first == second
+    assert first.prompt.strip()
+    assert first.archetype in RWS_78_V1.cards
+    assert "@" not in first.prompt
+
+
+def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
+    day = date(2026, 8, 16)
+
+    for event_kind in GROUP_EVENT_KINDS:
+        first = group_event_spread_for_day(-1001234567890, day, event_kind)
+        second = group_event_spread_for_day(-1001234567890, day, event_kind)
+
+        assert first == second
+        assert first.event_kind == event_kind
+        assert len(first.cards) == 3
+        assert len({card.code for card in first.cards}) == 3
+        assert all(card in RWS_78_V1.cards for card in first.cards)
+
+    with pytest.raises(ValueError):
+        group_event_spread_for_day(-1001234567890, day, "отношения")
+
+
 def test_group_commands_are_explicit_party_actions_only() -> None:
     assert [command.command for command in GROUP_COMMANDS] == [
         "card",
         "compatibility",
+        "party",
+        "event",
         "grouphelp",
     ]
     assert "не читает историю чата" in GROUP_HELP
+    assert "не перебирает участников" in GROUP_HELP
     assert "чужих мыслях или чувствах" in GROUP_HELP
 
 

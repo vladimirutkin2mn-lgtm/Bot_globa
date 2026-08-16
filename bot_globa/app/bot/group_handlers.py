@@ -24,12 +24,35 @@ from app.domain.tarot import RWS_78_V1, TarotCard
 router = Router(name="group_virality")
 _GROUP_CHAT = F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP})
 
+GROUP_EVENT_KINDS: dict[str, str] = {
+    "вечер": "вечер",
+    "поездка": "поездку",
+    "событие": "событие",
+}
+EVENT_POSITION_LABELS = (
+    "Тон события",
+    "Что поможет быть на одной волне",
+    "На что обратить внимание",
+)
+PARTY_PROMPTS = (
+    "Кто сегодня первым предложит план, на который остальные неожиданно согласятся?",
+    "Кто сегодня лучше всех умеет превратить хаос в хороший сюжет?",
+    "Кому сегодня доверили бы выбрать место без долгих обсуждений?",
+    "Кто сегодня скорее всех скажет: «ладно, делаем» — и запустит движение?",
+    "Кто сегодня главный хранитель здравого смысла, когда остальных понесёт?",
+    "Кто сегодня способен придумать самый неожиданный, но рабочий поворот?",
+)
+
 GROUP_HELP = (
     "🔮 Numa в этом чате\n\n"
     "/card — карта дня для всего чата\n"
-    "/compatibility — ответьте этой командой на сообщение другого участника\n\n"
-    "Это игровые групповые механики: бот не читает историю чата и не делает выводов "
-    "о чужих мыслях или чувствах."
+    "/compatibility — ответьте этой командой на сообщение другого участника\n"
+    "/party — быстрый игровой раунд для компании\n"
+    "/event вечер — расклад на вечер\n"
+    "/event поездка — расклад на поездку\n"
+    "/event событие — расклад на общее событие\n\n"
+    "Numa отвечает только на явные команды: бот не читает историю чата, "
+    "не перебирает участников и не делает выводов о чужих мыслях или чувствах."
 )
 
 
@@ -51,6 +74,18 @@ class CompatibilityGame:
     spontaneity: int
     teamwork: int
     card: TarotCard
+
+
+@dataclass(frozen=True, slots=True)
+class PartyPromptGame:
+    prompt: str
+    archetype: TarotCard
+
+
+@dataclass(frozen=True, slots=True)
+class GroupEventSpread:
+    event_kind: str
+    cards: tuple[TarotCard, TarotCard, TarotCard]
 
 
 def _digest(*parts: object) -> bytes:
@@ -92,6 +127,30 @@ def compatibility_for_day(
     )
 
 
+def party_prompt_for_day(chat_id: int, for_date: date) -> PartyPromptGame:
+    """Return a stable self-nomination prompt; never select a group member for the chat."""
+
+    seed = _digest("group-party-v1", chat_id, for_date.isoformat())
+    prompt = PARTY_PROMPTS[seed[0] % len(PARTY_PROMPTS)]
+    archetype = RWS_78_V1.cards[int.from_bytes(seed[1:3], "big") % len(RWS_78_V1.cards)]
+    return PartyPromptGame(prompt=prompt, archetype=archetype)
+
+
+def group_event_spread_for_day(
+    chat_id: int, for_date: date, event_kind: str
+) -> GroupEventSpread:
+    """Return three unique deterministic cards for one fixed, non-free-form event kind."""
+
+    if event_kind not in GROUP_EVENT_KINDS:
+        raise ValueError("unsupported group event kind")
+    seed = _digest("group-event-v1", chat_id, for_date.isoformat(), event_kind)
+    cards = sorted(
+        RWS_78_V1.cards,
+        key=lambda candidate: _digest(seed.hex(), candidate.code),
+    )[:3]
+    return GroupEventSpread(event_kind=event_kind, cards=(cards[0], cards[1], cards[2]))
+
+
 def private_deep_link(bot_username: str, persona: str) -> str:
     """Build only one of the existing fixed persona deep links."""
 
@@ -114,6 +173,17 @@ def _private_keyboard(bot_username: str, *, persona: str, label: str) -> InlineK
 async def _bot_username(bot: Bot) -> str | None:
     me = await bot.get_me()
     return me.username
+
+
+def _event_kind_from_command(message: Message) -> str | None:
+    text = message.text
+    if not text:
+        return None
+    parts = text.split(maxsplit=1)
+    if len(parts) != 2:
+        return None
+    candidate = parts[1].strip().casefold()
+    return candidate if candidate in GROUP_EVENT_KINDS else None
 
 
 @router.message(_GROUP_CHAT, Command("grouphelp"))
@@ -183,6 +253,71 @@ async def compatibility(message: Message, bot: Bot) -> None:
         bot,
         message.chat.id,
         card_art(result.card.code),
+        text,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(_GROUP_CHAT, Command("party"))
+async def party_prompt(message: Message, bot: Bot) -> None:
+    result = party_prompt_for_day(message.chat.id, message.date.date())
+    text = (
+        "🎉 Быстрый раунд для чата\n\n"
+        f"{result.prompt}\n\n"
+        f"Архетип чата сегодня — {result.archetype.name_ru}.\n"
+        f"Мотив: {result.archetype.upright_theme}.\n\n"
+        "Выберите героя сами — Numa не просматривает список участников и никого не назначает."
+    )
+    username = await _bot_username(bot)
+    keyboard = (
+        _private_keyboard(username, persona="tarot", label="🔮 Узнать свой архетип")
+        if username
+        else None
+    )
+    await send_art(
+        bot,
+        message.chat.id,
+        card_art(result.archetype.code),
+        text,
+        reply_markup=keyboard,
+    )
+
+
+@router.message(_GROUP_CHAT, Command("event"))
+async def group_event(message: Message, bot: Bot) -> None:
+    event_kind = _event_kind_from_command(message)
+    if event_kind is None:
+        await message.answer(
+            "🃏 Выберите один формат: /event вечер, /event поездка или /event событие. "
+            "Свободный текст я здесь не анализирую."
+        )
+        return
+
+    result = group_event_spread_for_day(message.chat.id, message.date.date(), event_kind)
+    label = GROUP_EVENT_KINDS[result.event_kind]
+    lines = [
+        f"{index}. {position} — {card.name_ru}: {card.upright_theme}."
+        for index, (position, card) in enumerate(
+            zip(EVENT_POSITION_LABELS, result.cards, strict=True),
+            start=1,
+        )
+    ]
+    text = (
+        f"🃏 Игровой расклад на {label}\n\n"
+        + "\n".join(lines)
+        + "\n\nОдин и тот же чат получает тот же расклад весь день — без перетягивания карт "
+        "до «нужного» результата."
+    )
+    username = await _bot_username(bot)
+    keyboard = (
+        _private_keyboard(username, persona="tarot", label="🔮 Сделать личный расклад")
+        if username
+        else None
+    )
+    await send_art(
+        bot,
+        message.chat.id,
+        card_art(result.cards[0].code),
         text,
         reply_markup=keyboard,
     )
