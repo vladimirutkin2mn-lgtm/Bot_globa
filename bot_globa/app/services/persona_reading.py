@@ -55,6 +55,19 @@ class UnsafePersonaInputError(ValueError):
 class ReadingDraftStore(Protocol):
     async def create_draft(self, user_id: UUID, request: ReadingDraftRequest) -> Reading: ...
 
+    async def load_symbol_contract(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> tuple[str, str] | None:
+        """Read back the engine and symbol-set versions frozen when the draft was created.
+
+        Every store must answer this, even the word-only personas that never draw: a
+        capability the use case reaches for through a `cast` is one mypy stops checking,
+        and the failure would surface as an `AttributeError` in a Telegram handler.
+        """
+        ...
+
 
 class ReadingPreviewGenerator(Protocol):
     async def generate_preview(
@@ -78,14 +91,20 @@ class ReadingPreviewEntitlement(Protocol):
 class SymbolDrawer(Protocol):
     """Deterministic symbols the model explains but never invents.
 
-    `version` is frozen on the reading as its engine version, so a redraw for the same
-    reading must keep returning the same symbols.
+    `version` and the selected symbol-set code are frozen on the Reading. A redraw for the
+    same reading therefore keeps both the engine and layout contract stable across retries.
     """
 
     version: str
     set_code: str
 
-    def draw(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]: ...
+    def set_code_for_topic(self, topic: str) -> str: ...
+
+    def draw(
+        self,
+        reading_id: UUID,
+        set_code: str | None = None,
+    ) -> tuple[ReadingSymbolContext, ...]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,7 +181,7 @@ class PersonaReadingUseCase:
         user_id: UUID,
         request: PersonaPreviewRequest,
     ) -> UUID:
-        """Reserve the reading and its symbols before any model call."""
+        """Reserve the reading and freeze its symbol layout before any model call."""
 
         if request.topic not in self._persona.supported_topics:
             raise UnsupportedPersonaTopicError(self.persona_code)
@@ -179,6 +198,7 @@ class PersonaReadingUseCase:
                 engine_version=self._engine_version,
                 prompt_version=self._persona.prompt_version,
                 schema_version=self._persona.schema_version,
+                symbol_set_code=self._symbol_set_for_topic(request.topic),
                 cost_units=0,
             ),
         )
@@ -196,15 +216,23 @@ class PersonaReadingUseCase:
             user_id,
         )
 
-    def draw_symbols(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
-        """The symbols this reading will be explained through, available before the model.
+    async def draw_symbols(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> tuple[ReadingSymbolContext, ...]:
+        """Draw only from the symbol set frozen on this Reading when it was drafted.
 
-        The draw is seeded from `reading_id`, so it exists the moment the draft does and
-        stays the same on every retry. That is what lets the transport reveal the spread
-        while the interpretation is still being written, without inventing anything.
+        The frozen code is read back from persistence on every draw rather than kept in
+        the process. A retry served after a restart, or by a second worker, has to reveal
+        the spread the user was already shown — and a per-process cache is exactly the
+        thing that quietly stops being true the moment either happens.
         """
 
-        return () if self._drawer is None else self._drawer.draw(reading_id)
+        if self._drawer is None:
+            return ()
+        set_code = await self._frozen_symbol_set_code(reading_id, user_id)
+        return self._drawer.draw(reading_id, set_code)
 
     async def generate_existing_preview(
         self,
@@ -212,7 +240,12 @@ class PersonaReadingUseCase:
         user_id: UUID,
     ) -> PersonaPreviewOutcome:
         await self._reserve_if_possible(user_id, reading_id)
-        symbols = self.draw_symbols(reading_id)
+        symbol_set_code = (
+            None
+            if self._drawer is None
+            else await self._frozen_symbol_set_code(reading_id, user_id)
+        )
+        symbols = () if self._drawer is None else self._drawer.draw(reading_id, symbol_set_code)
         generation = await self._generation.generate_preview(reading_id, user_id, symbols)
         visibility = (
             ReadingPreviewVisibility.PREVIEW
@@ -223,7 +256,7 @@ class PersonaReadingUseCase:
             reading_id=reading_id,
             generation=generation,
             symbols=symbols,
-            symbol_set_code=None if self._drawer is None else self._drawer.set_code,
+            symbol_set_code=symbol_set_code,
             visibility=visibility,
         )
 
@@ -232,6 +265,20 @@ class PersonaReadingUseCase:
         if self._drawer is None:
             return self._persona.engine_version
         return self._drawer.version
+
+    def _symbol_set_for_topic(self, topic: str) -> str:
+        if self._drawer is None:
+            return "none"
+        return self._drawer.set_code_for_topic(topic)
+
+    async def _frozen_symbol_set_code(self, reading_id: UUID, user_id: UUID) -> str:
+        contract = await self._readings.load_symbol_contract(reading_id, user_id)
+        if contract is None:
+            raise LookupError("reading symbol contract is unavailable")
+        _engine_version, symbol_set_code = contract
+        if symbol_set_code == "none":
+            raise ValueError("symbolic reading is missing its frozen symbol set code")
+        return symbol_set_code
 
     async def _reserve_if_possible(self, user_id: UUID, reading_id: UUID) -> None:
         if self._entitlements is None:

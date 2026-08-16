@@ -12,7 +12,10 @@ from app.domain.tarot import (
     TarotCard,
     TarotCatalog,
     TarotSpread,
-    card_knowledge,
+)
+from app.domain.tarot_spreads import (
+    card_knowledge_for_position,
+    spread_for_topic,
     tarot_spread,
 )
 
@@ -33,7 +36,7 @@ class SelectedTarotCard:
     def interpretation_theme(self) -> str:
         """Application-owned card knowledge for this exact position and orientation."""
 
-        return card_knowledge(
+        return card_knowledge_for_position(
             self.card,
             self.position,
             reversed=self.orientation is SymbolOrientation.REVERSED,
@@ -102,23 +105,52 @@ class TarotSymbolicEngine:
 
 
 class TarotSymbolDrawer:
-    """Adapt the deterministic Tarot engine to the persona-neutral drawing contract."""
+    """Adapt the deterministic Tarot engine to the persona-neutral drawing contract.
+
+    Production draft creation asks `set_code_for_topic()` once and persists the returned
+    code on the Reading; every later draw passes that persisted code back to `draw()`.
+    Pinning a fixed `spread_code` on the drawer is available for legacy readings and tests.
+    """
 
     def __init__(
         self,
         engine: TarotSymbolicEngine | None = None,
-        spread_code: str = THREE_CARD_SPREAD.code,
+        spread_code: str | None = None,
     ) -> None:
         self._engine = engine or TarotSymbolicEngine()
         self.version = self._engine.version
-        self.set_code = spread_code
+        self._fixed_spread_code = spread_code
+        self.set_code = spread_code or THREE_CARD_SPREAD.code
 
-    def draw(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
+    def set_code_for_topic(self, topic: str) -> str:
+        if self._fixed_spread_code is not None:
+            return self._fixed_spread_code
+        spread = spread_for_topic(topic)
+        if spread is None:
+            raise UnknownSpreadError(f"no tarot spread for topic: {topic}")
+        return spread.code
+
+    def draw(
+        self,
+        reading_id: UUID,
+        set_code: str | None = None,
+    ) -> tuple[ReadingSymbolContext, ...]:
+        """Draw the spread named by `set_code`, or the one this drawer was pinned to.
+
+        There is deliberately no default layout here. A caller that has lost the code
+        frozen on the Reading must fail loudly: silently falling back to `three_card_v1`
+        would show the user a different spread than the one their reading was drafted
+        with, which is precisely the drift persisting the code exists to prevent.
+        """
+
+        spread_code = set_code or self._fixed_spread_code
+        if spread_code is None:
+            raise UnknownSpreadError("tarot draw requires the spread frozen on the reading")
         return tuple(
             ReadingSymbolContext(
                 symbol=card.to_reading_symbol(),
                 display_name=card.card.name_ru,
                 interpretation_theme=card.interpretation_theme,
             )
-            for card in self._engine.draw(reading_id, self.set_code)
+            for card in self._engine.draw(reading_id, spread_code)
         )

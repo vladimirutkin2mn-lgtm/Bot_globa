@@ -102,6 +102,7 @@ class Reading(Base):
     engine_version: Mapped[str] = mapped_column(String(64))
     prompt_version: Mapped[str] = mapped_column(String(64))
     schema_version: Mapped[str] = mapped_column(String(64))
+    symbol_set_code: Mapped[str] = mapped_column(String(64), default="none", server_default="none")
     generation_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     failure_code: Mapped[str | None] = mapped_column(String(64))
