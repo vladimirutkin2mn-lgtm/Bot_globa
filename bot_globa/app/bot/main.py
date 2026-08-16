@@ -307,7 +307,7 @@ async def close_dispatcher(dispatcher: Dispatcher) -> None:
     try:
         await close_geocoding_client(dispatcher["geocoding_client"])
     except Exception:
-        logger.warning("Geocoding client shutdown failed")
+        logger.warning("geocoding client shutdown failed")
     await dispatcher.fsm.close()
     if dispatcher["owns_database_engine"]:
         await dispatcher["database_engine"].dispose()
