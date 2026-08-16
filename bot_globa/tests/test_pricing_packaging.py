@@ -1,5 +1,7 @@
 """Customer pricing is expressed as readings, never as the internal entitlement ledger."""
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot import texts
 from app.bot.keyboards import more_menu_keyboard, products_keyboard
 from app.bot.pricing import product_price_label
@@ -8,9 +10,8 @@ from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCode
 
 
-def _button_texts(keyboard: object) -> list[str]:
-    inline_keyboard = getattr(keyboard, "inline_keyboard")
-    return [button.text for row in inline_keyboard for button in row]
+def _button_texts(keyboard: InlineKeyboardMarkup) -> list[str]:
+    return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
 def test_direct_paywall_leads_with_the_concrete_reading_and_catalog_price(
