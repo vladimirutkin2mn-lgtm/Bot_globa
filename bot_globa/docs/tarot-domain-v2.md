@@ -62,7 +62,9 @@ Major Arcana may be treated as broader archetypal pressure and Minor Arcana as m
 
 ## Topic-specific spread contract
 
-A new Tarot draft selects one spread from its explicit topic and immediately persists the chosen stable code as `Reading.symbol_set_code`. The topic router is used **only at draft creation**. Retry, worker replay and process restart load the persisted code instead of asking the current router to choose again.
+A new Tarot draft selects one spread from its explicit topic and immediately persists the chosen stable code as `Reading.symbol_set_code`. The topic router is used **only at draft creation**. Retry, worker replay and process restart read the persisted code back instead of asking the current router to choose again.
+
+The frozen code is never cached in the process. Every draw loads it from the Reading, because a per-process cache stops being true the moment a retry is served by another worker or after a deploy — exactly the cases the contract exists for. A draw with no code available raises rather than falling back to a default layout: showing a different spread than the one the reading was drafted with is worse than showing none.
 
 Current layouts are five-card, versioned product layouts:
 
