@@ -109,6 +109,13 @@ class DailyHoroscopePreferenceService:
         now: datetime | None = None,
         lease_seconds: int = 60,
     ) -> DailyHoroscopeClaim | None:
+        """Lease one due row without consuming its delivery day.
+
+        Snapshot calculation, rendering and other local preparation happen after this
+        lease. If they fail, releasing the claim leaves the row due for another attempt.
+        The irreversible day reservation is deliberately deferred to `reserve_send`.
+        """
+
         if lease_seconds < 1:
             raise ValueError("daily horoscope lease must be positive")
         current = _utc(now)
@@ -126,9 +133,6 @@ class DailyHoroscopePreferenceService:
                             DailyHoroscopePreference.lease_until.is_(None),
                             DailyHoroscopePreference.lease_until <= current,
                         ),
-                        # A worker killed between the send and the completion leaves the
-                        # row due again; the recorded delivery day is what keeps the user
-                        # from receiving the same digest twice.
                         or_(
                             DailyHoroscopePreference.last_delivered_on.is_(None),
                             DailyHoroscopePreference.last_delivered_on
@@ -139,10 +143,6 @@ class DailyHoroscopePreferenceService:
                         ),
                         User.telegram_user_id.is_not(None),
                         User.privacy_status != "deleted",
-                        # A default-on schedule is provisioned at /start, before the terms
-                        # are answered. Sending to someone who abandoned the consent screen
-                        # would be an unsolicited recurring message, so the row waits here
-                        # until they accept and starts delivering on its own afterwards.
                         User.consent_version == CURRENT_CONSENT_VERSION,
                     )
                     .order_by(DailyHoroscopePreference.next_delivery_at)
@@ -156,13 +156,6 @@ class DailyHoroscopePreferenceService:
             claim_id = uuid4()
             mode = DailyHoroscopeMode(preference.mode)
             local_date = current.astimezone(ZoneInfo(preference.timezone)).date()
-            # Telegram does not offer an idempotency key for sendPhoto/sendMessage. Reserve
-            # the local delivery day in the same transaction as the claim so a worker that
-            # disappears after Telegram accepted the message cannot lease the day again.
-            # This deliberately chooses at-most-once delivery: an ambiguous crash may skip
-            # one digest, but it cannot send the same digest twice.
-            preference.last_delivered_on = local_date
-            preference.next_delivery_at = _next_delivery(mode, current, preference.timezone)
             preference.claim_id = claim_id
             preference.lease_until = current + timedelta(seconds=lease_seconds)
             await session.flush()
@@ -174,12 +167,52 @@ class DailyHoroscopePreferenceService:
                 mode=mode,
             )
 
+    async def reserve_send(
+        self,
+        claim: DailyHoroscopeClaim,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        """Reserve the local day immediately before the first Telegram send attempt.
+
+        Telegram has no idempotency key for sendPhoto/sendMessage. Reserving here keeps
+        the at-most-once guarantee for the ambiguous crash window after Telegram accepts a
+        request, while failures during snapshot calculation or rendering remain retryable.
+        """
+
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            preference = await session.get(
+                DailyHoroscopePreference,
+                claim.user_id,
+                with_for_update=True,
+            )
+            if preference is None or preference.claim_id != claim.claim_id:
+                return False
+            mode = DailyHoroscopeMode(preference.mode)
+            if mode is not claim.mode:
+                return False
+            local_date = current.astimezone(ZoneInfo(preference.timezone)).date()
+            if local_date != claim.delivery_date:
+                return False
+            if (
+                preference.last_delivered_on is not None
+                and preference.last_delivered_on >= claim.delivery_date
+            ):
+                return False
+            preference.last_delivered_on = claim.delivery_date
+            preference.next_delivery_at = _next_delivery(mode, current, preference.timezone)
+            await session.flush()
+            return True
+
     async def complete(
         self,
         claim: DailyHoroscopeClaim,
         *,
         now: datetime | None = None,
     ) -> bool:
+        """Acknowledge a reserved send and clear its lease."""
+
         _utc(now)
         async with self._sessions.begin() as session:
             preference = await session.get(
@@ -188,6 +221,8 @@ class DailyHoroscopePreferenceService:
                 with_for_update=True,
             )
             if preference is None or preference.claim_id != claim.claim_id:
+                return False
+            if preference.last_delivered_on != claim.delivery_date:
                 return False
             preference.claim_id = None
             preference.lease_until = None
@@ -199,13 +234,11 @@ class DailyHoroscopePreferenceService:
         *,
         now: datetime | None = None,
     ) -> bool:
-        """Drop the lease without reopening the day.
+        """Drop a lease without changing delivery state.
 
-        `last_delivered_on` stays reserved on purpose: the caller reaches this path only
-        after an *ambiguous* failure, where Telegram may already have delivered the
-        message. A failure Telegram reports unambiguously — a 429 — is retried inside the
-        worker against the same claim instead of coming here, so throttling costs the user
-        a delay rather than the whole digest.
+        Before `reserve_send`, this makes a preparation failure retryable because the row
+        stays due and the day stays unreserved. After `reserve_send`, the day remains
+        reserved on purpose because a Telegram failure may be ambiguous.
         """
 
         _utc(now)
