@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from app.bot.conversion_hooks import ConversionHookCopy, render_grounded_hook
 from app.bot.reading_renderer import chunk_text
 from app.bot.typography import quote
 from app.domain.horoscope import (
@@ -14,6 +15,22 @@ from app.domain.horoscope import (
 )
 
 PREVIEW_INTERPRETATIONS = 2
+
+ASTROLOGY_HOOK = ConversionHookCopy(
+    branch_title="В расчётах есть развилка: одна и та же тема может пойти по разным линиям.",
+    single_title="Один сценарий уже виден, но важнее условия, при которых он усиливается.",
+    scenario_prefix="Один из возможных сценариев:",
+    hidden_conditions_line=(
+        "Короткая версия не раскрывает расчётные условия, которые усиливают или ослабляют его."
+    ),
+    alternative_line="Есть и другая траектория — она проявляется при другой комбинации условий.",
+    unlock_title="В полном астрологическом разборе откроется:",
+    unlock_lines=(
+        "какие дополнительные расчётные опоры связаны с этой темой",
+        "что усиливает каждый возможный сценарий, а что его ослабляет",
+        "какой практический следующий шаг следует из всей картины, а не из одного факта",
+    ),
+)
 
 _BODY_LABELS = {
     "sun": "Солнце",
@@ -125,7 +142,7 @@ class HoroscopeRenderer:
         result: AstrologyReadingResult,
         facts: HoroscopeFactBundle,
     ) -> RenderedHoroscope:
-        """Show the calculation is real and useful while withholding the paid depth."""
+        """Give calculated evidence for free and reserve scenarios/conditions/action."""
         labels = self._verified_labels(result, facts)
         lines = [f"<b>{quote(result.title)}</b>", "", quote(result.overview)]
         lines.extend(("", "<b>Расчётные опоры:</b>"))
@@ -133,14 +150,7 @@ class HoroscopeRenderer:
         if result.themes:
             lines.extend(("", "<b>Темы:</b>"))
             lines.extend(f"• {quote(theme)}" for theme in result.themes)
-        lines.extend(("", f"<b>Практический шаг:</b> {quote(result.practical_step)}"))
-        lines.extend(
-            (
-                "",
-                "В полном разборе: возможные сценарии, дополнительные расчётные опоры "
-                "и следующий шаг.",
-            )
-        )
+        lines.extend(("", render_grounded_hook(result.possible_scenarios, ASTROLOGY_HOOK)))
         lines.extend(self._closing_lines(result))
         return RenderedHoroscope(
             text="\n".join(lines),
@@ -152,19 +162,14 @@ class HoroscopeRenderer:
         result: AstrologyReadingResult,
         facts: HoroscopeFactBundle,
     ) -> RenderedHoroscope:
-        """Show one calculated personal signal after the first free preview is used."""
+        """Show one calculated personal signal plus a grounded reason to unlock."""
 
         labels = self._verified_labels(result, facts)
         lines = ["<b>Разбор готов.</b>", "", f"<b>Главная тема</b> — {quote(result.overview)}"]
         interpretations = self._interpretation_lines(result, labels, limit=1)
         if interpretations:
             lines.extend(("", "<b>Одна расчётная опора:</b>", *interpretations))
-        lines.extend(
-            (
-                "",
-                "Полная версия покажет возможные сценарии и практический следующий шаг.",
-            )
-        )
+        lines.extend(("", render_grounded_hook(result.possible_scenarios, ASTROLOGY_HOOK)))
         lines.extend(self._closing_lines(result))
         return RenderedHoroscope(
             text="\n".join(lines),

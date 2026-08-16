@@ -7,6 +7,11 @@ text — only the already validated result and copy configured for the selected 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from app.bot.conversion_hooks import (
+    DEFAULT_READING_HOOK,
+    ConversionHookCopy,
+    render_grounded_hook,
+)
 from app.bot.typography import quote
 from app.domain.reading import SymbolOrientation
 from app.domain.reading_generation import ReadingSymbolContext
@@ -15,7 +20,6 @@ from app.services.persona_reading import PersonaPreviewOutcome
 
 TELEGRAM_LIMIT = 4096
 TARGET_CHUNK = 3600
-TEASER_LIMIT = 140
 
 REVEAL_TITLE = "Расклад складывается"
 REVEAL_CLOSING = "Читаю расклад…"
@@ -35,15 +39,12 @@ class ReadingCopy:
     patterns_title: str = "Паттерны"
     scenarios_title: str = "Возможные сценарии"
     reflection_title: str = "Вопросы для рефлексии"
-    teaser_lines: tuple[str, ...] = (
-        "почему это повторяется",
-        "два возможных сценария и условия каждого",
-        "что можно сделать в ближайшие 7 дней",
-    )
+    hook: ConversionHookCopy = DEFAULT_READING_HOOK
+    hook_by_symbol_set: tuple[tuple[str, ConversionHookCopy], ...] = ()
 
 
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Show a meaningful first preview and an honest outline of the paid depth."""
+    """Give the diagnosis for free and reserve scenarios/conditions/action for the unlock."""
     result = _completed_result(outcome)
     sections = [f"{copy.emoji} <b>{quote(result.title)}</b>"]
     if outcome.symbols:
@@ -57,15 +58,14 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
     sections.extend(
         [
             f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
-            f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
-            _locked_teaser(result, copy),
+            _locked_hook(result, copy, outcome.symbol_set_code),
         ]
     )
     return chunk_sections(tuple(sections))
 
 
 def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Give every later reading a short personal signal instead of a blind lock."""
+    """Give later readings one personal signal plus a grounded reason to unlock."""
 
     result = _completed_result(outcome)
     insight = result.patterns[0] if result.patterns else result.opening
@@ -76,7 +76,7 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
     sections.extend(
         (
             f"<b>{copy.main_theme_title}</b> — {quote(insight)}",
-            "Полная версия покажет развитие темы, возможные сценарии и следующий шаг.",
+            _locked_hook(result, copy, outcome.symbol_set_code),
         )
     )
     return chunk_sections(tuple(sections))
@@ -157,24 +157,18 @@ def render_reveal(
     )
 
 
-def _locked_teaser(result: ReadingResult, copy: ReadingCopy) -> str:
-    covered = (
-        result.possible_scenarios[0].scenario
-        if result.possible_scenarios
-        else (result.reflection_questions[0] if result.reflection_questions else "")
-    )
-    lines = ["<b>В полном разборе:</b>"]
-    if covered:
-        lines.append(f"<tg-spoiler>{quote(_shortened(covered))}</tg-spoiler>")
-    lines.extend(f"• {line};" for line in copy.teaser_lines)
-    return "\n".join(lines)
-
-
-def _shortened(value: str, maximum: int = TEASER_LIMIT) -> str:
-    if len(value) <= maximum:
-        return value
-    head = value[:maximum].rsplit(" ", 1)[0].rstrip(" ,.;:—-")
-    return f"{head}…"
+def _locked_hook(
+    result: ReadingResult,
+    copy: ReadingCopy,
+    symbol_set_code: str | None,
+) -> str:
+    hook = copy.hook
+    if symbol_set_code is not None:
+        hook = next(
+            (candidate for code, candidate in copy.hook_by_symbol_set if code == symbol_set_code),
+            hook,
+        )
+    return render_grounded_hook(result.possible_scenarios, hook)
 
 
 def chunk_text(text: str) -> tuple[str, ...]:

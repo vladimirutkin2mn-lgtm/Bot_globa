@@ -75,5 +75,8 @@ def test_renderer_copy_is_persona_specific() -> None:
     assert LOVE_ORACLE_FLOW.copy.main_theme_title == "Что между вами сейчас"
     assert MYSTICAL_PSYCHOLOGIST_FLOW.copy.main_theme_title == "Какой сценарий здесь виден"
 
-    assert TAROT_FLOW.copy.teaser_lines != LOVE_ORACLE_FLOW.copy.teaser_lines
-    assert LOVE_ORACLE_FLOW.copy.teaser_lines != MYSTICAL_PSYCHOLOGIST_FLOW.copy.teaser_lines
+    assert TAROT_FLOW.copy.hook.unlock_lines != LOVE_ORACLE_FLOW.copy.hook.unlock_lines
+    assert (
+        LOVE_ORACLE_FLOW.copy.hook.unlock_lines != MYSTICAL_PSYCHOLOGIST_FLOW.copy.hook.unlock_lines
+    )
+    assert TAROT_FLOW.copy.hook_by_symbol_set
