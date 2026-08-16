@@ -355,7 +355,7 @@ async def _change_subscription(
         text = (
             "Автопродление возобновлено."
             if resume
-            else "Автопродление отключено. Уже начисленные кредиты сохраняются."
+            else "Автопродление отключено. Уже доступные разборы сохраняются."
         )
         await show_screen(
             callback.message,
