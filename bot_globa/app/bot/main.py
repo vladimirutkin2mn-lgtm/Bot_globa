@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
+from app.bot.group_handlers import router as group_router
 from app.bot.horoscope_handlers import create_horoscope_router
 from app.bot.horoscope_renderer import HoroscopeRenderer
 from app.bot.memory_handlers import router as memory_router
@@ -200,6 +201,7 @@ def create_dispatcher(
     dispatcher.include_router(create_horoscope_router())
     dispatcher.include_router(reading_feedback_router)
     dispatcher.include_router(create_reading_followup_router())
+    dispatcher.include_router(group_router)
     dispatcher.include_router(core_router)
     dispatcher["database_engine"] = resolved_engine
     dispatcher["owns_database_engine"] = engine is None
