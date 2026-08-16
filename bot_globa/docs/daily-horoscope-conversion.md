@@ -5,14 +5,16 @@
 The common daily horoscope is the free retention surface. Its primary paid-growth path is
 now explicit:
 
-`daily digest -> personal forecast CTA -> Astrologer -> day_forecast -> preview -> checkout -> purchase`
+`daily digest -> personal forecast CTA -> day_forecast -> preview -> checkout -> purchase`
 
 The daily digest does not promise that the mass forecast is personal. The footer explains
 the incremental value in one line: the personal forecast uses the user's natal chart and
 today's calculated transits.
 
-The Astrologer puts `day_forecast` first so the CTA does not land on a generic six-choice
-menu with the intended continuation hidden below other topics.
+The CTA uses a dedicated `daily:personal` bridge. A user with a saved birth profile skips
+the generic Astrologer topic menu and goes straight to the `day_forecast` question. A user
+without a profile stays on the existing consented birth-data intake; `day_forecast` is also
+first in the Astrologer topic list so the intended continuation remains obvious after intake.
 
 ## Measurement
 
@@ -22,16 +24,16 @@ Telegram does not expose a bot-message read receipt. We therefore do **not** man
 Use observable signals instead:
 
 1. `daily_horoscope_delivered` structured worker log — aggregate count of confirmed sends;
-2. `persona_selected` with `persona_code=astrologer` and `topic_code=day_forecast` — existing
-   privacy-safe product event for users who enter the personal-daily path;
-3. `reading_started` / `reading_preview_ready` with the same persona/topic — existing reading
+2. `daily_horoscope_personal_cta_clicked` structured log — aggregate count of primary CTA taps;
+3. `persona_selected` with `persona_code=astrologer` and `topic_code=day_forecast` — existing
+   privacy-safe product event that carries the internal subject into the personal-daily path;
+4. `reading_started` / `reading_preview_ready` with the same persona/topic — existing reading
    funnel;
-4. `checkout_started` — existing billing funnel;
-5. `purchase_completed` — existing billing funnel.
+5. `checkout_started` — existing billing funnel;
+6. `purchase_completed` — existing billing funnel.
 
-The first useful conversion ratio is therefore personal-daily starts divided by confirmed
-daily deliveries. Preview, checkout and purchase conversion are then measured downstream
-with the existing events.
+The first observable ratio is CTA taps divided by confirmed daily deliveries. Preview,
+checkout and purchase conversion are then measured downstream with the existing events.
 
 User-level D1/D7/D30 retention should be calculated on the existing privacy-safe internal
 analytics subject for users who start a `day_forecast`, not from Telegram identifiers or
