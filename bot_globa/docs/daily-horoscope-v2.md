@@ -29,15 +29,20 @@ The snapshot also contains the supported major inter-planet aspects using the sa
 The mass digest then applies a deliberately limited **solar-sign** convention:
 
 - the reader's zodiac sign is treated as the first solar sector;
-- the transit Moon sign determines the day's sector focus for each sign;
-- one close relevant sky aspect supplies the common theme/action emphasis;
+- one close relevant sky aspect supplies the shared theme of the day;
+- for each zodiac sign, every transiting body is mapped into its whole-sign solar house;
+- the most salient house/body/aspect combination is selected separately for that sign;
+- supportive aspects produce opportunity-oriented language, tense aspects produce cautious language, and conjunctions produce a concentrated theme;
+- astrology jargon stays under the hood: the user sees a short life-area prediction in plain Russian;
 - output remains short enough for the Telegram daily-horoscope caption contract.
+
+This means all users see the same theme and the same twelve forecasts for a date, but the twelve sign forecasts are no longer one global action copied across different house labels.
 
 This is an astrology product convention, not a natal chart and not a scientifically validated prediction method. It must never be described as individualized astrology.
 
-## Immutable daily snapshot
+## Versioned daily snapshot
 
-The first valid mass snapshot persisted for `forecast_date` becomes authoritative for that date.
+A valid mass snapshot persisted for `forecast_date` is reused while its sky and methodology versions are current.
 
 The row stores:
 
@@ -47,7 +52,7 @@ The row stores:
 - canonical `sky_digest`;
 - the complete rendered-content payload.
 
-Concurrent workers use PostgreSQL `ON CONFLICT DO NOTHING` and then re-read the stored row. A worker restart or an application deploy during the day must therefore not silently change the digest already sent to earlier users.
+When the product methodology version changes, an older snapshot for the same date is regenerated and atomically replaced. Concurrent workers use a PostgreSQL upsert, so they converge on the same deterministic content for the current version. Ordinary worker restarts do not change a current-version digest.
 
 ## Personal daily forecast
 
