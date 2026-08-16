@@ -6,6 +6,7 @@ from app.domain.horoscope import HoroscopeScope
 from app.domain.horoscope_topic import HoroscopeTopic
 from app.domain.natal_chart import NatalBody, ZodiacSign
 from app.services.daily_sky import (
+    DAILY_SOLAR_METHOD_VERSION,
     DailyHoroscopeSnapshot,
     build_daily_horoscope,
     calculate_daily_sky,
@@ -26,9 +27,19 @@ def test_solar_daily_snapshot_is_deterministic_complete_and_roundtrippable() -> 
     second = build_daily_horoscope(date(2026, 8, 16))
 
     assert first == second
+    assert first.methodology_version == DAILY_SOLAR_METHOD_VERSION == "solar-sign-daily-v2"
     assert tuple(item.sign for item in first.signs) == tuple(ZodiacSign)
     assert DailyHoroscopeSnapshot.from_payload(first.payload()) == first
     assert len(render_daily_horoscope(first)) <= TELEGRAM_CAPTION_LIMIT
+
+
+def test_solar_daily_forecasts_do_not_repeat_one_action_for_all_signs() -> None:
+    snapshot = build_daily_horoscope(date(2026, 8, 16))
+
+    predictions = {item.text.partition(": ")[2] for item in snapshot.signs}
+
+    assert all(": " in item.text for item in snapshot.signs)
+    assert len(predictions) >= 4
 
 
 def test_personal_daily_topic_freezes_one_date() -> None:
