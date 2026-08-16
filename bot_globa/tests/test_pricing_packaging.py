@@ -1,16 +1,19 @@
 """Customer pricing is expressed as readings, never as the internal entitlement ledger."""
 
 import inspect
+from datetime import UTC, datetime
+from uuid import uuid4
 
 from aiogram.types import InlineKeyboardMarkup
 
-from app.bot import subscription_handlers, texts
+from app.bot import refund_handlers, subscription_handlers, texts
 from app.bot.keyboards import more_menu_keyboard, products_keyboard
 from app.bot.pricing import product_price_label
 from app.bot.telegram_stars_handlers import payment_support_text
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCode
+from app.services.refund_service import RefundPurchaseView, RefundView
 
 
 def _button_texts(keyboard: InlineKeyboardMarkup) -> list[str]:
@@ -72,3 +75,44 @@ def test_subscription_cancellation_copy_keeps_value_in_reading_units() -> None:
 
     assert "начисленные кредиты" not in source.casefold()
     assert "уже доступные разборы сохраняются" in source.casefold()
+
+
+def test_refund_menu_hides_internal_product_codes_and_ledger_units() -> None:
+    purchase = RefundPurchaseView(
+        payment_order_id=uuid4(),
+        provider="stripe",
+        product_code="reading_pack_5",
+        refundable_credits=5,
+        refund_amount_minor=449,
+        currency="EUR",
+        completed_at=datetime.now(UTC),
+    )
+
+    buttons = _button_texts(refund_handlers._purchase_keyboard((purchase,)))
+    visible = " ".join(buttons).casefold()
+
+    assert buttons[0] == "Пакет полных разборов · 4.49 EUR"
+    assert "reading_pack_5" not in visible
+    assert "кредит" not in visible
+    assert " кр." not in visible
+
+
+def test_refund_history_uses_access_status_instead_of_credit_units() -> None:
+    refund = RefundView(
+        id=uuid4(),
+        payment_order_id=uuid4(),
+        provider="stripe",
+        status="credits_reserved",
+        amount_minor=99,
+        currency="EUR",
+        credit_units=1,
+        failure_code=None,
+        created_at=datetime.now(UTC),
+    )
+
+    history = refund_handlers._history_text((refund,))
+    source = inspect.getsource(refund_handlers)
+
+    assert "0.99 EUR · доступ зарезервирован" in history
+    assert "кредит" not in history.casefold()
+    assert "кредит" not in source.casefold()
