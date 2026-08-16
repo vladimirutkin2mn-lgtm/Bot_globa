@@ -19,6 +19,7 @@ NAMESPACE = "astro"
 HOROSCOPE_TOPIC_LABELS = MappingProxyType(
     {
         "natal_profile": "Натальная карта",
+        "day_forecast": "Прогноз на сегодня",
         "week_forecast": "Прогноз на неделю",
         "month_forecast": "Прогноз на месяц",
         "decision": "Выбор",
@@ -28,6 +29,7 @@ HOROSCOPE_TOPIC_LABELS = MappingProxyType(
 HOROSCOPE_TOPIC_EXAMPLES = MappingProxyType(
     {
         "natal_profile": "какие мои сильные стороны и повторяющиеся темы видны в карте",
+        "day_forecast": "что в моей карте и сегодняшних транзитах полезно учитывать сегодня",
         "week_forecast": "на что обратить внимание на этой неделе в работе и отношениях",
         "month_forecast": "какие темы месяца стоит учитывать при планировании",
         "decision": "какие мои привычные реакции важно учесть перед решением",
