@@ -3,9 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
@@ -198,7 +196,7 @@ async def test_a_persona_without_symbols_simply_waits(
 async def test_each_step_turns_over_the_card_that_was_drawn(
     revealing: tuple[PersonaReadingHandlers, Message, FSMContext, RecordingSession, SlowUseCase],
 ) -> None:
-    """The picture has to be the exact card, whether its source is local or pinned remote art."""
+    """The picture has to be the exact card the deterministic engine selected."""
 
     handlers, message, state, session, use_case = revealing
     scene_media._telegram_file_ids.clear()
@@ -220,15 +218,13 @@ async def test_each_step_turns_over_the_card_that_was_drawn(
 def _source_name(photo: str | FSInputFile) -> str:
     if isinstance(photo, FSInputFile):
         return photo.filename or ""
-    return Path(urlparse(photo).path).name
+    return photo
 
 
 def _expected_art_name(symbol_id: str) -> str:
     art = card_art(symbol_id)
     assert art is not None
-    if isinstance(art.path, Path):
-        return art.path.name
-    return Path(urlparse(art.path).path).name
+    return art.path.name
 
 
 def _photo_names(session: RecordingSession) -> list[str]:
