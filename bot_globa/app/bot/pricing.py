@@ -35,3 +35,34 @@ def product_price_label(
     label = format_user_price(local.amount_minor, local.currency)
     stars = telegram_stars_price(catalog, code, settings)
     return f"{label} / {stars} ⭐" if stars is not None else label
+
+
+def reading_count(
+    catalog: BillingCatalog,
+    code: ProductCode,
+    settings: Settings,
+) -> int:
+    """Translate the internal entitlement quantity into the outcome a buyer understands."""
+
+    offer = catalog.resolve_product_offer(code, BillingMarket.RU, "RUB")
+    return max(offer.credits // settings.reading_full_price_credits, 1)
+
+
+def product_choice_label(
+    catalog: BillingCatalog,
+    code: ProductCode,
+    settings: Settings,
+    *,
+    direct_unlock: bool = False,
+) -> str:
+    """Describe what is bought, never the internal credit ledger used to grant access."""
+
+    count = reading_count(catalog, code, settings)
+    price = product_price_label(catalog, code, settings)
+    if code is ProductCode.READING_SINGLE:
+        outcome = "Открыть этот разбор" if direct_unlock else "1 полный разбор"
+    elif code is ProductCode.READING_PACK_5:
+        outcome = f"Пакет · {count} полных разборов"
+    else:
+        outcome = f"Подписка · {count} разборов в месяц"
+    return f"{outcome} — {price}"

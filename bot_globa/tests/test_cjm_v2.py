@@ -51,8 +51,11 @@ def test_purchase_screen_has_exact_one_five_and_thirty_reading_choices() -> None
 
     assert _buttons(products_keyboard(BillingCatalog(settings), settings))[:3] == [
         ("1 полный разбор — 199 ₽ / 40 ⭐", "credits:buy:reading_single"),
-        ("5 полных разборов — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
-        ("30 разборов в месяц — 990 ₽ / 280 ⭐", "credits:buy:subscription_monthly"),
+        ("Пакет · 5 полных разборов — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
+        (
+            "Подписка · 30 разборов в месяц — 990 ₽ / 280 ⭐",
+            "credits:buy:subscription_monthly",
+        ),
     ]
 
     reading_id = uuid4()

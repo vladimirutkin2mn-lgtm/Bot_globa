@@ -22,11 +22,18 @@ router = Router(name="refunds")
 
 _STATUS_LABELS = {
     "requested": "запрошен",
-    "credits_reserved": "кредиты зарезервированы",
+    "credits_reserved": "доступ зарезервирован",
     "provider_pending": "обрабатывается платёжной системой",
     "succeeded": "деньги возвращены",
     "failed": "возврат отклонён",
     "manual_review": "нужна ручная проверка",
+}
+_PRODUCT_LABELS = {
+    "reading_single": "Один полный разбор",
+    "reading_pack_5": "Пакет полных разборов",
+    "subscription_monthly": "Подписка",
+    "astrology_natal": "Натальный разбор",
+    "astrology_forecast": "Астрологический прогноз",
 }
 
 
@@ -36,12 +43,16 @@ def _money(amount_minor: int, currency: str) -> str:
     return f"{Decimal(amount_minor) / Decimal(100):.2f} {currency}"
 
 
+def _purchase_label(product_code: str) -> str:
+    return _PRODUCT_LABELS.get(product_code, "Покупка")
+
+
 def _purchase_keyboard(rows: tuple[RefundPurchaseView, ...]) -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton(
                 text=(
-                    f"{row.product_code}: {row.refundable_credits} кр. · "
+                    f"{_purchase_label(row.product_code)} · "
                     f"{_money(row.refund_amount_minor, row.currency)}"
                 ),
                 callback_data=(f"refund:request:{row.payment_order_id}:{row.refundable_credits}"),
@@ -60,9 +71,7 @@ def _history_text(rows: tuple[RefundView, ...]) -> str:
     lines = ["Последние возвраты:"]
     for row in rows:
         label = _STATUS_LABELS.get(row.status, row.status)
-        lines.append(
-            f"• {_money(row.amount_minor, row.currency)} · {row.credit_units} кр. · {label}"
-        )
+        lines.append(f"• {_money(row.amount_minor, row.currency)} · {label}")
     return "\n".join(lines)
 
 
@@ -90,15 +99,15 @@ async def refund_menu(
             message,
             Scene.REFUND_UNAVAILABLE,
             "Сейчас нет покупок, подходящих для автоматического возврата. "
-            "Для возврата нужны неиспользованные кредиты и покупка в пределах срока политики.",
+            "Для возврата нужна неиспользованная часть покупки в пределах срока политики.",
             state=state,
         )
         return
     await show_screen(
         message,
         Scene.REFUND_AVAILABLE,
-        "Выберите покупку. После подтверждения соответствующие кредиты будут "
-        "зарезервированы до окончательного ответа платёжной системы.\n\n"
+        "Выберите покупку. После подтверждения неиспользованная часть покупки будет "
+        "зарезервирована до окончательного ответа платёжной системы.\n\n"
         "Важно: возврат платежа за подписку не отключает будущие продления. "
         "Автопродление управляется отдельно в разделе подписки.",
         reply_markup=_purchase_keyboard(purchases),
@@ -174,8 +183,7 @@ async def request_refund_callback(
         await send_artifact(
             callback.message,
             Scene.REFUND_ACCEPTED,
-            "Запрос принят. "
-            f"Зарезервировано {result.refund.credit_units} кредитов; "
+            "Запрос принят. Неиспользованный доступ зарезервирован; "
             f"сумма возврата — {_money(result.refund.amount_minor, result.refund.currency)}. "
             "Статус можно проверить командой /refund_status.",
             state=state,
@@ -188,10 +196,10 @@ async def request_refund_callback(
             "Эта покупка не подходит для автоматического возврата."
         ),
         RefundRequestOutcome.INVALID_UNITS: (
-            "Количество кредитов для возврата изменилось. Откройте /refund заново."
+            "Состав доступного возврата изменился. Откройте /refund заново."
         ),
         RefundRequestOutcome.INSUFFICIENT_CREDITS: (
-            "Часть кредитов уже использована, поэтому автоматический возврат невозможен."
+            "Часть оплаченного доступа уже использована, поэтому автоматический возврат невозможен."
         ),
         RefundRequestOutcome.PARTIAL_UNSUPPORTED: (
             "Для этой покупки доступен только полный возврат."
