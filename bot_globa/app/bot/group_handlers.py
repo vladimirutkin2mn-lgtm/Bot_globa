@@ -285,12 +285,7 @@ async def party_prompt(message: Message, bot: Bot) -> None:
 async def group_event(message: Message, bot: Bot) -> None:
     event_kind = _event_kind_from_command(message)
     if event_kind is None:
-        await message.answer(
-            "🃏 Что смотрим?\n\n"
-            "/event вечер\n"
-            "/event поездка\n"
-            "/event событие"
-        )
+        await message.answer("🃏 Что смотрим?\n\n/event вечер\n/event поездка\n/event событие")
         return
 
     result = group_event_spread_for_day(message.chat.id, message.date.date(), event_kind)
