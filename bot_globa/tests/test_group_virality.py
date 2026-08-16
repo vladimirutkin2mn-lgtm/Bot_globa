@@ -78,9 +78,11 @@ def test_group_commands_are_explicit_party_actions_only() -> None:
         "event",
         "grouphelp",
     ]
-    assert "не читает историю чата" in GROUP_HELP
-    assert "не перебирает участников" in GROUP_HELP
-    assert "чужих мыслях или чувствах" in GROUP_HELP
+    assert "Выберите, что попробовать" in GROUP_HELP
+    assert "вайб вашего дуэта" in GROUP_HELP
+    assert "Личные вопросы лучше задавать Numa один на один" in GROUP_HELP
+    assert "не читает историю чата" not in GROUP_HELP
+    assert "не перебирает участников" not in GROUP_HELP
 
 
 def test_group_deep_links_can_only_enter_existing_personas() -> None:
