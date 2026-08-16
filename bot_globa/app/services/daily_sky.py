@@ -226,16 +226,11 @@ class DailyHoroscopeSnapshot:
             if not isinstance(sign, str) or not isinstance(text, str):
                 raise ValueError("invalid daily horoscope sign fields")
             signs.append(DailySignForecast(ZodiacSign(sign), text))
-        forecast_date = payload.get("forecast_date")
-        sky_digest = payload.get("sky_digest")
-        theme = payload.get("theme")
-        sky_version = payload.get("sky_version")
-        methodology_version = payload.get("methodology_version")
-        if not all(
-            isinstance(value, str)
-            for value in (forecast_date, sky_digest, theme, sky_version, methodology_version)
-        ):
-            raise ValueError("invalid daily horoscope snapshot fields")
+        forecast_date = _required_text(payload, "forecast_date")
+        sky_digest = _required_text(payload, "sky_digest")
+        theme = _required_text(payload, "theme")
+        sky_version = _required_text(payload, "sky_version")
+        methodology_version = _required_text(payload, "methodology_version")
         return cls(
             forecast_date=date.fromisoformat(forecast_date),
             sky_digest=sky_digest,
@@ -362,3 +357,10 @@ def _solar_house(sun_sign: ZodiacSign, transit_sign: ZodiacSign) -> int:
 
 def _signed_angle(value: float) -> float:
     return (value + 540.0) % 360.0 - 180.0
+
+
+def _required_text(payload: dict[str, object], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError("invalid daily horoscope snapshot field")
+    return value
