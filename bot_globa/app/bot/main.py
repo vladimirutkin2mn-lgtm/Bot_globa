@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
+from app.bot.daily_conversion_handlers import router as daily_conversion_router
 from app.bot.group_handlers import router as group_router
 from app.bot.horoscope_handlers import create_horoscope_router
 from app.bot.horoscope_renderer import HoroscopeRenderer
@@ -198,6 +199,7 @@ def create_dispatcher(
     dispatcher.include_router(memory_router)
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
+    dispatcher.include_router(daily_conversion_router)
     dispatcher.include_router(create_horoscope_router())
     dispatcher.include_router(reading_feedback_router)
     dispatcher.include_router(create_reading_followup_router())

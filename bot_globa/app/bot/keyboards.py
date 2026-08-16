@@ -82,7 +82,12 @@ def readings_menu_keyboard() -> InlineKeyboardMarkup:
 def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Мой персональный прогноз", callback_data="menu:astro")],
+            [
+                InlineKeyboardButton(
+                    text="✨ Персональный прогноз на сегодня",
+                    callback_data="daily:personal",
+                )
+            ],
             [InlineKeyboardButton(text="Выбрать оракула", callback_data="menu:home")],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
         ]

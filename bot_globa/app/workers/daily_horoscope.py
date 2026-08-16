@@ -133,6 +133,9 @@ async def run(
                 await preferences.release(claim)
             else:
                 await preferences.complete(claim)
+                # Telegram has no read receipt for bot messages. This aggregate, PII-free
+                # event is therefore the honest top-of-funnel denominator for daily sends.
+                logger.info("daily_horoscope_delivered mode=%s", claim.mode.value)
 
             # Pace the broadcast: every active user shares one local 08:00, so without a
             # gap here the loop runs straight into Telegram's global rate limit and turns
