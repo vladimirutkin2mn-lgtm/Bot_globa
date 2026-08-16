@@ -68,3 +68,21 @@ def test_position_context_is_product_owned_but_card_meaning_remains_rws() -> Non
 
 def test_relationship_layout_does_not_turn_an_unspoken_factor_into_mind_reading() -> None:
     assert "без утверждений о чужих мыслях" in POSITION_FOCUS["unspoken_factor"]
+
+
+def test_a_draw_without_the_frozen_code_fails_instead_of_guessing_a_layout() -> None:
+    """A lost spread code must stop the draw, not quietly downgrade it to three cards.
+
+    Falling back would hand the user a different spread than the one their reading was
+    drafted with — the exact drift that persisting `symbol_set_code` exists to prevent.
+    """
+
+    with pytest.raises(UnknownSpreadError, match="frozen on the reading"):
+        TarotSymbolDrawer().draw(READING_ID)
+
+
+def test_a_drawer_pinned_to_one_layout_still_serves_legacy_readings() -> None:
+    drawer = TarotSymbolDrawer(spread_code="three_card_v1")
+
+    assert drawer.set_code_for_topic("love") == "three_card_v1"
+    assert len(drawer.draw(READING_ID)) == 3

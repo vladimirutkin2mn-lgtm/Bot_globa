@@ -39,7 +39,9 @@ SCENARIO_CONDITION = "Write down the reversible parts."
 
 def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome:
     reading_id = uuid4()
-    drawer = TarotSymbolDrawer()
+    # Rendering does not choose a layout, so the fixture pins one explicitly rather than
+    # relying on a default the drawer deliberately no longer has.
+    drawer = TarotSymbolDrawer(spread_code="relationship_five_v1")
     contexts = drawer.draw(reading_id) if with_symbols else ()
     opening = "A" * 1900 if long else "A bounded reflective explanation."
     pattern = "B" * 1900 if long else "Separate urgency from importance."

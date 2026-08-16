@@ -107,9 +107,9 @@ class TarotSymbolicEngine:
 class TarotSymbolDrawer:
     """Adapt the deterministic Tarot engine to the persona-neutral drawing contract.
 
-    A fixed `spread_code` remains available for legacy/tests. Production draft creation
-    asks `set_code_for_topic()` once and persists that returned code on the Reading.
-    Subsequent retries pass the persisted code back to `draw()`.
+    Production draft creation asks `set_code_for_topic()` once and persists the returned
+    code on the Reading; every later draw passes that persisted code back to `draw()`.
+    Pinning a fixed `spread_code` on the drawer is available for legacy readings and tests.
     """
 
     def __init__(
@@ -135,7 +135,17 @@ class TarotSymbolDrawer:
         reading_id: UUID,
         set_code: str | None = None,
     ) -> tuple[ReadingSymbolContext, ...]:
-        spread_code = set_code or self.set_code
+        """Draw the spread named by `set_code`, or the one this drawer was pinned to.
+
+        There is deliberately no default layout here. A caller that has lost the code
+        frozen on the Reading must fail loudly: silently falling back to `three_card_v1`
+        would show the user a different spread than the one their reading was drafted
+        with, which is precisely the drift persisting the code exists to prevent.
+        """
+
+        spread_code = set_code or self._fixed_spread_code
+        if spread_code is None:
+            raise UnknownSpreadError("tarot draw requires the spread frozen on the reading")
         return tuple(
             ReadingSymbolContext(
                 symbol=card.to_reading_symbol(),
