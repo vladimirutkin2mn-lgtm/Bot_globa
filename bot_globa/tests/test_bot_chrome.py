@@ -16,11 +16,11 @@ from aiogram.methods import (
     TelegramMethod,
 )
 from aiogram.methods.base import TelegramType
-from aiogram.types import Chat, Message, MessageEntity, Update
+from aiogram.types import BotCommandScopeAllGroupChats, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TelegramUser
 
 from app.bot import main as app_main
-from app.bot.commands import BOT_COMMANDS, configure_commands
+from app.bot.commands import BOT_COMMANDS, GROUP_COMMANDS, configure_commands
 from app.bot.main import prepare_runtime
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
@@ -145,20 +145,27 @@ async def test_the_command_menu_and_its_button_are_published_together(
     await configure_commands(instance)
 
     kinds = [type(method).__name__ for method in session.methods]
-    assert kinds == ["SetMyCommands", "SetChatMenuButton"]
-    published = session.methods[0]
-    assert isinstance(published, SetMyCommands)
-    assert [command.command for command in published.commands] == [
+    assert kinds == ["SetMyCommands", "SetMyCommands", "SetChatMenuButton"]
+    personal = session.methods[0]
+    groups = session.methods[1]
+    assert isinstance(personal, SetMyCommands)
+    assert isinstance(groups, SetMyCommands)
+    assert [command.command for command in personal.commands] == [
         command.command for command in BOT_COMMANDS
     ]
-    assert isinstance(session.methods[1], SetChatMenuButton)
+    assert [command.command for command in groups.commands] == [
+        command.command for command in GROUP_COMMANDS
+    ]
+    assert isinstance(groups.scope, BotCommandScopeAllGroupChats)
+    assert isinstance(session.methods[2], SetChatMenuButton)
 
 
 async def test_every_published_command_explains_itself(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
-    assert all(command.description.strip() for command in BOT_COMMANDS)
-    assert len({command.command for command in BOT_COMMANDS}) == len(BOT_COMMANDS)
+    commands = (*BOT_COMMANDS, *GROUP_COMMANDS)
+    assert all(command.description.strip() for command in commands)
+    assert len({command.command for command in commands}) == len(commands)
 
 
 async def test_telegram_refusing_the_command_list_does_not_stop_the_bot(
@@ -193,6 +200,7 @@ async def test_boot_seeds_the_persona_registry_and_publishes_the_menu(
 
     assert registry.syncs == 1
     assert [type(method).__name__ for method in session.methods] == [
+        "SetMyCommands",
         "SetMyCommands",
         "SetChatMenuButton",
     ]
