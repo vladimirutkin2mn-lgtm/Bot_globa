@@ -56,7 +56,7 @@ def render_daily_horoscope(value: date | DailyHoroscopeSnapshot) -> str:
     for item in snapshot.signs:
         emoji, name = SIGN_LABELS[item.sign]
         lines.append(f"{emoji} {name} — {item.text}")
-    lines.extend(("", "Это общий прогноз по знаку; персональный учитывает вашу натальную карту."))
+    lines.extend(("", "✨ Персональный прогноз: натальная карта + транзиты сегодня."))
     return "\n".join(lines)
 
 
