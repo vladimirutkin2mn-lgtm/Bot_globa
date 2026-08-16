@@ -1,5 +1,6 @@
 from datetime import date
 
+from app.bot.daily_conversion_handlers import PERSONAL_DAILY_PROMPT, router
 from app.bot.daily_horoscope import render_daily_horoscope
 from app.bot.horoscope_flow import HOROSCOPE_FLOW, HOROSCOPE_TOPIC_LABELS
 from app.bot.keyboards import daily_horoscope_keyboard
@@ -11,7 +12,12 @@ def test_daily_digest_leads_with_a_concrete_personal_forecast_cta() -> None:
     primary = keyboard.inline_keyboard[0][0]
 
     assert primary.text == "✨ Персональный прогноз на сегодня"
-    assert primary.callback_data == "menu:astro"
+    assert primary.callback_data == "daily:personal"
+
+
+def test_direct_daily_conversion_handler_is_registered_as_its_own_router() -> None:
+    assert router.name == "daily_conversion"
+    assert "Персональный прогноз на сегодня" in PERSONAL_DAILY_PROMPT
 
 
 def test_astrologer_makes_today_forecast_the_first_follow_up_choice() -> None:
