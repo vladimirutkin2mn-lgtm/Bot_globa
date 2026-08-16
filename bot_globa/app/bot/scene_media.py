@@ -115,15 +115,14 @@ class Scene(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Art:
-    """One image and the key its Telegram `file_id` is cached under.
+    """One image the bot can show, and the key its Telegram `file_id` is cached under.
 
-    Most assets are bundled local paths. A small number of immutable public-domain assets
-    may use a pinned HTTPS URL; after the first successful send Telegram's cached `file_id`
-    is used in exactly the same way as for a local upload.
+    The key is what makes a second delivery cheap, so it has to identify the picture
+    rather than the screen: two screens showing the same card share one upload.
     """
 
     key: str
-    path: Path | str
+    path: Path
 
 
 # Keyed by `Art.key` rather than by scene: cards are cached the same way pictures are.
@@ -297,11 +296,11 @@ async def _cached_photo[T](
     art: Art,
     send: Callable[[str | FSInputFile], Awaitable[T]],
 ) -> T | None:
-    """Run one photo request against cached `file_id`, then the immutable source once.
+    """Run one photo request against the cached `file_id`, falling back to the asset once.
 
-    A cached `file_id` that Telegram refuses is dropped and retried from the asset. Local
-    assets are uploaded with `FSInputFile`; trusted remote assets are handed to Telegram by
-    pinned HTTPS URL and cached under the same `Art.key` after the first successful send.
+    A cached `file_id` that Telegram refuses is dropped and the upload retried — otherwise
+    a single invalidation would break that scene until the process restarts. A refusal the
+    caller cannot control is reported rather than raised: every screen has a text form.
     """
 
     cached = _telegram_file_ids.get(art.key)
@@ -317,13 +316,8 @@ async def _cached_photo[T](
             _remember_file_id(art.key, sent)
             return sent
 
-    source: str | FSInputFile
-    if isinstance(art.path, Path):
-        source = FSInputFile(art.path, filename=art.path.name)
-    else:
-        source = art.path
     try:
-        sent = await send(source)
+        sent = await send(FSInputFile(art.path, filename=art.path.name))
     except TelegramForbiddenError:
         raise
     except TelegramAPIError:
