@@ -3,7 +3,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot import texts
-from app.bot.pricing import product_price_label
+from app.bot.pricing import product_choice_label
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.daily_horoscope import DailyHoroscopeMode, daily_horoscope_enabled
@@ -157,23 +157,21 @@ def products_keyboard(
     resume_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    direct_unlock = resume_callback is not None
     for code in READING_PURCHASE_CODES:
         # A subscription that cannot be checked out must not be advertised: the recurring
         # route would answer the tap with "unavailable" and end the purchase there.
         if code is ProductCode.SUBSCRIPTION_MONTHLY and not settings.subscriptions_enabled:
             continue
-        offer = catalog.resolve_product_offer(code, BillingMarket.RU, "RUB")
-        reading_count = max(offer.credits // settings.reading_full_price_credits, 1)
-        if code is ProductCode.READING_SINGLE:
-            choice = "1 полный разбор"
-        elif code is ProductCode.READING_PACK_5:
-            choice = f"{reading_count} полных разборов"
-        else:
-            choice = f"{reading_count} разборов в месяц"
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{choice} — {product_price_label(catalog, code, settings)}",
+                    text=product_choice_label(
+                        catalog,
+                        code,
+                        settings,
+                        direct_unlock=direct_unlock and code is ProductCode.READING_SINGLE,
+                    ),
                     callback_data=f"credits:buy:{code.value}",
                 )
             ]
