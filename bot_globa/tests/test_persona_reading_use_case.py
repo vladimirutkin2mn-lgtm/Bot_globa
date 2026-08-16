@@ -152,6 +152,63 @@ async def test_use_case_freezes_versions_and_passes_topic_specific_symbols() -> 
     assert all("position_focus=" in item.interpretation_theme for item in first.symbols)
 
 
+async def test_a_replay_on_a_fresh_process_still_reveals_the_frozen_spread() -> None:
+    """The spread has to survive a restart, so it is read back rather than remembered.
+
+    A second worker — or this one after a deploy — never saw `create_draft`, so anything
+    the drafting use case kept in memory is gone. Persistence is the only thing that can
+    still say which layout the user was already shown.
+    """
+
+    drafts = CapturingDraftService()
+    drafting = PersonaReadingUseCase(
+        "tarot_reader", drafts, CapturingGenerationService(), drawer=TarotSymbolDrawer()
+    )
+    user_id = uuid4()
+    reading_id = await drafting.create_draft(
+        user_id,
+        PersonaPreviewRequest(topic="love", question="What keeps this connection uneven?"),
+    )
+
+    restarted = PersonaReadingUseCase(
+        "tarot_reader", drafts, CapturingGenerationService(), drawer=TarotSymbolDrawer()
+    )
+    symbols = await restarted.draw_symbols(reading_id, user_id)
+
+    assert await drafting.draw_symbols(reading_id, user_id) == symbols
+    assert tuple(item.symbol.position for item in symbols) == (
+        "relationship_dynamic",
+        "bond_or_attraction",
+        "distance_or_friction",
+        "unspoken_factor",
+        "relationship_direction",
+    )
+
+
+async def test_a_symbolic_reading_without_a_frozen_code_is_refused_not_guessed() -> None:
+    """A row drafted before the contract existed must fail loudly, never draw a default."""
+
+    drafts = CapturingDraftService()
+    use_case = PersonaReadingUseCase(
+        "tarot_reader", drafts, CapturingGenerationService(), drawer=TarotSymbolDrawer()
+    )
+    user_id = uuid4()
+
+    with pytest.raises(LookupError, match="symbol contract is unavailable"):
+        await use_case.draw_symbols(uuid4(), user_id)
+
+    await use_case.create_draft(
+        user_id, PersonaPreviewRequest(topic="love", question="Where does this stall?")
+    )
+    drafts.requests[-1] = (
+        user_id,
+        drafts.requests[-1][1].model_copy(update={"symbol_set_code": "none"}),
+    )
+
+    with pytest.raises(ValueError, match="missing its frozen symbol set code"):
+        await use_case.draw_symbols(drafts.reading_id, user_id)
+
+
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
     drafts = CapturingDraftService()
     generation = CapturingGenerationService()

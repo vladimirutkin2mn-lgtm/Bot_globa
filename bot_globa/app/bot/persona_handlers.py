@@ -6,7 +6,7 @@ nothing in this module knows about tarot, love or reflection specifically.
 
 import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Awaitable, Mapping
 from uuid import UUID
 
 from aiogram import F, Router
@@ -519,8 +519,10 @@ class PersonaReadingHandlers:
             )
             return
         if unlocked.status is MonetizedReadingStatus.FULL_COMPLETED:
-            outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
-            if _is_complete(outcome):
+            outcome = await self._generated(
+                bundle.use_case.generate_existing_preview(reading_id, user.id)
+            )
+            if outcome is not None and _is_complete(outcome):
                 await self._send_full(callback.message, state, outcome, bundle, user.id)
                 return
         await show_screen(
@@ -645,13 +647,36 @@ class PersonaReadingHandlers:
         # The spread is already drawn, so revealing it runs alongside the interpretation
         # rather than before it: the wait becomes the reveal instead of growing by it.
         generation = asyncio.ensure_future(
-            bundle.use_case.generate_existing_preview(reading_id, user.id)
+            self._generated(bundle.use_case.generate_existing_preview(reading_id, user.id))
         )
         try:
-            await self._reveal_spread(message, state, reading_id, bundle)
+            await self._reveal_spread(message, state, reading_id, bundle, user.id)
         finally:
             outcome = await generation
+        if outcome is None:
+            await state.clear()
+            await self._answer_unavailable(message, state)
+            return
         await self._deliver(message, state, outcome, bundle, user.id)
+
+    async def _generated(
+        self,
+        generation: Awaitable[PersonaPreviewOutcome],
+    ) -> PersonaPreviewOutcome | None:
+        """A reading whose frozen contract cannot be read back is unavailable, not a crash.
+
+        Generating an existing preview now reads the spread frozen on the Reading, so it
+        can fail on a row drafted by an older deployment during a rolling restart. Every
+        caller here is a Telegram handler: the user has to reach the unavailable screen
+        instead of an exception that leaves the chat silent — and in the unlock path,
+        silent after credits have already been spent.
+        """
+
+        try:
+            return await generation
+        except (LookupError, ValueError):
+            logger.warning("reading_contract_unavailable persona=%s", self._flow.persona_code)
+            return None
 
     async def _reveal_spread(
         self,
@@ -659,18 +684,25 @@ class PersonaReadingHandlers:
         state: FSMContext,
         reading_id: UUID,
         bundle: PersonaReadingBundle,
+        user_id: UUID,
     ) -> None:
         """Turn the symbols already drawn into the moment the user is waiting through.
 
-        Nothing here is invented or predicted: the draw is seeded from `reading_id`, so
-        these are the same symbols the interpretation will explain, in the same order. A
-        persona that reasons in words has no symbols and simply waits.
+        Nothing here is invented or predicted: the draw is seeded from `reading_id` and
+        laid out by the spread frozen on the Reading, so these are the same symbols the
+        interpretation will explain, in the same order. A persona that reasons in words
+        has no symbols and simply waits.
 
-        The reveal is decoration. If Telegram refuses an edit the reading still arrives,
-        so a failure is logged rather than raised.
+        The reveal is decoration. If Telegram refuses an edit — or the frozen contract
+        cannot be read back — the reading still arrives, so a failure is logged rather
+        than raised.
         """
 
-        symbols = bundle.use_case.draw_symbols(reading_id)
+        try:
+            symbols = await bundle.use_case.draw_symbols(reading_id, user_id)
+        except (LookupError, ValueError):
+            logger.info("symbol_reveal_skipped persona=%s", self._flow.persona_code)
+            return
         try:
             for revealed in range(1, len(symbols) + 1):
                 await asyncio.sleep(bundle.reveal_seconds)
@@ -712,7 +744,12 @@ class PersonaReadingHandlers:
         await state.set_state(self._flow.states.generating)
         await show_screen(callback.message, notice_scene, notice, state=state)
         await show_thinking(callback.message)
-        outcome = await bundle.use_case.generate_existing_preview(reading_id, user.id)
+        outcome = await self._generated(
+            bundle.use_case.generate_existing_preview(reading_id, user.id)
+        )
+        if outcome is None:
+            await self._answer_unavailable(callback.message, state)
+            return
         await self._deliver(callback.message, state, outcome, bundle, user.id)
 
     async def _deliver(
