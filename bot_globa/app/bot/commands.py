@@ -14,7 +14,7 @@ import logging
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import BotCommand, MenuButtonCommands
+from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, MenuButtonCommands
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +28,29 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="paysupport", description="💬 Вопрос по оплате"),
 )
 
+GROUP_COMMANDS: tuple[BotCommand, ...] = (
+    BotCommand(command="card", description="🔮 Карта дня этого чата"),
+    BotCommand(command="compatibility", description="💞 Игровой вайб двух участников"),
+    BotCommand(command="party", description="🎉 Быстрый раунд для компании"),
+    BotCommand(command="event", description="🃏 Расклад на вечер или поездку"),
+    BotCommand(command="grouphelp", description="✨ Что Numa умеет в группе"),
+)
+
 
 async def configure_commands(bot: Bot) -> None:
-    """Publish the command list and point the composer's menu button at it.
+    """Publish private defaults plus a deliberately tiny command menu for groups.
 
-    Startup must not depend on Telegram being reachable: a bot that refuses to boot
-    because a cosmetic call failed would turn a transient network error into an outage.
+    Group commands override the default command list only inside group chats, so payment,
+    refund and personal-reading commands do not become noisy group affordances. Startup
+    must not depend on Telegram being reachable: a cosmetic call may never cause outage.
     """
 
     try:
         await bot.set_my_commands(list(BOT_COMMANDS))
+        await bot.set_my_commands(
+            list(GROUP_COMMANDS),
+            scope=BotCommandScopeAllGroupChats(),
+        )
         await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
     except TelegramAPIError:
         logger.warning("bot_commands_not_published")
