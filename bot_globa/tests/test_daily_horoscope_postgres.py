@@ -29,7 +29,7 @@ async def _user(
         return user
 
 
-async def test_default_morning_is_leased_once_and_rescheduled_after_delivery(
+async def test_default_morning_is_leased_then_reserved_immediately_before_send(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user = await _user(payment_db, 975001)
@@ -50,15 +50,48 @@ async def test_default_morning_is_leased_once_and_rescheduled_after_delivery(
     assert claim.delivery_date.isoformat() == "2026-08-13"
     assert await service.claim_due(now=due, lease_seconds=120) is None
 
+    # Taking a lease is reversible and must not consume today's delivery.
+    leased = await service.current(user.id)
+    assert leased.next_delivery_at == due
+
+    assert await service.reserve_send(claim, now=due)
+    reserved = await service.current(user.id)
+    assert reserved.next_delivery_at == datetime(2026, 8, 14, 5, 0, tzinfo=UTC)
+
     assert await service.complete(claim, now=datetime(2026, 8, 13, 5, 1, tzinfo=UTC))
     current = await service.current(user.id)
     assert current.next_delivery_at == datetime(2026, 8, 14, 5, 0, tzinfo=UTC)
 
 
-async def test_an_expired_lease_does_not_deliver_the_same_day_twice(
+async def test_releasing_a_pre_send_claim_keeps_the_same_day_due(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A worker killed between the send and the completion must not repeat the digest."""
+    """Snapshot/render failures happen before Telegram and therefore must be retryable."""
+
+    user = await _user(payment_db, 975010)
+    service = DailyHoroscopePreferenceService(payment_db)
+    due = datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
+    await service.configure(
+        user.id,
+        DailyHoroscopeMode.MORNING,
+        now=datetime(2026, 8, 13, 4, 59, tzinfo=UTC),
+    )
+
+    first = await service.claim_due(now=due, lease_seconds=120)
+    assert first is not None
+    assert await service.release(first, now=datetime(2026, 8, 13, 5, 1, tzinfo=UTC))
+
+    retry = await service.claim_due(now=datetime(2026, 8, 13, 5, 1, tzinfo=UTC))
+    assert retry is not None
+    assert retry.user_id == user.id
+    assert retry.delivery_date == first.delivery_date
+    assert retry.claim_id != first.claim_id
+
+
+async def test_an_expired_reserved_send_does_not_deliver_the_same_day_twice(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """A worker killed after the send boundary must not repeat the digest."""
 
     user = await _user(payment_db, 975005)
     service = DailyHoroscopePreferenceService(payment_db)
@@ -70,9 +103,10 @@ async def test_an_expired_lease_does_not_deliver_the_same_day_twice(
     )
     claim = await service.claim_due(now=due, lease_seconds=120)
     assert claim is not None
+    assert await service.reserve_send(claim, now=due)
 
-    # Do not call complete(): this is the actual process-death window after Telegram may
-    # have accepted the message but before the worker acknowledged the claim.
+    # Do not call complete(): this is the process-death window after Telegram may have
+    # accepted the message but before the worker acknowledged the claim.
     reserved = await service.current(user.id)
     assert reserved.next_delivery_at == datetime(2026, 8, 14, 5, 0, tzinfo=UTC)
 
@@ -81,6 +115,28 @@ async def test_an_expired_lease_does_not_deliver_the_same_day_twice(
     tomorrow = await service.claim_due(now=datetime(2026, 8, 14, 5, 0, tzinfo=UTC))
     assert tomorrow is not None
     assert tomorrow.delivery_date.isoformat() == "2026-08-14"
+
+
+async def test_an_expired_unreserved_lease_can_retry_the_same_day(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    """A process death during local preparation must not silently forfeit the digest."""
+
+    user = await _user(payment_db, 975011)
+    service = DailyHoroscopePreferenceService(payment_db)
+    due = datetime(2026, 8, 13, 5, 0, tzinfo=UTC)
+    await service.configure(
+        user.id,
+        DailyHoroscopeMode.MORNING,
+        now=datetime(2026, 8, 13, 4, 59, tzinfo=UTC),
+    )
+    first = await service.claim_due(now=due, lease_seconds=60)
+    assert first is not None
+
+    retry = await service.claim_due(now=datetime(2026, 8, 13, 5, 2, tzinfo=UTC))
+    assert retry is not None
+    assert retry.delivery_date == first.delivery_date
+    assert retry.claim_id != first.claim_id
 
 
 async def test_opt_out_invalidates_an_in_flight_delivery_claim(
@@ -100,6 +156,7 @@ async def test_opt_out_invalidates_an_in_flight_delivery_claim(
     disabled = await service.configure(user.id, DailyHoroscopeMode.DISABLED, now=due)
 
     assert disabled.next_delivery_at is None
+    assert not await service.reserve_send(claim, now=due)
     assert not await service.complete(claim, now=due)
     assert await service.claim_due(now=due) is None
 

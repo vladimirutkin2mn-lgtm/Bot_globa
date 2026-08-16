@@ -19,7 +19,6 @@ from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeMode
 from app.logging import configure_logging
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
-from app.services.daily_sky import DailyHoroscopeSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -27,29 +26,25 @@ logger = logging.getLogger(__name__)
 async def _send_digest(
     bot: Bot,
     claim: DailyHoroscopeClaim,
-    snapshot: DailyHoroscopeSnapshot,
+    caption: str,
     *,
     max_attempts: int,
     stopped: asyncio.Event,
 ) -> None:
-    """Deliver one digest, waiting out the throttling Telegram reports explicitly.
+    """Deliver a prepared digest, waiting out explicit Telegram throttling.
 
-    A 429 is the one failure that says for certain the message was *not* delivered, so it
-    is the one failure worth retrying against the same claim. Everything else stays
-    ambiguous and is left to the caller, which forfeits the day rather than risk sending
-    the same digest twice. Retrying here is safe past the lease as well: the claim already
-    reserved `last_delivered_on`, so no other worker can pick the row up for today.
+    The caller reserves the local delivery day immediately before entering this function.
+    From this point onward a non-429 failure is treated as ambiguous: Telegram may already
+    have accepted the request, so the day stays reserved rather than risking a duplicate.
     """
 
-    if snapshot.forecast_date != claim.delivery_date:
-        raise ValueError("daily horoscope snapshot does not match the delivery date")
     for attempt in range(1, max_attempts + 1):
         try:
             await send_scene_photo(
                 bot,
                 claim.telegram_user_id,
                 Scene.DAILY_HOROSCOPE,
-                render_daily_horoscope(snapshot),
+                caption,
                 reply_markup=daily_horoscope_keyboard(),
             )
             return
@@ -97,12 +92,32 @@ async def run(
                         timeout=runtime.daily_horoscope_worker_idle_seconds,
                     )
                 continue
+
+            # Everything in this block is local preparation. A failure here is known to
+            # have happened before any Telegram send attempt, so releasing the lease must
+            # keep the same local day eligible for retry.
             try:
                 snapshot = await snapshots.get_or_create(claim.delivery_date)
+                caption = render_daily_horoscope(snapshot)
+            except asyncio.CancelledError:
+                await preferences.release(claim)
+                raise
+            except Exception:
+                logger.exception("daily_horoscope_preparation_failed")
+                await preferences.release(claim)
+                continue
+
+            # The at-most-once boundary is deliberately as late as possible: reserve the
+            # local day only after content is ready, immediately before Telegram I/O.
+            try:
+                reserved = await preferences.reserve_send(claim)
+                if not reserved:
+                    await preferences.release(claim)
+                    continue
                 await _send_digest(
                     bot,
                     claim,
-                    snapshot,
+                    caption,
                     max_attempts=runtime.daily_horoscope_send_max_attempts,
                     stopped=stopped,
                 )
@@ -118,6 +133,7 @@ async def run(
                 await preferences.release(claim)
             else:
                 await preferences.complete(claim)
+
             # Pace the broadcast: every active user shares one local 08:00, so without a
             # gap here the loop runs straight into Telegram's global rate limit and turns
             # a whole cohort's digest into retries.
