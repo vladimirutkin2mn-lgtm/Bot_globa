@@ -1,9 +1,9 @@
-"""Persistence for default-on daily-horoscope delivery settings."""
+"""Persistence for daily-horoscope delivery settings and shared content snapshots."""
 
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, func
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -47,3 +47,16 @@ class DailyHoroscopePreference(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class DailyHoroscopeSnapshotRow(Base):
+    """Immutable shared digest content for a civil date and methodology version."""
+
+    __tablename__ = "daily_horoscope_snapshots"
+
+    forecast_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    sky_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    methodology_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    sky_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
