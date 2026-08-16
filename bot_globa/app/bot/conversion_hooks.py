@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.bot.typography import quote
+from app.domain.conversion_experiment import ConversionHookVariant
 
 
 class HookScenario(Protocol):
@@ -56,24 +57,30 @@ DEFAULT_READING_HOOK = ConversionHookCopy(
 def render_grounded_hook(
     scenarios: Sequence[HookScenario],
     copy: ConversionHookCopy,
+    variant: ConversionHookVariant = ConversionHookVariant.A,
 ) -> str:
-    """Create an open loop without fabricating information or fear.
+    """Create one of three truth-grounded hook layouts.
 
-    We can safely reveal the existence and wording of one validated scenario while keeping
-    its already-generated conditions behind the paid boundary. If the result contains a
-    second scenario, the hook may truthfully say that an alternative trajectory exists.
+    All arms contain exactly the same validated scenario and application-owned promises;
+    only the order of emphasis changes. This makes the experiment measurable without
+    manufacturing facts, fear or hidden third-party claims.
     """
 
     if not scenarios:
         raise ValueError("conversion hook requires at least one validated scenario")
 
     first = scenarios[0]
-    title = copy.branch_title if len(scenarios) > 1 else copy.single_title
-    lines = [f"<b>{quote(title)}</b>", f"{quote(copy.scenario_prefix)} {quote(first.scenario)}"]
-    if first.conditions:
-        lines.append(quote(copy.hidden_conditions_line))
-    if len(scenarios) > 1:
-        lines.append(quote(copy.alternative_line))
-    lines.append(f"\n<b>{quote(copy.unlock_title)}</b>")
-    lines.extend(f"• {quote(line)}" for line in copy.unlock_lines)
-    return "\n".join(lines)
+    title = f"<b>{quote(copy.branch_title if len(scenarios) > 1 else copy.single_title)}</b>"
+    scenario = f"{quote(copy.scenario_prefix)} {quote(first.scenario)}"
+    conditions = quote(copy.hidden_conditions_line) if first.conditions else None
+    alternative = quote(copy.alternative_line) if len(scenarios) > 1 else None
+    unlock = [f"<b>{quote(copy.unlock_title)}</b>"]
+    unlock.extend(f"• {quote(line)}" for line in copy.unlock_lines)
+
+    if variant is ConversionHookVariant.A:
+        body = [scenario, conditions, alternative, "", *unlock]
+    elif variant is ConversionHookVariant.B:
+        body = [*unlock, "", scenario, conditions, alternative]
+    else:
+        body = [scenario, alternative, "", *unlock, "", conditions]
+    return "\n".join([title, *(line for line in body if line is not None)])

@@ -9,6 +9,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.db.reading_models import Reading
+from app.domain.conversion_experiment import ConversionHookVariant, conversion_hook_variant
 from app.domain.oracle_safety import (
     OracleInputSafetyClassifier,
     OracleInputSafetyResult,
@@ -121,6 +122,7 @@ class PersonaPreviewOutcome:
     symbols: tuple[ReadingSymbolContext, ...] = ()
     symbol_set_code: str | None = None
     visibility: ReadingPreviewVisibility = ReadingPreviewVisibility.PREVIEW
+    conversion_variant: ConversionHookVariant = ConversionHookVariant.A
 
 
 class PersonaReadingUseCase:
@@ -174,6 +176,7 @@ class PersonaReadingUseCase:
 
     def classify_input(self, question: str, context: str | None = None) -> OracleInputSafetyResult:
         """Classify before transport emits any mystical processing state."""
+
         return self._safety.classify(question, context)
 
     async def create_draft(
@@ -258,6 +261,7 @@ class PersonaReadingUseCase:
             symbols=symbols,
             symbol_set_code=symbol_set_code,
             visibility=visibility,
+            conversion_variant=conversion_hook_variant(user_id),
         )
 
     @property

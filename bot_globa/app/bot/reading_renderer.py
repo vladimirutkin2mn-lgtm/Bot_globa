@@ -13,6 +13,7 @@ from app.bot.conversion_hooks import (
     render_grounded_hook,
 )
 from app.bot.typography import quote
+from app.domain.conversion_experiment import ConversionHookVariant
 from app.domain.reading import SymbolOrientation
 from app.domain.reading_generation import ReadingSymbolContext
 from app.domain.reading_result import ReadingResult
@@ -58,7 +59,12 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
     sections.extend(
         [
             f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
-            _locked_hook(result, copy, outcome.symbol_set_code),
+            _locked_hook(
+                result,
+                copy,
+                outcome.symbol_set_code,
+                outcome.conversion_variant,
+            ),
         ]
     )
     return chunk_sections(tuple(sections))
@@ -76,7 +82,12 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
     sections.extend(
         (
             f"<b>{copy.main_theme_title}</b> — {quote(insight)}",
-            _locked_hook(result, copy, outcome.symbol_set_code),
+            _locked_hook(
+                result,
+                copy,
+                outcome.symbol_set_code,
+                outcome.conversion_variant,
+            ),
         )
     )
     return chunk_sections(tuple(sections))
@@ -161,6 +172,7 @@ def _locked_hook(
     result: ReadingResult,
     copy: ReadingCopy,
     symbol_set_code: str | None,
+    variant: ConversionHookVariant,
 ) -> str:
     hook = copy.hook
     if symbol_set_code is not None:
@@ -168,7 +180,7 @@ def _locked_hook(
             (candidate for code, candidate in copy.hook_by_symbol_set if code == symbol_set_code),
             hook,
         )
-    return render_grounded_hook(result.possible_scenarios, hook)
+    return render_grounded_hook(result.possible_scenarios, hook, variant)
 
 
 def chunk_text(text: str) -> tuple[str, ...]:
