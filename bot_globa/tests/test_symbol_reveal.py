@@ -27,6 +27,7 @@ from app.bot.reading_renderer import (
     render_reveal,
     reveal_progress,
 )
+from app.bot.tarot_art import card_art
 from app.domain.reading_generation import ReadingSymbolContext
 from app.services.monetized_reading import MonetizedReadingService
 from app.services.oracle_memory import OracleMemoryService
@@ -195,7 +196,7 @@ async def test_a_persona_without_symbols_simply_waits(
 async def test_each_step_turns_over_the_card_that_was_drawn(
     revealing: tuple[PersonaReadingHandlers, Message, FSMContext, RecordingSession, SlowUseCase],
 ) -> None:
-    """The picture has to be the card, not a generic waiting illustration."""
+    """The picture has to be the exact card the deterministic engine selected."""
 
     handlers, message, state, session, use_case = revealing
     scene_media._telegram_file_ids.clear()
@@ -209,7 +210,21 @@ async def test_each_step_turns_over_the_card_that_was_drawn(
         "SendPhoto",
         *["EditMessageMedia"] * (len(symbols) - 1),
     ]
-    assert _photo_names(session) == [f"{context.symbol.symbol_id}.jpg" for context in symbols]
+    assert _photo_names(session) == [
+        _expected_art_name(context.symbol.symbol_id) for context in symbols
+    ]
+
+
+def _source_name(photo: str | FSInputFile) -> str:
+    if isinstance(photo, FSInputFile):
+        return photo.filename or ""
+    return photo
+
+
+def _expected_art_name(symbol_id: str) -> str:
+    art = card_art(symbol_id)
+    assert art is not None
+    return art.path.name
 
 
 def _photo_names(session: RecordingSession) -> list[str]:
@@ -220,6 +235,6 @@ def _photo_names(session: RecordingSession) -> list[str]:
         else:
             assert isinstance(method, SendPhoto)
             photo = method.photo
-        assert isinstance(photo, FSInputFile)
-        names.append(photo.filename or "")
+        assert isinstance(photo, (str, FSInputFile))
+        names.append(_source_name(photo))
     return names

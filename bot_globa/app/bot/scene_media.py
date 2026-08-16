@@ -315,6 +315,7 @@ async def _cached_photo[T](
         else:
             _remember_file_id(art.key, sent)
             return sent
+
     try:
         sent = await send(FSInputFile(art.path, filename=art.path.name))
     except TelegramForbiddenError:

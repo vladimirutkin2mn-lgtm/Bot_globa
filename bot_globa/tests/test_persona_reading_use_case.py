@@ -119,8 +119,8 @@ async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> N
     assert len(drafts.requests) == 1
     _, request = drafts.requests[0]
     assert request.persona_code == "tarot_reader"
-    assert request.engine_version == "tarot-symbolic-v1"
-    assert request.prompt_version == "tarot-reader-v3"
+    assert request.engine_version == "tarot-symbolic-v2"
+    assert request.prompt_version == "tarot-reader-v4"
     assert request.schema_version == "reading-result-v1"
     assert request.cost_units == 0
     assert first.symbol_set_code == "three_card_v1"
@@ -134,6 +134,7 @@ async def test_use_case_freezes_versions_and_passes_deterministic_symbols() -> N
     assert len(generation.calls) == 2
     assert generation.calls[0][2] == first.symbols
     assert all(item.display_name and item.interpretation_theme for item in first.symbols)
+    assert all("tradition=Rider-Waite-Smith" in item.interpretation_theme for item in first.symbols)
 
 
 async def test_unsupported_topic_is_rejected_before_draft_creation() -> None:
@@ -198,6 +199,7 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
     assert replay.symbols == first.symbols
     assert len(llm.requests) == 1
     assert not llm.requests[0].repair
+    assert "tradition=Rider-Waite-Smith" in llm.requests[0].user_prompt
 
     stored_result = await readings.load_result(first.reading_id, user.id)
     assert stored_result is not None
@@ -207,6 +209,6 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
         assert reading is not None
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
-        assert reading.engine_version == "tarot-symbolic-v1"
-        assert reading.prompt_version == "tarot-reader-v3"
+        assert reading.engine_version == "tarot-symbolic-v2"
+        assert reading.prompt_version == "tarot-reader-v4"
         assert reading.schema_version == "reading-result-v1"
