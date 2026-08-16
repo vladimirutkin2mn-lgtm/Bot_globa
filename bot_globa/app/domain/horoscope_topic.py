@@ -6,6 +6,13 @@ from datetime import UTC, date, datetime, timedelta
 from app.domain.horoscope import HoroscopeScope
 
 _FORECAST_ANCHOR_SEPARATOR = "__"
+_FORECAST_SCOPES = frozenset(
+    {
+        HoroscopeScope.DAY_FORECAST,
+        HoroscopeScope.WEEK_FORECAST,
+        HoroscopeScope.MONTH_FORECAST,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,7 +21,10 @@ class HoroscopeTopic:
     reference_date: date | None
 
     def __post_init__(self) -> None:
-        if self.scope is HoroscopeScope.WEEK_FORECAST:
+        if self.scope is HoroscopeScope.DAY_FORECAST:
+            if self.reference_date is None:
+                raise ValueError("daily Horoscope topic requires a date anchor")
+        elif self.scope is HoroscopeScope.WEEK_FORECAST:
             if self.reference_date is None or self.reference_date.weekday() != 0:
                 raise ValueError("weekly Horoscope topic requires a Monday anchor")
         elif self.scope is HoroscopeScope.MONTH_FORECAST:
@@ -30,6 +40,8 @@ class HoroscopeTopic:
         reference_date: date | None = None,
     ) -> "HoroscopeTopic":
         resolved = reference_date or datetime.now(UTC).date()
+        if scope is HoroscopeScope.DAY_FORECAST:
+            return cls(scope, resolved)
         if scope is HoroscopeScope.WEEK_FORECAST:
             return cls(scope, resolved - timedelta(days=resolved.weekday()))
         if scope is HoroscopeScope.MONTH_FORECAST:
@@ -43,7 +55,7 @@ class HoroscopeTopic:
             scope = HoroscopeScope(scope_value)
         except ValueError as exc:
             raise ValueError("unsupported persisted Horoscope scope") from exc
-        if scope in {HoroscopeScope.WEEK_FORECAST, HoroscopeScope.MONTH_FORECAST}:
+        if scope in _FORECAST_SCOPES:
             if (
                 separator != _FORECAST_ANCHOR_SEPARATOR
                 or not anchor_value

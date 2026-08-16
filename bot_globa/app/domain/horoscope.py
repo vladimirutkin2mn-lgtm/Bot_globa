@@ -46,6 +46,7 @@ Digest = Annotated[
 
 class HoroscopeScope(StrEnum):
     NATAL_PROFILE = "natal_profile"
+    DAY_FORECAST = "day_forecast"
     WEEK_FORECAST = "week_forecast"
     MONTH_FORECAST = "month_forecast"
     DECISION = "decision"
@@ -78,6 +79,13 @@ _ASPECT_ANGLES = {
     NatalAspectKind.TRINE.value: (120_000, 6_000),
     NatalAspectKind.OPPOSITION.value: (180_000, 8_000),
 }
+_FORECAST_SCOPES = frozenset(
+    {
+        HoroscopeScope.DAY_FORECAST,
+        HoroscopeScope.WEEK_FORECAST,
+        HoroscopeScope.MONTH_FORECAST,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,11 +277,13 @@ class HoroscopeFactBundle:
             raise ValueError("unsupported horoscope facts version")
         if self.calculated_at_utc.tzinfo is None:
             raise ValueError("horoscope calculation time must be timezone-aware")
-        if self.scope in {HoroscopeScope.WEEK_FORECAST, HoroscopeScope.MONTH_FORECAST}:
+        if self.scope in _FORECAST_SCOPES:
             if self.period_start is None or self.period_end is None:
                 raise ValueError("forecast fact bundle requires a period")
             if self.period_end < self.period_start:
                 raise ValueError("forecast period cannot end before it starts")
+            if self.scope is HoroscopeScope.DAY_FORECAST and self.period_end != self.period_start:
+                raise ValueError("daily forecast period must cover exactly one date")
         elif self.period_start is not None or self.period_end is not None:
             raise ValueError("non-forecast fact bundle cannot contain a period")
         fact_ids = [fact.fact_id for fact in self.facts]

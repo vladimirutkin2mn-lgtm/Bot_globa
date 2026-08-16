@@ -107,6 +107,8 @@ class HoroscopeFactService:
         scope: HoroscopeScope,
         reference_date: date,
     ) -> tuple[date | None, date | None, tuple[date, ...]]:
+        if scope is HoroscopeScope.DAY_FORECAST:
+            return reference_date, reference_date, (reference_date,)
         if scope is HoroscopeScope.WEEK_FORECAST:
             start = reference_date - timedelta(days=reference_date.weekday())
             end = start + timedelta(days=6)
