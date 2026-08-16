@@ -1,5 +1,7 @@
 """Conversion bridge from the common daily digest into a personal day forecast."""
 
+import logging
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -15,6 +17,7 @@ from app.services.birth_profile import BirthProfileConsentRequiredError, BirthPr
 from app.services.onboarding import OnboardingService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 
+logger = logging.getLogger(__name__)
 router = Router(name="daily_conversion")
 
 PERSONAL_DAILY_PROMPT = (
@@ -53,6 +56,10 @@ async def open_personal_daily(
         await callback.message.answer("Сначала отправьте /start.")
         return
 
+    # Aggregate click count pairs with `daily_horoscope_delivered` without putting a
+    # Telegram id, question or birth data in logs. The existing privacy-safe analytics
+    # event below carries the internal user subject into the downstream reading funnel.
+    logger.info("daily_horoscope_personal_cta_clicked")
     if oracle_analytics is not None:
         await oracle_analytics.track(
             user.id,
