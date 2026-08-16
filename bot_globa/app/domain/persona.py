@@ -106,7 +106,14 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         display_name="Астролог",
         description="Horoscope interpretation based only on a structured astrology calculation.",
         engine=PersonaEngine.ASTROLOGY,
-        supported_topics=("natal_profile", "week_forecast", "month_forecast", "decision", "love"),
+        supported_topics=(
+            "natal_profile",
+            "day_forecast",
+            "week_forecast",
+            "month_forecast",
+            "decision",
+            "love",
+        ),
         required_inputs=(
             PersonaInput.QUESTION,
             PersonaInput.BIRTH_DATE,

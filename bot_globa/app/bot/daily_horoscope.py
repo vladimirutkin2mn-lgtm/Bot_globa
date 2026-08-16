@@ -1,4 +1,4 @@
-"""A privacy-free, deterministic daily digest for all twelve zodiac signs."""
+"""Daily horoscope copy rendered from one calculated sky snapshot per date."""
 
 from datetime import date
 from types import MappingProxyType
@@ -9,6 +9,7 @@ from app.domain.daily_horoscope import (
     daily_horoscope_enabled,
     moscow_time_difference_for_timezone,
 )
+from app.services.daily_sky import SIGN_LABELS, DailyHoroscopeSnapshot, build_daily_horoscope
 
 MODE_CONFIRMATIONS = MappingProxyType(
     {
@@ -41,46 +42,20 @@ TIMEZONE_ERROR = (
     "например: 0, +2 или -1."
 )
 
-_THEMES = (
-    "сначала прояснить главное, а уже затем действовать",
-    "оставить место для паузы и проверить свои границы",
-    "выбрать один посильный шаг вместо попытки решить всё сразу",
-    "заметить повторяющийся сценарий и попробовать другой ответ",
-    "отделить чужие ожидания от собственных приоритетов",
-    "говорить конкретнее и не додумывать за другого человека",
-    "сохранить энергию для того, что действительно можно изменить",
-)
 
-_SIGNS = (
-    ("♈", "Овен", "направьте импульс в один ясный следующий шаг"),
-    ("♉", "Телец", "проверьте, что даёт устойчивость, а что лишь удерживает на месте"),
-    ("♊", "Близнецы", "один прямой разговор окажется полезнее нескольких догадок"),
-    ("♋", "Рак", "назовите свою потребность до того, как защищать её молчанием"),
-    ("♌", "Лев", "ищите признание в собственном решении, а не только в реакции других"),
-    ("♍", "Дева", "достаточно улучшить одну деталь — идеального момента ждать не нужно"),
-    ("♎", "Весы", "сравните варианты по своим критериям, а не по желанию всем угодить"),
-    ("♏", "Скорпион", "не спешите с выводом: сначала отделите факт от интерпретации"),
-    ("♐", "Стрелец", "проверьте направление маленьким экспериментом"),
-    ("♑", "Козерог", "пересмотрите нагрузку и оставьте только обязательное"),
-    ("♒", "Водолей", "необычная идея станет полезнее после одного практического шага"),
-    ("♓", "Рыбы", "дайте интуиции форму: запишите чувство и возможное действие отдельно"),
-)
+def render_daily_horoscope(value: date | DailyHoroscopeSnapshot) -> str:
+    """Render one bounded digest shared by every user for the same calculated snapshot."""
 
-
-def render_daily_horoscope(for_date: date) -> str:
-    """Render the same short, non-personal digest for every user on a given date."""
-
-    theme = _THEMES[for_date.toordinal() % len(_THEMES)]
+    snapshot = build_daily_horoscope(value) if isinstance(value, date) else value
     lines = [
-        f"Гороскоп на сегодня · {for_date:%d.%m.%Y}",
-        f"Общая тема дня: {theme}.",
+        f"Гороскоп на сегодня · {snapshot.forecast_date:%d.%m.%Y}",
+        f"🌙 Тема дня: {snapshot.theme}.",
         "",
     ]
-    lines.extend(f"{emoji} {name} — {advice}." for emoji, name, advice in _SIGNS)
-    # The digest is the one message this product sends unprompted, and it now goes to the
-    # whole active base. Its framing as entertainment travels with the text rather than
-    # living on the screen the user opened it from.
-    lines.extend(("", "Это общий развлекательный прогноз."))
+    for item in snapshot.signs:
+        emoji, name = SIGN_LABELS[item.sign]
+        lines.append(f"{emoji} {name} — {item.text}")
+    lines.extend(("", "Это общий прогноз по знаку; персональный учитывает вашу натальную карту."))
     return "\n".join(lines)
 
 

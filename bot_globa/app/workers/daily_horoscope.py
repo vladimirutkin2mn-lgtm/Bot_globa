@@ -18,6 +18,8 @@ from app.deployment import DeploymentSettings, get_deployment_settings
 from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeMode
 from app.logging import configure_logging
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
+from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
+from app.services.daily_sky import DailyHoroscopeSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ logger = logging.getLogger(__name__)
 async def _send_digest(
     bot: Bot,
     claim: DailyHoroscopeClaim,
+    snapshot: DailyHoroscopeSnapshot,
     *,
     max_attempts: int,
     stopped: asyncio.Event,
@@ -38,13 +41,15 @@ async def _send_digest(
     reserved `last_delivered_on`, so no other worker can pick the row up for today.
     """
 
+    if snapshot.forecast_date != claim.delivery_date:
+        raise ValueError("daily horoscope snapshot does not match the delivery date")
     for attempt in range(1, max_attempts + 1):
         try:
             await send_scene_photo(
                 bot,
                 claim.telegram_user_id,
                 Scene.DAILY_HOROSCOPE,
-                render_daily_horoscope(claim.delivery_date),
+                render_daily_horoscope(snapshot),
                 reply_markup=daily_horoscope_keyboard(),
             )
             return
@@ -75,6 +80,7 @@ async def run(
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
     preferences = DailyHoroscopePreferenceService(sessions)
+    snapshots = DailyHoroscopeSnapshotService(sessions)
     bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     stopped = stop or asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -92,9 +98,11 @@ async def run(
                     )
                 continue
             try:
+                snapshot = await snapshots.get_or_create(claim.delivery_date)
                 await _send_digest(
                     bot,
                     claim,
+                    snapshot,
                     max_attempts=runtime.daily_horoscope_send_max_attempts,
                     stopped=stopped,
                 )
