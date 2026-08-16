@@ -9,7 +9,7 @@ from app.domain.daily_horoscope import (
     daily_horoscope_enabled,
     moscow_time_difference_for_timezone,
 )
-from app.services.daily_sky import DailyHoroscopeSnapshot, SIGN_LABELS, build_daily_horoscope
+from app.services.daily_sky import SIGN_LABELS, DailyHoroscopeSnapshot, build_daily_horoscope
 
 MODE_CONFIRMATIONS = MappingProxyType(
     {
