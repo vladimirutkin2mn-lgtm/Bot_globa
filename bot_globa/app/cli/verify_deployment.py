@@ -109,8 +109,8 @@ class DeploymentVerifier:
             catalog=BillingCatalog(self._settings),
             settings=self._settings,
         )
-        callbacks = {
-            button.callback_data
+        labels_by_callback = {
+            button.callback_data: button.text
             for row in keyboard.inline_keyboard
             for button in row
             if button.callback_data is not None
@@ -121,14 +121,22 @@ class DeploymentVerifier:
             "credits:offer:reading_single:INTERNATIONAL:EUR",
             "credits:offer:reading_single:INTERNATIONAL:USD",
         }
+        stripe_callbacks = {
+            "credits:offer:reading_single:INTERNATIONAL:EUR",
+            "credits:offer:reading_single:INTERNATIONAL:USD",
+        }
+        stripe_is_visible = all(
+            labels_by_callback.get(callback, "").startswith("Stripe · ")
+            for callback in stripe_callbacks
+        )
         providers_enabled = self._settings.yookassa_enabled and self._settings.stripe_enabled
-        passed = providers_enabled and expected.issubset(callbacks)
+        passed = providers_enabled and stripe_is_visible and expected.issubset(labels_by_callback)
         return VerificationCheck(
             "telegram_payment_routes",
             passed,
-            "Stars, RUB, EUR, and USD routes are enabled"
+            "Stars, RUB, and two visible Stripe routes are enabled"
             if passed
-            else "one or more Telegram payment routes are unavailable",
+            else "one or more Telegram payment routes are unavailable or mislabeled",
         )
 
     async def _request(

@@ -281,13 +281,11 @@ def payment_market_keyboard(
             offer = catalog.resolve_product_offer(
                 product_code, BillingMarket.INTERNATIONAL, currency
             )
+            price = format_user_price(offer.amount_minor, offer.currency)
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=(
-                            "International · "
-                            f"{format_user_price(offer.amount_minor, offer.currency)}"
-                        ),
+                        text=f"Stripe · {price}",
                         callback_data=f"credits:offer:{product_code}:INTERNATIONAL:{currency}",
                     )
                 ]
