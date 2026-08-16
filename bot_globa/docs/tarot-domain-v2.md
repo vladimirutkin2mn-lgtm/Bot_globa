@@ -62,7 +62,9 @@ Major Arcana may be treated as broader archetypal pressure and Minor Arcana as m
 
 ## Topic-specific spread contract
 
-A new Tarot draft selects one spread from its explicit topic and immediately persists the chosen stable code as `Reading.symbol_set_code`. The topic router is used **only at draft creation**. Retry, worker replay and process restart load the persisted code instead of asking the current router to choose again.
+A new Tarot draft selects one spread from its explicit topic and immediately persists the chosen stable code as `Reading.symbol_set_code`. The topic router is used **only at draft creation**. Retry, worker replay and process restart read the persisted code back instead of asking the current router to choose again.
+
+The frozen code is never cached in the process. Every draw loads it from the Reading, because a per-process cache stops being true the moment a retry is served by another worker or after a deploy — exactly the cases the contract exists for. A draw with no code available raises rather than falling back to a default layout: showing a different spread than the one the reading was drafted with is worse than showing none.
 
 Current layouts are five-card, versioned product layouts:
 
@@ -82,14 +84,13 @@ Legacy `three_card_v1` and `one_card_v1` remain resolvable for historical readin
 
 The reveal must show the exact card selected by the deterministic engine; a generic scene image is not an acceptable substitute for a known RWS card.
 
-- The existing 22 bespoke Major Arcana illustrations remain local under `app/bot/assets/tarot/` to preserve the product's dark Numa visual language.
-- Minor Arcana use public-domain Rider–Waite imagery from the `mixvlad/TarotCards` mirror.
-- The runtime source is pinned to upstream revision `5c44ca5c94a9d67f9bc06cb6b920c2544fa76c74`, never to a moving `main` URL.
-- Card IDs are mapped by application-owned suit/rank tables; arbitrary symbol IDs cannot become external URLs.
+- All 78 illustrations are bundled in the repository under `app/bot/assets/tarot/`, named after the card code. The bot never fetches card art over the network.
+- The 22 bespoke Major Arcana keep the product's dark Numa visual language; the 56 Minor Arcana are public-domain Pamela Colman Smith (Rider–Waite, 1909) images.
+- `card_art()` validates `symbol_id` against `RWS_78_V1` before touching the filesystem; an arbitrary symbol ID cannot become a file lookup.
 - Telegram's returned `file_id` is cached under the same stable `tarot:<symbol_id>` key after a successful first send.
-- If Telegram cannot fetch or accept a card image, the reading still degrades to text rather than failing.
+- If Telegram cannot accept a card image, the reading still degrades to text rather than failing.
 
-This remote fallback is a deployment trade-off, not domain knowledge. A future fully bespoke 78-card art pack can replace the URLs without changing `rws-78-v1`, the draw engine or the interpretation prompt.
+The art layer is a deployment concern, not domain knowledge. A future fully bespoke 78-card pack replaces the files in place without changing `rws-78-v1`, the draw engine or the interpretation prompt.
 
 ## Versioning and replay
 

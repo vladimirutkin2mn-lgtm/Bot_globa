@@ -3,9 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
@@ -38,11 +36,19 @@ from app.services.symbolic_engine import TarotSymbolDrawer
 from tests.telegram_doubles import sent, shown_texts
 
 READING_ID = UUID("11111111-2222-3333-4444-555555555555")
+USER_ID = UUID("99999999-8888-7777-6666-555555555555")
 CHAT_ID = 42
+# The reveal is exercised against a drawer pinned to one layout, because the layout a
+# reading actually uses is frozen on the Reading rather than chosen at draw time.
+SPREAD_CODE = "three_card_v1"
+
+
+def _drawer() -> TarotSymbolDrawer:
+    return TarotSymbolDrawer(spread_code=SPREAD_CODE)
 
 
 def _spread() -> tuple[ReadingSymbolContext, ...]:
-    return TarotSymbolDrawer().draw(READING_ID)
+    return _drawer().draw(READING_ID)
 
 
 def test_the_bar_counts_only_what_has_been_turned_over() -> None:
@@ -59,7 +65,7 @@ def test_the_bar_refuses_to_claim_more_than_the_spread_holds() -> None:
 
 
 def test_each_step_shows_exactly_the_symbols_revealed_so_far() -> None:
-    symbols = TarotSymbolDrawer().draw(READING_ID)
+    symbols = _drawer().draw(READING_ID)
 
     first = render_reveal(TAROT_FLOW.copy, symbols, 1)
     second = render_reveal(TAROT_FLOW.copy, symbols, 2)
@@ -74,8 +80,8 @@ def test_each_step_shows_exactly_the_symbols_revealed_so_far() -> None:
 def test_the_revealed_spread_is_the_one_the_reading_will_explain() -> None:
     """The draw is seeded from `reading_id`, so the ritual cannot drift from the result."""
 
-    first = render_reveal(TAROT_FLOW.copy, TarotSymbolDrawer().draw(READING_ID), 3)
-    again = render_reveal(TAROT_FLOW.copy, TarotSymbolDrawer().draw(READING_ID), 3)
+    first = render_reveal(TAROT_FLOW.copy, _drawer().draw(READING_ID), 3)
+    again = render_reveal(TAROT_FLOW.copy, _drawer().draw(READING_ID), 3)
 
     assert first == again
 
@@ -119,8 +125,10 @@ class SlowUseCase:
         self.finish = asyncio.Event()
         self.edits_before_result = -1
 
-    def draw_symbols(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
-        return TarotSymbolDrawer().draw(reading_id)
+    async def draw_symbols(
+        self, reading_id: UUID, user_id: UUID
+    ) -> tuple[ReadingSymbolContext, ...]:
+        return _drawer().draw(reading_id)
 
     async def generate_existing_preview(self, reading_id: UUID, user_id: UUID) -> object:
         await self.finish.wait()
@@ -165,13 +173,13 @@ async def test_the_spread_is_revealed_while_the_interpretation_is_still_being_wr
     bundle = _bundle(use_case)
     generation = asyncio.ensure_future(use_case.generate_existing_preview(READING_ID, READING_ID))
 
-    await handlers._reveal_spread(message, state, READING_ID, bundle)
+    await handlers._reveal_spread(message, state, READING_ID, bundle, USER_ID)
     revealed_while_pending = not generation.done()
     use_case.finish.set()
     await generation
 
     assert revealed_while_pending
-    symbols = TarotSymbolDrawer().draw(READING_ID)
+    symbols = _drawer().draw(READING_ID)
     shown = shown_texts(session.methods)
     # One message for the whole reveal: the first card opens a photo screen and each
     # later card replaces its picture, so nothing accumulates in the chat.
@@ -187,10 +195,12 @@ async def test_a_persona_without_symbols_simply_waits(
     handlers, message, state, session, _ = revealing
 
     class Wordy(SlowUseCase):
-        def draw_symbols(self, reading_id: UUID) -> tuple[ReadingSymbolContext, ...]:
+        async def draw_symbols(
+            self, reading_id: UUID, user_id: UUID
+        ) -> tuple[ReadingSymbolContext, ...]:
             return ()
 
-    await handlers._reveal_spread(message, state, READING_ID, _bundle(Wordy()))
+    await handlers._reveal_spread(message, state, READING_ID, _bundle(Wordy()), USER_ID)
 
     assert session.methods == []
 
@@ -198,14 +208,14 @@ async def test_a_persona_without_symbols_simply_waits(
 async def test_each_step_turns_over_the_card_that_was_drawn(
     revealing: tuple[PersonaReadingHandlers, Message, FSMContext, RecordingSession, SlowUseCase],
 ) -> None:
-    """The picture has to be the exact card, whether its source is local or pinned remote art."""
+    """The picture has to be the exact card the deterministic engine selected."""
 
     handlers, message, state, session, use_case = revealing
     scene_media._telegram_file_ids.clear()
 
-    await handlers._reveal_spread(message, state, READING_ID, _bundle(use_case))
+    await handlers._reveal_spread(message, state, READING_ID, _bundle(use_case), USER_ID)
 
-    symbols = TarotSymbolDrawer().draw(READING_ID)
+    symbols = _drawer().draw(READING_ID)
     # The first card arrives as a new photo screen; every later one swaps the media,
     # because a different card is a different picture rather than a new caption.
     assert [type(method).__name__ for method in session.methods] == [
@@ -220,15 +230,13 @@ async def test_each_step_turns_over_the_card_that_was_drawn(
 def _source_name(photo: str | FSInputFile) -> str:
     if isinstance(photo, FSInputFile):
         return photo.filename or ""
-    return Path(urlparse(photo).path).name
+    return photo
 
 
 def _expected_art_name(symbol_id: str) -> str:
     art = card_art(symbol_id)
     assert art is not None
-    if isinstance(art.path, Path):
-        return art.path.name
-    return Path(urlparse(art.path).path).name
+    return art.path.name
 
 
 def _photo_names(session: RecordingSession) -> list[str]:

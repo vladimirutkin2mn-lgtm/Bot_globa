@@ -38,6 +38,17 @@ class CapturingDraftService:
         self.requests.append((user_id, request))
         return Reading(id=self.reading_id)
 
+    async def load_symbol_contract(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> tuple[str, str] | None:
+        del user_id
+        if reading_id != self.reading_id or not self.requests:
+            return None
+        request = self.requests[-1][1]
+        return request.engine_version, request.symbol_set_code
+
 
 class CapturingGenerationService:
     def __init__(self) -> None:

@@ -33,6 +33,13 @@ class ForbiddenDraftService:
         self.calls += 1
         raise AssertionError("unsafe input must not be persisted")
 
+    async def load_symbol_contract(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> tuple[str, str] | None:
+        raise AssertionError("unsafe input must not reach persistence")
+
 
 class ForbiddenGenerationService:
     calls = 0
