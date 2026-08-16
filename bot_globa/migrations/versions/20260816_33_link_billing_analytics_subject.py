@@ -27,7 +27,7 @@ BEGIN
     SELECT user_id::text
     INTO order_user_id
     FROM payment_orders
-    WHERE id = NEW.aggregate_id;
+    WHERE id = NEW.aggregate_id::uuid;
 
     safe_properties := jsonb_strip_nulls(jsonb_build_object(
         'order_id', NEW.aggregate_id,
