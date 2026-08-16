@@ -136,9 +136,7 @@ def party_prompt_for_day(chat_id: int, for_date: date) -> PartyPromptGame:
     return PartyPromptGame(prompt=prompt, archetype=archetype)
 
 
-def group_event_spread_for_day(
-    chat_id: int, for_date: date, event_kind: str
-) -> GroupEventSpread:
+def group_event_spread_for_day(chat_id: int, for_date: date, event_kind: str) -> GroupEventSpread:
     """Return three unique deterministic cards for one fixed, non-free-form event kind."""
 
     if event_kind not in GROUP_EVENT_KINDS:
