@@ -28,10 +28,14 @@ def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
 def test_consent_details_keep_the_selected_persona() -> None:
     consent = consent_keyboard("love")
 
-    assert _callbacks(consent) == ["onboarding:consent:love", "privacy:details:love"]
+    assert _callbacks(consent) == [
+        "onboarding:consent:love",
+        "privacy:details:love",
+        "menu:love",
+    ]
 
     privacy = privacy_keyboard("love")
-    assert privacy.inline_keyboard[-1][0].text == "Назад к согласию"
+    assert privacy.inline_keyboard[-1][0].text == "← Назад к согласию"
     assert privacy.inline_keyboard[-1][0].callback_data == "privacy:back:love"
 
 
@@ -40,6 +44,8 @@ def test_daily_cta_describes_the_screen_it_actually_opens() -> None:
 
     assert keyboard.inline_keyboard[1][0].text == "Выбрать оракула"
     assert keyboard.inline_keyboard[1][0].callback_data == "menu:home"
+    assert keyboard.inline_keyboard[-1][0].text == "← Назад в меню"
+    assert keyboard.inline_keyboard[-1][0].callback_data == "menu:home"
 
 
 def test_payment_success_returns_to_the_reading_that_started_checkout() -> None:
