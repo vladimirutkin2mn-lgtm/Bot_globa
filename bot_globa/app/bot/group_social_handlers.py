@@ -162,7 +162,7 @@ def mirror_card_for_day(chat_id: int, theme: str, for_date: date) -> TarotCard:
 
 
 def karma_for_day(chat_id: int, for_date: date) -> tuple[int, TarotCard]:
-    return (for_date.toordinal() - 1) % 7 + 1, _stable_card(
+    return for_date.weekday() + 1, _stable_card(
         "group-karma-v1", chat_id, for_date.isoformat()
     )
 
@@ -190,23 +190,24 @@ def _social_party_menu_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="👑 Роль дня", callback_data="social:party:roles"),
             ],
             [
+                InlineKeyboardButton(text="🔥 Тема вечера", callback_data="group:party:vibe"),
                 InlineKeyboardButton(
                     text="🌙 Прогноз на вечер", callback_data="social:party:evening"
                 ),
+            ],
+            [
                 InlineKeyboardButton(
                     text="🥂 После полуночи", callback_data="social:party:midnight"
                 ),
-            ],
-            [
                 InlineKeyboardButton(text="🤫 Тайный вопрос", callback_data="social:party:secret"),
-                InlineKeyboardButton(text="🪞 Карта о вас", callback_data="social:party:mirror"),
             ],
             [
+                InlineKeyboardButton(text="🪞 Карта о вас", callback_data="social:party:mirror"),
                 InlineKeyboardButton(
                     text="🎯 Предсказание дня", callback_data="social:party:prediction"
                 ),
-                InlineKeyboardButton(text="🃏 Карта каждому", callback_data="social:party:cards"),
             ],
+            [InlineKeyboardButton(text="🃏 Карта каждому", callback_data="social:party:cards")],
         ]
     )
 
@@ -216,9 +217,7 @@ def _party_back(
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if username:
-        rows.append(
-            [InlineKeyboardButton(text=label, url=private_deep_link(username, "tarot"))]
-        )
+        rows.append([InlineKeyboardButton(text=label, url=private_deep_link(username, "tarot"))])
     rows.append([InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -242,7 +241,11 @@ def _mirror_keyboard() -> InlineKeyboardMarkup:
 def _cards_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🃏 Получить свою карту", callback_data="social:cards:draw")],
+            [
+                InlineKeyboardButton(
+                    text="🃏 Получить свою карту", callback_data="social:cards:draw"
+                )
+            ],
             [InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")],
         ]
     )
@@ -381,9 +384,17 @@ async def group_karma(message: Message, bot: Bot) -> None:
     day_index, card = karma_for_day(message.chat.id, message.date.date())
     text = (
         f"🔁 Карма чата · день {day_index}/7\n\n"
-        f"Сегодня — {card.name_ru}.\nТема дня: {card.upright_theme}.\n\n"
-        "Возвращайтесь завтра. На седьмой день можно собрать характер недели."
+        f"Сегодня — {card.name_ru}.\nТема дня: {card.upright_theme}."
     )
+    if day_index == 7:
+        summary = week_summary_for_day(message.chat.id, message.date.date())
+        text += (
+            "\n\n🏆 Неделя завершена. "
+            f"Главная карта — {summary.main_card.name_ru}; "
+            f"самый хаотичный день — {WEEKDAY_RU[summary.chaos_weekday]}."
+        )
+    else:
+        text += "\n\nВозвращайтесь завтра — на седьмой день соберём характер недели."
     await send_art(
         bot,
         message.chat.id,
@@ -584,8 +595,9 @@ def install_group_social_mechanics() -> None:
 
     if "group_social" in _INSTALL_MARKERS:
         return
-    group_handlers._party_menu_keyboard = _social_party_menu_keyboard
-    group_handlers.GROUP_HELP = GROUP_SOCIAL_HELP
+    module_globals = vars(group_handlers)
+    module_globals["_party_menu_keyboard"] = _social_party_menu_keyboard
+    module_globals["GROUP_HELP"] = GROUP_SOCIAL_HELP
     router = group_handlers.router
     router.message(_GROUP_CHAT, Command("forecast"))(group_forecast)
     router.message(_GROUP_CHAT, Command("roles"))(group_roles)
