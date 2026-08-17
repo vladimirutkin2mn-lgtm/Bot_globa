@@ -262,10 +262,7 @@ def _party_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🎲 Кто сегодня…", callback_data="group:party:who:0")],
-            [
-                InlineKeyboardButton(text="🎭 Архетип чата", callback_data="group:party:archetype"),
-                InlineKeyboardButton(text="🔥 Тема вечера", callback_data="group:party:vibe"),
-            ],
+            [InlineKeyboardButton(text="🔥 Тема вечера", callback_data="group:party:vibe")],
         ]
     )
 
@@ -630,6 +627,7 @@ async def party_action(callback: CallbackQuery, bot: Bot) -> None:
             reply_markup=_party_menu_keyboard(),
         )
         return
+    # Keep accepting the legacy callback so already-sent party menus remain usable.
     if action == "archetype":
         await _send_chat_archetype(
             message,
