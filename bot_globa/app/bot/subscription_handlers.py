@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from aiogram import F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -127,9 +128,10 @@ async def _current_user_subscription(
     return user, current
 
 
+@router.message(Command("pay"), F.chat.type == "private")
 @router.callback_query(F.data.in_({"menu:balance", "credits:refresh", "subscription:refresh"}))
 async def balance_and_subscription_screen(
-    callback: CallbackQuery,
+    update: CallbackQuery | Message,
     state: FSMContext,
     onboarding: OnboardingService,
     credits: CreditsService,
@@ -139,20 +141,29 @@ async def balance_and_subscription_screen(
     analysis_price: int,
     privacy_retention_days: int,
 ) -> None:
-    await callback.answer()
-    if not isinstance(callback.message, Message):
-        return
+    if isinstance(update, CallbackQuery):
+        await update.answer()
+        if not isinstance(update.message, Message):
+            return
+        message = update.message
+        telegram_user_id = update.from_user.id
+    else:
+        message = update
+        if message.from_user is None:
+            return
+        telegram_user_id = message.from_user.id
     if not await ensure_consent(
-        callback.message,
-        callback.from_user.id,
+        message,
+        telegram_user_id,
         state,
         onboarding,
         privacy_retention_days,
     ):
         return
-    user, current = await _current_user_subscription(callback, onboarding, subscriptions)
+    user = await onboarding.current_user(telegram_user_id)
     if user is None:
         return
+    current = None if subscriptions is None else await subscriptions.current(user.id)
     balance = await credits.balance(user.id)
     subscription_note = (
         "\n\n" + _status_text(current)
@@ -165,7 +176,7 @@ async def balance_and_subscription_screen(
         )
     )
     await show_screen(
-        callback.message,
+        message,
         _subscription_scene(current) if current is not None else Scene.BALANCE,
         f"Доступно полных разборов: {balance // analysis_price}.{subscription_note}",
         reply_markup=(
