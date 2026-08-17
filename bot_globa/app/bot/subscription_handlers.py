@@ -79,7 +79,7 @@ def subscription_management_keyboard(value: SubscriptionView) -> InlineKeyboardM
         inline_keyboard=[
             [action],
             [InlineKeyboardButton(text="Обновить статус", callback_data="subscription:refresh")],
-            [InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")],
+            [InlineKeyboardButton(text="← Назад в меню", callback_data="report:menu")],
         ]
     )
 
@@ -362,7 +362,9 @@ async def _change_subscription(
             Scene.SUBSCRIPTION_RESUME if resume else Scene.SUBSCRIPTION_CANCEL,
             text,
             reply_markup=(
-                subscription_management_keyboard(current) if current is not None else None
+                subscription_management_keyboard(current)
+                if current is not None
+                else back_to_balance_keyboard()
             ),
             state=state,
         )
@@ -371,6 +373,7 @@ async def _change_subscription(
             callback.message,
             Scene.SUBSCRIPTION_RESUME if resume else Scene.SUBSCRIPTION_CANCEL,
             "Состояние подписки уже актуально.",
+            reply_markup=back_to_balance_keyboard(),
             state=state,
         )
     elif outcome is SubscriptionManagementOutcome.UNAVAILABLE:
@@ -378,9 +381,14 @@ async def _change_subscription(
             callback.message,
             Scene.CHECKOUT_UNAVAILABLE,
             "Управление подпиской временно недоступно.",
+            reply_markup=back_to_balance_keyboard(),
             state=state,
         )
     else:
         await show_screen(
-            callback.message, Scene.CHECKOUT_UNAVAILABLE, "Подписка не найдена.", state=state
+            callback.message,
+            Scene.CHECKOUT_UNAVAILABLE,
+            "Подписка не найдена.",
+            reply_markup=back_to_balance_keyboard(),
+            state=state,
         )

@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.consent import ensure_consent
-from app.bot.keyboards import products_keyboard
+from app.bot.keyboards import back_to_balance_keyboard, products_keyboard
 from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen
 from app.config import Settings
@@ -66,7 +66,7 @@ def _purchase_keyboard(rows: tuple[RefundPurchaseView, ...]) -> InlineKeyboardMa
         for row in rows
     ]
     buttons.append([InlineKeyboardButton(text="История возвратов", callback_data="refund:history")])
-    buttons.append([InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")])
+    buttons.append([InlineKeyboardButton(text="← Назад к оплате", callback_data="menu:balance")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -140,13 +140,21 @@ async def refund_menu(
 ) -> None:
     if refunds is None or message.from_user is None:
         await show_screen(
-            message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.", state=state
+            message,
+            Scene.REFUND_UNAVAILABLE,
+            "Возвраты сейчас недоступны.",
+            reply_markup=back_to_balance_keyboard(),
+            state=state,
         )
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
         await show_screen(
-            message, Scene.REFUND_UNAVAILABLE, "Возвраты сейчас недоступны.", state=state
+            message,
+            Scene.REFUND_UNAVAILABLE,
+            "Возвраты сейчас недоступны.",
+            reply_markup=back_to_balance_keyboard(),
+            state=state,
         )
         return
     purchases = await refunds.eligible_purchases(user.id)
@@ -156,6 +164,7 @@ async def refund_menu(
             Scene.REFUND_UNAVAILABLE,
             "Сейчас нет покупок, подходящих для автоматического возврата. "
             "Для возврата нужна неиспользованная часть покупки в пределах срока политики.",
+            reply_markup=back_to_balance_keyboard(),
             state=state,
         )
         return
@@ -180,17 +189,29 @@ async def refund_status_command(
 ) -> None:
     if refunds is None or message.from_user is None:
         await show_screen(
-            message, Scene.REFUND_HISTORY, "История возвратов сейчас недоступна.", state=state
+            message,
+            Scene.REFUND_HISTORY,
+            "История возвратов сейчас недоступна.",
+            reply_markup=back_to_balance_keyboard(),
+            state=state,
         )
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
         await show_screen(
-            message, Scene.REFUND_HISTORY, "История возвратов сейчас недоступна.", state=state
+            message,
+            Scene.REFUND_HISTORY,
+            "История возвратов сейчас недоступна.",
+            reply_markup=back_to_balance_keyboard(),
+            state=state,
         )
         return
     await show_screen(
-        message, Scene.REFUND_HISTORY, _history_text(await refunds.history(user.id)), state=state
+        message,
+        Scene.REFUND_HISTORY,
+        _history_text(await refunds.history(user.id)),
+        reply_markup=back_to_balance_keyboard(),
+        state=state,
     )
 
 
@@ -209,6 +230,7 @@ async def refund_history_callback(
         callback.message,
         Scene.REFUND_HISTORY,
         _history_text(await refunds.history(user.id)),
+        reply_markup=back_to_balance_keyboard(),
         state=state,
     )
 
@@ -242,6 +264,7 @@ async def request_refund_callback(
             "Запрос принят. Неиспользованный доступ зарезервирован; "
             f"сумма возврата — {_money(result.refund.amount_minor, result.refund.currency)}. "
             "Статус можно проверить командой /refund_status.",
+            reply_markup=back_to_balance_keyboard(),
             state=state,
         )
         return
@@ -268,5 +291,6 @@ async def request_refund_callback(
         callback.message,
         Scene.REFUND_UNAVAILABLE,
         messages.get(result.outcome, "Возврат не удалось создать."),
+        reply_markup=back_to_balance_keyboard(),
         state=state,
     )

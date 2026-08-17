@@ -2,12 +2,15 @@ import re
 from datetime import date
 
 import pytest
+from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.commands import GROUP_COMMANDS
 from app.bot.group_handlers import (
     GROUP_EVENT_KINDS,
     GROUP_HELP,
     PARTY_PROMPTS,
+    _append_back,
+    _party_result_keyboard,
     chat_archetype_for_day,
     compatibility_for_day,
     duel_for_day,
@@ -19,6 +22,15 @@ from app.bot.group_handlers import (
 )
 from app.domain.reading import SymbolOrientation
 from app.domain.tarot import RWS_78_V1
+
+
+def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
+    return [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+        if button.callback_data is not None
+    ]
 
 
 def test_group_card_is_stable_for_chat_and_day() -> None:
@@ -115,6 +127,20 @@ def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
 
     with pytest.raises(ValueError):
         group_event_spread_for_day(-1001234567890, day, "отношения")
+
+
+def test_nested_group_results_can_return_to_their_picker() -> None:
+    party = _party_result_keyboard("numa_bot", 1)
+    event = _append_back(
+        None,
+        text="← К выбору события",
+        callback_data="group:event:menu",
+    )
+
+    assert _callbacks(party)[-1] == "group:party:menu"
+    assert party.inline_keyboard[-1][0].text == "← К играм"
+    assert _callbacks(event) == ["group:event:menu"]
+    assert event.inline_keyboard[-1][0].text == "← К выбору события"
 
 
 def test_group_commands_match_help_one_to_one() -> None:

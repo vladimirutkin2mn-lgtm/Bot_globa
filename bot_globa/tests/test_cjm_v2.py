@@ -92,7 +92,7 @@ def test_payment_screen_offers_only_the_providers_that_can_settle() -> None:
 
     assert _buttons(keyboard) == [
         ("Telegram Stars · 40 ⭐", "credits:stars:reading_single"),
-        ("Вернуться", "menu:balance"),
+        ("← Назад к пакетам", "menu:balance"),
     ]
     assert has_payment_routes(keyboard)
 
@@ -114,7 +114,7 @@ def test_a_screen_without_any_usable_provider_is_reported_as_having_no_route() -
         settings=none_enabled,
     )
 
-    assert _buttons(keyboard) == [("Вернуться", "menu:balance")]
+    assert _buttons(keyboard) == [("← Назад к пакетам", "menu:balance")]
     assert not has_payment_routes(keyboard)
 
 
@@ -122,17 +122,19 @@ def test_consent_can_return_to_the_selected_intention() -> None:
     assert _buttons(consent_keyboard("tarot")) == [
         ("Принять и продолжить", "onboarding:consent:tarot"),
         ("Подробнее", "privacy:details:tarot"),
+        ("← Назад", "menu:tarot"),
     ]
     assert "Память выключена" in texts.CONSENT
     assert "{days}" in texts.CONSENT
 
 
-def test_question_and_paid_result_keep_one_decision_per_screen() -> None:
+def test_question_and_paid_result_keep_navigation_explicit() -> None:
     reading_id = uuid4()
 
     assert _buttons(TAROT_FLOW.question_keyboard()) == [
         ("Показать пример", "tarot:example"),
-        ("Отмена", "tarot:cancel"),
+        ("← Назад к темам", "tarot:new"),
+        ("← В главное меню", "tarot:menu"),
     ]
 
     assert parse_feedback(f"rfb:hit:{reading_id}") == ("hit", reading_id)
@@ -142,7 +144,8 @@ def test_question_and_paid_result_keep_one_decision_per_screen() -> None:
         ("Задать уточняющий вопрос", f"rfu:ask:{reading_id}"),
         ("Попало", f"rfb:hit:{reading_id}"),
         ("Не откликнулось", f"rfb:miss:{reading_id}"),
-        ("Главное меню", "tarot:menu"),
+        ("← К моим разборам", "menu:readings"),
+        ("← В главное меню", "tarot:menu"),
     ]
 
 
@@ -160,7 +163,7 @@ def test_daily_delivery_is_default_on_and_can_be_configured_or_disabled() -> Non
     assert _buttons(daily_settings_keyboard()) == [
         ("Отключить ежедневный гороскоп", "daily:set:disabled"),
         ("Изменить часовой пояс", "daily:timezone"),
-        ("Вернуться к гороскопу", "menu:daily"),
+        ("← Назад к гороскопу", "menu:daily"),
     ]
 
 

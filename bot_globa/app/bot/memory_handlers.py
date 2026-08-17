@@ -253,21 +253,29 @@ async def save_memory_correction(
 ) -> None:
     if message.from_user is None:
         return
+    data = await state.get_data()
+    page_value = data.get("memory_page", 0)
+    page = page_value if isinstance(page_value, int) and page_value >= 0 else 0
     value = (message.text or "").strip()
     if not value or len(value) > 2000:
-        await show_screen(message, Scene.MEMORY_EDIT, _INVALID_CORRECTION, state=state)
+        await show_screen(
+            message,
+            Scene.MEMORY_EDIT,
+            _INVALID_CORRECTION,
+            reply_markup=memory_edit_cancel_keyboard(page),
+            state=state,
+        )
         return
-    data = await state.get_data()
     try:
         item_id = UUID(str(data.get("memory_item_id", "")))
     except ValueError:
         await state.clear()
-        await message.answer(_STALE)
+        await message.answer(_STALE, reply_markup=memory_enabled_keyboard(True))
         return
     user = await onboarding.current_user(message.from_user.id)
     if user is None:
         await state.clear()
-        await message.answer(_NOT_ONBOARDED)
+        await message.answer(_NOT_ONBOARDED, reply_markup=main_menu_keyboard())
         return
     try:
         replacement_id = await oracle_memory.correct_item(user.id, item_id, value)
