@@ -47,6 +47,14 @@ def test_entry_copy_explains_the_four_distinct_personas() -> None:
     }
 
 
+def test_private_command_menu_promotes_payment_not_refund() -> None:
+    commands = {command.command: command.description for command in BOT_COMMANDS}
+
+    assert commands["pay"] == "💳 Оплата"
+    assert "refund" not in commands
+    assert commands["paysupport"] == "💬 Вопрос по оплате"
+
+
 def test_secondary_navigation_keeps_history_settings_and_privacy_reachable() -> None:
     more = {button.callback_data for row in more_menu_keyboard().inline_keyboard for button in row}
     readings = {
