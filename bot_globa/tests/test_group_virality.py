@@ -130,14 +130,21 @@ def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
         group_event_spread_for_day(-1001234567890, day, "отношения")
 
 
-def test_party_menu_only_contains_party_games() -> None:
+def test_party_menu_only_contains_distinct_party_games() -> None:
     party = _party_menu_keyboard()
+    callbacks = _callbacks(party)
 
-    assert _callbacks(party) == ["group:party:who:0", "group:party:vibe"]
-    assert [button.text for row in party.inline_keyboard for button in row] == [
-        "🎲 Кто сегодня…",
-        "🔥 Тема вечера",
+    assert callbacks == [
+        "group:party:who:0",
+        "social:party:roles",
+        "social:party:evening",
+        "social:party:midnight",
+        "social:party:secret",
+        "social:party:mirror",
+        "social:party:prediction",
+        "social:party:cards",
     ]
+    assert all("archetype" not in callback for callback in callbacks)
 
 
 def test_nested_group_results_can_return_to_their_picker() -> None:
