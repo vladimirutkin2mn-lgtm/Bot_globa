@@ -1,13 +1,29 @@
 """Keyboard labels and callback contracts."""
 
-from app.bot import texts
+from uuid import UUID
+
+from app.bot import horoscope_flow, texts
 from app.bot.commands import BOT_COMMANDS
 from app.bot.keyboards import (
+    consent_keyboard,
+    daily_horoscope_keyboard,
+    daily_settings_keyboard,
+    daily_timezone_keyboard,
     main_menu_keyboard,
     more_menu_keyboard,
     onboarding_intro_keyboard,
     readings_menu_keyboard,
 )
+from app.bot.persona_flows import TAROT_FLOW
+
+
+def _buttons(keyboard: object) -> dict[str, str | None]:
+    markup = keyboard
+    return {
+        button.text: button.callback_data
+        for row in markup.inline_keyboard  # type: ignore[attr-defined]
+        for button in row
+    }
 
 
 def test_main_menu_contains_required_sections() -> None:
@@ -68,8 +84,44 @@ def test_secondary_navigation_keeps_history_settings_and_privacy_reachable() -> 
         ["💞 Любовный оракул"],
         ["🌙 Мистический психолог"],
         ["🪐 Астролог"],
-        ["Главное меню"],
+        ["← Назад в меню"],
     ]
+
+
+def test_daily_horoscope_has_an_explicit_back_path_at_every_nested_step() -> None:
+    daily = _buttons(daily_horoscope_keyboard())
+    settings = _buttons(daily_settings_keyboard())
+    timezone = _buttons(daily_timezone_keyboard())
+
+    assert daily["← Назад в меню"] == "menu:home"
+    assert daily["Настройки"] == "daily:settings"
+    assert settings["← Назад к гороскопу"] == "menu:daily"
+    assert timezone["← Назад к настройкам"] == "daily:settings"
+
+
+def test_consent_screen_never_traps_the_user() -> None:
+    assert _buttons(consent_keyboard("tarot"))["← Назад в меню"] == "menu:home"
+
+
+def test_reading_flow_can_return_to_topics_and_history_hub() -> None:
+    question = _buttons(TAROT_FLOW.question_keyboard())
+    history = _buttons(TAROT_FLOW.history_keyboard([], page=0, has_next=False))
+    full = _buttons(TAROT_FLOW.full_result_keyboard(UUID(int=1)))
+
+    assert question["← Назад к темам"] == "tarot:new"
+    assert history["← К моим разборам"] == "menu:readings"
+    assert full["← К моим разборам"] == "menu:readings"
+
+
+def test_astrologer_uses_back_routes_without_ambiguous_cancel_copy() -> None:
+    question = _buttons(horoscope_flow.HOROSCOPE_FLOW.question_keyboard())
+    birth_time = _buttons(horoscope_flow.birth_time_keyboard())
+    place_choice = _buttons(horoscope_flow.place_choice_keyboard(["Москва"]))
+
+    assert question["← Назад к темам"] == "astro:new"
+    assert birth_time["← Назад к городу"] == "astro:place:retry"
+    assert place_choice["← Назад к вводу города"] == "astro:place:retry"
+    assert birth_time["← В главное меню"] == "astro:cancel"
 
 
 def test_unimplemented_section_copy_is_exact() -> None:
