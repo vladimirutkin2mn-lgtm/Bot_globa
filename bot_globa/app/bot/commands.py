@@ -16,6 +16,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, MenuButtonCommands
 
+from app.bot.group_compatibility_handlers import install_group_compatibility_mechanics
 from app.bot.group_social_handlers import install_group_social_mechanics
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,10 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="card", description="🔮 Карта дня для всего чата"),
     BotCommand(
         command="compatibility",
-        description="💞 Ответьте на сообщение — вайб пары",
+        description=(
+            "💞 Ответьте на сообщение — "
+            "натальная совместимость"
+        ),
         is_ephemeral=True,
     ),
     BotCommand(command="party", description="🎉 Игры для компании"),
@@ -44,6 +48,7 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
 )
 
 install_group_social_mechanics()
+install_group_compatibility_mechanics()
 
 
 async def configure_commands(bot: Bot) -> None:
