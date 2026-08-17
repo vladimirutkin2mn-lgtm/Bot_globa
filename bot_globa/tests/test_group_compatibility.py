@@ -6,8 +6,16 @@ from app.bot import group_handlers
 from app.bot.commands import GROUP_COMMANDS
 from app.bot.group_compatibility_handlers import (
     _context_keyboard,
-    _entry_keyboard,
     compatibility_entry,
+    compatibility_second,
+)
+from app.bot.group_compatibility_ux import (
+    _join_first_keyboard,
+    _join_second_keyboard,
+    _join_self_keyboard,
+    _lobby_keyboard,
+    compatibility_entry_ux,
+    compatibility_lobby_action,
 )
 from app.domain.birth_profile import BirthProfileInput
 from app.domain.natal_chart import NatalChartResult
@@ -58,17 +66,24 @@ def test_synastry_is_symmetric_bounded_and_contextual() -> None:
     assert love.verdict
 
 
-def test_group_compatibility_replaces_legacy_random_handler() -> None:
-    callbacks = [handler.callback for handler in group_handlers.router.message.handlers]
+def test_group_compatibility_uses_callback_only_person_selection() -> None:
+    message_callbacks = [handler.callback for handler in group_handlers.router.message.handlers]
+    callback_callbacks = [
+        handler.callback for handler in group_handlers.router.callback_query.handlers
+    ]
 
-    assert group_handlers.compatibility not in callbacks
-    assert compatibility_entry in callbacks
+    assert group_handlers.compatibility not in message_callbacks
+    assert compatibility_entry not in message_callbacks
+    assert compatibility_second not in message_callbacks
+    assert compatibility_entry_ux in message_callbacks
+    assert compatibility_lobby_action in callback_callbacks
 
 
-def test_pair_selection_has_self_and_two_person_modes() -> None:
-    callbacks = _callback_data(_entry_keyboard(123, 456))
-
-    assert callbacks == ["gc:s:123:456", "gc:o:123:456"]
+def test_lobby_and_join_callbacks_are_explicit_and_compact() -> None:
+    assert _callback_data(_lobby_keyboard(123)) == ["gcu:m:123", "gcu:o:123"]
+    assert _callback_data(_join_self_keyboard(123)) == ["gcu:j:123"]
+    assert _callback_data(_join_first_keyboard(123)) == ["gcu:f:123"]
+    assert _callback_data(_join_second_keyboard(123, 456)) == ["gcu:s:123:456"]
 
 
 def test_context_callbacks_fit_telegram_limit_for_large_user_ids() -> None:
@@ -80,11 +95,12 @@ def test_context_callbacks_fit_telegram_limit_for_large_user_ids() -> None:
     assert {value.split(":")[2] for value in callbacks} == {"l", "f", "w", "t"}
 
 
-def test_group_command_describes_natal_compatibility() -> None:
+def test_group_command_opens_lobby_without_reply_contract() -> None:
     command = next(command for command in GROUP_COMMANDS if command.command == "compatibility")
 
+    assert command.description == "💞 Совместимость участников"
     assert command.is_ephemeral is True
-    assert "Ответьте на сообщение" in command.description
-    assert "наталь" in command.description.casefold()
     assert "совместимость по натальной карте" in group_handlers.GROUP_HELP
+    assert "лобби" in group_handlers.GROUP_HELP
+    assert "reply-команд" not in group_handlers.GROUP_HELP
     assert "/with" not in [command.command for command in GROUP_COMMANDS]

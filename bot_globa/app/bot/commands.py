@@ -16,7 +16,9 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, MenuButtonCommands
 
+from app.bot import group_handlers
 from app.bot.group_compatibility_handlers import install_group_compatibility_mechanics
+from app.bot.group_compatibility_ux import install_group_compatibility_ux
 from app.bot.group_social_handlers import install_group_social_mechanics
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="card", description="🔮 Карта дня для всего чата"),
     BotCommand(
         command="compatibility",
-        description=("💞 Ответьте на сообщение — натальная совместимость"),
+        description="💞 Совместимость участников",
         is_ephemeral=True,
     ),
     BotCommand(command="party", description="🎉 Игры для компании"),
@@ -46,6 +48,11 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
 
 install_group_social_mechanics()
 install_group_compatibility_mechanics()
+install_group_compatibility_ux()
+group_handlers.GROUP_HELP = group_handlers.GROUP_HELP.replace(
+    "• /compatibility — выберите одного человека reply-командой; затем себя или второго.",
+    "• /compatibility — откройте лобби; участники сами подтверждают себя кнопками.",
+)
 
 
 async def configure_commands(bot: Bot) -> None:
@@ -55,10 +62,10 @@ async def configure_commands(bot: Bot) -> None:
     support and personal-reading commands do not become noisy group affordances. Startup
     must not depend on Telegram being reachable: a cosmetic call may never cause outage.
 
-    Compatibility is ephemeral in Telegram's command menu so a reply to another member is
-    still explicitly addressed to Numa under Group Privacy Mode. The resulting reading is
-    sent normally to the group by the handler; Numa still does not receive ordinary chat
-    traffic.
+    Compatibility is an ephemeral group command so Telegram can direct the entry action
+    to Numa without exposing that command to the rest of the group. Person selection no
+    longer relies on replying to another member's message; after the lobby opens, every
+    interaction is an explicit callback to Numa.
     """
 
     try:
