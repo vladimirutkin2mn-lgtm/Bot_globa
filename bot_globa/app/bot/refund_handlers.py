@@ -1,4 +1,4 @@
-"""Telegram flow for safe monetary refund requests."""
+"""Telegram payment navigation and safe monetary refund requests."""
 
 from decimal import Decimal
 from uuid import UUID
@@ -8,9 +8,14 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.consent import ensure_consent
+from app.bot.keyboards import products_keyboard
 from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen
-from app.services.onboarding import OnboardingService
+from app.config import Settings
+from app.domain.billing import BillingCatalog
+from app.services.credits_service import CreditsService
+from app.services.onboarding import OnboardingService, TelegramIdentity
 from app.services.refund_service import (
     RefundPurchaseView,
     RefundRequestOutcome,
@@ -73,6 +78,57 @@ def _history_text(rows: tuple[RefundView, ...]) -> str:
         label = _STATUS_LABELS.get(row.status, row.status)
         lines.append(f"• {_money(row.amount_minor, row.currency)} · {label}")
     return "\n".join(lines)
+
+
+def _message_identity(message: Message) -> TelegramIdentity | None:
+    telegram_user = message.from_user
+    if telegram_user is None:
+        return None
+    return TelegramIdentity(
+        telegram_user_id=telegram_user.id,
+        username=telegram_user.username,
+        first_name=telegram_user.first_name,
+        language=telegram_user.language_code,
+    )
+
+
+@router.message(Command("pay"))
+async def payment_menu(
+    message: Message,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    credits: CreditsService,
+    billing_catalog: BillingCatalog,
+    billing_settings: Settings,
+    privacy_retention_days: int,
+) -> None:
+    """Open the existing purchase catalogue from Telegram's command menu."""
+
+    identity = _message_identity(message)
+    if identity is None:
+        return
+    if not await ensure_consent(
+        message,
+        identity.telegram_user_id,
+        state,
+        onboarding,
+        privacy_retention_days,
+        identity=identity,
+    ):
+        return
+    user = await onboarding.current_user(identity.telegram_user_id)
+    if user is None:
+        return
+    balance = await credits.balance(user.id)
+    await show_screen(
+        message,
+        Scene.BALANCE,
+        f"Доступно полных разборов: "
+        f"{balance // billing_settings.reading_full_price_credits}.\n\n"
+        "Выберите вариант:",
+        reply_markup=products_keyboard(billing_catalog, billing_settings),
+        state=state,
+    )
 
 
 @router.message(Command("refund"))
