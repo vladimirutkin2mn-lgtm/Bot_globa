@@ -29,14 +29,18 @@ def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
 def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
     callback = "onboarding:consent"
     privacy_callback = "menu:privacy"
+    back_callback = "menu:home"
+    back_label = "← Назад в меню"
     if destination is not None:
         callback = f"{callback}:{destination}"
         privacy_callback = f"privacy:details:{destination}"
+        back_callback = f"menu:{destination}"
+        back_label = "← Назад"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Принять и продолжить", callback_data=callback)],
             [InlineKeyboardButton(text="Подробнее", callback_data=privacy_callback)],
-            [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
+            [InlineKeyboardButton(text=back_label, callback_data=back_callback)],
         ]
     )
 
@@ -165,8 +169,6 @@ def products_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     direct_unlock = resume_callback is not None
     for code in READING_PURCHASE_CODES:
-        # A subscription that cannot be checked out must not be advertised: the recurring
-        # route would answer the tap with "unavailable" and end the purchase there.
         if code is ProductCode.SUBSCRIPTION_MONTHLY and not settings.subscriptions_enabled:
             continue
         rows.append(
@@ -248,16 +250,10 @@ def payment_market_keyboard(
     settings: Settings,
     recurring: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Offer only the routes that can actually complete this purchase.
-
-    A button for a disabled provider costs the buyer a tap and answers with an error, so
-    each route is gated on the provider that would have to settle it.
-    """
+    """Offer only the routes that can actually complete this purchase."""
 
     rows: list[list[InlineKeyboardButton]] = []
     if not settings.permits_new_checkout():
-        # Disabled billing and the kill switch reject every route, so any button here would
-        # cost the buyer a tap and answer with an error.
         return InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="← Назад к пакетам", callback_data="menu:balance")]
