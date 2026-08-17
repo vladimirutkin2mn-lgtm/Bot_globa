@@ -2,6 +2,8 @@
 
 from uuid import UUID
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot import horoscope_flow, texts
 from app.bot.commands import BOT_COMMANDS
 from app.bot.keyboards import (
@@ -17,11 +19,10 @@ from app.bot.keyboards import (
 from app.bot.persona_flows import TAROT_FLOW
 
 
-def _buttons(keyboard: object) -> dict[str, str | None]:
-    markup = keyboard
+def _buttons(keyboard: InlineKeyboardMarkup) -> dict[str, str | None]:
     return {
         button.text: button.callback_data
-        for row in markup.inline_keyboard  # type: ignore[attr-defined]
+        for row in keyboard.inline_keyboard
         for button in row
     }
 
