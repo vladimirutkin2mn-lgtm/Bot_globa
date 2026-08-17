@@ -8,7 +8,7 @@ the callback itself so collective games survive worker restarts without new stor
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date
 from html import escape
 from typing import Any
 
@@ -655,7 +655,9 @@ async def viral_action(
             )
             seed = _digest("group-seance-v1", message.chat.id, message.date.date(), *normalized)
             secret = _SEANCE_MESSAGES[seed[0] % len(_SEANCE_MESSAGES)]
-            card = _stable_card("group-seance-card-v1", message.chat.id, message.date.date(), *normalized)
+            card = _stable_card(
+                "group-seance-card-v1", message.chat.id, message.date.date(), *normalized
+            )
             await send_art(
                 bot,
                 message.chat.id,
@@ -749,7 +751,9 @@ def install_group_viral_mechanics() -> None:
         return
     router = group_handlers.router
     router.message.handlers[:] = [
-        handler for handler in router.message.handlers if handler.callback is not group_social_handlers.group_duel
+        handler
+        for handler in router.message.handlers
+        if handler.callback is not group_social_handlers.group_duel
     ]
     router.message(_GROUP_CHAT, Command("couple"))(group_couple)
     router.message(_GROUP_CHAT, Command("duel"))(astro_duel_entry)
