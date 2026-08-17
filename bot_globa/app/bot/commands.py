@@ -16,6 +16,8 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, MenuButtonCommands
 
+from app.bot.group_social_handlers import install_group_social_mechanics
+
 logger = logging.getLogger(__name__)
 
 BOT_COMMANDS: tuple[BotCommand, ...] = (
@@ -40,6 +42,8 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="chat", description="🎭 Архетип этого чата"),
     BotCommand(command="grouphelp", description="✨ Игры Numa для группы"),
 )
+
+install_group_social_mechanics()
 
 
 async def configure_commands(bot: Bot) -> None:
