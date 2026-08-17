@@ -36,21 +36,22 @@ def test_solar_daily_snapshot_is_deterministic_complete_and_roundtrippable() -> 
     assert DailyHoroscopeSnapshot.from_payload(first.payload()) == first
 
 
-def test_editorial_daily_v3_is_unique_human_and_caption_safe() -> None:
+def test_editorial_daily_v4_is_unique_human_and_caption_safe() -> None:
     snapshot = build_editorial_daily_horoscope(date(2026, 8, 16))
     rendered = render_daily_horoscope(snapshot)
     texts = [item.text for item in snapshot.signs]
 
-    assert snapshot.methodology_version == DAILY_EDITORIAL_METHOD_VERSION == "solar-sign-daily-v3"
+    assert snapshot.methodology_version == DAILY_EDITORIAL_METHOD_VERSION == "solar-sign-daily-v4"
     assert tuple(item.sign for item in snapshot.signs) == tuple(ZodiacSign)
     assert len(set(texts)) == len(ZodiacSign)
     assert all(": " not in text for text in texts)
+    assert all(";" not in text for text in texts)
     assert "чувства подскажут верный темп" not in rendered
     assert "неожиданный поворот может помочь" not in rendered
     assert len(rendered) <= TELEGRAM_CAPTION_LIMIT
 
 
-def test_editorial_daily_v3_is_deterministic_and_roundtrippable() -> None:
+def test_editorial_daily_v4_is_deterministic_and_roundtrippable() -> None:
     first = build_editorial_daily_horoscope(date(2026, 8, 16))
     second = build_editorial_daily_horoscope(date(2026, 8, 16))
 
