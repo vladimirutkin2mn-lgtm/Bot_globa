@@ -31,8 +31,9 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
 GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="card", description="🔮 Карта дня для всего чата"),
     BotCommand(command="compatibility", description="💞 Вайб двух участников на сегодня"),
-    BotCommand(command="party", description="🎉 Кто сегодня кто? Игра для компании"),
-    BotCommand(command="event", description="🃏 Расклад на вечер, поездку или событие"),
+    BotCommand(command="party", description="🎉 Игры для компании"),
+    BotCommand(command="event", description="🃏 Расклад на событие"),
+    BotCommand(command="chat", description="🎭 Архетип этого чата"),
     BotCommand(command="grouphelp", description="✨ Игры Numa для группы"),
 )
 
