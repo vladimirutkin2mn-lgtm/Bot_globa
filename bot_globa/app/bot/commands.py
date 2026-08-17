@@ -35,10 +35,7 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="card", description="🔮 Карта дня для всего чата"),
     BotCommand(
         command="compatibility",
-        description=(
-            "💞 Ответьте на сообщение — "
-            "натальная совместимость"
-        ),
+        description=("💞 Ответьте на сообщение — натальная совместимость"),
         is_ephemeral=True,
     ),
     BotCommand(command="party", description="🎉 Игры для компании"),
