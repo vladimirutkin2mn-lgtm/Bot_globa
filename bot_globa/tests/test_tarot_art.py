@@ -1,5 +1,7 @@
 """The visual Tarot deck must resolve every card the RWS engine can draw."""
 
+import hashlib
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from app.bot.tarot_art import TAROT_ASSET_DIR, card_art, deck_is_installed
 from app.domain.tarot import RWS_78_V1
 
 MAX_CARD_BYTES = 1_000_000
+MANIFEST_PATH = TAROT_ASSET_DIR.parents[3] / "docs" / "tarot-rws1909-sources.json"
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +41,41 @@ def test_every_bundled_card_stays_inside_the_telegram_upload_budget() -> None:
     ]
 
     assert oversized == []
+
+
+def test_every_bundled_card_is_a_complete_jpeg() -> None:
+    malformed: list[str] = []
+    for path in TAROT_ASSET_DIR.glob("*.jpg"):
+        payload = path.read_bytes()
+        if not payload.startswith(b"\xff\xd8") or not payload.endswith(b"\xff\xd9"):
+            malformed.append(path.name)
+
+    assert malformed == []
+
+
+def test_rws1909_manifest_matches_the_installed_deck_byte_for_byte() -> None:
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    expected_files = {f"{card.code}.jpg" for card in RWS_78_V1.cards}
+
+    assert manifest["deck"] == "Rider-Waite-Smith Tarot"
+    assert manifest["publication_year"] == 1909
+    assert manifest["artist"] == "Pamela Colman Smith"
+    assert manifest["card_count"] == 78
+
+    entries = manifest["cards"]
+    assert len(entries) == 78
+    assert {entry["local_file"] for entry in entries} == expected_files
+
+    for entry in entries:
+        path = TAROT_ASSET_DIR / entry["local_file"]
+        payload = path.read_bytes()
+        digest = hashlib.sha1(payload, usedforsecurity=False).hexdigest()
+
+        assert entry["source_url"].startswith(
+            "https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/720px/"
+        )
+        assert entry["bytes"] == len(payload)
+        assert entry["sha1"] == digest
 
 
 def test_a_card_resolves_to_a_local_path_keyed_apart_from_scenes() -> None:
