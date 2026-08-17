@@ -24,8 +24,8 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="tarot", description="🔮 Таролог"),
     BotCommand(command="psy", description="🌙 Мистический психолог"),
     BotCommand(command="astro", description="🪐 Астролог"),
-    BotCommand(command="refund", description="↩️ Возврат покупки"),
-    BotCommand(command="paysupport", description="💬 Вопрос по оплате"),
+    BotCommand(command="pay", description="💳 Оплата"),
+    BotCommand(command="paysupport", description="💬 Помощь с оплатой"),
 )
 
 GROUP_COMMANDS: tuple[BotCommand, ...] = (
@@ -46,7 +46,7 @@ async def configure_commands(bot: Bot) -> None:
     """Publish private defaults plus a deliberately tiny command menu for groups.
 
     Group commands override the default command list only inside group chats, so payment,
-    refund and personal-reading commands do not become noisy group affordances. Startup
+    support and personal-reading commands do not become noisy group affordances. Startup
     must not depend on Telegram being reachable: a cosmetic call may never cause outage.
 
     Compatibility is ephemeral in Telegram's command menu so a reply to another member is
