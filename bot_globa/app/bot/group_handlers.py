@@ -179,14 +179,10 @@ def duel_for_day(first_user_id: int, second_user_id: int, for_date: date) -> Due
     first_card = _stable_card("group-duel-person-v1", first_user_id, for_date.isoformat())
     second_candidates = [card for card in RWS_78_V1.cards if card != first_card]
     second_seed = _digest("group-duel-person-v1", second_user_id, for_date.isoformat())
-    second_card = second_candidates[
-        int.from_bytes(second_seed[:4], "big") % len(second_candidates)
-    ]
+    second_card = second_candidates[int.from_bytes(second_seed[:4], "big") % len(second_candidates)]
 
     left, right = sorted((first_user_id, second_user_id))
-    dynamic_candidates = [
-        card for card in RWS_78_V1.cards if card not in {first_card, second_card}
-    ]
+    dynamic_candidates = [card for card in RWS_78_V1.cards if card not in {first_card, second_card}]
     dynamic_seed = _digest("group-duel-dynamic-v1", left, right, for_date.isoformat())
     dynamic_card = dynamic_candidates[
         int.from_bytes(dynamic_seed[:4], "big") % len(dynamic_candidates)
@@ -198,9 +194,7 @@ def duel_for_day(first_user_id: int, second_user_id: int, for_date: date) -> Due
     )
 
 
-def party_prompt_for_day(
-    chat_id: int, for_date: date, round_index: int = 0
-) -> PartyPromptGame:
+def party_prompt_for_day(chat_id: int, for_date: date, round_index: int = 0) -> PartyPromptGame:
     """Return a stable prompt; later rounds rotate without selecting a member."""
 
     if round_index < 0:
@@ -208,9 +202,7 @@ def party_prompt_for_day(
     seed = _digest("group-party-v2", chat_id, for_date.isoformat())
     prompt_index = (seed[0] + round_index) % len(PARTY_PROMPTS)
     prompt = PARTY_PROMPTS[prompt_index]
-    archetype = _stable_card(
-        "group-party-archetype-v2", chat_id, for_date.isoformat(), round_index
-    )
+    archetype = _stable_card("group-party-archetype-v2", chat_id, for_date.isoformat(), round_index)
     return PartyPromptGame(prompt=prompt, archetype=archetype)
 
 
@@ -260,12 +252,8 @@ def _party_menu_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="🎲 Кто сегодня…", callback_data="group:party:who:0")],
             [
-                InlineKeyboardButton(
-                    text="🎭 Архетип чата", callback_data="group:party:archetype"
-                ),
-                InlineKeyboardButton(
-                    text="🔥 Тема вечера", callback_data="group:party:vibe"
-                ),
+                InlineKeyboardButton(text="🎭 Архетип чата", callback_data="group:party:archetype"),
+                InlineKeyboardButton(text="🔥 Тема вечера", callback_data="group:party:vibe"),
             ],
         ]
     )
@@ -276,9 +264,7 @@ def _event_picker_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="🌙 Вечер", callback_data="group:event:вечер"),
-                InlineKeyboardButton(
-                    text="✈️ Поездка", callback_data="group:event:поездка"
-                ),
+                InlineKeyboardButton(text="✈️ Поездка", callback_data="group:event:поездка"),
             ],
             [InlineKeyboardButton(text="✨ Событие", callback_data="group:event:событие")],
         ]
@@ -308,9 +294,7 @@ def _compatibility_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _party_result_keyboard(
-    bot_username: str | None, next_round: int
-) -> InlineKeyboardMarkup:
+def _party_result_keyboard(bot_username: str | None, next_round: int) -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(
@@ -360,9 +344,7 @@ def _today_utc() -> date:
     return datetime.now(UTC).date()
 
 
-async def _send_chat_archetype(
-    message: Message, bot: Bot, *, for_date: date
-) -> None:
+async def _send_chat_archetype(message: Message, bot: Bot, *, for_date: date) -> None:
     card = chat_archetype_for_day(message.chat.id, for_date)
     text = (
         "🎭 Архетип этого чата сегодня\n\n"
