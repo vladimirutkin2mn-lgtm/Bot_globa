@@ -1,5 +1,6 @@
 from datetime import date
 
+import pytest
 from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.group_social_handlers import (
@@ -32,6 +33,7 @@ def test_social_party_menu_contains_only_distinct_party_mechanics() -> None:
     assert callbacks == [
         "group:party:who:0",
         "social:party:roles",
+        "group:party:vibe",
         "social:party:evening",
         "social:party:midnight",
         "social:party:secret",
@@ -91,24 +93,22 @@ def test_mirror_rejects_unknown_theme() -> None:
     for theme in MIRROR_THEMES:
         assert mirror_card_for_day(-1001234567890, theme, day) in RWS_78_V1.cards
 
-    try:
+    with pytest.raises(ValueError, match="unsupported mirror theme"):
         mirror_card_for_day(-1001234567890, "unknown", day)
-    except ValueError as exc:
-        assert str(exc) == "unsupported mirror theme"
-    else:
-        raise AssertionError("unknown mirror theme must fail")
 
 
-def test_karma_and_week_summary_are_stable() -> None:
-    day = date(2026, 8, 17)
+def test_karma_and_week_summary_are_stable_and_monday_starts_cycle() -> None:
+    monday = date(2026, 8, 17)
+    sunday = date(2026, 8, 23)
 
-    karma = karma_for_day(-1001234567890, day)
-    summary = week_summary_for_day(-1001234567890, day)
+    karma = karma_for_day(-1001234567890, monday)
+    summary = week_summary_for_day(-1001234567890, monday)
 
-    assert karma == karma_for_day(-1001234567890, day)
-    assert 1 <= karma[0] <= 7
+    assert karma == karma_for_day(-1001234567890, monday)
+    assert karma[0] == 1
+    assert karma_for_day(-1001234567890, sunday)[0] == 7
     assert karma[1] in RWS_78_V1.cards
-    assert summary == week_summary_for_day(-1001234567890, day)
+    assert summary == week_summary_for_day(-1001234567890, monday)
     assert summary.main_card in RWS_78_V1.cards
     assert 0 <= summary.chaos_weekday <= 6
 
