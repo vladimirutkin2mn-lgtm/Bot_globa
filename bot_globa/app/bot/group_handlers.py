@@ -247,6 +247,17 @@ def _private_keyboard(bot_username: str, *, persona: str, label: str) -> InlineK
     )
 
 
+def _append_back(
+    keyboard: InlineKeyboardMarkup | None,
+    *,
+    text: str,
+    callback_data: str,
+) -> InlineKeyboardMarkup:
+    rows = [] if keyboard is None else [list(row) for row in keyboard.inline_keyboard]
+    rows.append([InlineKeyboardButton(text=text, callback_data=callback_data)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def _party_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -312,6 +323,7 @@ def _party_result_keyboard(bot_username: str | None, next_round: int) -> InlineK
                 )
             ]
         )
+    rows.append([InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -344,7 +356,13 @@ def _today_utc() -> date:
     return datetime.now(UTC).date()
 
 
-async def _send_chat_archetype(message: Message, bot: Bot, *, for_date: date) -> None:
+async def _send_chat_archetype(
+    message: Message,
+    bot: Bot,
+    *,
+    for_date: date,
+    back_to_party: bool = False,
+) -> None:
     card = chat_archetype_for_day(message.chat.id, for_date)
     text = (
         "🎭 Архетип этого чата сегодня\n\n"
@@ -358,6 +376,12 @@ async def _send_chat_archetype(message: Message, bot: Bot, *, for_date: date) ->
         if username
         else None
     )
+    if back_to_party:
+        keyboard = _append_back(
+            keyboard,
+            text="← К играм",
+            callback_data="group:party:menu",
+        )
     await send_art(
         bot,
         message.chat.id,
@@ -386,7 +410,13 @@ async def _send_party_question(
     )
 
 
-async def _send_party_vibe(message: Message, bot: Bot, *, for_date: date) -> None:
+async def _send_party_vibe(
+    message: Message,
+    bot: Bot,
+    *,
+    for_date: date,
+    back_to_party: bool = False,
+) -> None:
     result = party_vibe_for_day(message.chat.id, for_date)
     text = (
         "🔥 Тема этого вечера\n\n"
@@ -400,6 +430,12 @@ async def _send_party_vibe(message: Message, bot: Bot, *, for_date: date) -> Non
         if username
         else None
     )
+    if back_to_party:
+        keyboard = _append_back(
+            keyboard,
+            text="← К играм",
+            callback_data="group:party:menu",
+        )
     await send_art(
         bot,
         message.chat.id,
@@ -410,7 +446,12 @@ async def _send_party_vibe(message: Message, bot: Bot, *, for_date: date) -> Non
 
 
 async def _send_event_result(
-    message: Message, bot: Bot, *, for_date: date, event_kind: str
+    message: Message,
+    bot: Bot,
+    *,
+    for_date: date,
+    event_kind: str,
+    back_to_picker: bool = False,
 ) -> None:
     result = group_event_spread_for_day(message.chat.id, for_date, event_kind)
     label = GROUP_EVENT_KINDS[result.event_kind]
@@ -432,6 +473,12 @@ async def _send_event_result(
         if username
         else None
     )
+    if back_to_picker:
+        keyboard = _append_back(
+            keyboard,
+            text="← К выбору события",
+            callback_data="group:event:menu",
+        )
     await send_art(
         bot,
         message.chat.id,
@@ -577,11 +624,27 @@ async def party_action(callback: CallbackQuery, bot: Bot) -> None:
 
     action = data.removeprefix("group:party:")
     await callback.answer()
+    if action == "menu":
+        await message.answer(
+            "🎉 Во что играем?\n\nВыберите механику — Numa запустит её прямо в этом чате.",
+            reply_markup=_party_menu_keyboard(),
+        )
+        return
     if action == "archetype":
-        await _send_chat_archetype(message, bot, for_date=_today_utc())
+        await _send_chat_archetype(
+            message,
+            bot,
+            for_date=_today_utc(),
+            back_to_party=True,
+        )
         return
     if action == "vibe":
-        await _send_party_vibe(message, bot, for_date=_today_utc())
+        await _send_party_vibe(
+            message,
+            bot,
+            for_date=_today_utc(),
+            back_to_party=True,
+        )
         return
     if action.startswith("who:"):
         try:
@@ -623,6 +686,13 @@ async def group_event_button(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer()
         return
     event_kind = data.removeprefix("group:event:").casefold()
+    if event_kind == "menu":
+        await callback.answer()
+        await message.answer(
+            "🃏 На что делаем расклад?",
+            reply_markup=_event_picker_keyboard(),
+        )
+        return
     if event_kind not in GROUP_EVENT_KINDS:
         await callback.answer("Такого расклада здесь нет.")
         return
@@ -632,4 +702,5 @@ async def group_event_button(callback: CallbackQuery, bot: Bot) -> None:
         bot,
         for_date=_today_utc(),
         event_kind=event_kind,
+        back_to_picker=True,
     )
