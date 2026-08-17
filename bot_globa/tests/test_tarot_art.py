@@ -1,8 +1,8 @@
 """The visual Tarot deck must resolve every card the RWS engine can draw."""
 
-from collections.abc import Iterator
 import hashlib
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
