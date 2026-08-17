@@ -9,6 +9,8 @@ from app.services.daily_horoscope_editorial import (
 )
 from app.services.daily_sky import DailySignForecast
 
+MAX_EDITORIAL_STORY_CHARS = 64
+
 
 def test_daily_editorial_library_never_uses_semicolons() -> None:
     stories = [story for pool in _STORIES.values() for story in pool]
@@ -16,6 +18,8 @@ def test_daily_editorial_library_never_uses_semicolons() -> None:
     assert stories
     assert all(";" not in story for story in stories)
     assert all(";" not in story for story in _GENERAL_STORIES)
+    assert all(len(story) <= MAX_EDITORIAL_STORY_CHARS for story in stories)
+    assert all(len(story) <= MAX_EDITORIAL_STORY_CHARS for story in _GENERAL_STORIES)
 
 
 def test_rendered_daily_horoscope_never_uses_semicolons() -> None:
@@ -32,4 +36,4 @@ def test_duplicate_fallback_stays_natural_without_semicolon() -> None:
     result = _editorialize(item, date(2026, 8, 17), used)
 
     assert ";" not in result.text
-    assert result.text.endswith("Выберите ритм, который подходит именно вам.")
+    assert result.text.endswith("Выберите ритм, который подходит вам.")
