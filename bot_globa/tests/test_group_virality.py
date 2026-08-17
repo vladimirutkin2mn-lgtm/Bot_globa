@@ -1,4 +1,5 @@
 from datetime import date
+import re
 
 import pytest
 
@@ -71,18 +72,26 @@ def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
 
 
 def test_group_commands_are_explicit_party_actions_only() -> None:
-    assert [command.command for command in GROUP_COMMANDS] == [
+    expected_commands = [
         "card",
         "compatibility",
         "party",
         "event",
         "grouphelp",
     ]
-    assert "Выберите, что попробовать" in GROUP_HELP
-    assert "вайб вашего дуэта" in GROUP_HELP
+    assert [command.command for command in GROUP_COMMANDS] == expected_commands
+
+    help_command_lines = [
+        match.group(1)
+        for line in GROUP_HELP.splitlines()
+        if (match := re.search(r"/(\w+)\s+—", line)) is not None
+    ]
+    assert help_command_lines == expected_commands
+    assert "/event вечер —" not in GROUP_HELP
+    assert "/event поездка —" not in GROUP_HELP
+    assert "/event событие —" not in GROUP_HELP
+    assert "после команды напишите: вечер, поездка или событие" in GROUP_HELP
     assert "Личные вопросы лучше задавать Numa один на один" in GROUP_HELP
-    assert "не читает историю чата" not in GROUP_HELP
-    assert "не перебирает участников" not in GROUP_HELP
 
 
 def test_group_deep_links_can_only_enter_existing_personas() -> None:
