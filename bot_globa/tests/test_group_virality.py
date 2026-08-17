@@ -10,6 +10,7 @@ from app.bot.group_handlers import (
     GROUP_HELP,
     PARTY_PROMPTS,
     _append_back,
+    _party_menu_keyboard,
     _party_result_keyboard,
     chat_archetype_for_day,
     compatibility_for_day,
@@ -127,6 +128,16 @@ def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
 
     with pytest.raises(ValueError):
         group_event_spread_for_day(-1001234567890, day, "отношения")
+
+
+def test_party_menu_only_contains_party_games() -> None:
+    party = _party_menu_keyboard()
+
+    assert _callbacks(party) == ["group:party:who:0", "group:party:vibe"]
+    assert [button.text for row in party.inline_keyboard for button in row] == [
+        "🎲 Кто сегодня…",
+        "🔥 Тема вечера",
+    ]
 
 
 def test_nested_group_results_can_return_to_their_picker() -> None:
