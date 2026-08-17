@@ -18,8 +18,10 @@ from app.services.monetized_reading import MonetizedReadingService
 from app.services.oracle_memory import OracleMemoryService
 from app.services.persona_reading import PersonaReadingUseCase
 
-MENU_BUTTON = "Главное меню"
+MENU_BUTTON = "← В главное меню"
 CANCEL_BUTTON = "Отмена"
+BACK_TO_TOPICS_BUTTON = "← Назад к темам"
+BACK_TO_READINGS_BUTTON = "← К моим разборам"
 SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
 FOLLOWUP_BUTTON = "Задать уточняющий вопрос"
@@ -116,7 +118,8 @@ class ReadingFlow:
                         callback_data=self.callback("example"),
                     )
                 ],
-                [InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=self._cancel)],
+                [InlineKeyboardButton(text=BACK_TO_TOPICS_BUTTON, callback_data=self._new)],
+                [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
             ]
         )
 
@@ -129,7 +132,8 @@ class ReadingFlow:
                         callback_data=self.callback("context", "skip"),
                     )
                 ],
-                [InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=self._cancel)],
+                [InlineKeyboardButton(text=BACK_TO_TOPICS_BUTTON, callback_data=self._new)],
+                [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
             ]
         )
 
@@ -163,8 +167,9 @@ class ReadingFlow:
                     callback_data=f"{FEEDBACK_NAMESPACE}:miss:{reading_id}",
                 ),
             ],
+            [InlineKeyboardButton(text=BACK_TO_READINGS_BUTTON, callback_data="menu:readings")],
+            [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
         ]
-        rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
     def result_keyboard(
@@ -182,7 +187,7 @@ class ReadingFlow:
                     )
                 ]
             )
-            rows.append([InlineKeyboardButton(text="Пока оставить", callback_data=self._menu)])
+            rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         else:
             rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -194,9 +199,10 @@ class ReadingFlow:
                     text=RETRY_BUTTON,
                     callback_data=self.callback("retry", str(reading_id)),
                 )
-            ]
+            ],
+            [InlineKeyboardButton(text=BACK_TO_READINGS_BUTTON, callback_data="menu:readings")],
+            [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
         ]
-        rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
 
     def history_keyboard(
@@ -235,6 +241,7 @@ class ReadingFlow:
         rows.extend(
             [
                 [InlineKeyboardButton(text=self.texts.new_button, callback_data=self._new)],
+                [InlineKeyboardButton(text=BACK_TO_READINGS_BUTTON, callback_data="menu:readings")],
                 [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
             ]
         )
