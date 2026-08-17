@@ -149,10 +149,7 @@ def calculate_synastry(
     }
     weights = _CONTEXT_WEIGHTS[context]
     overall = round(
-        sum(
-            value * weight
-            for value, weight in zip(values.values(), weights, strict=True)
-        )
+        sum(value * weight for value, weight in zip(values.values(), weights, strict=True))
     )
     strongest_key = max(values, key=values.__getitem__)
     weakest_key = min(values, key=values.__getitem__)
@@ -226,26 +223,11 @@ def _verdict(overall: int, context: CompatibilityContext) -> str:
         CompatibilityContext.TRAVEL: "в вашей поездке",
     }[context]
     if overall >= 84:
-        return (
-            f"{noun.capitalize()} слишком много совпадений, "
-            "чтобы всё прошло незаметно."
-        )
+        return f"{noun.capitalize()} слишком много совпадений, чтобы всё прошло незаметно."
     if overall >= 74:
-        return (
-            f"{noun.capitalize()} сильная база — искры и споры "
-            "вполне могут идти комплектом."
-        )
+        return f"{noun.capitalize()} сильная база — искры и споры вполне могут идти комплектом."
     if overall >= 64:
-        return (
-            f"{noun.capitalize()} всё работает лучше, "
-            "когда вы не пытаетесь быть одинаковыми."
-        )
+        return f"{noun.capitalize()} всё работает лучше, когда вы не пытаетесь быть одинаковыми."
     if overall >= 54:
-        return (
-            f"{noun.capitalize()} есть сюжет, но инструкция "
-            "по эксплуатации точно пригодится."
-        )
-    return (
-        f"{noun.capitalize()} звёзды обещают не лёгкость, "
-        "а очень нескучный сюжет."
-    )
+        return f"{noun.capitalize()} есть сюжет, но инструкция по эксплуатации точно пригодится."
+    return f"{noun.capitalize()} звёзды обещают не лёгкость, а очень нескучный сюжет."
