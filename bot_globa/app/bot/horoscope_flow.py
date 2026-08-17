@@ -10,7 +10,7 @@ from types import MappingProxyType
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.bot.persona_flow import CANCEL_BUTTON, MENU_BUTTON, PersonaFlowTexts, ReadingFlow
+from app.bot.persona_flow import MENU_BUTTON, PersonaFlowTexts, ReadingFlow
 from app.bot.safety_intake import SafetyIntake
 from app.bot.states import HoroscopeStates
 
@@ -173,7 +173,7 @@ def consent_keyboard() -> InlineKeyboardMarkup:
 def cancel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=callback("cancel"))],
+            [InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))],
         ]
     )
 
@@ -185,9 +185,14 @@ def place_choice_keyboard(labels: Sequence[str]) -> InlineKeyboardMarkup:
         for index, label in enumerate(labels)
     ]
     rows.append(
-        [InlineKeyboardButton(text="Искать заново", callback_data=callback("place", "retry"))]
+        [
+            InlineKeyboardButton(
+                text="← Назад к вводу города",
+                callback_data=callback("place", "retry"),
+            )
+        ]
     )
-    rows.append([InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=callback("cancel"))])
+    rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -200,7 +205,13 @@ def birth_time_keyboard() -> InlineKeyboardMarkup:
                     callback_data=callback("time", "unknown"),
                 )
             ],
-            [InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=callback("cancel"))],
+            [
+                InlineKeyboardButton(
+                    text="← Назад к городу",
+                    callback_data=callback("place", "retry"),
+                )
+            ],
+            [InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))],
         ]
     )
 
@@ -233,7 +244,15 @@ def time_choice_keyboard(offsets: Sequence[int], clock: str) -> InlineKeyboardMa
             )
         ]
     )
-    rows.append([InlineKeyboardButton(text=CANCEL_BUTTON, callback_data=callback("cancel"))])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text="← Назад к городу",
+                callback_data=callback("place", "retry"),
+            )
+        ]
+    )
+    rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
