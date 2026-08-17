@@ -86,7 +86,10 @@ def download(source_name: str) -> bytes:
     # hard-coded 78-card catalogue above; no caller-controlled URL or scheme reaches here.
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
     with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
-        return response.read(MAX_CARD_BYTES + 1)
+        payload = response.read(MAX_CARD_BYTES + 1)
+    if not isinstance(payload, bytes):
+        raise TypeError(f"Unexpected response body type: {type(payload).__name__}")
+    return payload
 
 
 def main() -> None:
