@@ -1,12 +1,11 @@
 """Resolve the illustration for a drawn Rider-Waite-Smith Tarot card.
 
-The whole 78-card deck is a bundled asset, exactly like every other image the bot sends:
-22 bespoke Major Arcana plus the public-domain Smith 1909 Minor Arcana. Nothing here
-reaches the network, so a card cannot silently stop rendering because a third-party host
-went away, and the production image carries everything the reveal needs.
+The whole 78-card deck is one bundled public-domain Rider-Waite-Smith 1909 visual set.
+Nothing here reaches the network, so a card cannot silently stop rendering because a
+third-party host went away, and the production image carries everything the reveal needs.
 
-Naming and the acceptance rules for the images themselves are in
-`docs/tarot-card-assets.md`.
+Naming, provenance and acceptance rules for the images are documented in
+`docs/tarot-card-assets.md` and `docs/tarot-rws1909-sources.json`.
 """
 
 from functools import cache
