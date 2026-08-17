@@ -93,6 +93,7 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
                     callback_data="daily:personal",
                 )
             ],
+            [InlineKeyboardButton(text="Выбрать оракула", callback_data="menu:home")],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
             [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
