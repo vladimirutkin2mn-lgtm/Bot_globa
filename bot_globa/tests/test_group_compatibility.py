@@ -86,7 +86,5 @@ def test_group_command_describes_natal_compatibility() -> None:
     assert command.is_ephemeral is True
     assert "Ответьте на сообщение" in command.description
     assert "наталь" in command.description.casefold()
-    assert (
-        "совместимость по натальной карте" in group_handlers.GROUP_HELP
-    )
+    assert "совместимость по натальной карте" in group_handlers.GROUP_HELP
     assert "/with" not in [command.command for command in GROUP_COMMANDS]
