@@ -20,11 +20,7 @@ from app.bot.persona_flows import TAROT_FLOW
 
 
 def _buttons(keyboard: InlineKeyboardMarkup) -> dict[str, str | None]:
-    return {
-        button.text: button.callback_data
-        for row in keyboard.inline_keyboard
-        for button in row
-    }
+    return {button.text: button.callback_data for row in keyboard.inline_keyboard for button in row}
 
 
 def test_main_menu_contains_required_sections() -> None:
