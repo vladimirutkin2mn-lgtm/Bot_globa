@@ -162,9 +162,7 @@ def mirror_card_for_day(chat_id: int, theme: str, for_date: date) -> TarotCard:
 
 
 def karma_for_day(chat_id: int, for_date: date) -> tuple[int, TarotCard]:
-    return for_date.weekday() + 1, _stable_card(
-        "group-karma-v1", chat_id, for_date.isoformat()
-    )
+    return for_date.weekday() + 1, _stable_card("group-karma-v1", chat_id, for_date.isoformat())
 
 
 def week_summary_for_day(chat_id: int, for_date: date) -> WeekSummary:
