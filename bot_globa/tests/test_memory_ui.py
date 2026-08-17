@@ -135,7 +135,9 @@ async def test_invalid_memory_correction_keeps_a_cancel_route(monkeypatch: objec
     )
 
     shown.assert_awaited_once()
-    keyboard = shown.await_args.kwargs["reply_markup"]
+    await_args = shown.await_args
+    assert await_args is not None
+    keyboard = await_args.kwargs["reply_markup"]
     assert isinstance(keyboard, InlineKeyboardMarkup)
     assert _callback_values(keyboard) == ["memory:edit_cancel:2"]
 
