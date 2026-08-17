@@ -368,7 +368,7 @@ async def group_versus(message: Message, bot: Bot) -> None:
     ]
     left, right = sorted((first_id, second_id))
     card = _stable_card("group-versus-card-v1", left, right, message.date.date())
-    text = f"🔥 Кто из вас…\n\n" + "\n".join(lines) + "\n\nСегодняшний вайб, не приговор."
+    text = "🔥 Кто из вас…\n\n" + "\n".join(lines) + "\n\nСегодняшний вайб, не приговор."
     await send_art(
         bot,
         message.chat.id,
