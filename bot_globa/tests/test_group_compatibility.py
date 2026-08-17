@@ -8,6 +8,11 @@ from app.bot.group_compatibility_handlers import (
     _context_keyboard,
     _entry_keyboard,
     compatibility_entry,
+    compatibility_second,
+)
+from app.bot.group_compatibility_ux import (
+    compatibility_entry_ux,
+    compatibility_second_ux,
 )
 from app.domain.birth_profile import BirthProfileInput
 from app.domain.natal_chart import NatalChartResult
@@ -58,11 +63,14 @@ def test_synastry_is_symmetric_bounded_and_contextual() -> None:
     assert love.verdict
 
 
-def test_group_compatibility_replaces_legacy_random_handler() -> None:
+def test_group_compatibility_uses_one_visible_command_for_both_selections() -> None:
     callbacks = [handler.callback for handler in group_handlers.router.message.handlers]
 
     assert group_handlers.compatibility not in callbacks
-    assert compatibility_entry in callbacks
+    assert compatibility_entry not in callbacks
+    assert compatibility_second not in callbacks
+    assert compatibility_entry_ux in callbacks
+    assert compatibility_second_ux in callbacks
 
 
 def test_pair_selection_has_self_and_two_person_modes() -> None:
