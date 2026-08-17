@@ -16,6 +16,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, MenuButtonCommands
 
+from app.bot import group_handlers
 from app.bot.group_compatibility_handlers import install_group_compatibility_mechanics
 from app.bot.group_compatibility_ux import install_group_compatibility_ux
 from app.bot.group_social_handlers import install_group_social_mechanics
@@ -55,6 +56,10 @@ install_group_social_mechanics()
 install_group_compatibility_mechanics()
 install_group_compatibility_ux()
 install_group_viral_mechanics()
+group_handlers.GROUP_HELP = group_handlers.GROUP_HELP.replace(
+    "💞 /compatibility — совместимость участников",
+    "💞 /compatibility — совместимость по натальной карте",
+)
 
 
 async def configure_commands(bot: Bot) -> None:
