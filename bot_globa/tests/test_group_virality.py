@@ -137,6 +137,7 @@ def test_party_menu_only_contains_distinct_party_games() -> None:
     assert callbacks == [
         "group:party:who:0",
         "social:party:roles",
+        "group:party:vibe",
         "social:party:evening",
         "social:party:midnight",
         "social:party:secret",
