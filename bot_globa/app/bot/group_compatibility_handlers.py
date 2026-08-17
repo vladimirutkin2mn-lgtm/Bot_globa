@@ -404,6 +404,8 @@ async def _render_compatibility(
             ),
         )
         return
+    assert first_chart is not None
+    assert second_chart is not None
     result = calculate_synastry(first_chart, second_chart, context)
     text = _render_result(first_name, second_name, first_chart, second_chart, result)
     await message.edit_text(
