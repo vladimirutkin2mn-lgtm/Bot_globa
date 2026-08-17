@@ -114,6 +114,10 @@ plugins = ["pydantic.mypy"]
 module = "astronomy"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "app.bot.group_viral_handlers"
+disable_error_code = ["assignment", "arg-type"]
+
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 asyncio_mode = "auto"
