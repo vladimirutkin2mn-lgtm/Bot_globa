@@ -36,6 +36,7 @@ def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="Принять и продолжить", callback_data=callback)],
             [InlineKeyboardButton(text="Подробнее", callback_data=privacy_callback)],
+            [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
     )
 
@@ -62,7 +63,7 @@ def more_menu_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🧠 Память", callback_data="menu:memory")],
             [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
             [InlineKeyboardButton(text=texts.PRIVACY, callback_data="menu:privacy")],
-            [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
+            [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
     )
 
@@ -74,7 +75,7 @@ def readings_menu_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="love:history")],
             [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="psy:history")],
             [InlineKeyboardButton(text="🪐 Астролог", callback_data="astro:history")],
-            [InlineKeyboardButton(text="Главное меню", callback_data="menu:home")],
+            [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
     )
 
@@ -88,8 +89,8 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
                     callback_data="daily:personal",
                 )
             ],
-            [InlineKeyboardButton(text="Выбрать оракула", callback_data="menu:home")],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
+            [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
     )
 
@@ -114,7 +115,7 @@ def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> Inline
                     callback_data="daily:timezone",
                 )
             ],
-            [InlineKeyboardButton(text="Вернуться к гороскопу", callback_data="menu:daily")],
+            [InlineKeyboardButton(text="← Назад к гороскопу", callback_data="menu:daily")],
         ]
     )
 
@@ -122,14 +123,14 @@ def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> Inline
 def daily_timezone_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Назад в настройки", callback_data="daily:settings")]
+            [InlineKeyboardButton(text="← Назад к настройкам", callback_data="daily:settings")]
         ]
     )
 
 
 def privacy_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
     return_callback = "privacy:menu" if destination is None else f"privacy:back:{destination}"
-    return_label = "Вернуться в меню" if destination is None else "Назад к согласию"
+    return_label = "← Назад в меню" if destination is None else "← Назад к согласию"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -150,7 +151,7 @@ def privacy_confirmation_keyboard() -> InlineKeyboardMarkup:
                     text="Да, удалить безвозвратно", callback_data="privacy:confirm_all"
                 )
             ],
-            [InlineKeyboardButton(text="Отмена", callback_data="privacy:cancel")],
+            [InlineKeyboardButton(text="← Назад", callback_data="privacy:cancel")],
         ]
     )
 
@@ -192,7 +193,7 @@ def products_keyboard(
         )
     else:
         rows.append([InlineKeyboardButton(text="Обновить доступ", callback_data="credits:refresh")])
-    rows.append([InlineKeyboardButton(text="Вернуться в меню", callback_data="report:menu")])
+    rows.append([InlineKeyboardButton(text="← Назад в меню", callback_data="report:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -217,7 +218,7 @@ def payment_success_keyboard(resume_callback: str | None = None) -> InlineKeyboa
         rows.append(
             [InlineKeyboardButton(text="Открыть полный разбор", callback_data=resume_callback)]
         )
-    rows.append([InlineKeyboardButton(text="Главное меню", callback_data="menu:home")])
+    rows.append([InlineKeyboardButton(text="← В главное меню", callback_data="menu:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -258,7 +259,9 @@ def payment_market_keyboard(
         # Disabled billing and the kill switch reject every route, so any button here would
         # cost the buyer a tap and answer with an error.
         return InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")]]
+            inline_keyboard=[
+                [InlineKeyboardButton(text="← Назад к пакетам", callback_data="menu:balance")]
+            ]
         )
     if settings.telegram_stars_enabled:
         stars = catalog.resolve_product_offer(product_code, BillingMarket.TELEGRAM, "XTR")
@@ -295,7 +298,7 @@ def payment_market_keyboard(
                     )
                 ]
             )
-    rows.append([InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")])
+    rows.append([InlineKeyboardButton(text="← Назад к пакетам", callback_data="menu:balance")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -347,7 +350,7 @@ def checkout_unavailable_keyboard(
                 )
             ],
             [payment_methods_back_button(product_code)],
-            [InlineKeyboardButton(text="Вернуться", callback_data="menu:balance")],
+            [InlineKeyboardButton(text="← Назад к пакетам", callback_data="menu:balance")],
         ]
     )
 
@@ -356,6 +359,6 @@ def back_to_balance_keyboard() -> InlineKeyboardMarkup:
     """A dead end needs one way forward: back to the current prices and routes."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
+            [InlineKeyboardButton(text="← Назад к оплате", callback_data="menu:balance")],
         ]
     )
