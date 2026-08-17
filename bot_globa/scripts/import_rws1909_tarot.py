@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import urllib.request
+from pathlib import Path
 
 SOURCE_REPOSITORY = "https://github.com/mixvlad/TarotCards"
 SOURCE_DIRECTORY = "tarot/rider-waite/720px"
@@ -79,9 +79,13 @@ def source_to_local() -> dict[str, str]:
 
 
 def download(source_name: str) -> bytes:
+    if source_name not in source_to_local():
+        raise ValueError(f"Unknown canonical RWS source file: {source_name}")
     url = f"{SOURCE_RAW_BASE}/{source_name}"
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
+    # SOURCE_RAW_BASE is a fixed HTTPS origin and source_name is restricted to the
+    # hard-coded 78-card catalogue above; no caller-controlled URL or scheme reaches here.
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
+    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
         return response.read(MAX_CARD_BYTES + 1)
 
 
