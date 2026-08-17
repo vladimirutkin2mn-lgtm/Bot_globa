@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -20,7 +21,7 @@ async def test_pay_command_opens_existing_purchase_catalogue(monkeypatch: Any) -
     telegram_user = User(id=42, is_bot=False, first_name="Анна", username="anna")
     message = Message(
         message_id=1,
-        date=0,
+        date=datetime.now(UTC),
         chat=Chat(id=42, type="private"),
         from_user=telegram_user,
         text="/pay",
@@ -43,16 +44,17 @@ async def test_pay_command_opens_existing_purchase_catalogue(monkeypatch: Any) -
 
     await refund_handlers.payment_menu(
         message,
-        state,  # type: ignore[arg-type]
-        onboarding,  # type: ignore[arg-type]
-        credits,  # type: ignore[arg-type]
-        billing_catalog,  # type: ignore[arg-type]
-        billing_settings,  # type: ignore[arg-type]
+        state,
+        onboarding,
+        credits,
+        billing_catalog,
+        billing_settings,
         30,
     )
 
     credits.balance.assert_awaited_once_with("user-id")
     shown.assert_awaited_once()
-    args, kwargs = shown.await_args
-    assert "Доступно полных разборов: 2." in args[2]
-    assert kwargs["reply_markup"] is keyboard
+    call = shown.await_args
+    assert call is not None
+    assert "Доступно полных разборов: 2." in call.args[2]
+    assert call.kwargs["reply_markup"] is keyboard
