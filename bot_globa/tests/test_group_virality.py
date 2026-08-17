@@ -81,15 +81,17 @@ def test_group_commands_are_explicit_party_actions_only() -> None:
     ]
     assert [command.command for command in GROUP_COMMANDS] == expected_commands
 
+    command_block = GROUP_HELP.split("Команды:\n\n", 1)[1].split("\n\nКак использовать:", 1)[0]
     help_command_lines = [
         match.group(1)
-        for line in GROUP_HELP.splitlines()
+        for line in command_block.splitlines()
         if (match := re.search(r"/(\w+)\s+—", line)) is not None
     ]
     assert help_command_lines == expected_commands
     assert "/event вечер —" not in GROUP_HELP
     assert "/event поездка —" not in GROUP_HELP
     assert "/event событие —" not in GROUP_HELP
+    assert "• /compatibility — ответьте командой на сообщение человека." in GROUP_HELP
     assert "после команды напишите: вечер, поездка или событие" in GROUP_HELP
     assert "Личные вопросы лучше задавать Numa один на один" in GROUP_HELP
 
