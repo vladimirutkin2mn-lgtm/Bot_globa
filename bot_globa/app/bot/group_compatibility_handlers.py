@@ -93,9 +93,7 @@ def _consent_keyboard(
             [
                 InlineKeyboardButton(
                     text="✨ Да, посмотрим",
-                    callback_data=(
-                        f"gc:{action}:{inviter_id}:{first_id}:{second_id}"
-                    ),
+                    callback_data=(f"gc:{action}:{inviter_id}:{first_id}:{second_id}"),
                 )
             ]
         ]
@@ -106,9 +104,7 @@ def _context_keyboard(inviter_id: int, first_id: int, second_id: int) -> InlineK
     buttons = [
         InlineKeyboardButton(
             text=label,
-            callback_data=(
-                f"gc:c:{_CONTEXT_CODES[context]}:{inviter_id}:{first_id}:{second_id}"
-            ),
+            callback_data=(f"gc:c:{_CONTEXT_CODES[context]}:{inviter_id}:{first_id}:{second_id}"),
         )
         for context, label in _CONTEXT_LABELS.items()
     ]
@@ -184,10 +180,7 @@ async def compatibility_entry(message: Message) -> None:
         )
         return
     await message.answer(
-        (
-            f"💞 Первый участник — {escape(selected.full_name)}.\n\n"
-            "С кем сравниваем?"
-        ),
+        (f"💞 Первый участник — {escape(selected.full_name)}.\n\nС кем сравниваем?"),
         reply_markup=_entry_keyboard(author.id, selected.id),
     )
 
@@ -203,10 +196,7 @@ async def compatibility_second(message: Message, bot: Bot, state: FSMContext) ->
         await state.clear()
         return
     if second is None or second.is_bot or second.id in {author.id, first_id}:
-        await message.answer(
-            "👥 Ответьте /with на сообщение другого "
-            "участника чата."
-        )
+        await message.answer("👥 Ответьте /with на сообщение другого участника чата.")
         return
     await state.clear()
     await message.answer(
@@ -267,10 +257,7 @@ async def compatibility_action(
             context = _CONTEXT_BY_CODE[parts[2]]
             inviter_id, first_id, second_id = map(int, parts[3:6])
             if callback.from_user.id != inviter_id:
-                await callback.answer(
-                    "Ракурс выбирает тот, кто запустил "
-                    "сравнение."
-                )
+                await callback.answer("Ракурс выбирает тот, кто запустил сравнение.")
                 return
             await callback.answer("Смотрю карты ✨")
             await _render_compatibility(
@@ -288,10 +275,7 @@ async def compatibility_action(
             context = _CONTEXT_BY_CODE[parts[2]]
             inviter_id, first_id, second_id = map(int, parts[3:6])
             if callback.from_user.id not in {inviter_id, first_id, second_id}:
-                await callback.answer(
-                    "Проверить готовность могут только участники "
-                    "сравнения."
-                )
+                await callback.answer("Проверить готовность могут только участники сравнения.")
                 return
             await callback.answer("Проверяю профили ✨")
             await _render_compatibility(
@@ -306,9 +290,7 @@ async def compatibility_action(
             )
             return
     except (KeyError, TypeError, ValueError):
-        await callback.answer(
-            "Не получилось открыть совместимость."
-        )
+        await callback.answer("Не получилось открыть совместимость.")
         return
     await callback.answer()
 
@@ -324,9 +306,7 @@ async def _handle_pair_choice(
     choose_other: bool,
 ) -> None:
     if callback.from_user.id != inviter_id:
-        await callback.answer(
-            "Пару выбирает тот, кто запустил сценарий."
-        )
+        await callback.answer("Пару выбирает тот, кто запустил сценарий.")
         return
     selected_name = await _member_name(bot, message, selected_id)
     if choose_other:
@@ -369,9 +349,7 @@ async def _handle_consent(
 ) -> None:
     expected_user = first_id if step == 1 else second_id
     if callback.from_user.id != expected_user:
-        await callback.answer(
-            "Эту кнопку должен нажать выбранный участник."
-        )
+        await callback.answer("Эту кнопку должен нажать выбранный участник.")
         return
     first_name, second_name = await _pair_names(bot, message, first_id, second_id)
     await callback.answer("Согласие принято ✨")
@@ -383,10 +361,7 @@ async def _handle_consent(
         )
         return
     await message.edit_text(
-        (
-            f"💞 {escape(first_name)} × {escape(second_name)}\n\n"
-            "Что именно смотрим?"
-        ),
+        (f"💞 {escape(first_name)} × {escape(second_name)}\n\nЧто именно смотрим?"),
         reply_markup=_context_keyboard(inviter_id, first_id, second_id),
     )
 
@@ -506,9 +481,7 @@ async def _member_name(bot: Bot, message: Message, user_id: int) -> str:
     return member.user.full_name
 
 
-async def _pair_names(
-    bot: Bot, message: Message, first_id: int, second_id: int
-) -> tuple[str, str]:
+async def _pair_names(bot: Bot, message: Message, first_id: int, second_id: int) -> tuple[str, str]:
     return await _member_name(bot, message, first_id), await _member_name(bot, message, second_id)
 
 
@@ -534,11 +507,7 @@ def install_group_compatibility_mechanics() -> None:
         "💞 /compatibility — вайб двух участников на сегодня",
         "💞 /compatibility — совместимость по натальной карте",
     ).replace(
-        "• /compatibility — ответьте командой на "
-        "сообщение человека.",
-        (
-            "• /compatibility — выберите одного человека reply-командой; "
-            "затем себя или второго."
-        ),
+        "• /compatibility — ответьте командой на сообщение человека.",
+        ("• /compatibility — выберите одного человека reply-командой; затем себя или второго."),
     )
     _INSTALL_MARKERS.add("group_compatibility")
