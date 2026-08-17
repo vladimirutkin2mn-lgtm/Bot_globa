@@ -130,12 +130,15 @@ def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
         group_event_spread_for_day(-1001234567890, day, "отношения")
 
 
-def test_party_menu_contains_compatibility_and_distinct_party_games() -> None:
+def test_party_menu_contains_high_interaction_games_first() -> None:
     party = _party_menu_keyboard()
     callbacks = _callbacks(party)
 
     assert callbacks == [
         "gcu:open",
+        "v:o:c",
+        "v:o:d",
+        "v:o:s",
         "group:party:who:0",
         "social:party:roles",
         "group:party:vibe",
@@ -167,6 +170,11 @@ def test_group_commands_match_help_one_to_one() -> None:
     expected_commands = [
         "card",
         "compatibility",
+        "couple",
+        "duel",
+        "seance",
+        "taro",
+        "advice",
         "party",
         "event",
         "chat",
@@ -177,6 +185,7 @@ def test_group_commands_match_help_one_to_one() -> None:
     compatibility_command = next(
         command for command in GROUP_COMMANDS if command.command == "compatibility"
     )
+    assert compatibility_command.is_ephemeral is True
     assert compatibility_command.description == "💞 Совместимость участников"
 
     command_block = GROUP_HELP.split("Команды:\n\n", 1)[1].split("\n\nКак использовать:", 1)[0]
@@ -194,6 +203,10 @@ def test_group_commands_match_help_one_to_one() -> None:
         in GROUP_HELP
     )
     assert "reply-команд" not in GROUP_HELP
+    assert "• /couple — добровольцы входят в круг" in GROUP_HELP
+    assert "• /duel — один вызывает чат" in GROUP_HELP
+    assert "• /seance — послание откроется после трёх" in GROUP_HELP
+    assert "Алиас карты дня: /card_of_the_day" in GROUP_HELP
     assert "• /party — выберите игру кнопкой." in GROUP_HELP
     assert "• /event — выберите вечер, поездку или событие кнопкой." in GROUP_HELP
     assert "Личные вопросы лучше задавать Numa один на один" in GROUP_HELP

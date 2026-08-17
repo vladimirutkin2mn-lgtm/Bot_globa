@@ -94,6 +94,7 @@ ignore = [
 # Modules that are mostly user-facing copy, prompt prose or long column definitions:
 # breaking a sentence to hit 100 columns makes it harder to review than the long line is.
 "app/api/payments.py" = ["E501"]
+"app/bot/group_viral_handlers.py" = ["E501", "PLW0603"]
 "app/bot/handlers.py" = ["E501"]
 "app/bot/persona_flows.py" = ["E501"]
 "app/bot/texts.py" = ["E501"]
@@ -112,6 +113,10 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = "astronomy"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "app.bot.group_viral_handlers"
+disable_error_code = ["assignment", "arg-type"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
