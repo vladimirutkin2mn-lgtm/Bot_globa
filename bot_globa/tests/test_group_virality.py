@@ -128,6 +128,17 @@ def test_group_commands_match_help_one_to_one() -> None:
     ]
     assert [command.command for command in GROUP_COMMANDS] == expected_commands
 
+    compatibility_command = next(
+        command for command in GROUP_COMMANDS if command.command == "compatibility"
+    )
+    assert compatibility_command.is_ephemeral is True
+    assert "Ответьте на сообщение" in compatibility_command.description
+    assert all(
+        command.is_ephemeral is not True
+        for command in GROUP_COMMANDS
+        if command.command != "compatibility"
+    )
+
     command_block = GROUP_HELP.split("Команды:\n\n", 1)[1].split("\n\nКак использовать:", 1)[0]
     help_command_lines = [
         match.group(1)
