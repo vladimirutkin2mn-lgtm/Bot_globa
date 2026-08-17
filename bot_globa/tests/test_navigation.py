@@ -96,8 +96,8 @@ def test_daily_horoscope_has_an_explicit_back_path_at_every_nested_step() -> Non
     assert timezone["← Назад к настройкам"] == "daily:settings"
 
 
-def test_consent_screen_never_traps_the_user() -> None:
-    assert _buttons(consent_keyboard("tarot"))["← Назад в меню"] == "menu:home"
+def test_consent_returns_to_the_selected_persona() -> None:
+    assert _buttons(consent_keyboard("tarot"))["← Назад"] == "menu:tarot"
 
 
 def test_reading_flow_can_return_to_topics_and_history_hub() -> None:
