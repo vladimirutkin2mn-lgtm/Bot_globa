@@ -1,10 +1,15 @@
 """User-facing oracle-memory provenance and Telegram callback invariants."""
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import cast
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Chat, InlineKeyboardMarkup, Message, User
 
+from app.bot import memory_handlers
 from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard
 from app.bot.memory_handlers import _parse_item_page, _source_label
 from app.bot.memory_keyboards import (
@@ -23,6 +28,8 @@ from app.domain.oracle_memory import (
     MemoryKind,
     MemorySourceType,
 )
+from app.services.onboarding import OnboardingService
+from app.services.oracle_memory import OracleMemoryService
 
 
 def _item(
@@ -103,6 +110,34 @@ def test_memory_controls_are_discoverable_and_fit_telegram_callback_limit() -> N
     assert "menu:memory" in callbacks
     assert callbacks
     assert all(len(value.encode("utf-8")) <= 64 for value in callbacks)
+
+
+async def test_invalid_memory_correction_keeps_a_cancel_route(monkeypatch: object) -> None:
+    message = Message(
+        message_id=1,
+        date=datetime.now(UTC),
+        chat=Chat(id=42, type="private"),
+        from_user=User(id=42, is_bot=False, first_name="Анна"),
+        text="   ",
+    )
+    state = cast(
+        FSMContext,
+        SimpleNamespace(get_data=AsyncMock(return_value={"memory_page": 2})),
+    )
+    shown = AsyncMock()
+    monkeypatch.setattr(memory_handlers, "show_screen", shown)  # type: ignore[attr-defined]
+
+    await memory_handlers.save_memory_correction(
+        message,
+        state,
+        cast(OnboardingService, None),
+        cast(OracleMemoryService, None),
+    )
+
+    shown.assert_awaited_once()
+    keyboard = shown.await_args.kwargs["reply_markup"]
+    assert isinstance(keyboard, InlineKeyboardMarkup)
+    assert _callback_values(keyboard) == ["memory:edit_cancel:2"]
 
 
 def test_memory_item_callback_parser_rejects_malformed_ids() -> None:
