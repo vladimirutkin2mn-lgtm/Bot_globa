@@ -194,7 +194,10 @@ def test_group_commands_match_help_one_to_one() -> None:
     assert "/event вечер —" not in GROUP_HELP
     assert "/event поездка —" not in GROUP_HELP
     assert "/event событие —" not in GROUP_HELP
-    assert "• /compatibility — ответьте командой на сообщение человека." in GROUP_HELP
+    assert (
+        "• /compatibility — выберите одного человека reply-командой; затем себя или второго."
+        in GROUP_HELP
+    )
     assert "• /party — выберите игру кнопкой." in GROUP_HELP
     assert "• /event — выберите вечер, поездку или событие кнопкой." in GROUP_HELP
     assert "Личные вопросы лучше задавать Numa один на один" in GROUP_HELP
