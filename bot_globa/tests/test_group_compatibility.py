@@ -71,6 +71,7 @@ def test_group_compatibility_uses_one_visible_command_for_both_selections() -> N
     assert compatibility_second not in callbacks
     assert compatibility_entry_ux in callbacks
     assert compatibility_second_ux in callbacks
+    assert callbacks.index(compatibility_second_ux) < callbacks.index(compatibility_entry_ux)
 
 
 def test_pair_selection_has_self_and_two_person_modes() -> None:
