@@ -161,7 +161,7 @@ def test_payment_choice_shows_stars_and_card_routes_together() -> None:
         "Россия · 199 ₽",
         "Stripe · 0,99 €",
         "Stripe · 0,99 $",
-        "Вернуться",
+        "← Назад к пакетам",
     ]
 
 
