@@ -121,7 +121,7 @@ async def test_invalid_memory_correction_keeps_a_cancel_route(monkeypatch: objec
         text="   ",
     )
     state = cast(
-        FSMContext,
+        "FSMContext",
         SimpleNamespace(get_data=AsyncMock(return_value={"memory_page": 2})),
     )
     shown = AsyncMock()
@@ -130,8 +130,8 @@ async def test_invalid_memory_correction_keeps_a_cancel_route(monkeypatch: objec
     await memory_handlers.save_memory_correction(
         message,
         state,
-        cast(OnboardingService, None),
-        cast(OracleMemoryService, None),
+        cast("OnboardingService", None),
+        cast("OracleMemoryService", None),
     )
 
     shown.assert_awaited_once()
