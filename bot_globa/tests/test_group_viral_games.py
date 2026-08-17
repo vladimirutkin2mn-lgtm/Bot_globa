@@ -20,6 +20,7 @@ from app.bot.group_viral_handlers import (
     viral_action,
 )
 from app.domain.birth_profile import BirthProfileInput
+from app.domain.natal_chart import NatalChartResult
 from app.services.natal_chart import AstronomyEngineNatalChartCalculator
 
 
@@ -32,7 +33,7 @@ def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
     ]
 
 
-def _chart(day: date, hour: int):
+def _chart(day: date, hour: int) -> NatalChartResult:
     profile = BirthProfileInput(
         birth_date=day,
         birth_time=time(hour, 0),
