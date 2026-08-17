@@ -7,10 +7,14 @@ from app.bot.commands import GROUP_COMMANDS
 from app.bot.group_handlers import (
     GROUP_EVENT_KINDS,
     GROUP_HELP,
+    PARTY_PROMPTS,
+    chat_archetype_for_day,
     compatibility_for_day,
+    duel_for_day,
     group_card_for_day,
     group_event_spread_for_day,
     party_prompt_for_day,
+    party_vibe_for_day,
     private_deep_link,
 )
 from app.domain.reading import SymbolOrientation
@@ -29,6 +33,16 @@ def test_group_card_is_stable_for_chat_and_day() -> None:
     assert first.theme.strip()
 
 
+def test_chat_archetype_is_stable_for_chat_and_day() -> None:
+    day = date(2026, 8, 16)
+
+    first = chat_archetype_for_day(-1001234567890, day)
+    second = chat_archetype_for_day(-1001234567890, day)
+
+    assert first == second
+    assert first in RWS_78_V1.cards
+
+
 def test_compatibility_is_symmetric_and_bounded() -> None:
     day = date(2026, 8, 16)
 
@@ -42,16 +56,48 @@ def test_compatibility_is_symmetric_and_bounded() -> None:
     assert 45 <= forward.teamwork <= 95
 
 
-def test_party_prompt_is_stable_and_never_selects_a_member() -> None:
+def test_duel_is_stable_and_uses_three_distinct_cards() -> None:
+    day = date(2026, 8, 16)
+
+    first = duel_for_day(101, 202, day)
+    second = duel_for_day(101, 202, day)
+
+    assert first == second
+    assert {first.first_card, first.second_card, first.dynamic_card} <= set(RWS_78_V1.cards)
+    assert len({first.first_card.code, first.second_card.code, first.dynamic_card.code}) == 3
+
+    with pytest.raises(ValueError):
+        duel_for_day(101, 101, day)
+
+
+def test_party_prompt_is_stable_rotating_and_never_selects_a_member() -> None:
     day = date(2026, 8, 16)
 
     first = party_prompt_for_day(-1001234567890, day)
     second = party_prompt_for_day(-1001234567890, day)
+    next_round = party_prompt_for_day(-1001234567890, day, 1)
 
     assert first == second
     assert first.prompt.strip()
     assert first.archetype in RWS_78_V1.cards
     assert "@" not in first.prompt
+    assert next_round.prompt in PARTY_PROMPTS
+    assert next_round.prompt != first.prompt
+
+    with pytest.raises(ValueError):
+        party_prompt_for_day(-1001234567890, day, -1)
+
+
+def test_party_vibe_is_stable_for_chat_and_day() -> None:
+    day = date(2026, 8, 16)
+
+    first = party_vibe_for_day(-1001234567890, day)
+    second = party_vibe_for_day(-1001234567890, day)
+
+    assert first == second
+    assert first.title.strip()
+    assert first.text.strip()
+    assert first.card in RWS_78_V1.cards
 
 
 def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
@@ -71,12 +117,13 @@ def test_group_event_spread_is_fixed_to_safe_kinds_and_unique_cards() -> None:
         group_event_spread_for_day(-1001234567890, day, "отношения")
 
 
-def test_group_commands_are_explicit_party_actions_only() -> None:
+def test_group_commands_match_help_one_to_one() -> None:
     expected_commands = [
         "card",
         "compatibility",
         "party",
         "event",
+        "chat",
         "grouphelp",
     ]
     assert [command.command for command in GROUP_COMMANDS] == expected_commands
@@ -92,7 +139,8 @@ def test_group_commands_are_explicit_party_actions_only() -> None:
     assert "/event поездка —" not in GROUP_HELP
     assert "/event событие —" not in GROUP_HELP
     assert "• /compatibility — ответьте командой на сообщение человека." in GROUP_HELP
-    assert "после команды напишите: вечер, поездка или событие" in GROUP_HELP
+    assert "• /party — выберите игру кнопкой." in GROUP_HELP
+    assert "• /event — выберите вечер, поездку или событие кнопкой." in GROUP_HELP
     assert "Личные вопросы лучше задавать Numa один на один" in GROUP_HELP
 
 
