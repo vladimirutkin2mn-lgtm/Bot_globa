@@ -34,11 +34,7 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
 
 GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="card", description="🔮 Карта дня для всего чата"),
-    BotCommand(
-        command="compatibility",
-        description=("💞 Ответьте на сообщение — натальная совместимость"),
-        is_ephemeral=True,
-    ),
+    BotCommand(command="compatibility", description="💞 Совместимость участников"),
     BotCommand(command="party", description="🎉 Игры для компании"),
     BotCommand(command="event", description="🃏 Расклад на событие"),
     BotCommand(command="chat", description="🎭 Архетип этого чата"),
@@ -57,10 +53,10 @@ async def configure_commands(bot: Bot) -> None:
     support and personal-reading commands do not become noisy group affordances. Startup
     must not depend on Telegram being reachable: a cosmetic call may never cause outage.
 
-    Compatibility is ephemeral in Telegram's command menu so a reply to another member is
-    still explicitly addressed to Numa under Group Privacy Mode. The resulting reading is
-    sent normally to the group by the handler; Numa still does not receive ordinary chat
-    traffic.
+    Compatibility no longer relies on replying to another member's message. Telegram
+    Group Privacy Mode does not reliably deliver that shape, so the command opens a lobby
+    and every subsequent selection is done with callbacks that are explicitly addressed
+    to Numa.
     """
 
     try:
