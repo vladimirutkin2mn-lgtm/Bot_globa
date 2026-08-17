@@ -11,6 +11,8 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import time
+from urllib.error import HTTPError
 import urllib.parse
 import urllib.request
 
@@ -21,6 +23,8 @@ COMMONS_CATEGORY = (
 )
 USER_AGENT = "NumaTarotAssetImporter/1.0 (Bot_globa; public-domain asset import)"
 MAX_CARD_BYTES = 1_000_000
+DOWNLOAD_PAUSE_SECONDS = 1.5
+MAX_HTTP_ATTEMPTS = 8
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "app" / "bot" / "assets" / "tarot"
@@ -73,10 +77,27 @@ def source_to_local() -> dict[str, str]:
     return mapping
 
 
+def _open_with_backoff(request: urllib.request.Request, *, timeout: int):
+    for attempt in range(1, MAX_HTTP_ATTEMPTS + 1):
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except HTTPError as exc:
+            if exc.code != 429 or attempt == MAX_HTTP_ATTEMPTS:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            if retry_after and retry_after.isdigit():
+                delay = max(5, int(retry_after))
+            else:
+                delay = min(60, 5 * attempt)
+            print(f"Commons rate limit; retrying in {delay}s ({attempt}/{MAX_HTTP_ATTEMPTS})")
+            time.sleep(delay)
+    raise RuntimeError("unreachable Commons retry state")
+
+
 def commons_request(params: dict[str, str]) -> dict[str, object]:
     url = f"{COMMONS_API}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with _open_with_backoff(request, timeout=30) as response:
         return json.load(response)
 
 
@@ -89,6 +110,7 @@ def fetch_metadata(filenames: list[str]) -> dict[str, dict[str, object]]:
                 "action": "query",
                 "format": "json",
                 "formatversion": "2",
+                "maxlag": "5",
                 "prop": "imageinfo",
                 "iiprop": "url|sha1|size|extmetadata",
                 "titles": "|".join(f"File:{name}" for name in batch),
@@ -140,8 +162,10 @@ def require_public_domain(filename: str, info: dict[str, object]) -> str:
 
 def download(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read(MAX_CARD_BYTES + 1)
+    with _open_with_backoff(request, timeout=60) as response:
+        payload = response.read(MAX_CARD_BYTES + 1)
+    time.sleep(DOWNLOAD_PAUSE_SECONDS)
+    return payload
 
 
 def main() -> None:
