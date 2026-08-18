@@ -127,11 +127,13 @@ def install_question_first_cjm() -> None:
         "направление? Можно задать свой вопрос."
     )
 
-    # core_handlers imports these factories directly, so patch its bound references rather
+    # core_handlers imports these factories directly, so replace its bound names rather
     # than the keyboard module. Payment and privacy keyboards remain untouched.
-    core_handlers.main_menu_keyboard = question_first_menu_keyboard
-    core_handlers.onboarding_intro_keyboard = question_first_onboarding_keyboard
-    core_handlers.daily_horoscope_keyboard = daily_ritual_keyboard
+    vars(core_handlers).update(
+        main_menu_keyboard=question_first_menu_keyboard,
+        onboarding_intro_keyboard=question_first_onboarding_keyboard,
+        daily_horoscope_keyboard=daily_ritual_keyboard,
+    )
 
     tarot = replace(
         persona_flows.TAROT_FLOW,
