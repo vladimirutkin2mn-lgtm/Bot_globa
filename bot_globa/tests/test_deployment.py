@@ -114,7 +114,7 @@ def test_deployment_settings_reject_unbounded_values() -> None:
         DeploymentSettings(maintenance_batch_size=10_001)
 
 
-def test_production_compose_loads_the_approved_stars_rollout_after_secrets() -> None:
+def test_production_compose_loads_the_approved_payment_smoke_prices_after_secrets() -> None:
     root = Path(__file__).parents[1]
     values = dict(
         line.split("=", 1)
@@ -125,9 +125,18 @@ def test_production_compose_loads_the_approved_stars_rollout_after_secrets() -> 
 
     assert values["BILLING_KILL_SWITCH"] == "false"
     assert values["TELEGRAM_STARS_ENABLED"] == "true"
-    assert values["TELEGRAM_STARS_AMOUNT_READING_SINGLE"] == "40"
-    assert values["TELEGRAM_STARS_AMOUNT_READING_PACK_5"] == "200"
-    assert values["TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY"] == "280"
+    assert values["PRODUCT_READING_SINGLE_PRICE_MINOR"] == "100"
+    assert values["PRODUCT_READING_PACK_5_PRICE_MINOR"] == "100"
+    assert values["PRODUCT_SUBSCRIPTION_MONTHLY_PRICE_MINOR"] == "100"
+    assert values["STRIPE_AMOUNT_READING_SINGLE_EUR_MINOR"] == "100"
+    assert values["STRIPE_AMOUNT_READING_SINGLE_USD_MINOR"] == "100"
+    assert values["STRIPE_AMOUNT_READING_PACK_5_EUR_MINOR"] == "100"
+    assert values["STRIPE_AMOUNT_READING_PACK_5_USD_MINOR"] == "100"
+    assert values["STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_EUR_MINOR"] == "100"
+    assert values["STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_USD_MINOR"] == "100"
+    assert values["TELEGRAM_STARS_AMOUNT_READING_SINGLE"] == "1"
+    assert values["TELEGRAM_STARS_AMOUNT_READING_PACK_5"] == "1"
+    assert values["TELEGRAM_STARS_AMOUNT_SUBSCRIPTION_MONTHLY"] == "1"
     assert values["SUBSCRIPTIONS_ENABLED"] == "true"
     assert compose.count("      - .env.prod\n      - production.public.env") == 6
 
