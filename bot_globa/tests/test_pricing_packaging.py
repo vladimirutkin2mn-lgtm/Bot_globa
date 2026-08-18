@@ -1,4 +1,4 @@
-"""Customer pricing is expressed as readings, never as the internal entitlement ledger."""
+"""Customer pricing is expressed as sessions, never as the internal entitlement ledger."""
 
 import inspect
 from datetime import UTC, datetime
@@ -20,7 +20,7 @@ def _button_texts(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
-def test_direct_paywall_leads_with_the_concrete_reading_and_catalog_price(
+def test_direct_paywall_leads_with_the_concrete_session_and_catalog_price(
     settings: Settings,
 ) -> None:
     catalog = BillingCatalog(settings)
@@ -28,27 +28,28 @@ def test_direct_paywall_leads_with_the_concrete_reading_and_catalog_price(
     buttons = _button_texts(keyboard)
 
     expected_price = product_price_label(catalog, ProductCode.READING_SINGLE, settings)
-    assert buttons[0] == f"Открыть этот разбор — {expected_price}"
-    assert buttons[1].startswith("Пакет · 5 полных разборов — ")
+    assert buttons[0] == f"Открыть сессию — {expected_price}"
+    assert buttons[1].startswith("Пакет · 5 сессий — ")
     assert "кредит" not in " ".join(buttons).casefold()
 
 
-def test_generic_purchase_screen_sells_outcomes_instead_of_ledger_units(settings: Settings) -> None:
+def test_generic_purchase_screen_sells_sessions_instead_of_ledger_units(settings: Settings) -> None:
     catalog = BillingCatalog(settings)
     keyboard = products_keyboard(catalog, settings)
     buttons = _button_texts(keyboard)
 
-    assert buttons[0].startswith("1 полный разбор — ")
-    assert buttons[1].startswith("Пакет · 5 полных разборов — ")
+    assert buttons[0].startswith("1 сессия — ")
+    assert buttons[1].startswith("Пакет · 5 сессий — ")
     assert "кредит" not in " ".join(buttons).casefold()
 
 
-def test_subscription_is_presented_as_a_monthly_reading_product(settings: Settings) -> None:
+def test_subscription_is_presented_without_a_visible_reading_cap(settings: Settings) -> None:
     subscription_settings = settings.model_copy(update={"subscriptions_enabled": True})
     catalog = BillingCatalog(subscription_settings)
     buttons = _button_texts(products_keyboard(catalog, subscription_settings))
 
-    assert any(button.startswith("Подписка · 30 разборов в месяц — ") for button in buttons)
+    assert any(button.startswith("Подписка на месяц — ") for button in buttons)
+    assert all("30 разборов" not in button for button in buttons)
 
 
 def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> None:
@@ -70,11 +71,11 @@ def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> 
     assert "полный разбор по этому вопросу" in texts.PAYWALL.casefold()
 
 
-def test_subscription_cancellation_copy_keeps_value_in_reading_units() -> None:
+def test_subscription_cancellation_copy_keeps_value_in_session_units() -> None:
     source = inspect.getsource(subscription_handlers)
 
     assert "начисленные кредиты" not in source.casefold()
-    assert "уже доступные разборы сохраняются" in source.casefold()
+    assert "уже доступные сессии сохраняются" in source.casefold()
 
 
 def test_refund_menu_hides_internal_product_codes_and_ledger_units() -> None:

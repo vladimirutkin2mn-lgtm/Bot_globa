@@ -326,22 +326,40 @@ async def test_a_preview_only_reading_has_no_followup_entitlement(
     assert rows == 0
 
 
-async def test_a_second_question_returns_the_stored_answer_without_a_new_call(
+async def test_session_allows_three_questions_and_stops_before_a_fourth_llm_call(
     followup_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id, reading_id = await paid_reading(followup_db)
-    llm = SequenceLLM(answer_payload())
+    llm = SequenceLLM(answer_payload(), answer_payload(), answer_payload())
     followups = service(followup_db, llm)
 
     first = await followups.ask(reading_id, user_id, "Что здесь главное?")
     second = await followups.ask(reading_id, user_id, "А если иначе?")
+    third = await followups.ask(reading_id, user_id, "Что ещё важно учесть?")
+    fourth = await followups.ask(reading_id, user_id, "И ещё один вопрос?")
 
     assert first.status is ReadingFollowUpStatus.COMPLETED
+    assert first.remaining_questions == 2
     assert second.status is ReadingFollowUpStatus.COMPLETED
-    assert second.idempotent
+    assert second.remaining_questions == 1
     assert second.view is not None
-    assert second.view.question == "Что здесь главное?"
-    assert llm.calls == 1
+    assert second.view.question == "А если иначе?"
+    assert third.status is ReadingFollowUpStatus.COMPLETED
+    assert third.remaining_questions == 0
+    assert third.view is not None
+    assert third.view.question == "Что ещё важно учесть?"
+    assert fourth.status is ReadingFollowUpStatus.COMPLETED
+    assert fourth.remaining_questions == 0
+    assert fourth.idempotent
+    assert fourth.view is not None
+    assert fourth.view.question == "Что ещё важно учесть?"
+    assert llm.calls == 3
+    async with followup_db() as session:
+        row = await session.scalar(
+            select(ReadingFollowUp).where(ReadingFollowUp.reading_id == reading_id)
+        )
+    assert row is not None
+    assert row.reservation_count == 3
 
 
 async def test_the_stored_question_and_answer_are_encrypted_at_rest(
