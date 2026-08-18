@@ -14,13 +14,13 @@ from app.bot.tarot_art import card_art
 
 _GROUP_CHAT = F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP})
 _INSTALL_MARKERS: set[str] = set()
-_PREVIOUS_PARTY_MENU: Callable[[], InlineKeyboardMarkup] | None = None
+_PREVIOUS_PARTY_MENUS: list[Callable[[], InlineKeyboardMarkup]] = []
 
 
 def _clean_party_menu() -> InlineKeyboardMarkup:
-    if _PREVIOUS_PARTY_MENU is None:
+    if not _PREVIOUS_PARTY_MENUS:
         raise RuntimeError("group daily cleanup is not installed")
-    source = _PREVIOUS_PARTY_MENU()
+    source = _PREVIOUS_PARTY_MENUS[0]()
     rows: list[list[InlineKeyboardButton]] = []
     for row in source.inline_keyboard:
         cleaned: list[InlineKeyboardButton] = []
@@ -106,7 +106,6 @@ def _clean_help(text: str) -> str:
 def install_group_daily_cleanup() -> None:
     """Expose four distinct daily concepts instead of overlapping forecasts."""
 
-    global _PREVIOUS_PARTY_MENU
     if "group_daily_cleanup" in _INSTALL_MARKERS:
         return
 
@@ -121,7 +120,7 @@ def install_group_daily_cleanup() -> None:
     ]
     router.message(_GROUP_CHAT, Command("advice"))(group_cosmic_weather)
 
-    _PREVIOUS_PARTY_MENU = group_handlers._party_menu_keyboard
+    _PREVIOUS_PARTY_MENUS.append(group_handlers._party_menu_keyboard)
     group_handlers._party_menu_keyboard = _clean_party_menu
     group_handlers._send_party_vibe = _send_party_vibe
     group_handlers.GROUP_HELP = _clean_help(group_handlers.GROUP_HELP)
