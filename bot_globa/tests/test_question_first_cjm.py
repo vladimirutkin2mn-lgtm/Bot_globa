@@ -28,7 +28,7 @@ def test_question_first_entry_reuses_existing_safe_topic_routes() -> None:
         "daily:personal",
     ]
     assert {"menu:love", "menu:tarot", "menu:psy", "menu:astro"} <= set(callbacks)
-    assert "Что происходит между нами" in texts.MAIN_MENU or "О чём хочется спросить" in texts.MAIN_MENU
+    assert "О чём хочется спросить" in texts.MAIN_MENU
 
 
 def test_question_first_shell_is_bound_to_existing_core_navigation() -> None:
