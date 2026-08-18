@@ -532,7 +532,9 @@ class ReadingFollowUpService:
         return max(int(row.reservation_count or 0), 0)
 
     @classmethod
-    def _session_expires_at(cls, reading: Reading) -> datetime:
+    def _session_expires_at(cls, reading: Reading | None) -> datetime:
+        if reading is None:
+            raise ValueError("reading is required for session expiry")
         started_at = reading.updated_at or reading.generated_at or reading.created_at
         return cls._as_utc(started_at) + SESSION_WINDOW
 
