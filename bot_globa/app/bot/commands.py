@@ -19,6 +19,7 @@ from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, MenuButtonCo
 from app.bot import group_handlers
 from app.bot.group_compatibility_handlers import install_group_compatibility_mechanics
 from app.bot.group_compatibility_ux import install_group_compatibility_ux
+from app.bot.group_daily_cleanup import install_group_daily_cleanup
 from app.bot.group_social_handlers import install_group_social_mechanics
 from app.bot.group_viral_handlers import install_group_viral_mechanics
 from app.bot.group_viral_upgrade import install_group_viral_upgrade
@@ -46,10 +47,9 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="duel", description="⚔️ Битва знаков"),
     BotCommand(command="seance", description="🕯 Спиритический сеанс"),
     BotCommand(command="taro", description="🎱 Таро Да/Нет"),
-    BotCommand(command="advice", description="🪐 Космический совет"),
+    BotCommand(command="advice", description="🪐 Космическая погода"),
     BotCommand(command="party", description="🎉 Игры для компании"),
     BotCommand(command="event", description="🃏 Расклад на событие"),
-    BotCommand(command="chat", description="🎭 Архетип этого чата"),
     BotCommand(command="grouphelp", description="✨ Игры Numa для группы"),
 )
 
@@ -62,6 +62,7 @@ group_handlers.GROUP_HELP = group_handlers.GROUP_HELP.replace(
     "💞 /compatibility — совместимость участников",
     "💞 /compatibility — совместимость по натальной карте",
 )
+install_group_daily_cleanup()
 
 
 async def configure_commands(bot: Bot) -> None:
