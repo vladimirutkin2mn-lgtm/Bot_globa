@@ -46,14 +46,14 @@ def _buttons(keyboard: InlineKeyboardMarkup) -> list[tuple[str, str | None]]:
     ]
 
 
-def test_purchase_screen_has_exact_one_five_and_thirty_reading_choices() -> None:
+def test_purchase_screen_has_single_pack_and_monthly_session_choices() -> None:
     settings = _settings()
 
     assert _buttons(products_keyboard(BillingCatalog(settings), settings))[:3] == [
-        ("1 полный разбор — 199 ₽ / 40 ⭐", "credits:buy:reading_single"),
-        ("Пакет · 5 полных разборов — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
+        ("1 сессия — 199 ₽ / 40 ⭐", "credits:buy:reading_single"),
+        ("Пакет · 5 сессий — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
         (
-            "Подписка · 30 разборов в месяц — 990 ₽ / 280 ⭐",
+            "Подписка на месяц — 990 ₽ / 280 ⭐",
             "credits:buy:subscription_monthly",
         ),
     ]
@@ -141,7 +141,7 @@ def test_question_and_paid_result_keep_navigation_explicit() -> None:
     assert parse_feedback(f"rfb:miss:{reading_id}") == ("miss", reading_id)
     assert parse_feedback(f"rfb:other:{reading_id}") is None
     assert _buttons(TAROT_FLOW.full_result_keyboard(reading_id)) == [
-        ("Задать уточняющий вопрос", f"rfu:ask:{reading_id}"),
+        ("Продолжить сессию", f"rfu:ask:{reading_id}"),
         ("Попало", f"rfb:hit:{reading_id}"),
         ("Не откликнулось", f"rfb:miss:{reading_id}"),
         ("← К моим разборам", "menu:readings"),
