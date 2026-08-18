@@ -32,9 +32,10 @@ def test_question_first_entry_reuses_existing_safe_topic_routes() -> None:
 
 
 def test_question_first_shell_is_bound_to_existing_core_navigation() -> None:
-    assert core_handlers.main_menu_keyboard is question_first_menu_keyboard
-    assert core_handlers.onboarding_intro_keyboard is question_first_onboarding_keyboard
-    assert core_handlers.daily_horoscope_keyboard is daily_ritual_keyboard
+    core_bindings = vars(core_handlers)
+    assert core_bindings["main_menu_keyboard"] is question_first_menu_keyboard
+    assert core_bindings["onboarding_intro_keyboard"] is question_first_onboarding_keyboard
+    assert core_bindings["daily_horoscope_keyboard"] is daily_ritual_keyboard
     assert question_first_onboarding_keyboard().inline_keyboard[0][0].text == "✨ Задать вопрос"
 
 
