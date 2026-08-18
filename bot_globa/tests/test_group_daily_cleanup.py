@@ -24,9 +24,7 @@ def test_duplicate_daily_handlers_are_not_registered() -> None:
 def test_party_menu_keeps_vibe_but_removes_evening_forecast() -> None:
     keyboard = group_handlers._party_menu_keyboard()
     buttons = [
-        (button.text, button.callback_data)
-        for row in keyboard.inline_keyboard
-        for button in row
+        (button.text, button.callback_data) for row in keyboard.inline_keyboard for button in row
     ]
 
     assert ("🔥 Вайб вечера", "group:party:vibe") in buttons
