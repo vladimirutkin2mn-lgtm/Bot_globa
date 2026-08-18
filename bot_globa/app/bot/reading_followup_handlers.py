@@ -160,7 +160,10 @@ class ReadingFollowUpHandlers:
             await show_screen(
                 callback.message,
                 Scene.MAIN_MENU,
-                "Сессия приостановлена. Вернуться к ней можно из полного разбора в течение 24 часов.",
+                (
+                    "Сессия приостановлена. Вернуться к ней можно из полного разбора "
+                    "в течение 24 часов."
+                ),
                 reply_markup=main_menu_keyboard(),
                 state=state,
             )
