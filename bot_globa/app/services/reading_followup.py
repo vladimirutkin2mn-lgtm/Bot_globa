@@ -436,7 +436,9 @@ class ReadingFollowUpService:
                 .where(Reading.id == reading_id, Reading.user_id == user_id)
                 .with_for_update()
             )
-            if not self._eligible(reading) or self._session_expires_at(reading) <= datetime.now(UTC):
+            if not self._eligible(reading) or self._session_expires_at(reading) <= datetime.now(
+                UTC
+            ):
                 return False
             row = await session.scalar(
                 select(ReadingFollowUp)
