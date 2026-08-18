@@ -21,6 +21,7 @@ from app.bot.group_compatibility_handlers import install_group_compatibility_mec
 from app.bot.group_compatibility_ux import install_group_compatibility_ux
 from app.bot.group_social_handlers import install_group_social_mechanics
 from app.bot.group_viral_handlers import install_group_viral_mechanics
+from app.bot.group_viral_upgrade import install_group_viral_upgrade
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ install_group_social_mechanics()
 install_group_compatibility_mechanics()
 install_group_compatibility_ux()
 install_group_viral_mechanics()
+install_group_viral_upgrade()
 group_handlers.GROUP_HELP = group_handlers.GROUP_HELP.replace(
     "💞 /compatibility — совместимость участников",
     "💞 /compatibility — совместимость по натальной карте",
