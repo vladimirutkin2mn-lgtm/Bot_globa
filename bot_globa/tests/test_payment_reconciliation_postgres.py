@@ -78,9 +78,24 @@ async def test_return_trigger_recovers_lost_yookassa_webhook_once(
 async def test_return_trigger_ignores_completed_order(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
-    _, order_id = await create_order(payment_db, provider="yookassa", status="completed")
-    sweeper = PaymentReconciliationSweeper(payment_db, 60, {"yookassa"})
+    from app.services.payment_completion_service import PaymentCompletionService
+    from tests.payment_postgres_helpers import paid
 
+    _, order_id = await create_order(
+        payment_db,
+        provider="yookassa",
+        checkout_id="already-completed-yookassa",
+    )
+    completion = PaymentCompletionService(payment_db)
+    assert (
+        await completion.complete(
+            order_id,
+            paid(order_id, "already-completed-yookassa", "already-completed-payment"),
+        )
+        == "completed"
+    )
+
+    sweeper = PaymentReconciliationSweeper(payment_db, 60, {"yookassa"})
     assert not await sweeper.enqueue_order(order_id)
     async with payment_db() as session:
         jobs = await session.scalar(select(func.count()).select_from(BillingJob))
