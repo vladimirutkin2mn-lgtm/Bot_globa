@@ -1,5 +1,7 @@
 from datetime import date, time
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot.group_viral_upgrade import (
     _fallback_keyboard,
     _sign_keyboard,
@@ -26,8 +28,8 @@ def _chart(day: date, hour: int) -> NatalChartResult:
     )
 
 
-def _callback_data(keyboard: object) -> list[str]:
-    rows = getattr(keyboard, "inline_keyboard")
+def _callback_data(keyboard: InlineKeyboardMarkup) -> list[str]:
+    rows = keyboard.inline_keyboard
     return [
         button.callback_data for row in rows for button in row if button.callback_data is not None
     ]
