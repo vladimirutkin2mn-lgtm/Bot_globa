@@ -1,7 +1,8 @@
-"""Claim-fenced one-question entitlement included with an owned paid reading.
+"""Claim-fenced follow-up session included with an owned paid reading.
 
-The follow-up explains a reading the user already paid for. It never draws new symbols,
-never recalculates a chart and never charges again: the entitlement is reserved outside
+A paid full reading opens a 24-hour session with up to three follow-up questions.
+Follow-ups explain the reading the user already paid for: they never draw new symbols,
+never recalculate a chart and never charge again. Each attempt is reserved outside
 provider I/O, and every terminal write is fenced by the claim ID that reserved it.
 """
 
@@ -57,12 +58,15 @@ logger = logging.getLogger(__name__)
 
 READING_RESULT_SCHEMA = "reading-result-v1"
 ASTROLOGY_RESULT_SCHEMA = "astrology-reading-result-v1"
+MAX_SESSION_FOLLOW_UPS = 3
+SESSION_WINDOW = timedelta(hours=24)
 
 
 class ReadingFollowUpStatus(StrEnum):
     READY = "ready"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    EXPIRED = "expired"
     NOT_ELIGIBLE = "not_eligible"
     INVALID_QUESTION = "invalid_question"
     FAILED_RELEASED = "failed_released"
@@ -85,12 +89,15 @@ class ReadingFollowUpResultView:
     view: ReadingFollowUpView | None = None
     failure_code: str | None = None
     idempotent: bool = False
+    remaining_questions: int = 0
+    session_expires_at: datetime | None = None
 
 
 class _ReserveOutcome(StrEnum):
     CLAIMED = "claimed"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    EXPIRED = "expired"
     NOT_ELIGIBLE = "not_eligible"
 
 
@@ -148,24 +155,57 @@ class ReadingFollowUpService:
             )
             if not self._eligible(reading):
                 return ReadingFollowUpResultView(ReadingFollowUpStatus.NOT_ELIGIBLE)
+
+            expires_at = self._session_expires_at(reading)
             row = await session.scalar(
                 select(ReadingFollowUp).where(ReadingFollowUp.reading_id == reading_id)
             )
+            used = self._used_questions(row)
+            remaining = max(MAX_SESSION_FOLLOW_UPS - used, 0)
+            if expires_at <= datetime.now(UTC):
+                return ReadingFollowUpResultView(
+                    ReadingFollowUpStatus.EXPIRED,
+                    remaining_questions=remaining,
+                    session_expires_at=expires_at,
+                )
             if row is None or row.status == "available":
-                return ReadingFollowUpResultView(ReadingFollowUpStatus.READY)
+                status = (
+                    ReadingFollowUpStatus.READY
+                    if remaining > 0
+                    else ReadingFollowUpStatus.COMPLETED
+                )
+                return ReadingFollowUpResultView(
+                    status,
+                    remaining_questions=remaining,
+                    session_expires_at=expires_at,
+                )
             if row.status == "reserved":
-                if row.lease_until is None or row.lease_until <= datetime.now(UTC):
-                    return ReadingFollowUpResultView(ReadingFollowUpStatus.READY)
-                return ReadingFollowUpResultView(ReadingFollowUpStatus.PROCESSING)
+                if row.lease_until is None or self._as_utc(row.lease_until) <= datetime.now(UTC):
+                    return ReadingFollowUpResultView(
+                        ReadingFollowUpStatus.READY,
+                        remaining_questions=remaining,
+                        session_expires_at=expires_at,
+                    )
+                return ReadingFollowUpResultView(
+                    ReadingFollowUpStatus.PROCESSING,
+                    remaining_questions=remaining,
+                    session_expires_at=expires_at,
+                )
             try:
                 return ReadingFollowUpResultView(
                     ReadingFollowUpStatus.COMPLETED,
                     self._view(row),
                     idempotent=True,
+                    remaining_questions=remaining,
+                    session_expires_at=expires_at,
                 )
             except (SensitiveContentError, ValidationError, ValueError, TypeError):
                 logger.warning("reading_followup_history_corrupted reading_id=%s", reading_id)
-                return ReadingFollowUpResultView(ReadingFollowUpStatus.CORRUPTED_HISTORY)
+                return ReadingFollowUpResultView(
+                    ReadingFollowUpStatus.CORRUPTED_HISTORY,
+                    remaining_questions=remaining,
+                    session_expires_at=expires_at,
+                )
 
     async def ask(
         self,
@@ -183,6 +223,8 @@ class ReadingFollowUpService:
         reservation = await self._reserve(reading_id, user_id, parsed.question)
         if reservation.outcome is _ReserveOutcome.NOT_ELIGIBLE:
             return ReadingFollowUpResultView(ReadingFollowUpStatus.NOT_ELIGIBLE)
+        if reservation.outcome is _ReserveOutcome.EXPIRED:
+            return await self.inspect(reading_id, user_id)
         if reservation.outcome is _ReserveOutcome.PROCESSING:
             return ReadingFollowUpResultView(ReadingFollowUpStatus.PROCESSING)
         if reservation.outcome is _ReserveOutcome.COMPLETED:
@@ -253,6 +295,7 @@ class ReadingFollowUpService:
                     "prompt_version": self._prompt_version,
                     "attempt_count": str(attempts),
                     "repair_used": str(attempts > 1).lower(),
+                    "remaining_questions": str(completed.remaining_questions),
                 },
             )
             return completed
@@ -306,18 +349,21 @@ class ReadingFollowUpService:
             )
             if not self._eligible(reading):
                 return _Reservation(_ReserveOutcome.NOT_ELIGIBLE)
+            if self._session_expires_at(reading) <= now:
+                return _Reservation(_ReserveOutcome.EXPIRED)
             row = await session.scalar(
                 select(ReadingFollowUp)
                 .where(ReadingFollowUp.reading_id == reading_id)
                 .with_for_update()
             )
-            if row is not None and row.status == "completed":
+            used = self._used_questions(row)
+            if used >= MAX_SESSION_FOLLOW_UPS:
                 return _Reservation(_ReserveOutcome.COMPLETED)
             if (
                 row is not None
                 and row.status == "reserved"
                 and row.lease_until is not None
-                and row.lease_until > now
+                and self._as_utc(row.lease_until) > now
             ):
                 return _Reservation(_ReserveOutcome.PROCESSING)
             lease_until = now + timedelta(seconds=self._lease_seconds)
@@ -341,7 +387,7 @@ class ReadingFollowUpService:
                 row.question_ciphertext = encrypted_question
                 row.answer_ciphertext = None
                 row.prompt_version = self._prompt_version
-                row.reservation_count += 1
+                row.reservation_count = used + 1
                 row.last_failure_code = None
                 row.completed_at = None
             await session.flush()
@@ -390,7 +436,9 @@ class ReadingFollowUpService:
                 .where(Reading.id == reading_id, Reading.user_id == user_id)
                 .with_for_update()
             )
-            if not self._eligible(reading):
+            if not self._eligible(reading) or self._session_expires_at(reading) <= datetime.now(
+                UTC
+            ):
                 return False
             row = await session.scalar(
                 select(ReadingFollowUp)
@@ -416,7 +464,7 @@ class ReadingFollowUpService:
         attempts: int,
         completions: list[LLMCompletion],
     ) -> bool:
-        """Give the entitlement back so the user can retry without paying again."""
+        """Give the session question back so provider failures never consume it."""
         metadata = self._metadata(completions, attempts)
         async with self._sessions.begin() as session:
             row = await session.scalar(
@@ -433,6 +481,7 @@ class ReadingFollowUpService:
             row.answer_ciphertext = None
             row.completed_at = None
             row.last_failure_code = code
+            row.reservation_count = max(int(row.reservation_count or 0) - 1, 0)
             self._apply_metadata(row, metadata)
             return True
 
@@ -467,7 +516,7 @@ class ReadingFollowUpService:
 
     @staticmethod
     def _eligible(reading: Reading | None) -> bool:
-        """One follow-up is included with a reading whose full access was paid for."""
+        """A paid full reading owns one 24-hour follow-up session."""
         return bool(
             reading is not None
             and reading.status == ReadingStatus.FULL_READY.value
@@ -475,6 +524,25 @@ class ReadingFollowUpService:
             and reading.cost_units > 0
             and reading.full_access_transaction_id is not None
         )
+
+    @staticmethod
+    def _used_questions(row: ReadingFollowUp | None) -> int:
+        if row is None:
+            return 0
+        return max(int(row.reservation_count or 0), 0)
+
+    @classmethod
+    def _session_expires_at(cls, reading: Reading | None) -> datetime:
+        if reading is None:
+            raise ValueError("reading is required for session expiry")
+        started_at = reading.updated_at or reading.generated_at or reading.created_at
+        return cls._as_utc(started_at) + SESSION_WINDOW
+
+    @staticmethod
+    def _as_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     @staticmethod
     def _validate(payload: str, result: ReadingFollowUpResult) -> ReadingFollowUpAnswer:

@@ -24,7 +24,7 @@ BACK_TO_TOPICS_BUTTON = "← Назад к темам"
 BACK_TO_READINGS_BUTTON = "← К моим разборам"
 SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
-FOLLOWUP_BUTTON = "Задать уточняющий вопрос"
+FOLLOWUP_BUTTON = "Продолжить сессию"
 FOLLOWUP_NAMESPACE = "rfu"
 FEEDBACK_NAMESPACE = "rfb"
 
@@ -149,7 +149,7 @@ class ReadingFlow:
         self,
         reading_id: UUID,
     ) -> InlineKeyboardMarkup:
-        """The paid view is the only place the included follow-up is offered."""
+        """A paid result is the entry point back into its 24-hour session."""
         rows = [
             [
                 InlineKeyboardButton(

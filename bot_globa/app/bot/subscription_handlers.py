@@ -157,17 +157,12 @@ async def balance_and_subscription_screen(
     subscription_note = (
         "\n\n" + _status_text(current)
         if current is not None
-        else (
-            "\n\nМесячная подписка открывает 30 полных разборов после подтверждённого "
-            "платежа. Автопродление можно отключить в любой момент."
-            if billing_settings.subscriptions_enabled
-            else ""
-        )
+        else ("\n\nПодписка на месяц." if billing_settings.subscriptions_enabled else "")
     )
     await show_screen(
         callback.message,
         _subscription_scene(current) if current is not None else Scene.BALANCE,
-        f"Доступно полных разборов: {balance // analysis_price}.{subscription_note}",
+        f"Доступно сессий: {balance // analysis_price}.{subscription_note}",
         reply_markup=(
             subscription_management_keyboard(current)
             if current is not None
@@ -230,7 +225,7 @@ async def choose_subscription_market(
     await show_screen(
         callback.message,
         Scene.SUBSCRIPTION_CHOICE,
-        "Выберите способ оплаты ежемесячной подписки. Провайдер покажет сумму, "
+        "Выберите способ оплаты подписки на месяц. Провайдер покажет сумму, "
         "период и условия автопродления до подтверждения оплаты.",
         reply_markup=keyboard,
         state=state,
@@ -287,8 +282,6 @@ async def create_subscription_checkout(
     if result.url is None:
         await show_screen(
             callback.message,
-            # Not a failure: the provider page is still being created, so this keeps the
-            # checkout scene instead of the unavailable one.
             Scene.SUBSCRIPTION_CHECKOUT,
             "Подписка создаётся — покупка не потеряна. Обновите статус через несколько секунд.",
             reply_markup=subscription_methods_back_keyboard(),
@@ -355,7 +348,7 @@ async def _change_subscription(
         text = (
             "Автопродление возобновлено."
             if resume
-            else "Автопродление отключено. Уже доступные разборы сохраняются."
+            else "Автопродление отключено. Уже доступные сессии сохраняются."
         )
         await show_screen(
             callback.message,
