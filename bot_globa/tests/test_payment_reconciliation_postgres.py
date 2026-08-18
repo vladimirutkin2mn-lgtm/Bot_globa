@@ -1,4 +1,4 @@
-"""Real PostgreSQL stale-order reconciliation selection."""
+"""Real PostgreSQL stale-order and immediate-return reconciliation selection."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -30,6 +30,61 @@ async def test_sweeper_enqueues_supported_order_once_and_ignores_mock(
         jobs = await session.scalar(select(func.count()).select_from(BillingJob))
         job = await session.scalar(select(BillingJob))
     assert jobs == 1 and job is not None and job.object_id == str(stripe_id)
+
+
+async def test_return_trigger_recovers_lost_yookassa_webhook_once(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    from app.db.models import BillingOutboxEvent, CreditTransaction
+    from app.services.billing_job_worker import BillingJobWorker
+    from app.services.payment_completion_service import PaymentCompletionService
+    from tests.payment_postgres_helpers import FakeGateway, paid
+
+    _, order_id = await create_order(
+        payment_db,
+        provider="yookassa",
+        checkout_id="returned-yookassa",
+    )
+    sweeper = PaymentReconciliationSweeper(payment_db, 900, {"yookassa"})
+
+    # A browser return is never payment proof: it only wakes the durable provider poll.
+    assert await sweeper.enqueue_order(order_id)
+    assert not await sweeper.enqueue_order(order_id)
+
+    gateway = FakeGateway(paid(order_id, "returned-yookassa", "yookassa-payment-one"))
+    worker = BillingJobWorker(
+        payment_db,
+        {"yookassa": gateway},
+        PaymentCompletionService(payment_db),
+    )
+    assert await worker.run_once("return-reconciliation")
+
+    async with payment_db() as session:
+        order = await session.get(PaymentOrder, order_id)
+        purchases = await session.scalar(
+            select(func.count())
+            .select_from(CreditTransaction)
+            .where(CreditTransaction.payment_order_id == order_id)
+        )
+        outbox = await session.scalar(
+            select(func.count())
+            .select_from(BillingOutboxEvent)
+            .where(BillingOutboxEvent.idempotency_key == f"purchase_completed:{order_id}")
+        )
+    assert order is not None and order.status == "completed"
+    assert purchases == 1 and outbox == 1 and gateway.fetches == 1
+
+
+async def test_return_trigger_ignores_completed_order(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    _, order_id = await create_order(payment_db, provider="yookassa", status="completed")
+    sweeper = PaymentReconciliationSweeper(payment_db, 60, {"yookassa"})
+
+    assert not await sweeper.enqueue_order(order_id)
+    async with payment_db() as session:
+        jobs = await session.scalar(select(func.count()).select_from(BillingJob))
+    assert jobs == 0
 
 
 async def test_lost_webhook_reconciliation_completes_once(
