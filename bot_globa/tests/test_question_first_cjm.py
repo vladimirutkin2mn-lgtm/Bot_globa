@@ -1,6 +1,6 @@
 """Regression contract for the question-first private Numa entry flow."""
 
-from app.bot import commands, core_handlers, persona_flows, texts
+from app.bot import commands, core_handlers, keyboards, persona_flows, texts
 from app.bot.question_first import (
     _question_first_consent_keyboard,
     _question_first_privacy_keyboard,
@@ -42,11 +42,15 @@ def test_question_first_consent_preserves_the_chosen_intent() -> None:
     assert privacy.inline_keyboard[-1][0].callback_data == "qf:privacy-back:decision"
 
 
-def test_question_first_shell_is_bound_to_existing_core_navigation() -> None:
+def test_question_first_shell_is_canonical_for_all_navigation() -> None:
     core_bindings = vars(core_handlers)
+    keyboard_bindings = vars(keyboards)
     assert core_bindings["main_menu_keyboard"] is question_first_menu_keyboard
     assert core_bindings["onboarding_intro_keyboard"] is question_first_onboarding_keyboard
     assert core_bindings["daily_horoscope_keyboard"] is daily_ritual_keyboard
+    assert keyboard_bindings["main_menu_keyboard"] is question_first_menu_keyboard
+    assert keyboard_bindings["onboarding_intro_keyboard"] is question_first_onboarding_keyboard
+    assert keyboard_bindings["daily_horoscope_keyboard"] is daily_ritual_keyboard
     assert question_first_onboarding_keyboard().inline_keyboard[0][0].text == "✨ Задать вопрос"
 
 
