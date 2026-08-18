@@ -12,7 +12,7 @@ from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot import core_handlers, daily_conversion_handlers, persona_flows, texts
+from app.bot import core_handlers, daily_conversion_handlers, keyboards, persona_flows, texts
 from app.bot.persona_flow import QUESTION_PROMPT, PersonaFlow, PersonaFlowTexts
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
@@ -204,7 +204,7 @@ async def _open_question_first_intent(
         await oracle_analytics.track(
             user.id,
             OracleProductEvent.PERSONA_SELECTED,
-            {"persona_code": flow.persona_code, "topic_code": topic, "entry": "question_first"},
+            {"persona_code": flow.persona_code, "topic_code": topic},
         )
     await state.clear()
     await state.update_data(topic=topic)
@@ -331,8 +331,13 @@ def install_question_first_cjm() -> None:
         "направление? Можно задать свой вопрос."
     )
 
-    # core_handlers imports these factories directly, so replace its bound names rather
-    # than the keyboard module. Payment and privacy keyboards remain untouched.
+    # Make the new shell canonical for modules imported after this installer, and update
+    # core_handlers which bound these factories before the installer ran.
+    vars(keyboards).update(
+        main_menu_keyboard=question_first_menu_keyboard,
+        onboarding_intro_keyboard=question_first_onboarding_keyboard,
+        daily_horoscope_keyboard=daily_ritual_keyboard,
+    )
     vars(core_handlers).update(
         main_menu_keyboard=question_first_menu_keyboard,
         onboarding_intro_keyboard=question_first_onboarding_keyboard,
