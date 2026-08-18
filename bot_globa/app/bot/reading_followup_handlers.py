@@ -1,8 +1,8 @@
-"""One persona-neutral router for the follow-up included with a paid reading.
+"""Persona-neutral router for follow-ups inside a paid reading session.
 
-The entitlement is addressed by `reading_id`, so this router is registered once rather
-than per persona: which use case produced the reading does not change how a follow-up
-is asked, answered or fenced.
+The session is addressed by `reading_id`, so this router is registered once rather than
+per persona: which use case produced the reading does not change how a follow-up is
+asked, answered or fenced.
 """
 
 import logging
@@ -31,18 +31,19 @@ logger = logging.getLogger(__name__)
 QUESTION_LIMIT = 1000
 
 PROMPT = (
-    "Задайте один вопрос по этому разбору. Он уже включён в покупку: новый расклад "
-    "не создаётся, списаний не будет."
+    "Задайте уточняющий вопрос по этому разбору. Сессия действует 24 часа после полного "
+    "разбора, дополнительные списания не нужны.\n\nОсталось вопросов в сессии: {remaining}."
 )
-NOT_ELIGIBLE = "Уточняющий вопрос доступен только для оплаченного полного разбора."
-ALREADY_USED = "Уточняющий вопрос по этому разбору уже задан. Вот сохранённый ответ:"
+NOT_ELIGIBLE = "Сессия с уточнениями доступна только для оплаченного полного разбора."
+SESSION_EXHAUSTED = "Сессия завершена: 3 уточняющих вопроса уже использованы."
+SESSION_EXPIRED = "24 часа с момента полного разбора уже прошли. Эта сессия завершена."
 PROCESSING = "Вопрос уже обрабатывается. Откройте разбор немного позже."
 WORKING = "Собираю ответ по разбору…"
 INVALID = "Нужен обычный текстовый вопрос до 1000 символов."
 FAILED = "Не удалось подготовить ответ. Попытка не потрачена — можно спросить ещё раз."
 CORRUPTED = "Сохранённый ответ повреждён и не может быть показан."
 UNAVAILABLE = "Разбор недоступен. Откройте его из истории."
-ANSWER_TITLE = "Уточняющий вопрос"
+ANSWER_TITLE = "Ответ в сессии"
 LIMITATIONS_TITLE = "Границы ответа:"
 RETRY_BUTTON = "Спросить ещё раз"
 
@@ -72,7 +73,7 @@ def create_reading_followup_router() -> Router:
 
 
 class ReadingFollowUpHandlers:
-    """Ask once, answer once; a technical failure returns the entitlement."""
+    """Keep one paid reading open for up to three follow-ups during 24 hours."""
 
     async def start(
         self,
@@ -94,13 +95,22 @@ class ReadingFollowUpHandlers:
             await callback.message.answer(UNAVAILABLE, reply_markup=main_menu_keyboard())
             return
         current = await reading_followups.inspect(reading_id, user.id)
-        if current.status is ReadingFollowUpStatus.COMPLETED:
-            await _send(
+        if current.status is ReadingFollowUpStatus.EXPIRED:
+            await show_screen(
                 callback.message,
-                state,
-                current,
-                prefix=ALREADY_USED,
-                scene=Scene.FOLLOW_UP_ALREADY_USED,
+                Scene.FOLLOW_UP_ALREADY_USED,
+                SESSION_EXPIRED,
+                reply_markup=main_menu_keyboard(),
+                state=state,
+            )
+            return
+        if current.status is ReadingFollowUpStatus.COMPLETED and current.remaining_questions <= 0:
+            await show_screen(
+                callback.message,
+                Scene.FOLLOW_UP_ALREADY_USED,
+                SESSION_EXHAUSTED,
+                reply_markup=main_menu_keyboard(),
+                state=state,
             )
             return
         if current.status is ReadingFollowUpStatus.NOT_ELIGIBLE:
@@ -121,7 +131,10 @@ class ReadingFollowUpHandlers:
                 state=state,
             )
             return
-        if current.status is ReadingFollowUpStatus.CORRUPTED_HISTORY:
+        if (
+            current.status is ReadingFollowUpStatus.CORRUPTED_HISTORY
+            and current.remaining_questions <= 0
+        ):
             await show_screen(
                 callback.message,
                 Scene.FOLLOW_UP_FAILED,
@@ -135,7 +148,7 @@ class ReadingFollowUpHandlers:
         await show_screen(
             callback.message,
             Scene.FOLLOW_UP_QUESTION,
-            PROMPT,
+            PROMPT.format(remaining=current.remaining_questions),
             reply_markup=_cancel_keyboard(),
             state=state,
         )
@@ -147,7 +160,7 @@ class ReadingFollowUpHandlers:
             await show_screen(
                 callback.message,
                 Scene.MAIN_MENU,
-                "Уточняющий вопрос отменён.",
+                "Сессия приостановлена. Вернуться к ней можно из полного разбора в течение 24 часов.",
                 reply_markup=main_menu_keyboard(),
                 state=state,
             )
@@ -184,6 +197,15 @@ class ReadingFollowUpHandlers:
         outcome = await reading_followups.ask(reading_id, user.id, question)
         if outcome.status is ReadingFollowUpStatus.COMPLETED:
             await _send(message, state, outcome)
+            return
+        if outcome.status is ReadingFollowUpStatus.EXPIRED:
+            await show_screen(
+                message,
+                Scene.FOLLOW_UP_ALREADY_USED,
+                SESSION_EXPIRED,
+                reply_markup=main_menu_keyboard(),
+                state=state,
+            )
             return
         if outcome.status is ReadingFollowUpStatus.INVALID_QUESTION:
             await state.set_state(ReadingFollowUpStates.waiting_for_question)
@@ -233,9 +255,6 @@ async def _send(
     message: Message,
     state: FSMContext,
     outcome: ReadingFollowUpResultView,
-    *,
-    prefix: str | None = None,
-    scene: Scene = Scene.FOLLOW_UP_RESULT,
 ) -> None:
     view = outcome.view
     if view is None:
@@ -246,12 +265,17 @@ async def _send(
         sections.append(
             f"<b>{LIMITATIONS_TITLE}</b>\n" + "\n".join(f"• {quote(v)}" for v in view.limitations)
         )
-    body = "\n\n".join(sections)
+    if outcome.remaining_questions > 0:
+        sections.append(f"Осталось уточняющих вопросов: {outcome.remaining_questions}.")
+        keyboard = _continue_keyboard(view.reading_id, outcome.remaining_questions)
+    else:
+        sections.append("Сессия завершена: все 3 уточняющих вопроса использованы.")
+        keyboard = main_menu_keyboard()
     await send_artifact(
         message,
-        scene,
-        body if prefix is None else f"{prefix}\n\n{body}",
-        reply_markup=main_menu_keyboard(),
+        Scene.FOLLOW_UP_RESULT,
+        "\n\n".join(sections),
+        reply_markup=keyboard,
         state=state,
     )
 
@@ -271,6 +295,20 @@ def _cancel_keyboard() -> InlineKeyboardMarkup:
                     callback_data=f"{FOLLOWUP_NAMESPACE}:cancel",
                 )
             ]
+        ]
+    )
+
+
+def _continue_keyboard(reading_id: UUID, remaining: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"Ещё вопрос · осталось {remaining}",
+                    callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
+                )
+            ],
+            [InlineKeyboardButton(text=MENU_BUTTON, callback_data="report:menu")],
         ]
     )
 
