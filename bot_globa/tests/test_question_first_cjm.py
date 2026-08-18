@@ -2,6 +2,8 @@
 
 from app.bot import commands, core_handlers, persona_flows, texts
 from app.bot.question_first import (
+    _question_first_consent_keyboard,
+    _question_first_privacy_keyboard,
     daily_ritual_keyboard,
     question_first_menu_keyboard,
     question_first_onboarding_keyboard,
@@ -16,19 +18,28 @@ def _callbacks() -> list[str]:
     ]
 
 
-def test_question_first_entry_reuses_existing_safe_topic_routes() -> None:
+def test_question_first_entry_routes_are_intent_specific() -> None:
     assert commands.BOT_COMMANDS[0].command == "start"
     callbacks = _callbacks()
 
     assert callbacks[:5] == [
-        "love:topic:love",
-        "tarot:topic:general_forecast",
-        "tarot:topic:decision",
-        "psy:topic:repeating_pattern",
-        "daily:personal",
+        "qf:go:love",
+        "qf:go:future",
+        "qf:go:decision",
+        "qf:go:pattern",
+        "menu:daily",
     ]
     assert {"menu:love", "menu:tarot", "menu:psy", "menu:astro"} <= set(callbacks)
     assert "О чём хочется спросить" in texts.MAIN_MENU
+
+
+def test_question_first_consent_preserves_the_chosen_intent() -> None:
+    consent = _question_first_consent_keyboard("decision")
+    assert consent.inline_keyboard[0][0].callback_data == "qf:consent:decision"
+    assert consent.inline_keyboard[1][0].callback_data == "qf:privacy:decision"
+
+    privacy = _question_first_privacy_keyboard("decision")
+    assert privacy.inline_keyboard[-1][0].callback_data == "qf:privacy-back:decision"
 
 
 def test_question_first_shell_is_bound_to_existing_core_navigation() -> None:
@@ -51,7 +62,11 @@ def test_deep_reading_packaging_matches_real_followup_entitlement() -> None:
     assert "один уточняющий" not in texts.PAYWALL
 
 
-def test_daily_entry_is_framed_as_personal_ritual_not_another_generic_forecast() -> None:
-    button = daily_ritual_keyboard().inline_keyboard[0][0]
-    assert button.text == "✨ Что важно для меня сегодня"
-    assert button.callback_data == "daily:personal"
+def test_daily_entry_starts_with_free_ritual_before_personalization() -> None:
+    main_daily = question_first_menu_keyboard().inline_keyboard[4][0]
+    assert main_daily.text == "🪐 Что важно для меня сегодня?"
+    assert main_daily.callback_data == "menu:daily"
+
+    personal = daily_ritual_keyboard().inline_keyboard[0][0]
+    assert personal.text == "✨ Что важно для меня сегодня"
+    assert personal.callback_data == "daily:personal"
