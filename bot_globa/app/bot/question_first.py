@@ -10,7 +10,7 @@ from dataclasses import replace
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.bot import texts
+from app.bot import core_handlers, daily_conversion_handlers, persona_flows, texts
 from app.bot.persona_flow import PersonaFlowTexts
 
 
@@ -106,9 +106,6 @@ def _deep_reading_texts(flow_texts: PersonaFlowTexts) -> PersonaFlowTexts:
 
 def install_question_first_cjm() -> None:
     """Install the question-first shell before the dispatcher starts serving updates."""
-
-    # Imported lazily to keep this copy-only module out of unrelated import paths.
-    from app.bot import core_handlers, daily_conversion_handlers, persona_flows
 
     texts.WELCOME = (
         "Есть вопрос, который не выходит из головы? Начните с него — Numa поможет выбрать "
