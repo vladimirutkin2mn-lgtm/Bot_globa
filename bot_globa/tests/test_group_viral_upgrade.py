@@ -28,7 +28,9 @@ def _chart(day: date, hour: int) -> NatalChartResult:
 
 def _callback_data(keyboard: object) -> list[str]:
     rows = getattr(keyboard, "inline_keyboard")
-    return [button.callback_data for row in rows for button in row if button.callback_data is not None]
+    return [
+        button.callback_data for row in rows for button in row if button.callback_data is not None
+    ]
 
 
 def test_quick_sign_compatibility_is_stable_and_bounded() -> None:
