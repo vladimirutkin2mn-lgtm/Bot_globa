@@ -1,7 +1,7 @@
 """Question-first product packaging over the existing safe reading flows.
 
 The underlying persona/topic handlers remain authoritative for consent, generation,
-payment and safety.  This module changes only the entry chrome and the paid-reading
+payment and safety. This module changes only the entry chrome and the paid-reading
 value proposition, so the experiment is reversible without introducing a parallel
 oracle engine.
 """
@@ -11,6 +11,7 @@ from dataclasses import replace
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot import texts
+from app.bot.persona_flow import PersonaFlowTexts
 
 
 def question_first_menu_keyboard() -> InlineKeyboardMarkup:
@@ -89,7 +90,7 @@ def daily_ritual_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _deep_reading_texts(flow_texts: object) -> object:
+def _deep_reading_texts(flow_texts: PersonaFlowTexts) -> PersonaFlowTexts:
     """Replace only monetization copy; the reading engine and entitlements stay untouched."""
 
     return replace(
@@ -106,7 +107,7 @@ def _deep_reading_texts(flow_texts: object) -> object:
 def install_question_first_cjm() -> None:
     """Install the question-first shell before the dispatcher starts serving updates."""
 
-    # Imported lazily to avoid making this copy-only module part of every bot import path.
+    # Imported lazily to keep this copy-only module out of unrelated import paths.
     from app.bot import core_handlers, daily_conversion_handlers, persona_flows
 
     texts.WELCOME = (
@@ -130,13 +131,15 @@ def install_question_first_cjm() -> None:
     )
 
     # core_handlers imports these factories directly, so patch its bound references rather
-    # than the keyboard module. This keeps the experiment local and avoids touching payment
-    # or privacy keyboards.
+    # than the keyboard module. Payment and privacy keyboards remain untouched.
     core_handlers.main_menu_keyboard = question_first_menu_keyboard
     core_handlers.onboarding_intro_keyboard = question_first_onboarding_keyboard
     core_handlers.daily_horoscope_keyboard = daily_ritual_keyboard
 
-    tarot = replace(persona_flows.TAROT_FLOW, texts=_deep_reading_texts(persona_flows.TAROT_FLOW.texts))
+    tarot = replace(
+        persona_flows.TAROT_FLOW,
+        texts=_deep_reading_texts(persona_flows.TAROT_FLOW.texts),
+    )
     love = replace(
         persona_flows.LOVE_ORACLE_FLOW,
         texts=_deep_reading_texts(persona_flows.LOVE_ORACLE_FLOW.texts),
