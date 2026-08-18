@@ -162,7 +162,7 @@ async def balance_and_subscription_screen(
     await show_screen(
         callback.message,
         _subscription_scene(current) if current is not None else Scene.BALANCE,
-        f"Доступно сессий: {balance // analysis_price}.{subscription_note}",
+        f"Доступно сеансов: {balance // analysis_price}.{subscription_note}",
         reply_markup=(
             subscription_management_keyboard(current)
             if current is not None
@@ -348,7 +348,7 @@ async def _change_subscription(
         text = (
             "Автопродление возобновлено."
             if resume
-            else "Автопродление отключено. Уже доступные сессии сохраняются."
+            else "Автопродление отключено. Уже доступные сеансы сохраняются."
         )
         await show_screen(
             callback.message,
