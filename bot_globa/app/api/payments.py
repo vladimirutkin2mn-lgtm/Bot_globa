@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
+from app.db.session import create_session_factory
 from app.domain.products import ProductCatalog, format_minor
 from app.providers.payments.base import (
     PaymentExpiredEventError,
@@ -14,6 +15,7 @@ from app.providers.payments.base import (
     PaymentSignatureError,
 )
 from app.providers.payments.mock import MockPaymentProvider
+from app.services.payment_reconciliation_service import PaymentReconciliationSweeper
 from app.services.payment_service import PaymentCompletionOutcome, PaymentService
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -21,10 +23,17 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 @router.get("/return/{token}", response_class=HTMLResponse)
 async def payment_return(token: UUID, request: Request) -> HTMLResponse:
-    """Show internal state only; browser parameters can never complete an order."""
+    """Show internal state and wake authoritative reconciliation for open checkouts."""
     order = await request.app.state.checkout_service.order_by_token(token)
     if order is None:
         raise HTTPException(404)
+    if order.status in {"creating", "pending"}:
+        sessions = create_session_factory(request.app.state.db_engine)
+        sweeper = PaymentReconciliationSweeper(
+            sessions,
+            request.app.state.settings.billing_pending_reconciliation_seconds,
+        )
+        await sweeper.enqueue_order(order.id)
     label = {
         "completed": "Оплата получена",
         "failed": "Оплата не прошла",
@@ -33,7 +42,7 @@ async def payment_return(token: UUID, request: Request) -> HTMLResponse:
     }.get(order.status, "Оплата обрабатывается")
     return HTMLResponse(
         f"<!doctype html><title>Статус оплаты</title><h1>{label}</h1>"
-        "<p>Вернитесь в бот. Сервис не собирает данные карты.</p>"
+        "<p>Вернитесь в бот. Сервис проверит оплату у платёжного провайдера.</p>"
     )
 
 
