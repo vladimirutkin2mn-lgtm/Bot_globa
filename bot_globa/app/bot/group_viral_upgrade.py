@@ -124,9 +124,7 @@ def _sign_keyboard(
     buttons = [
         InlineKeyboardButton(
             text=compatibility._ZODIAC_RU[sign],
-            callback_data=(
-                f"g2:z:{mode}:{pair}:{state}:{slot}:{_SIGN_CODE[sign]}"
-            ),
+            callback_data=(f"g2:z:{mode}:{pair}:{state}:{slot}:{_SIGN_CODE[sign]}"),
         )
         for sign in _SIGNS
     ]
@@ -171,9 +169,7 @@ def _fallback_keyboard(
                         )
                     ]
                 )
-    rows.append(
-        [InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")]
-    )
+    rows.append([InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -203,12 +199,8 @@ def _upgrade_keyboard(
         if mode == "c"
         else f"v:D:{_pair_payload(first_id, second_id)}"
     )
-    rows.append(
-        [InlineKeyboardButton(text="🔄 Проверить точнее", callback_data=retry)]
-    )
-    rows.append(
-        [InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")]
-    )
+    rows.append([InlineKeyboardButton(text="🔄 Проверить точнее", callback_data=retry)])
+    rows.append([InlineKeyboardButton(text="← К играм", callback_data="group:party:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -237,10 +229,7 @@ def _chart_round_score(
     transit_body: object,
 ) -> tuple[int, str]:
     transit = viral._longitude(transit_body, viral._astro_time(for_date))
-    natal = {
-        position.body: position.longitude_millidegrees / 1000
-        for position in chart.planets
-    }
+    natal = {position.body: position.longitude_millidegrees / 1000 for position in chart.planets}
     score = 50
     strongest: tuple[int, str] | None = None
     for body, weight in ((target_body, 6), (NatalBody.SUN, 3)):
@@ -507,9 +496,7 @@ def _round_keyboard(
         else f"g2:R:{pair}:{'.'.join(signs)}:{next_round}"
     )
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⚔️ Следующий раунд", callback_data=data)]
-        ]
+        inline_keyboard=[[InlineKeyboardButton(text="⚔️ Следующий раунд", callback_data=data)]]
     )
 
 
@@ -550,8 +537,7 @@ async def _render_round(
         return
     winner = first_name if series.winner_id == first_id else second_name
     summary = "\n".join(
-        f"{round_.title} — "
-        f"{escape(first_name if round_.winner_id == first_id else second_name)}"
+        f"{round_.title} — {escape(first_name if round_.winner_id == first_id else second_name)}"
         for round_ in series.rounds
     )
     await message.edit_text(
