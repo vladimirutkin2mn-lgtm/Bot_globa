@@ -17,7 +17,7 @@ def _callbacks() -> list[str]:
 
 
 def test_question_first_entry_reuses_existing_safe_topic_routes() -> None:
-    del commands  # importing commands installs the production CJM shell
+    assert commands.BOT_COMMANDS[0].command == "start"
     callbacks = _callbacks()
 
     assert callbacks[:5] == [
