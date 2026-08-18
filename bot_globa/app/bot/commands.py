@@ -23,6 +23,7 @@ from app.bot.group_daily_cleanup import install_group_daily_cleanup
 from app.bot.group_social_handlers import install_group_social_mechanics
 from app.bot.group_viral_handlers import install_group_viral_mechanics
 from app.bot.group_viral_upgrade import install_group_viral_upgrade
+from app.bot.question_first import install_question_first_cjm
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="grouphelp", description="✨ Игры Numa для группы"),
 )
 
+install_question_first_cjm()
 install_group_social_mechanics()
 install_group_compatibility_mechanics()
 install_group_compatibility_ux()
