@@ -2,13 +2,12 @@ from datetime import date, time
 
 from aiogram.types import InlineKeyboardMarkup
 
-from app.bot import group_handlers, group_social_handlers
+from app.bot import group_handlers, group_social_handlers, group_viral_handlers
 from app.bot.group_viral_handlers import (
     _couple_keyboard,
     _decode_users,
     _encode_users,
     _seance_keyboard,
-    astro_duel_entry,
     cosmic_advice_for_day,
     cosmic_energy_for_day,
     couple_pair_for_day,
@@ -19,6 +18,7 @@ from app.bot.group_viral_handlers import (
     tarot_yes_no_for_question,
     viral_action,
 )
+from app.bot.group_viral_upgrades import astro_duel_entry
 from app.domain.birth_profile import BirthProfileInput
 from app.domain.natal_chart import NatalChartResult
 from app.services.natal_chart import AstronomyEngineNatalChartCalculator
@@ -109,6 +109,7 @@ def test_new_group_handlers_replace_reply_duel_and_register_collective_games() -
     ]
 
     assert group_social_handlers.group_duel not in message_callbacks
+    assert group_viral_handlers.astro_duel_entry not in message_callbacks
     assert astro_duel_entry in message_callbacks
     assert group_couple in message_callbacks
     assert group_seance in message_callbacks
