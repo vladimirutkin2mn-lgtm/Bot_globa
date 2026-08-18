@@ -18,7 +18,6 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.bot import group_compatibility_handlers as compatibility
 from app.bot import group_handlers
-from app.bot import group_social_handlers as social
 from app.bot import group_viral_handlers as viral
 from app.bot.scene_media import send_art
 from app.bot.tarot_art import card_art
@@ -32,20 +31,7 @@ _INSTALL_MARKERS: set[str] = set()
 _ORIGINAL_RENDER_COUPLE = viral._render_couple
 
 _ZODIAC_SIGNS = tuple(ZodiacSign)
-_ZODIAC_EMOJI = (
-    "♈",
-    "♉",
-    "♊",
-    "♋",
-    "♌",
-    "♍",
-    "♎",
-    "♏",
-    "♐",
-    "♑",
-    "♒",
-    "♓",
-)
+_ZODIAC_EMOJI = ("♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓")
 _ELEMENT: dict[ZodiacSign, str] = {
     ZodiacSign.ARIES: "fire",
     ZodiacSign.LEO: "fire",
@@ -128,10 +114,7 @@ def _sign_label(sign: ZodiacSign) -> str:
     return compatibility._ZODIAC_RU[sign]
 
 
-def quick_sign_compatibility(
-    first: ZodiacSign,
-    second: ZodiacSign,
-) -> tuple[int, str]:
+def quick_sign_compatibility(first: ZodiacSign, second: ZodiacSign) -> tuple[int, str]:
     """Return a light, symmetric Sun-sign score that is never presented as synastry."""
 
     if first is second:
@@ -538,12 +521,16 @@ async def _start_duel(
         if mode == "n"
         else "⚡ Быстрый режим по солнечным знакам"
     )
-    await message.edit_text(
+    text = (
         f"⚔️ <b>{escape(first_name)} × {escape(second_name)}</b>\n\n"
         f"{mode_label}\n\n"
-        "Впереди три раунда. Каждый открывается отдельно — посмотрим, кто заберёт минимум два.",
-        reply_markup=_duel_round_keyboard(mode, payload, 0),
+        "Впереди три раунда. Каждый открывается отдельно — посмотрим, кто заберёт минимум два."
     )
+    keyboard = _duel_round_keyboard(mode, payload, 0)
+    if message.text is None:
+        await message.answer(text, reply_markup=keyboard)
+    else:
+        await message.edit_text(text, reply_markup=keyboard)
 
 
 async def _prepare_duel(
@@ -700,7 +687,7 @@ async def _render_duel_round(
         f"🏅 Раунд забирает <b>{escape(current_winner_name)}</b>.\n"
         f"Счёт: <b>{first_wins}:{second_wins}</b>\n\n"
         f"{history}\n\n"
-        f"<em>Режим: {mode_label}.</em>"
+        f"<em>Игровой формат · режим: {mode_label}.</em>"
     )
     if round_index < len(_DUEL_ROUNDS) - 1:
         payload = _duel_payload(mode, first_id, second_id, first_sign, second_sign)
@@ -729,7 +716,8 @@ async def _render_duel_round(
         bot,
         message.chat.id,
         card_art(card.code),
-        f"🏆 <b>{escape(final_winner_name)}</b> забирает Астро-дуэль {first_wins}:{second_wins}.\n\n"
+        f"🏆 <b>{escape(final_winner_name)}</b> забирает Астро-дуэль "
+        f"{first_wins}:{second_wins}.\n\n"
         f"🃏 {card.name_ru}: {card.upright_theme}.",
         reply_markup=_final_duel_keyboard(
             await _bot_username(bot),
@@ -743,8 +731,6 @@ async def _render_duel_round(
 async def _continue_after_sign_choice(
     message: Message,
     bot: Bot,
-    onboarding: OnboardingService,
-    birth_profile_service: BirthProfileService,
     *,
     kind: str,
     first_id: int,
@@ -787,6 +773,46 @@ async def _continue_after_sign_choice(
     raise ValueError("unsupported zodiac flow")
 
 
+async def _handle_zodiac_choice(
+    callback: CallbackQuery,
+    message: Message,
+    bot: Bot,
+    kind: str,
+    payload: str,
+) -> None:
+    fields = payload.split(".")
+    if len(fields) != 6:
+        raise ValueError("invalid zodiac payload")
+    first_id = viral._from_base36(fields[0])
+    second_id = viral._from_base36(fields[1])
+    target_id = viral._from_base36(fields[2])
+    first_sign = _sign_from_code(fields[3])
+    second_sign = _sign_from_code(fields[4])
+    chosen_sign = _sign_from_code(fields[5])
+    if chosen_sign is None:
+        raise ValueError("sign is required")
+    if callback.from_user.id != target_id:
+        await callback.answer("Свой знак выбирает сам участник 🙂")
+        return
+    if target_id == first_id:
+        first_sign = chosen_sign
+    elif target_id == second_id:
+        second_sign = chosen_sign
+    else:
+        raise ValueError("target is outside pair")
+    await callback.answer(f"{_sign_label(chosen_sign)} ✨")
+    await message.edit_reply_markup(reply_markup=None)
+    await _continue_after_sign_choice(
+        message,
+        bot,
+        kind=kind,
+        first_id=first_id,
+        second_id=second_id,
+        first_sign=first_sign,
+        second_sign=second_sign,
+    )
+
+
 async def viral_upgrade_action(
     callback: CallbackQuery,
     bot: Bot,
@@ -822,40 +848,7 @@ async def viral_upgrade_action(
             )
             return
         if action == "z" and len(parts) == 4:
-            kind = parts[2]
-            fields = parts[3].split(".")
-            if len(fields) != 6:
-                raise ValueError("invalid zodiac payload")
-            first_id = viral._from_base36(fields[0])
-            second_id = viral._from_base36(fields[1])
-            target_id = viral._from_base36(fields[2])
-            first_sign = _sign_from_code(fields[3])
-            second_sign = _sign_from_code(fields[4])
-            chosen_sign = _sign_from_code(fields[5])
-            if chosen_sign is None:
-                raise ValueError("sign is required")
-            if callback.from_user.id != target_id:
-                await callback.answer("Свой знак выбирает сам участник 🙂")
-                return
-            if target_id == first_id:
-                first_sign = chosen_sign
-            elif target_id == second_id:
-                second_sign = chosen_sign
-            else:
-                raise ValueError("target is outside pair")
-            await callback.answer(f"{_sign_label(chosen_sign)} ✨")
-            await message.edit_reply_markup(reply_markup=None)
-            await _continue_after_sign_choice(
-                message,
-                bot,
-                onboarding,
-                birth_profile_service,
-                kind=kind,
-                first_id=first_id,
-                second_id=second_id,
-                first_sign=first_sign,
-                second_sign=second_sign,
-            )
+            await _handle_zodiac_choice(callback, message, bot, parts[2], parts[3])
             return
         if action == "r" and len(parts) == 4:
             mode = parts[2]
@@ -933,7 +926,9 @@ def install_group_viral_upgrades() -> None:
         return
     router = group_handlers.router
     router.message.handlers[:] = [
-        handler for handler in router.message.handlers if handler.callback is not viral.astro_duel_entry
+        handler
+        for handler in router.message.handlers
+        if handler.callback is not viral.astro_duel_entry
     ]
     router.message(_GROUP_CHAT, Command("duel"))(astro_duel_entry)
     router.callback_query(F.data.startswith("vu:"))(viral_upgrade_action)
