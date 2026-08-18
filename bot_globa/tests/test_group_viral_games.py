@@ -3,6 +3,7 @@ from datetime import date, time
 from aiogram.types import InlineKeyboardMarkup
 
 from app.bot import group_handlers, group_social_handlers
+from app.bot.group_daily_cleanup import group_cosmic_weather
 from app.bot.group_viral_handlers import (
     _couple_keyboard,
     _decode_users,
@@ -19,6 +20,7 @@ from app.bot.group_viral_handlers import (
     tarot_yes_no_for_question,
     viral_action,
 )
+from app.bot.group_viral_upgrade import viral_action_v2
 from app.domain.birth_profile import BirthProfileInput
 from app.domain.natal_chart import NatalChartResult
 from app.services.natal_chart import AstronomyEngineNatalChartCalculator
@@ -113,6 +115,8 @@ def test_new_group_handlers_replace_reply_duel_and_register_collective_games() -
     assert group_couple in message_callbacks
     assert group_seance in message_callbacks
     assert group_taro_yes_no in message_callbacks
-    assert group_advice in message_callbacks
+    assert group_advice not in message_callbacks
+    assert group_cosmic_weather in message_callbacks
     assert message_callbacks.count(group_handlers.group_card) >= 2
-    assert viral_action in callback_callbacks
+    assert viral_action not in callback_callbacks
+    assert viral_action_v2 in callback_callbacks

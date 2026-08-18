@@ -95,6 +95,9 @@ ignore = [
 # breaking a sentence to hit 100 columns makes it harder to review than the long line is.
 "app/api/payments.py" = ["E501"]
 "app/bot/group_viral_handlers.py" = ["E501", "PLW0603"]
+# Two round labels intentionally split on a single human-readable em dash; avoiding
+# PLC0207 here would add a helper solely to pass maxsplit for a fixed 3-item tuple.
+"app/bot/group_viral_upgrade.py" = ["PLC0207"]
 "app/bot/handlers.py" = ["E501"]
 "app/bot/persona_flows.py" = ["E501"]
 "app/bot/texts.py" = ["E501"]

@@ -142,7 +142,6 @@ def test_party_menu_contains_high_interaction_games_first() -> None:
         "group:party:who:0",
         "social:party:roles",
         "group:party:vibe",
-        "social:party:evening",
         "social:party:midnight",
         "social:party:secret",
         "social:party:mirror",
@@ -177,7 +176,6 @@ def test_group_commands_match_help_one_to_one() -> None:
         "advice",
         "party",
         "event",
-        "chat",
         "grouphelp",
     ]
     assert [command.command for command in GROUP_COMMANDS] == expected_commands
