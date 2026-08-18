@@ -24,7 +24,7 @@ BACK_TO_TOPICS_BUTTON = "← Назад к темам"
 BACK_TO_READINGS_BUTTON = "← К моим разборам"
 SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
-FOLLOWUP_BUTTON = "Продолжить сессию"
+FOLLOWUP_BUTTON = "Продолжить сеанс"
 FOLLOWUP_NAMESPACE = "rfu"
 FEEDBACK_NAMESPACE = "rfb"
 

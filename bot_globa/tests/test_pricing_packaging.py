@@ -1,4 +1,4 @@
-"""Customer pricing is expressed as sessions, never as the internal entitlement ledger."""
+"""Customer pricing is expressed as seances, never as the internal entitlement ledger."""
 
 import inspect
 from datetime import UTC, datetime
@@ -20,7 +20,7 @@ def _button_texts(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
-def test_direct_paywall_leads_with_the_concrete_session_and_catalog_price(
+def test_direct_paywall_leads_with_the_concrete_seans_and_catalog_price(
     settings: Settings,
 ) -> None:
     catalog = BillingCatalog(settings)
@@ -28,18 +28,18 @@ def test_direct_paywall_leads_with_the_concrete_session_and_catalog_price(
     buttons = _button_texts(keyboard)
 
     expected_price = product_price_label(catalog, ProductCode.READING_SINGLE, settings)
-    assert buttons[0] == f"Открыть сессию — {expected_price}"
-    assert buttons[1].startswith("Пакет · 5 сессий — ")
+    assert buttons[0] == f"Начать сеанс — {expected_price}"
+    assert buttons[1].startswith("Пакет · 5 сеансов — ")
     assert "кредит" not in " ".join(buttons).casefold()
 
 
-def test_generic_purchase_screen_sells_sessions_instead_of_ledger_units(settings: Settings) -> None:
+def test_generic_purchase_screen_sells_seances_instead_of_ledger_units(settings: Settings) -> None:
     catalog = BillingCatalog(settings)
     keyboard = products_keyboard(catalog, settings)
     buttons = _button_texts(keyboard)
 
-    assert buttons[0].startswith("1 сессия — ")
-    assert buttons[1].startswith("Пакет · 5 сессий — ")
+    assert buttons[0].startswith("1 сеанс — ")
+    assert buttons[1].startswith("Пакет · 5 сеансов — ")
     assert "кредит" not in " ".join(buttons).casefold()
 
 
@@ -71,11 +71,11 @@ def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> 
     assert "полный разбор по этому вопросу" in texts.PAYWALL.casefold()
 
 
-def test_subscription_cancellation_copy_keeps_value_in_session_units() -> None:
+def test_subscription_cancellation_copy_keeps_value_in_seans_units() -> None:
     source = inspect.getsource(subscription_handlers)
 
     assert "начисленные кредиты" not in source.casefold()
-    assert "уже доступные сессии сохраняются" in source.casefold()
+    assert "уже доступные сеансы сохраняются" in source.casefold()
 
 
 def test_refund_menu_hides_internal_product_codes_and_ledger_units() -> None:
