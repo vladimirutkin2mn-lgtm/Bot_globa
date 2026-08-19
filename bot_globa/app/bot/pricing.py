@@ -55,14 +55,14 @@ def product_choice_label(
     *,
     direct_unlock: bool = False,
 ) -> str:
-    """Describe the seance being bought, never the internal credit ledger."""
+    """Describe the depth and continuity being bought, never the internal credit ledger."""
 
     count = reading_count(catalog, code, settings)
     price = product_price_label(catalog, code, settings)
     if code is ProductCode.READING_SINGLE:
-        outcome = "Начать сеанс" if direct_unlock else "1 сеанс"
+        outcome = "✨ Открыть глубокий разбор" if direct_unlock else "✨ 1 глубокий разбор"
     elif code is ProductCode.READING_PACK_5:
-        outcome = f"Пакет · {count} сеансов"
+        outcome = f"🔮 {count} глубоких разборов"
     else:
-        outcome = "Подписка на месяц"
+        outcome = "🌙 Numa Plus · месяц"
     return f"{outcome} — {price}"

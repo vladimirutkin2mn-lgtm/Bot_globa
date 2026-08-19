@@ -1,4 +1,4 @@
-"""Customer pricing is expressed as seances, never as the internal entitlement ledger."""
+"""Customer pricing is expressed as reading outcomes, never as the internal entitlement ledger."""
 
 import inspect
 from datetime import UTC, datetime
@@ -20,7 +20,7 @@ def _button_texts(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
-def test_direct_paywall_leads_with_the_concrete_seans_and_catalog_price(
+def test_direct_paywall_leads_with_deep_reading_and_catalog_price(
     settings: Settings,
 ) -> None:
     catalog = BillingCatalog(settings)
@@ -28,18 +28,20 @@ def test_direct_paywall_leads_with_the_concrete_seans_and_catalog_price(
     buttons = _button_texts(keyboard)
 
     expected_price = product_price_label(catalog, ProductCode.READING_SINGLE, settings)
-    assert buttons[0] == f"Начать сеанс — {expected_price}"
-    assert buttons[1].startswith("Пакет · 5 сеансов — ")
+    assert buttons[0] == f"✨ Открыть глубокий разбор — {expected_price}"
+    assert buttons[1].startswith("🔮 5 глубоких разборов — ")
     assert "кредит" not in " ".join(buttons).casefold()
 
 
-def test_generic_purchase_screen_sells_seances_instead_of_ledger_units(settings: Settings) -> None:
+def test_generic_purchase_screen_sells_deep_readings_instead_of_ledger_units(
+    settings: Settings,
+) -> None:
     catalog = BillingCatalog(settings)
     keyboard = products_keyboard(catalog, settings)
     buttons = _button_texts(keyboard)
 
-    assert buttons[0].startswith("1 сеанс — ")
-    assert buttons[1].startswith("Пакет · 5 сеансов — ")
+    assert buttons[0].startswith("✨ 1 глубокий разбор — ")
+    assert buttons[1].startswith("🔮 5 глубоких разборов — ")
     assert "кредит" not in " ".join(buttons).casefold()
 
 
@@ -48,7 +50,7 @@ def test_subscription_is_presented_without_a_visible_reading_cap(settings: Setti
     catalog = BillingCatalog(subscription_settings)
     buttons = _button_texts(products_keyboard(catalog, subscription_settings))
 
-    assert any(button.startswith("Подписка на месяц — ") for button in buttons)
+    assert any(button.startswith("🌙 Numa Plus · месяц — ") for button in buttons)
     assert all("30 разборов" not in button for button in buttons)
 
 
@@ -68,7 +70,7 @@ def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> 
     assert "кредит" not in customer_copy
     assert "баланс" not in customer_copy
     assert texts.BALANCE == "💳 Покупки"
-    assert "полный разбор по этому вопросу" in texts.PAYWALL.casefold()
+    assert "глубокий разбор по этому вопросу" in texts.PAYWALL.casefold()
 
 
 def test_subscription_cancellation_copy_keeps_value_in_seans_units() -> None:

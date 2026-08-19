@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard
 from app.bot.persona_flow import PersonaFlow
 from app.bot.persona_flows import (
     LOVE_ORACLE_FLOW,
@@ -124,7 +124,7 @@ def test_micro_preview_gives_one_signal_without_the_paid_sections() -> None:
     chunks = render_micro_preview(outcome, TAROT_FLOW.copy)
     text = "\n".join(chunks)
 
-    assert "Разбор готов" in text
+    assert "Быстрый взгляд" in text
     assert "Separate urgency from importance." in text
     assert "развлекательная практика" not in text
     # One validated scenario creates the open loop; its conditions and action stay paid.
@@ -191,9 +191,12 @@ def test_callbacks_carry_only_codes_or_reading_id_within_the_telegram_limit(
     assert flow.callback("history", "page", "2") in callbacks
 
 
-def test_every_flow_is_reachable_from_the_main_menu_under_a_unique_namespace() -> None:
+def test_every_flow_is_reachable_under_a_unique_namespace() -> None:
     callbacks = {
-        button.callback_data for row in main_menu_keyboard().inline_keyboard for button in row
+        button.callback_data
+        for keyboard in (main_menu_keyboard(), more_menu_keyboard())
+        for row in keyboard.inline_keyboard
+        for button in row
     }
     namespaces = [flow.namespace for flow in MVP_READING_FLOWS]
 

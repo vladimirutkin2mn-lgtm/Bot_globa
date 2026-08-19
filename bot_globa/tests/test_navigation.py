@@ -26,30 +26,37 @@ def _buttons(keyboard: InlineKeyboardMarkup) -> dict[str, str | None]:
 def test_main_menu_contains_required_sections() -> None:
     keyboard = main_menu_keyboard()
     assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
-        ["💞 Любовный оракул"],
-        ["🔮 Таролог"],
-        ["🌙 Мистический психолог"],
-        ["🪐 Астролог"],
-        ["☀️ Гороскоп на сегодня", "📚 Мои разборы"],
+        ["💞 Что он / она чувствует?"],
+        ["💌 Стоит ли мне написать?"],
+        ["⚖️ Что выбрать: A или B?"],
+        ["🔮 Что меня ждёт дальше?"],
+        ["🌙 Почему это повторяется?"],
+        ["🪐 Разобрать по натальной карте"],
+        ["☀️ Сегодня для меня", "📚 Мои истории"],
         ["⋯ Ещё"],
     ]
     assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
-        ["menu:love"],
-        ["menu:tarot"],
-        ["menu:psy"],
+        ["love:topic:love"],
+        ["love:topic:communication"],
+        ["tarot:topic:decision"],
+        ["tarot:topic:general_forecast"],
+        ["psy:topic:repeating_pattern"],
         ["menu:astro"],
         ["menu:daily", "menu:readings"],
         ["menu:more"],
     ]
 
 
-def test_entry_copy_explains_the_four_distinct_personas() -> None:
-    assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Выбрать персонажа"
-    assert "Любовный оракул — чувства, притяжение и динамика отношений" in texts.MAIN_MENU
-    assert "Таролог — расклад Таро на ваш вопрос" in texts.MAIN_MENU
-    assert "трёх карт" not in texts.MAIN_MENU
-    assert "Мистический психолог — разбор через метафоры и архетипы" in texts.MAIN_MENU
-    assert "Астролог — натальная карта" in texts.MAIN_MENU
+def test_entry_copy_starts_from_question_and_keeps_personas_reachable() -> None:
+    assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Выбрать вопрос"
+    assert "Что хотите понять прямо сейчас?" in texts.MAIN_MENU
+    assert "Numa сама откроет подходящий способ разбора" in texts.MAIN_MENU
+
+    more_labels = _buttons(more_menu_keyboard())
+    assert more_labels["💞 Любовный оракул"] == "menu:love"
+    assert more_labels["🔮 Таролог"] == "menu:tarot"
+    assert more_labels["🌙 Мистический психолог"] == "menu:psy"
+    assert more_labels["🪐 Астролог"] == "menu:astro"
 
     commands = {command.command: command.description for command in BOT_COMMANDS}
     assert {name: commands[name] for name in ("love", "tarot", "psy", "astro")} == {
@@ -60,13 +67,22 @@ def test_entry_copy_explains_the_four_distinct_personas() -> None:
     }
 
 
-def test_secondary_navigation_keeps_history_settings_and_privacy_reachable() -> None:
+def test_secondary_navigation_keeps_history_settings_privacy_and_personas_reachable() -> None:
     more = {button.callback_data for row in more_menu_keyboard().inline_keyboard for button in row}
     readings = {
         button.callback_data for row in readings_menu_keyboard().inline_keyboard for button in row
     }
 
-    assert {"menu:memory", "menu:balance", "menu:privacy", "menu:home"} == more
+    assert {
+        "menu:love",
+        "menu:tarot",
+        "menu:psy",
+        "menu:astro",
+        "menu:memory",
+        "menu:balance",
+        "menu:privacy",
+        "menu:home",
+    } == more
     assert {
         "tarot:history",
         "love:history",

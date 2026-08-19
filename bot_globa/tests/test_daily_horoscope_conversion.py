@@ -11,13 +11,14 @@ def test_daily_digest_leads_with_a_concrete_personal_forecast_cta() -> None:
     keyboard = daily_horoscope_keyboard()
     primary = keyboard.inline_keyboard[0][0]
 
-    assert primary.text == "✨ Персональный прогноз на сегодня"
+    assert primary.text == "✨ Что сегодня важно именно для меня?"
     assert primary.callback_data == "daily:personal"
 
 
 def test_direct_daily_conversion_handler_is_registered_as_its_own_router() -> None:
     assert router.name == "daily_conversion"
-    assert "Персональный прогноз на сегодня" in PERSONAL_DAILY_PROMPT
+    assert "Сегодня для вас" in PERSONAL_DAILY_PROMPT
+    assert "отношения, работа, деньги" in PERSONAL_DAILY_PROMPT
 
 
 def test_astrologer_makes_today_forecast_the_first_follow_up_choice() -> None:

@@ -8,6 +8,7 @@ from app.bot import texts
 from app.bot.keyboards import (
     consent_keyboard,
     daily_horoscope_keyboard,
+    more_menu_keyboard,
     payment_success_keyboard,
     privacy_keyboard,
     reading_resume_callback,
@@ -42,8 +43,8 @@ def test_consent_details_keep_the_selected_persona() -> None:
 def test_daily_cta_describes_the_screen_it_actually_opens() -> None:
     keyboard = daily_horoscope_keyboard()
 
-    assert keyboard.inline_keyboard[1][0].text == "Выбрать оракула"
-    assert keyboard.inline_keyboard[1][0].callback_data == "menu:home"
+    assert keyboard.inline_keyboard[1][0].text == "🔮 Задать вопрос о сегодняшнем дне"
+    assert keyboard.inline_keyboard[1][0].callback_data == "tarot:topic:general_forecast"
     assert keyboard.inline_keyboard[-1][0].text == "← Назад в меню"
     assert keyboard.inline_keyboard[-1][0].callback_data == "menu:home"
 
@@ -55,7 +56,7 @@ def test_payment_success_returns_to_the_reading_that_started_checkout() -> None:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="1 полный разбор", callback_data="credits:buy:reading_single"
+                    text="1 глубокий разбор", callback_data="credits:buy:reading_single"
                 )
             ],
             [InlineKeyboardButton(text="После оплаты открыть разбор", callback_data=resume)],
@@ -65,7 +66,7 @@ def test_payment_success_returns_to_the_reading_that_started_checkout() -> None:
     assert reading_resume_callback(paywall) == resume
 
     success = payment_success_keyboard(resume)
-    assert success.inline_keyboard[0][0].text == "Открыть полный разбор"
+    assert success.inline_keyboard[0][0].text == "Открыть глубокий разбор"
     assert success.inline_keyboard[0][0].callback_data == resume
     assert success.inline_keyboard[-1][0].callback_data == "menu:home"
 
@@ -96,5 +97,9 @@ def test_stars_invoice_and_support_never_expose_the_credit_ledger() -> None:
     assert "Доступ" in description
 
 
-def test_love_oracle_menu_matches_the_current_persona_positioning() -> None:
-    assert "Любовный оракул — чувства, притяжение и динамика отношений." in texts.MAIN_MENU
+def test_love_oracle_stays_reachable_without_owning_the_main_menu() -> None:
+    labels = [button.text for row in more_menu_keyboard().inline_keyboard for button in row]
+
+    assert "💞 Любовный оракул" in labels
+    assert "Что хотите понять прямо сейчас?" in texts.MAIN_MENU
+    assert "Любовный оракул — чувства, притяжение и динамика отношений." not in texts.MAIN_MENU

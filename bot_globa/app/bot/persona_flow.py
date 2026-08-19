@@ -24,18 +24,18 @@ BACK_TO_TOPICS_BUTTON = "← Назад к темам"
 BACK_TO_READINGS_BUTTON = "← К моим разборам"
 SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
-FOLLOWUP_BUTTON = "Продолжить сеанс"
+FOLLOWUP_BUTTON = "💬 Продолжить — Numa помнит этот сеанс"
 FOLLOWUP_NAMESPACE = "rfu"
 FEEDBACK_NAMESPACE = "rfb"
 
 NOT_ONBOARDED = "Сначала отправьте /start и примите условия использования."
 INVALID_TEXT = "Нужно обычное текстовое сообщение допустимой длины."
 QUESTION_PROMPT = (
-    "Опишите ситуацию одним сообщением: что происходит, что хотите понять и что уже "
-    "пробовали — если это важно. Можно написать коротко."
+    "Расскажите ситуацию одним сообщением. Не нужно подбирать правильный формат: напишите, "
+    "что происходит и что больше всего хотите понять — Numa сама соберёт подходящий разбор."
 )
 QUESTION_EXAMPLE = "Например: {example}"
-UNLOCKING = "Проверяю баланс и открываю полный разбор…"
+UNLOCKING = "Проверяю доступ и открываю глубокий разбор…"
 
 QUESTION_LIMIT = 8000
 CONTEXT_LIMIT = 12000
@@ -182,7 +182,7 @@ class ReadingFlow:
             rows.append(
                 [
                     InlineKeyboardButton(
-                        text=self.texts.unlock_button.format(price=price),
+                        text=f"✨ Открыть глубокий разбор — {price}",
                         callback_data=self.callback("unlock", str(reading_id)),
                     )
                 ]
