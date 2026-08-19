@@ -27,10 +27,7 @@ def _status_copy(view: PaymentStatusView | None) -> str:
         return "\n\n✅ Последняя оплата зачислена."
     if view.status in {"creating", "pending"}:
         icon = "🔄" if view.reconciliation_requested else "⏳"
-        return (
-            f"\n\n{icon} Проверяем последнюю оплату. "
-            "Это может занять несколько секунд."
-        )
+        return f"\n\n{icon} Проверяем последнюю оплату. Это может занять несколько секунд."
     if view.status == "manual_review":
         suffix = f" Код: {view.failure_code}." if view.failure_code else ""
         return "\n\n⚠️ Последняя оплата требует ручной проверки." + suffix
