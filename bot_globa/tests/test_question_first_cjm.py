@@ -62,9 +62,11 @@ def test_onboarding_starts_from_question_not_persona() -> None:
 def test_preview_upgrade_is_framed_as_deep_reading() -> None:
     reading_id = UUID("00000000-0000-0000-0000-000000000123")
     keyboard = TAROT_FLOW.result_keyboard(reading_id, "99 ₽")
+    paywall = texts.PAYWALL.casefold()
+
     assert _labels(keyboard)[0] == "✨ Открыть глубокий разбор — 99 ₽"
-    assert "Быстрый взгляд" in texts.PAYWALL
-    assert "Глубокий разбор" in texts.PAYWALL
+    assert "быстром взгляде" in paywall
+    assert "глубокий разбор" in paywall
 
 
 def test_paid_result_makes_session_continuity_visible() -> None:
