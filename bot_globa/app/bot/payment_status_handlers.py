@@ -4,7 +4,7 @@ from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.bot import core_handlers
+from app.bot import core_handlers, subscription_handlers
 from app.bot.consent import ensure_consent
 from app.bot.keyboards import products_keyboard
 from app.bot.scene_media import Scene
@@ -16,6 +16,8 @@ from app.services.onboarding import OnboardingService
 from app.services.payment_status_service import PaymentStatusService, PaymentStatusView
 
 _INSTALL_MARKERS: set[str] = set()
+_PAYMENT_BALANCE_CALLBACKS = frozenset({"menu:balance", "credits:refresh"})
+_SUBSCRIPTION_STATUS_CALLBACK = "subscription:refresh"
 
 
 def _status_copy(view: PaymentStatusView | None) -> str:
@@ -77,7 +79,7 @@ async def balance_with_payment_status(
         callback.message,
         Scene.BALANCE,
         (
-            f"Доступно глубоких разборов: "
+            "Доступно глубоких разборов: "
             f"{balance // billing_settings.reading_full_price_credits}."
             f"{_status_copy(payment)}\n\n"
             "Выберите вариант:"
@@ -92,17 +94,33 @@ async def balance_with_payment_status(
 
 
 def install_payment_status_handlers() -> None:
-    """Replace the passive balance refresh with provider-backed recovery scheduling."""
+    """Give generic balance callbacks to payment recovery, not the subscription router.
+
+    ``subscription_router`` is included before ``core_router`` in the dispatcher. Its
+    historical balance handler therefore shadowed the provider-backed refresh installed
+    by PR #135 even though both handlers existed. Remove that broad registration, keep the
+    same subscription handler only for its own refresh callback, and let the generic
+    balance callbacks fall through to the canonical payment-status handler.
+    """
 
     if "payment_status" in _INSTALL_MARKERS:
         return
-    router = core_handlers.router
-    router.callback_query.handlers[:] = [
+
+    subscription_router = subscription_handlers.router
+    subscription_router.callback_query.handlers[:] = [
         handler
-        for handler in router.callback_query.handlers
+        for handler in subscription_router.callback_query.handlers
+        if handler.callback is not subscription_handlers.balance_and_subscription_screen
+    ]
+    subscription_router.callback_query(F.data == _SUBSCRIPTION_STATUS_CALLBACK)(
+        subscription_handlers.balance_and_subscription_screen
+    )
+
+    core_router = core_handlers.router
+    core_router.callback_query.handlers[:] = [
+        handler
+        for handler in core_router.callback_query.handlers
         if handler.callback is not core_handlers.balance_screen
     ]
-    router.callback_query(F.data.in_({"menu:balance", "credits:refresh"}))(
-        balance_with_payment_status
-    )
+    core_router.callback_query(F.data.in_(_PAYMENT_BALANCE_CALLBACKS))(balance_with_payment_status)
     _INSTALL_MARKERS.add("payment_status")
