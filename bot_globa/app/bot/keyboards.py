@@ -48,9 +48,21 @@ def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💞 Что он / она чувствует?", callback_data="love:topic:love")],
-            [InlineKeyboardButton(text="💌 Стоит ли мне написать?", callback_data="love:topic:communication")],
-            [InlineKeyboardButton(text="⚖️ Что выбрать: A или B?", callback_data="tarot:topic:decision")],
+            [
+                InlineKeyboardButton(
+                    text="💞 Что он / она чувствует?", callback_data="love:topic:love"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💌 Стоит ли мне написать?", callback_data="love:topic:communication"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⚖️ Что выбрать: A или B?", callback_data="tarot:topic:decision"
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="🔮 Что меня ждёт дальше?",
@@ -63,7 +75,11 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
                     callback_data="psy:topic:repeating_pattern",
                 )
             ],
-            [InlineKeyboardButton(text="🪐 Разобрать по натальной карте", callback_data="menu:astro")],
+            [
+                InlineKeyboardButton(
+                    text="🪐 Разобрать по натальной карте", callback_data="menu:astro"
+                )
+            ],
             [
                 InlineKeyboardButton(text="☀️ Сегодня для меня", callback_data="menu:daily"),
                 InlineKeyboardButton(text="📚 Мои истории", callback_data="menu:readings"),
