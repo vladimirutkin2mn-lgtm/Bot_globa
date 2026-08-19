@@ -20,10 +20,16 @@ def _callback_data() -> set[str]:
 def test_main_menu_contains_only_active_oracle_navigation() -> None:
     callbacks = _callback_data()
 
-    # All four MVP personas are reachable; each flow owns its own history screen, so the
-    # menu carries no persona-specific history entry.
+    # All four MVP personas remain reachable in the secondary menu, while the primary menu
+    # can now deep-link straight into selected topics without reviving legacy analysis routes.
     assert {"menu:tarot", "menu:love", "menu:psy", "menu:astro"} <= callbacks
-    assert not any(callback.startswith("tarot:") for callback in callbacks)
+    assert {
+        "love:topic:love",
+        "love:topic:communication",
+        "tarot:topic:decision",
+        "tarot:topic:general_forecast",
+        "psy:topic:repeating_pattern",
+    } <= callbacks
     assert "menu:memory" in callbacks
     assert "menu:balance" in callbacks
     assert "menu:privacy" in callbacks
@@ -69,4 +75,4 @@ def test_active_client_copy_uses_consumer_brand() -> None:
     assert all("Globa" not in value for value in (*branded_copy, persona_copy, daily_button))
     assert all(texts.BRAND_NAME in value for value in branded_copy)
     assert persona_copy.startswith("💞 Любовный оракул")
-    assert daily_button == "Выбрать оракула"
+    assert daily_button == "🔮 Задать вопрос о сегодняшнем дне"
