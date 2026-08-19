@@ -1,12 +1,18 @@
+from datetime import UTC, datetime
+from uuid import UUID
+
 from app.bot import core_handlers
 from app.bot.commands import BOT_COMMANDS
 from app.bot.payment_status_handlers import _status_copy, balance_with_payment_status
 from app.services.payment_status_service import PaymentStatusView
-from datetime import UTC, datetime
-from uuid import UUID
 
 
-def _view(status: str, failure_code: str | None = None, *, requested: bool = False) -> PaymentStatusView:
+def _view(
+    status: str,
+    failure_code: str | None = None,
+    *,
+    requested: bool = False,
+) -> PaymentStatusView:
     return PaymentStatusView(
         order_id=UUID("00000000-0000-0000-0000-000000000123"),
         provider="yookassa",
