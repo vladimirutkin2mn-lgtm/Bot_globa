@@ -47,7 +47,10 @@ class ReadingCopy:
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
     """Give the diagnosis for free and reserve scenarios/conditions/action for the unlock."""
     result = _completed_result(outcome)
-    sections = [f"{copy.emoji} <b>{quote(result.title)}</b>"]
+    sections = [
+        f"{copy.emoji} <b>Быстрый взгляд</b>",
+        f"<b>{quote(result.title)}</b>",
+    ]
     if outcome.symbols:
         drawn = "\n".join(
             f"{index}. <b>{quote(context.display_name)}</b> — "
@@ -65,6 +68,10 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
                 outcome.symbol_set_code,
                 outcome.conversion_variant,
             ),
+            (
+                "<i>Это короткий слой разбора. Глубокий разбор покажет связи, условия "
+                "сценариев и следующий шаг — без нового вопроса с нуля.</i>"
+            ),
         ]
     )
     return chunk_sections(tuple(sections))
@@ -75,7 +82,7 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
 
     result = _completed_result(outcome)
     insight = result.patterns[0] if result.patterns else result.opening
-    sections = [f"{copy.emoji} <b>Разбор готов</b>"]
+    sections = [f"{copy.emoji} <b>Быстрый взгляд</b>"]
     if outcome.symbols:
         drawn = ", ".join(quote(context.display_name) for context in outcome.symbols)
         sections.append(f"<b>Зафиксированные карты:</b> {drawn}")
@@ -88,6 +95,7 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
                 outcome.symbol_set_code,
                 outcome.conversion_variant,
             ),
+            "<i>Глубокий разбор продолжит именно эту историю и этот расклад.</i>",
         )
     )
     return chunk_sections(tuple(sections))
@@ -97,7 +105,7 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
     """Reveal every validated interpretation section after a paid entitlement."""
     result = _completed_result(outcome)
     sections = [
-        f"{copy.emoji} <b>{copy.full_title_prefix}: {quote(result.title)}</b>",
+        f"{copy.emoji} <b>Глубокий разбор · {copy.full_title_prefix}: {quote(result.title)}</b>",
         quote(result.opening),
     ]
 
@@ -134,8 +142,8 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         [
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
             (
-                "Разбор сохранён в «Моих разборах». Хотите уточнить один момент? "
-                "Этот вопрос уже включён в покупку."
+                "Разбор сохранён в «Моих историях». В течение этого сеанса можно задать "
+                "уточняющий вопрос — Numa продолжит с уже известным контекстом."
             ),
         ]
     )
