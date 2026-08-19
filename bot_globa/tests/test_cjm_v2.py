@@ -46,14 +46,14 @@ def _buttons(keyboard: InlineKeyboardMarkup) -> list[tuple[str, str | None]]:
     ]
 
 
-def test_purchase_screen_has_single_pack_and_monthly_seans_choices() -> None:
+def test_purchase_screen_has_single_pack_and_monthly_deep_reading_choices() -> None:
     settings = _settings()
 
     assert _buttons(products_keyboard(BillingCatalog(settings), settings))[:3] == [
-        ("1 сеанс — 199 ₽ / 40 ⭐", "credits:buy:reading_single"),
-        ("Пакет · 5 сеансов — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
+        ("✨ 1 глубокий разбор — 199 ₽ / 40 ⭐", "credits:buy:reading_single"),
+        ("🔮 5 глубоких разборов — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
         (
-            "Подписка на месяц — 990 ₽ / 280 ⭐",
+            "🌙 Numa Plus · месяц — 990 ₽ / 280 ⭐",
             "credits:buy:subscription_monthly",
         ),
     ]
@@ -66,7 +66,7 @@ def test_purchase_screen_has_single_pack_and_monthly_seans_choices() -> None:
             resume_callback=f"tarot:unlock:{reading_id}",
         )
     )
-    assert ("После оплаты открыть разбор", f"tarot:unlock:{reading_id}") in resumed
+    assert ("После оплаты открыть глубокий разбор", f"tarot:unlock:{reading_id}") in resumed
     assert all(callback is None or len(callback.encode()) <= 64 for _, callback in resumed)
 
 
@@ -141,7 +141,7 @@ def test_question_and_paid_result_keep_navigation_explicit() -> None:
     assert parse_feedback(f"rfb:miss:{reading_id}") == ("miss", reading_id)
     assert parse_feedback(f"rfb:other:{reading_id}") is None
     assert _buttons(TAROT_FLOW.full_result_keyboard(reading_id)) == [
-        ("Продолжить сеанс", f"rfu:ask:{reading_id}"),
+        ("💬 Продолжить — Numa помнит этот сеанс", f"rfu:ask:{reading_id}"),
         ("Попало", f"rfb:hit:{reading_id}"),
         ("Не откликнулось", f"rfb:miss:{reading_id}"),
         ("← К моим разборам", "menu:readings"),
