@@ -25,12 +25,15 @@ class PaymentReconciliationSweeper:
     def supports_provider(self, provider: str) -> bool:
         return provider in self._supported
 
-    async def enqueue_order(self, order_id: UUID) -> bool:
+    async def enqueue_order(self, order_id: UUID, *, wake_existing: bool = False) -> bool:
         """Wake authoritative reconciliation for one still-open hosted checkout.
 
         This method never trusts a browser return as proof of payment. It only schedules
         the existing worker job, which fetches the provider's authoritative state before
         PaymentCompletionService can grant credits.
+
+        User-triggered refreshes may set ``wake_existing`` to make an already-pending
+        retry immediately eligible again. An actively leased job is never stolen.
         """
         now = datetime.now(UTC)
         async with self._sessions.begin() as session:
@@ -42,7 +45,12 @@ class PaymentReconciliationSweeper:
                 or not order.provider_checkout_id
             ):
                 return False
-            return await self._enqueue_locked(session, order, now)
+            return await self._enqueue_locked(
+                session,
+                order,
+                now,
+                wake_existing=wake_existing,
+            )
 
     async def enqueue_stale(self, limit: int = 100) -> int:
         now = datetime.now(UTC)
@@ -76,6 +84,8 @@ class PaymentReconciliationSweeper:
         session: AsyncSession,
         order: PaymentOrder,
         now: datetime,
+        *,
+        wake_existing: bool = False,
     ) -> bool:
         key = f"reconcile:{order.id}"
         job = await session.scalar(
@@ -92,12 +102,23 @@ class PaymentReconciliationSweeper:
                 )
             )
         elif job.status in {"completed", "failed"}:
-            job.status = "pending"
+            self._reset_for_retry(job, now)
+        elif wake_existing and job.status == "pending":
             job.available_at = now
-            job.claim_id = None
-            job.claimed_by = None
-            job.lease_until = None
+        elif wake_existing and job.status == "claimed":
+            if job.lease_until is not None and job.lease_until > now:
+                return False
+            self._reset_for_retry(job, now)
         else:
             return False
         order.last_reconciled_at = now
         return True
+
+    @staticmethod
+    def _reset_for_retry(job: BillingJob, now: datetime) -> None:
+        job.status = "pending"
+        job.available_at = now
+        job.claim_id = None
+        job.claimed_by = None
+        job.claimed_at = None
+        job.lease_until = None
