@@ -28,6 +28,9 @@ run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} ps"
 echo "==> Billing worker is running"
 run_remote "cd ${DEPLOY_PATH} && billing_container=\$(${COMPOSE} ps -q billing-worker) && test -n \"\$billing_container\" && docker inspect \"\$billing_container\" --format '{{.State.Running}} {{.State.Restarting}}' | grep -Fxq 'true false'"
 
+echo "==> Billing worker heartbeat is fresh"
+run_remote "cd ${DEPLOY_PATH} && for attempt in \$(seq 1 15); do if ${COMPOSE} exec -T billing-worker python -c \"from pathlib import Path; import time; p=Path('/tmp/numa-billing-worker-heartbeat'); age=time.time()-p.stat().st_mtime if p.exists() else 999.0; print(f'billing-worker heartbeat age={age:.1f}s'); raise SystemExit(0 if 0 <= age <= 45 else 1)\"; then exit 0; fi; sleep 2; done; echo 'billing-worker heartbeat missing or stale' >&2; exit 1"
+
 echo "==> Liveness and readiness inside the network"
 run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} exec -T api python -c \"
 import urllib.request
