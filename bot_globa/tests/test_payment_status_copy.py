@@ -20,8 +20,14 @@ def _view(
 
 
 def test_payment_status_copy_distinguishes_recovery_and_manual_review() -> None:
-    assert "Проверка последней оплаты запущена" in _status_copy(_view("pending", requested=True))
-    assert "ещё проверяется" in _status_copy(_view("pending"))
+    requested = _status_copy(_view("pending", requested=True))
+    waiting = _status_copy(_view("pending"))
+    assert requested.startswith("\n\n🔄")
+    assert waiting.startswith("\n\n⏳")
+    assert "Проверяем последнюю оплату" in requested
+    assert "Проверяем последнюю оплату" in waiting
+    assert "Это может занять несколько секунд" in requested
+    assert "Это может занять несколько секунд" in waiting
     manual = _status_copy(_view("manual_review", "amount_mismatch"))
     assert "ручной проверки" in manual
     assert "amount_mismatch" in manual
