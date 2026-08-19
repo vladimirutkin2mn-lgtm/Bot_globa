@@ -21,7 +21,7 @@ _READING_RESUME_PREFIXES = (
 def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Выбрать персонажа", callback_data="onboarding:intro")]
+            [InlineKeyboardButton(text="Выбрать вопрос", callback_data="onboarding:intro")]
         ]
     )
 
@@ -48,13 +48,25 @@ def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="menu:love")],
-            [InlineKeyboardButton(text="🔮 Таролог", callback_data="menu:tarot")],
-            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="menu:psy")],
-            [InlineKeyboardButton(text="🪐 Астролог", callback_data="menu:astro")],
+            [InlineKeyboardButton(text="💞 Что он / она чувствует?", callback_data="love:topic:love")],
+            [InlineKeyboardButton(text="💌 Стоит ли мне написать?", callback_data="love:topic:communication")],
+            [InlineKeyboardButton(text="⚖️ Что выбрать: A или B?", callback_data="tarot:topic:decision")],
             [
-                InlineKeyboardButton(text="☀️ Гороскоп на сегодня", callback_data="menu:daily"),
-                InlineKeyboardButton(text="📚 Мои разборы", callback_data="menu:readings"),
+                InlineKeyboardButton(
+                    text="🔮 Что меня ждёт дальше?",
+                    callback_data="tarot:topic:general_forecast",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🌙 Почему это повторяется?",
+                    callback_data="psy:topic:repeating_pattern",
+                )
+            ],
+            [InlineKeyboardButton(text="🪐 Разобрать по натальной карте", callback_data="menu:astro")],
+            [
+                InlineKeyboardButton(text="☀️ Сегодня для меня", callback_data="menu:daily"),
+                InlineKeyboardButton(text="📚 Мои истории", callback_data="menu:readings"),
             ],
             [InlineKeyboardButton(text="⋯ Ещё", callback_data="menu:more")],
         ]
@@ -64,6 +76,14 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 def more_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(text="💞 Любовный оракул", callback_data="menu:love"),
+                InlineKeyboardButton(text="🔮 Таролог", callback_data="menu:tarot"),
+            ],
+            [
+                InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="menu:psy"),
+                InlineKeyboardButton(text="🪐 Астролог", callback_data="menu:astro"),
+            ],
             [InlineKeyboardButton(text="🧠 Память", callback_data="menu:memory")],
             [InlineKeyboardButton(text=texts.BALANCE, callback_data="menu:balance")],
             [InlineKeyboardButton(text=texts.PRIVACY, callback_data="menu:privacy")],
@@ -89,11 +109,16 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✨ Персональный прогноз на сегодня",
+                    text="✨ Что сегодня важно именно для меня?",
                     callback_data="daily:personal",
                 )
             ],
-            [InlineKeyboardButton(text="Выбрать оракула", callback_data="menu:home")],
+            [
+                InlineKeyboardButton(
+                    text="🔮 Задать вопрос о сегодняшнем дне",
+                    callback_data="tarot:topic:general_forecast",
+                )
+            ],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
             [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
@@ -189,7 +214,7 @@ def products_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text="После оплаты открыть разбор",
+                    text="После оплаты открыть глубокий разбор",
                     callback_data=resume_callback,
                 )
             ]
@@ -219,7 +244,7 @@ def payment_success_keyboard(resume_callback: str | None = None) -> InlineKeyboa
     rows: list[list[InlineKeyboardButton]] = []
     if resume_callback is not None and resume_callback.startswith(_READING_RESUME_PREFIXES):
         rows.append(
-            [InlineKeyboardButton(text="Открыть полный разбор", callback_data=resume_callback)]
+            [InlineKeyboardButton(text="Открыть глубокий разбор", callback_data=resume_callback)]
         )
     rows.append([InlineKeyboardButton(text="← В главное меню", callback_data="menu:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
