@@ -25,6 +25,9 @@ run_remote() {
 echo "==> Container health"
 run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} ps"
 
+echo "==> Billing worker is running"
+run_remote "cd ${DEPLOY_PATH} && billing_container=\$(${COMPOSE} ps -q billing-worker) && test -n \"\$billing_container\" && docker inspect \"\$billing_container\" --format '{{.State.Running}} {{.State.Restarting}}' | grep -Fxq 'true false'"
+
 echo "==> Liveness and readiness inside the network"
 run_remote "cd ${DEPLOY_PATH} && ${COMPOSE} exec -T api python -c \"
 import urllib.request
