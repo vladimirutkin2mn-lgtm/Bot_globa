@@ -20,6 +20,7 @@ from app.services.data_deletion import DataDeletionService
 from app.services.onboarding import OnboardingService
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.payment_service import PaymentService
+from app.services.payment_status_service import PaymentStatusService
 from app.services.preview_entitlement import PreviewEntitlementService
 from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
@@ -90,6 +91,10 @@ class OracleDependencyMiddleware(BaseMiddleware):
                 else None
             )
             data["checkout"] = self._checkout_service
+            data["payment_status"] = PaymentStatusService(
+                self._sessions,
+                self._settings.billing_pending_reconciliation_seconds,
+            )
             data["subscription_checkout"] = self._subscription_checkout
             data["subscriptions"] = self._subscriptions
             data["refunds"] = self._refunds
