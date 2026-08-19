@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot import texts
 from app.bot.keyboards import (
     daily_horoscope_keyboard,
@@ -11,7 +13,7 @@ from app.bot.persona_flow import FOLLOWUP_BUTTON
 from app.bot.persona_flows import TAROT_FLOW
 
 
-def _callbacks(keyboard) -> list[str]:
+def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [
         button.callback_data
         for row in keyboard.inline_keyboard
@@ -20,7 +22,7 @@ def _callbacks(keyboard) -> list[str]:
     ]
 
 
-def _labels(keyboard) -> list[str]:
+def _labels(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
