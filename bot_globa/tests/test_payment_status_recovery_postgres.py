@@ -1,5 +1,8 @@
 """Production-shaped recovery checks for the user-facing payment refresh path."""
 
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -22,13 +25,11 @@ async def test_user_refresh_enqueues_latest_pending_yookassa_order_once(
     service = PaymentStatusService(payment_db, 60)
 
     first = await service.refresh(user_id)
-    second = await service.refresh(user_id)
 
     assert first is not None
     assert first.order_id == order_id
     assert first.status == "pending"
     assert first.reconciliation_requested
-    assert second is not None and not second.reconciliation_requested
     async with payment_db() as session:
         jobs = await session.scalar(select(func.count()).select_from(BillingJob))
         job = await session.scalar(select(BillingJob))
@@ -36,6 +37,121 @@ async def test_user_refresh_enqueues_latest_pending_yookassa_order_once(
     assert job is not None
     assert job.job_type == "payment_reconciliation"
     assert job.object_id == str(order_id)
+
+
+async def test_user_refresh_wakes_existing_delayed_retry_without_resetting_budget(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id, order_id = await create_order(
+        payment_db,
+        provider="yookassa",
+        checkout_id="delayed-retry-yookassa",
+    )
+    service = PaymentStatusService(payment_db, 60)
+    first = await service.refresh(user_id)
+    assert first is not None and first.reconciliation_requested
+
+    delayed_until = datetime.now(UTC) + timedelta(minutes=10)
+    async with payment_db.begin() as session:
+        job = await session.scalar(select(BillingJob).where(BillingJob.object_id == str(order_id)))
+        assert job is not None
+        job.available_at = delayed_until
+        job.attempt_count = 3
+        job.last_error_code = "provider_timeout"
+
+    before_refresh = datetime.now(UTC)
+    second = await service.refresh(user_id)
+
+    assert second is not None and second.reconciliation_requested
+    async with payment_db() as session:
+        job = await session.scalar(select(BillingJob).where(BillingJob.object_id == str(order_id)))
+    assert job is not None
+    assert job.status == "pending"
+    assert job.available_at >= before_refresh
+    assert job.available_at < delayed_until
+    assert job.attempt_count == 3
+    assert job.last_error_code == "provider_timeout"
+
+
+async def test_user_refresh_does_not_steal_active_reconciliation_lease(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id, order_id = await create_order(
+        payment_db,
+        provider="yookassa",
+        checkout_id="active-lease-yookassa",
+    )
+    claim_id = uuid4()
+    lease_until = datetime.now(UTC) + timedelta(minutes=5)
+    async with payment_db.begin() as session:
+        session.add(
+            BillingJob(
+                job_type="payment_reconciliation",
+                provider="yookassa",
+                object_type="payment_order",
+                object_id=str(order_id),
+                idempotency_key=f"reconcile:{order_id}",
+                status="claimed",
+                attempt_count=2,
+                claimed_by="billing-worker-live",
+                claim_id=claim_id,
+                claimed_at=datetime.now(UTC),
+                lease_until=lease_until,
+            )
+        )
+
+    status = await PaymentStatusService(payment_db, 60).refresh(user_id)
+
+    assert status is not None and not status.reconciliation_requested
+    async with payment_db() as session:
+        job = await session.scalar(select(BillingJob).where(BillingJob.object_id == str(order_id)))
+    assert job is not None
+    assert job.status == "claimed"
+    assert job.claim_id == claim_id
+    assert job.claimed_by == "billing-worker-live"
+    assert job.lease_until == lease_until
+    assert job.attempt_count == 2
+
+
+async def test_user_refresh_recovers_expired_reconciliation_lease(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id, order_id = await create_order(
+        payment_db,
+        provider="yookassa",
+        checkout_id="expired-lease-yookassa",
+    )
+    async with payment_db.begin() as session:
+        session.add(
+            BillingJob(
+                job_type="payment_reconciliation",
+                provider="yookassa",
+                object_type="payment_order",
+                object_id=str(order_id),
+                idempotency_key=f"reconcile:{order_id}",
+                status="claimed",
+                attempt_count=2,
+                claimed_by="dead-worker",
+                claim_id=uuid4(),
+                claimed_at=datetime.now(UTC) - timedelta(minutes=5),
+                lease_until=datetime.now(UTC) - timedelta(seconds=1),
+                last_error_code="worker_lost",
+            )
+        )
+
+    status = await PaymentStatusService(payment_db, 60).refresh(user_id)
+
+    assert status is not None and status.reconciliation_requested
+    async with payment_db() as session:
+        job = await session.scalar(select(BillingJob).where(BillingJob.object_id == str(order_id)))
+    assert job is not None
+    assert job.status == "pending"
+    assert job.claim_id is None
+    assert job.claimed_by is None
+    assert job.claimed_at is None
+    assert job.lease_until is None
+    assert job.attempt_count == 2
+    assert job.last_error_code == "worker_lost"
 
 
 async def test_user_refresh_surfaces_manual_review_reason_without_granting_access(
