@@ -12,6 +12,7 @@ from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
 from app.providers.payments.base import PaymentProvider
+from app.providers.payments.gateway import OneTimePaymentGateway
 from app.repositories.users import SqlAlchemyUserRepository
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
@@ -19,6 +20,7 @@ from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionService
 from app.services.onboarding import OnboardingService
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
+from app.services.payment_completion_service import PaymentCompletionService
 from app.services.payment_service import PaymentService
 from app.services.payment_status_service import PaymentStatusService
 from app.services.preview_entitlement import PreviewEntitlementService
@@ -44,6 +46,8 @@ class OracleDependencyMiddleware(BaseMiddleware):
         subscriptions: SubscriptionManagementService | None = None,
         refunds: RefundService | None = None,
         telegram_stars: TelegramStarsPaymentService | None = None,
+        payment_gateways: dict[str, OneTimePaymentGateway] | None = None,
+        payment_completion: PaymentCompletionService | None = None,
     ) -> None:
         self._sessions = sessions
         self._analytics = analytics
@@ -58,6 +62,8 @@ class OracleDependencyMiddleware(BaseMiddleware):
         self._subscriptions = subscriptions
         self._refunds = refunds
         self._telegram_stars = telegram_stars
+        self._payment_gateways = payment_gateways or {}
+        self._payment_completion = payment_completion
 
     async def __call__(
         self,
@@ -94,6 +100,8 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["payment_status"] = PaymentStatusService(
                 self._sessions,
                 self._settings.billing_pending_reconciliation_seconds,
+                self._payment_gateways,
+                self._payment_completion,
             )
             data["subscription_checkout"] = self._subscription_checkout
             data["subscriptions"] = self._subscriptions

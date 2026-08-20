@@ -193,8 +193,10 @@ class PaymentCompletionService:
                 if order.provider_payment_id == payment.payment_id
                 else "manual_review"
             )
-        if order.status in {"failed", "cancelled", "manual_review"}:
+        if order.status in {"cancelled", "manual_review"}:
             return f"already_{order.status}"
+        if order.status == "failed" and (not payment.paid or payment.status != "succeeded"):
+            return "already_failed"
         mismatch = self._mismatch(order, payment)
         if mismatch:
             order.status, order.failure_code = "manual_review", mismatch
@@ -223,7 +225,9 @@ class PaymentCompletionService:
             order.status, order.failure_code = "manual_review", "payment_identity_reused"
             order.encrypted_receipt_contact = None
             return "manual_review"
-        order.status, order.completed_at = "completed", datetime.now(UTC)
+        order.status = "completed"
+        order.completed_at = datetime.now(UTC)
+        order.failure_code = None
         order.encrypted_receipt_contact = None
         order.provider_payment_id = payment.payment_id
         order.provider_status = payment.provider_status or payment.status

@@ -7,11 +7,26 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.models import BillingJob, PaymentOrder
+from app.db.models import BillingJob, CreditTransaction, PaymentOrder
+from app.providers.payments.gateway import AuthoritativePayment, CreateCheckout, HostedCheckout
+from app.services.payment_completion_service import PaymentCompletionService
 from app.services.payment_status_service import PaymentStatusService
-from tests.payment_postgres_helpers import create_order
+from tests.payment_postgres_helpers import create_order, paid
 
 pytestmark = pytest.mark.postgres
+
+
+class _MultiPaymentGateway:
+    def __init__(self, payments: dict[str, AuthoritativePayment]) -> None:
+        self._payments = payments
+        self.fetches: list[str] = []
+
+    async def create_checkout(self, request: CreateCheckout) -> HostedCheckout:
+        raise AssertionError(f"unexpected checkout creation: {request.order_id}")
+
+    async def fetch_payment(self, checkout_id: str) -> AuthoritativePayment:
+        self.fetches.append(checkout_id)
+        return self._payments[checkout_id]
 
 
 async def test_user_refresh_enqueues_latest_pending_yookassa_order_once(
@@ -37,6 +52,86 @@ async def test_user_refresh_enqueues_latest_pending_yookassa_order_once(
     assert job is not None
     assert job.job_type == "payment_reconciliation"
     assert job.object_id == str(order_id)
+
+
+async def test_user_refresh_recovers_failed_and_pending_paid_yookassa_orders(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    user_id, first_order_id = await create_order(
+        payment_db,
+        provider="yookassa",
+        checkout_id="first-real-payment",
+    )
+    second_order_id = uuid4()
+    async with payment_db.begin() as session:
+        first_order = await session.get(PaymentOrder, first_order_id, with_for_update=True)
+        assert first_order is not None
+        first_order.status = "failed"
+        first_order.failure_code = "provider_timeout"
+        await session.flush()
+        session.add(
+            PaymentOrder(
+                id=second_order_id,
+                user_id=user_id,
+                provider="yookassa",
+                product_code=first_order.product_code,
+                status="pending",
+                credits=first_order.credits,
+                amount_minor=first_order.amount_minor,
+                currency=first_order.currency,
+                market=first_order.market,
+                mode="one_time",
+                product_version=first_order.product_version,
+                provider_checkout_id="second-real-payment",
+                idempotency_key=f"checkout:create:{uuid4()}:v1",
+                commercial_snapshot=dict(first_order.commercial_snapshot),
+            )
+        )
+
+    gateway = _MultiPaymentGateway(
+        {
+            "first-real-payment": paid(
+                first_order_id,
+                "first-real-payment",
+                "provider-payment-one",
+            ),
+            "second-real-payment": paid(
+                second_order_id,
+                "second-real-payment",
+                "provider-payment-two",
+            ),
+        }
+    )
+    service = PaymentStatusService(
+        payment_db,
+        60,
+        {"yookassa": gateway},
+        PaymentCompletionService(payment_db),
+    )
+
+    status = await service.refresh(user_id)
+
+    assert status is not None
+    assert status.status == "completed"
+    assert status.reconciliation_requested
+    assert set(gateway.fetches) == {"first-real-payment", "second-real-payment"}
+    async with payment_db() as session:
+        orders = list(
+            await session.scalars(select(PaymentOrder).where(PaymentOrder.user_id == user_id))
+        )
+        purchases = await session.scalar(
+            select(func.count())
+            .select_from(CreditTransaction)
+            .where(
+                CreditTransaction.user_id == user_id,
+                CreditTransaction.type == "purchase",
+            )
+        )
+        jobs = await session.scalar(select(func.count()).select_from(BillingJob))
+    assert {order.status for order in orders} == {"completed"}
+    assert all(order.failure_code is None for order in orders)
+    assert purchases == 2
+    assert jobs == 0
 
 
 async def test_user_refresh_wakes_existing_delayed_retry_without_resetting_budget(
