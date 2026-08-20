@@ -114,9 +114,7 @@ async def test_user_refresh_directly_completes_all_recent_open_yookassa_orders(
     assert set(gateway.fetches) == {"first-real-payment", "second-real-payment"}
     async with payment_db() as session:
         orders = list(
-            await session.scalars(
-                select(PaymentOrder).where(PaymentOrder.user_id == user_id)
-            )
+            await session.scalars(select(PaymentOrder).where(PaymentOrder.user_id == user_id))
         )
         purchases = await session.scalar(
             select(func.count())
