@@ -116,7 +116,8 @@ class PaymentStatusService:
             payment = await gateway.fetch_payment(checkout_id)
         except PaymentProviderError as exc:
             logger.warning(
-                "payment_status_direct_reconciliation_provider_error provider=%s order_id=%s error=%s",
+                "payment_status_direct_reconciliation_provider_error "
+                "provider=%s order_id=%s error=%s",
                 order.provider,
                 order.id,
                 type(exc).__name__,
