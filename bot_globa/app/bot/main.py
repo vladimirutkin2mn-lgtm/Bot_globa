@@ -153,13 +153,15 @@ def create_dispatcher(
     processor = SubscriptionEventProcessor(
         sessions, lifecycle, settings.subscription_grace_period_days
     )
+    payment_completion = PaymentCompletionService(sessions, settings.app_env == "production")
     telegram_stars = TelegramStarsPaymentService(
         sessions,
         settings,
         billing_catalog,
-        PaymentCompletionService(sessions, settings.app_env == "production"),
+        payment_completion,
         processor,
     )
+    one_time_gateways = {name.value: gateway for name, gateway in payments.gateways.items()}
     subscription_gateways = {
         name.value: gateway for name, gateway in payments.subscription_gateways.items()
     }
@@ -183,6 +185,8 @@ def create_dispatcher(
         ),
         RefundService(sessions, settings, refund_gateways),
         telegram_stars,
+        payment_gateways=one_time_gateways,
+        payment_completion=payment_completion,
     )
     rate_middleware = RateLimitMiddleware(FixedWindowRateLimiter())
     safety_middleware = ReadingSafetyHandoffMiddleware()
