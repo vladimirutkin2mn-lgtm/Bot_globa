@@ -77,9 +77,7 @@ class PaymentStatusService:
         )
         requested = any(direct_results)
         for order in open_orders:
-            requested = (
-                await self._sweeper.enqueue_order(order.id, wake_existing=True) or requested
-            )
+            requested = await self._sweeper.enqueue_order(order.id, wake_existing=True) or requested
 
         current = await self.latest(user_id)
         if current is None:
