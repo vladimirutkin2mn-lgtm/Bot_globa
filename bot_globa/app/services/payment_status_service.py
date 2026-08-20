@@ -17,6 +17,7 @@ from app.services.payment_reconciliation_service import PaymentReconciliationSwe
 
 logger = logging.getLogger(__name__)
 _MAX_DIRECT_RECONCILIATIONS = 5
+_DIRECT_RECONCILIATION_STATUSES = ("creating", "pending", "failed")
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +32,7 @@ class PaymentStatusView:
 
 
 class PaymentStatusService:
-    """Expose the user's payment state and recover open hosted checkouts safely."""
+    """Expose the user's payment state and recover hosted checkouts safely."""
 
     def __init__(
         self,
@@ -60,23 +61,25 @@ class PaymentStatusService:
             return self._view(order) if order is not None else None
 
     async def refresh(self, user_id: UUID) -> PaymentStatusView | None:
-        """Authoritatively reconcile recent open payments, then wake durable fallback jobs.
+        """Authoritatively reconcile recent recoverable payments, then wake fallback jobs.
 
         A Telegram callback is never treated as proof of payment. When a configured
         provider gateway is available, refresh asks that provider directly and sends the
         normalized result through the same exactly-once PaymentCompletionService used by
-        background jobs. Durable reconciliation is still woken afterwards as a fallback.
+        background jobs. Recent failed orders with a provider checkout are included because
+        a local terminal-looking failure must not strand a provider-confirmed payment.
+        Durable reconciliation is still woken afterwards for open orders as a fallback.
         """
 
-        open_orders = await self._open_orders(user_id)
-        if not open_orders:
+        candidates = await self._reconciliation_candidates(user_id)
+        if not candidates:
             return await self.latest(user_id)
 
         direct_results = await asyncio.gather(
-            *(self._reconcile_direct(order) for order in open_orders)
+            *(self._reconcile_direct(order) for order in candidates)
         )
         requested = any(direct_results)
-        for order in open_orders:
+        for order in candidates:
             requested = await self._sweeper.enqueue_order(order.id, wake_existing=True) or requested
 
         current = await self.latest(user_id)
@@ -92,7 +95,7 @@ class PaymentStatusService:
             reconciliation_requested=requested,
         )
 
-    async def _open_orders(self, user_id: UUID) -> list[PaymentOrder]:
+    async def _reconciliation_candidates(self, user_id: UUID) -> list[PaymentOrder]:
         async with self._sessions() as session:
             return list(
                 await session.scalars(
@@ -100,7 +103,8 @@ class PaymentStatusService:
                     .where(
                         PaymentOrder.user_id == user_id,
                         PaymentOrder.mode == "one_time",
-                        PaymentOrder.status.in_(("creating", "pending")),
+                        PaymentOrder.status.in_(_DIRECT_RECONCILIATION_STATUSES),
+                        PaymentOrder.provider_checkout_id.is_not(None),
                     )
                     .order_by(PaymentOrder.created_at.desc())
                     .limit(_MAX_DIRECT_RECONCILIATIONS)
