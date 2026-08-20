@@ -6,6 +6,7 @@ import logging
 import signal
 import socket
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from app.bot.typography import create_bot
 from app.config import Settings, get_settings
@@ -27,6 +28,25 @@ from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
 
 logger = logging.getLogger(__name__)
+_BILLING_WORKER_HEARTBEAT_PATH = Path("/app/.numa-billing-worker-heartbeat")
+
+
+def _touch_billing_worker_heartbeat() -> None:
+    """Record a completed worker loop without making the probe payment-critical."""
+
+    try:
+        _BILLING_WORKER_HEARTBEAT_PATH.touch()
+    except OSError:
+        logger.exception("billing_worker_heartbeat_failed")
+
+
+def _clear_billing_worker_heartbeat() -> None:
+    """Remove a stale probe from a previous process lifetime."""
+
+    try:
+        _BILLING_WORKER_HEARTBEAT_PATH.unlink(missing_ok=True)
+    except OSError:
+        logger.exception("billing_worker_heartbeat_reset_failed")
 
 
 async def run(settings: Settings | None = None, stop: asyncio.Event | None = None) -> None:
@@ -92,6 +112,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, stopped.set)
     next_sweep = datetime.now(UTC)
+    _clear_billing_worker_heartbeat()
     try:
         while not stopped.is_set():
             now = datetime.now(UTC)
@@ -112,6 +133,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
             try:
                 worked = await jobs.run_once(worker_id)
                 worked = await outbox.run_once(worker_id) or worked
+                _touch_billing_worker_heartbeat()
             except asyncio.CancelledError:
                 raise
             except Exception:

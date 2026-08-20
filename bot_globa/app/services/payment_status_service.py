@@ -56,7 +56,7 @@ class PaymentStatusService:
         latest = await self.latest(user_id)
         if latest is None or latest.status not in {"creating", "pending"}:
             return latest
-        requested = await self._sweeper.enqueue_order(latest.order_id)
+        requested = await self._sweeper.enqueue_order(latest.order_id, wake_existing=True)
         current = await self.latest(user_id)
         if current is None:
             return None

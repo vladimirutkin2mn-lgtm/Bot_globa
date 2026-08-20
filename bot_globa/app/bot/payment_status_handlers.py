@@ -26,15 +26,8 @@ def _status_copy(view: PaymentStatusView | None) -> str:
     if view.status == "completed":
         return "\n\n✅ Последняя оплата зачислена."
     if view.status in {"creating", "pending"}:
-        if view.reconciliation_requested:
-            return (
-                "\n\n🔄 Проверка последней оплаты запущена у платёжного провайдера. "
-                "Доступ появится только после подтверждения оплаты."
-            )
-        return (
-            "\n\n⏳ Последняя оплата ещё проверяется. "
-            "Numa не начисляет доступ, пока провайдер не подтвердит платёж."
-        )
+        icon = "🔄" if view.reconciliation_requested else "⏳"
+        return f"\n\n{icon} Проверяем последнюю оплату. Это может занять несколько секунд."
     if view.status == "manual_review":
         suffix = f" Код: {view.failure_code}." if view.failure_code else ""
         return "\n\n⚠️ Последняя оплата требует ручной проверки." + suffix
