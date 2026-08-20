@@ -54,7 +54,7 @@ async def test_user_refresh_enqueues_latest_pending_yookassa_order_once(
     assert job.object_id == str(order_id)
 
 
-async def test_user_refresh_directly_completes_all_recent_open_yookassa_orders(
+async def test_user_refresh_recovers_failed_and_pending_paid_yookassa_orders(
     payment_db: async_sessionmaker[AsyncSession],
 ) -> None:
     user_id, first_order_id = await create_order(
@@ -64,8 +64,11 @@ async def test_user_refresh_directly_completes_all_recent_open_yookassa_orders(
     )
     second_order_id = uuid4()
     async with payment_db.begin() as session:
-        first_order = await session.get(PaymentOrder, first_order_id)
+        first_order = await session.get(PaymentOrder, first_order_id, with_for_update=True)
         assert first_order is not None
+        first_order.status = "failed"
+        first_order.failure_code = "provider_timeout"
+        await session.flush()
         session.add(
             PaymentOrder(
                 id=second_order_id,
@@ -126,6 +129,7 @@ async def test_user_refresh_directly_completes_all_recent_open_yookassa_orders(
         )
         jobs = await session.scalar(select(func.count()).select_from(BillingJob))
     assert {order.status for order in orders} == {"completed"}
+    assert all(order.failure_code is None for order in orders)
     assert purchases == 2
     assert jobs == 0
 
