@@ -45,15 +45,15 @@ class CapturingHoroscopeGeneration:
         return HoroscopeGenerationResult(HoroscopeGenerationStatus.COMPLETED)
 
 
-def test_astrologer_legacy_prompt_remains_available() -> None:
-    prompt = load_horoscope_prompts("astrologer-v1")
+def test_astrologer_active_prompt_remains_fact_bound() -> None:
+    prompt = load_horoscope_prompts("astrologer-v2")
 
     assert "FACT_BUNDLE_JSON" in prompt.system
     assert "only permitted source for astrology facts" in prompt.system
-    assert "Reference facts only by their exact fact_id" in prompt.system
-    assert "Do not write planet names" in prompt.system
-    assert "Copy the scope and facts_digest exactly" in prompt.request_instruction
-    assert "unknown birth time" in prompt.request_instruction
+    assert "reference facts only by exact fact_id" in prompt.system
+    assert "Do not write raw planet names" in prompt.system
+    assert "Copy scope and facts_digest exactly" in prompt.request_instruction
+    assert "If birth time is unknown" in prompt.request_instruction
 
 
 async def test_use_case_freezes_astrology_versions_without_raw_birth_fields() -> None:
