@@ -9,7 +9,7 @@ personal natal transits belong to the astrologer flow instead.
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from types import MappingProxyType
 from typing import Any
 
@@ -18,7 +18,7 @@ import astronomy
 from app.domain.natal_chart import NatalAspectKind, NatalBody, ZodiacSign
 
 DAILY_SKY_VERSION = "daily-sky-v1"
-DAILY_SOLAR_METHOD_VERSION = "solar-sign-daily-v2"
+DAILY_SOLAR_METHOD_VERSION = "solar-sign-daily-v3"
 
 _TRANSIT_BODIES: tuple[tuple[NatalBody, Any], ...] = (
     (NatalBody.SUN, astronomy.Body.Sun),
@@ -95,14 +95,45 @@ _HOUSE_PRIORITY = MappingProxyType(
     }
 )
 
-_ASPECT_THEME = MappingProxyType(
+_ASPECT_THEME_VARIANTS = MappingProxyType(
     {
-        NatalAspectKind.CONJUNCTION: "главное сегодня собирается в одной точке",
-        NatalAspectKind.SEXTILE: "небольшой шаг может открыть больше возможностей",
-        NatalAspectKind.SQUARE: "напряжение покажет, что пора изменить",
-        NatalAspectKind.TRINE: "проще поддержать то, что уже набирает ход",
-        NatalAspectKind.OPPOSITION: "важно увидеть обе стороны перед выбором",
+        NatalAspectKind.CONJUNCTION: (
+            "главное сегодня собирается в одной точке",
+            "лучше выбрать один главный приоритет",
+            "силы стоит собрать вокруг самого важного",
+            "одна тема дня потребует полного внимания",
+        ),
+        NatalAspectKind.SEXTILE: (
+            "небольшой шаг может открыть больше возможностей",
+            "полезный шанс стоит поддержать одним точным действием",
+            "важно заметить возможность, пока она рядом",
+            "маленькая инициатива может дать заметный результат",
+        ),
+        NatalAspectKind.SQUARE: (
+            "напряжение покажет, что пора изменить",
+            "лучше убрать одно главное препятствие, чем бороться со всем сразу",
+            "трение дня полезнее превратить в конкретное действие",
+            "не стоит форсировать то, что просит точной настройки",
+        ),
+        NatalAspectKind.TRINE: (
+            "проще поддержать то, что уже набирает ход",
+            "сегодня стоит опереться на то, что идёт естественно",
+            "благоприятный импульс лучше не тормозить лишними сомнениями",
+            "сильной стороне дня стоит дать сработать без лишнего давления",
+        ),
+        NatalAspectKind.OPPOSITION: (
+            "важно увидеть обе стороны перед выбором",
+            "свои желания стоит сверить с ожиданиями других",
+            "баланс между крайностями окажется важнее быстрой победы",
+            "рабочий компромисс сегодня сильнее борьбы за своё",
+        ),
     }
+)
+_NEUTRAL_THEME_VARIANTS = (
+    "сегодня полезнее держать свой темп и сверять впечатления с фактами",
+    "спокойный ритм даст больше, чем попытка ускорить события",
+    "лучше оставить запас времени и действовать без суеты",
+    "последовательность сегодня полезнее резких поворотов",
 )
 
 _SUPPORTIVE_FORECAST = MappingProxyType(
@@ -269,7 +300,7 @@ class DailyHoroscopeSnapshot:
 
     def payload(self) -> dict[str, object]:
         return {
-            "forecast_date": self.forecast_date.isoformat(),
+            "forecast_date": self.forecast_date,
             "sky_digest": self.sky_digest,
             "theme": self.theme,
             "signs": [item.payload() for item in self.signs],
@@ -324,16 +355,17 @@ def calculate_daily_sky(forecast_date: date) -> DailySkySnapshot:
 
 
 def build_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
-    """Turn the calculated sky into one shared theme and twelve sign-specific stories."""
+    """Turn the calculated sky into a fresh shared theme and twelve sign-specific stories."""
 
     sky = calculate_daily_sky(forecast_date)
+    previous_sky = calculate_daily_sky(forecast_date - timedelta(days=1))
     driver = _driver_aspect(sky)
-    theme = (
-        _ASPECT_THEME[driver.kind]
-        if driver is not None
-        else "сегодня полезнее держать свой темп и сверять впечатления с фактами"
+    previous_driver = _driver_aspect(previous_sky)
+    previous_theme = _theme_for_date(previous_sky.forecast_date, previous_driver)
+    theme = _theme_for_date(forecast_date, driver, avoid=previous_theme)
+    signs = tuple(
+        _forecast_for_sign(sky, sign, previous_sky=previous_sky) for sign in ZodiacSign
     )
-    signs = tuple(_forecast_for_sign(sky, sign) for sign in ZodiacSign)
     return DailyHoroscopeSnapshot(
         forecast_date=forecast_date,
         sky_digest=sky.digest(),
@@ -342,8 +374,31 @@ def build_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
     )
 
 
-def _forecast_for_sign(sky: DailySkySnapshot, sign: ZodiacSign) -> DailySignForecast:
-    planet, aspect = _sign_driver(sky, sign)
+def _theme_for_date(
+    forecast_date: date,
+    driver: DailySkyAspect | None,
+    *,
+    avoid: str | None = None,
+) -> str:
+    options = (
+        _ASPECT_THEME_VARIANTS[driver.kind] if driver is not None else _NEUTRAL_THEME_VARIANTS
+    )
+    body_offset = 0
+    if driver is not None:
+        body_offset = _BODY_PRIORITY[driver.first_body] * 3 + _BODY_PRIORITY[driver.second_body]
+    index = (forecast_date.toordinal() + body_offset) % len(options)
+    if avoid is not None and options[index] == avoid and len(options) > 1:
+        index = (index + 1) % len(options)
+    return options[index]
+
+
+def _forecast_for_sign(
+    sky: DailySkySnapshot,
+    sign: ZodiacSign,
+    *,
+    previous_sky: DailySkySnapshot | None = None,
+) -> DailySignForecast:
+    planet, aspect = _sign_driver(sky, sign, previous_sky=previous_sky)
     house = _solar_house(sign, planet.sign)
     return DailySignForecast(
         sign,
@@ -354,14 +409,37 @@ def _forecast_for_sign(sky: DailySkySnapshot, sign: ZodiacSign) -> DailySignFore
 def _sign_driver(
     sky: DailySkySnapshot,
     sign: ZodiacSign,
+    *,
+    previous_sky: DailySkySnapshot | None = None,
 ) -> tuple[DailySkyPlanet, DailySkyAspect | None]:
-    """Select the most salient transit story for one solar sign.
+    """Select a salient current-sky story without needlessly repeating yesterday's house."""
 
-    Unlike v1, the choice is sign-specific: every transiting body lands in a different
-    whole-sign house for each reader sign. A close aspect strengthens a candidate, but it
-    does not force the same planet/action onto all twelve signs.
-    """
+    ranked = _rank_sign_drivers(sky, sign)
+    _, best_planet, best_aspect = ranked[0]
+    if previous_sky is None:
+        return best_planet, best_aspect
 
+    _, previous_planet, _ = _rank_sign_drivers(previous_sky, sign)[0]
+    best_house = _solar_house(sign, best_planet.sign)
+    previous_house = _solar_house(sign, previous_planet.sign)
+    if best_house != previous_house:
+        return best_planet, best_aspect
+
+    candidates = _distinct_house_candidates(ranked, sign)
+    if len(candidates) < 2:
+        return best_planet, best_aspect
+
+    # The pool contains only genuinely strong current-day transits. Rotating within it
+    # prevents a slow transit from pinning one sign to the same life sphere for days.
+    index = (sky.forecast_date.toordinal() + _SIGNS.index(sign)) % len(candidates)
+    _, planet, aspect = candidates[index]
+    return planet, aspect
+
+
+def _rank_sign_drivers(
+    sky: DailySkySnapshot,
+    sign: ZodiacSign,
+) -> list[tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]]:
     ranked: list[tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]] = []
     for planet in sky.planets:
         aspect = _strongest_aspect_for_body(sky, planet.body)
@@ -378,8 +456,28 @@ def _sign_driver(
                 aspect,
             )
         )
-    _, planet, aspect = min(ranked, key=lambda item: item[0])
-    return planet, aspect
+    return sorted(ranked, key=lambda item: item[0])
+
+
+def _distinct_house_candidates(
+    ranked: list[tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]],
+    sign: ZodiacSign,
+) -> list[tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]]:
+    best_priority = ranked[0][0][0]
+    candidates: list[
+        tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]
+    ] = []
+    seen_houses: set[int] = set()
+    for item in ranked:
+        priority, planet, _ = item
+        house = _solar_house(sign, planet.sign)
+        if house in seen_houses or priority[0] > best_priority + 1:
+            continue
+        seen_houses.add(house)
+        candidates.append(item)
+        if len(candidates) == 3:
+            break
+    return candidates
 
 
 def _strongest_aspect_for_body(
