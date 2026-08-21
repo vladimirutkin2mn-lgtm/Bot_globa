@@ -17,11 +17,8 @@ from app.domain.reading_generation import (
     ReadingSymbolContext,
     StoredReadingResult,
 )
-from app.prompts.reading import (
-    ReadingPromptNotFoundError,
-    ReadingPromptSet,
-    load_reading_prompts,
-)
+from app.prompts.oracle import load_oracle_reading_prompts
+from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMCompletion,
@@ -183,7 +180,7 @@ def _service(
     llm: ControlledLLM,
     *,
     max_repair_attempts: int = 1,
-    prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
+    prompt_loader: Callable[[str], ReadingPromptSet] = load_oracle_reading_prompts,
 ) -> ReadingGenerationService:
     return ReadingGenerationService(
         store,
