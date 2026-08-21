@@ -115,7 +115,7 @@ class MemoryStore:
                 question=SECRET_QUESTION,
                 context="Two reversible work options are available.",
                 engine_version="symbolic-v1",
-                prompt_version="tarot-reader-v1",
+                prompt_version="tarot-reader-v4",
                 schema_version="reading-result-v1",
             ),
         )
