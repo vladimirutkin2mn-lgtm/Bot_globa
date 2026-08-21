@@ -116,7 +116,7 @@ def _claimed(
             question="What pattern may help me choose a next step?",
             context="Keep the first experiment reversible.",
             engine_version="astrology-calculation-v1",
-            prompt_version="astrologer-v1",
+            prompt_version="astrologer-v2",
             schema_version="astrology-reading-result-v1",
         ),
     )

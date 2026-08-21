@@ -59,8 +59,8 @@ pytest \
   tests/test_reading_memory_extraction_jobs_postgres.py::test_ready_transition_enqueues_one_job_and_terminal_job_is_not_replayed \
   tests/test_reading_memory_extraction_jobs_postgres.py::test_no_consent_skips_before_extractor_and_full_transition_reactivates \
   tests/test_reading_memory_context_postgres.py::test_retrieval_requires_consent_and_never_crosses_user_boundary \
-  tests/test_reading_generation_memory.py::test_v2_serializes_memory_as_separate_untrusted_json_data \
-  tests/test_reading_generation_memory.py::test_frozen_v1_reading_never_retrieves_or_serializes_memory \
+  tests/test_reading_generation_memory.py::test_v4_serializes_memory_as_separate_untrusted_json_data \
+  tests/test_reading_generation_memory.py::test_removed_legacy_prompt_fails_before_memory_or_llm_use \
   tests/test_reading_generation_memory.py::test_memory_retrieval_failure_does_not_block_reading_generation \
   tests/test_reading_memory_usage.py::test_usage_telemetry_failure_keeps_context_and_logs_no_value \
   tests/test_love_oracle_reading.py::test_postgres_love_oracle_preview_is_validated_and_idempotent \

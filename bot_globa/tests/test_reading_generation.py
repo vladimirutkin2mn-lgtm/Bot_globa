@@ -17,11 +17,8 @@ from app.domain.reading_generation import (
     ReadingSymbolContext,
     StoredReadingResult,
 )
-from app.prompts.reading import (
-    ReadingPromptNotFoundError,
-    ReadingPromptSet,
-    load_reading_prompts,
-)
+from app.prompts.oracle import load_oracle_reading_prompts
+from app.prompts.reading import ReadingPromptNotFoundError, ReadingPromptSet
 from app.providers.llm.base import (
     LLMAuthenticationError,
     LLMCompletion,
@@ -115,7 +112,7 @@ class MemoryStore:
                 question=SECRET_QUESTION,
                 context="Two reversible work options are available.",
                 engine_version="symbolic-v1",
-                prompt_version="tarot-reader-v1",
+                prompt_version="tarot-reader-v4",
                 schema_version="reading-result-v1",
             ),
         )
@@ -183,7 +180,7 @@ def _service(
     llm: ControlledLLM,
     *,
     max_repair_attempts: int = 1,
-    prompt_loader: Callable[[str], ReadingPromptSet] = load_reading_prompts,
+    prompt_loader: Callable[[str], ReadingPromptSet] = load_oracle_reading_prompts,
 ) -> ReadingGenerationService:
     return ReadingGenerationService(
         store,

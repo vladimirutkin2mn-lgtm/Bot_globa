@@ -151,14 +151,17 @@ class MindReadingLoveOracleLLM:
         )
 
 
-def test_love_oracle_legacy_prompt_remains_available() -> None:
-    prompt = load_reading_prompts("love-oracle-v1")
+def test_love_oracle_active_prompt_remains_guarded() -> None:
+    prompt = load_reading_prompts("love-oracle-v2")
 
     assert prompt.accepts_memory_context
     assert "private thoughts, feelings, intentions" in prompt.system
-    assert "observable relationship dynamics" in prompt.system
-    assert "selected_symbols must be empty" in prompt.request_instruction
-    assert "do not answer by inventing the other person's inner state" in prompt.request_instruction
+    assert "observable signals" in prompt.system
+    assert (
+        "selected_symbols and the result symbols array must both be empty"
+        in prompt.request_instruction
+    )
+    assert "Do not answer by inventing the other person's inner state" in prompt.request_instruction
 
 
 async def test_use_case_freezes_love_versions_and_passes_no_symbols() -> None:

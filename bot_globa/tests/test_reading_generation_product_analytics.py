@@ -52,7 +52,7 @@ class ClaimedStore:
                 question="PRIVATE-GENERATION-QUESTION",
                 context="PRIVATE-GENERATION-CONTEXT",
                 engine_version="symbolic-v1",
-                prompt_version="tarot-reader-v2",
+                prompt_version="tarot-reader-v4",
                 schema_version="reading-result-v1",
             ),
         )

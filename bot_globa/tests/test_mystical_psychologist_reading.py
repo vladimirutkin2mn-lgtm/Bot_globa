@@ -152,14 +152,14 @@ class DiagnosticDependencyLLM:
         )
 
 
-def test_mystical_psychologist_legacy_prompt_remains_available() -> None:
-    prompt = load_oracle_reading_prompts("mystical-psychologist-v1")
+def test_mystical_psychologist_active_prompt_remains_guarded() -> None:
+    prompt = load_oracle_reading_prompts("mystical-psychologist-v2")
 
     assert prompt.accepts_memory_context
     assert "not as clinical facts" in prompt.system
-    assert "Never claim therapeutic authority" in prompt.system
+    assert "therapeutic authority" in prompt.system
     assert "Do not validate curses" in prompt.system
-    assert "selected_symbols must be empty" in prompt.request_instruction
+    assert "selected_symbols and result.symbols must be empty" in prompt.request_instruction
     assert "optional metaphor, not diagnosis" in prompt.request_instruction
 
 
