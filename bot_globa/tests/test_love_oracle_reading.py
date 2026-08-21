@@ -157,7 +157,10 @@ def test_love_oracle_active_prompt_remains_guarded() -> None:
     assert prompt.accepts_memory_context
     assert "private thoughts, feelings, intentions" in prompt.system
     assert "observable signals" in prompt.system
-    assert "selected_symbols and the result symbols array must both be empty" in prompt.request_instruction
+    assert (
+        "selected_symbols and the result symbols array must both be empty"
+        in prompt.request_instruction
+    )
     assert "Do not answer by inventing the other person's inner state" in prompt.request_instruction
 
 
