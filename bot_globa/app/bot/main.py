@@ -15,6 +15,7 @@ from app.bot.horoscope_renderer import HoroscopeRenderer
 from app.bot.memory_handlers import router as memory_router
 from app.bot.observability import TelegramObservabilityMiddleware
 from app.bot.oracle_dependencies import OracleDependencyMiddleware
+from app.bot.personal_oracle_handlers import router as personal_oracle_router
 from app.bot.persona_flow import PersonaReadingBundle
 from app.bot.persona_flows import MVP_READING_FLOWS, TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
@@ -201,6 +202,7 @@ def create_dispatcher(
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(memory_router)
+    dispatcher.include_router(personal_oracle_router)
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
     dispatcher.include_router(daily_conversion_router)
