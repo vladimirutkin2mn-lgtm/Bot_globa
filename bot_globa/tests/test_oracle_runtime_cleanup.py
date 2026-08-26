@@ -25,7 +25,10 @@ def test_main_menu_contains_only_active_oracle_navigation() -> None:
     # The internal reflection persona and legacy topic catalogue are still supported by their
     # routers, but are deliberately not advertised as a second storefront.
     assert "menu:psy" not in callbacks
-    assert not any(callback.startswith(("love:topic:", "tarot:topic:", "psy:topic:")) for callback in callbacks)
+    assert not any(
+        callback.startswith(("love:topic:", "tarot:topic:", "psy:topic:"))
+        for callback in callbacks
+    )
     assert "menu:memory" in callbacks
     assert "menu:balance" in callbacks
     assert "menu:privacy" in callbacks
