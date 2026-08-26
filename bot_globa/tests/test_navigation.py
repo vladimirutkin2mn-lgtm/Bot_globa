@@ -64,7 +64,9 @@ def test_entry_copy_starts_from_numa_and_keeps_explicit_practices_reachable() ->
     }
 
 
-def test_secondary_navigation_keeps_history_settings_and_privacy_without_persona_storefront() -> None:
+def test_secondary_navigation_keeps_history_settings_and_privacy_without_persona_storefront() -> (
+    None
+):
     more = {button.callback_data for row in more_menu_keyboard().inline_keyboard for button in row}
     readings = {
         button.callback_data for row in readings_menu_keyboard().inline_keyboard for button in row
