@@ -30,6 +30,7 @@ def test_main_menu_is_one_oracle_plus_explicit_practices() -> None:
     keyboard = main_menu_keyboard()
     callbacks = _callbacks(keyboard)
     labels = _labels(keyboard)
+    legacy_topic_prefixes = ("love:topic:", "tarot:topic:", "psy:topic:")
 
     assert callbacks[:4] == [
         "oracle:auto",
@@ -43,10 +44,7 @@ def test_main_menu_is_one_oracle_plus_explicit_practices() -> None:
         "💞 Любовный оракул",
         "🪐 Астрология",
     ]
-    assert not any(
-        callback.startswith(("love:topic:", "tarot:topic:", "psy:topic:"))
-        for callback in callbacks
-    )
+    assert not any(callback.startswith(legacy_topic_prefixes) for callback in callbacks)
 
 
 def test_more_menu_is_not_a_second_persona_storefront() -> None:
