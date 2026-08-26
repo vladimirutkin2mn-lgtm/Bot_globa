@@ -26,37 +26,37 @@ def _labels(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
-def test_main_menu_is_question_first() -> None:
+def test_main_menu_is_one_oracle_plus_explicit_practices() -> None:
     keyboard = main_menu_keyboard()
     callbacks = _callbacks(keyboard)
     labels = _labels(keyboard)
 
-    assert callbacks[:5] == [
-        "love:topic:love",
-        "love:topic:communication",
-        "tarot:topic:decision",
-        "tarot:topic:general_forecast",
-        "psy:topic:repeating_pattern",
+    assert callbacks[:4] == [
+        "oracle:auto",
+        "oracle:tarot",
+        "oracle:love",
+        "oracle:astro",
     ]
-    assert labels[:5] == [
-        "💞 Что он / она чувствует?",
-        "💌 Стоит ли мне написать?",
-        "⚖️ Что выбрать: A или B?",
-        "🔮 Что меня ждёт дальше?",
-        "🌙 Почему это повторяется?",
+    assert labels[:4] == [
+        "✨ Рассказать Numa",
+        "🔮 Таро",
+        "💞 Любовный оракул",
+        "🪐 Астрология",
     ]
-    assert "menu:love" not in callbacks
-    assert "menu:tarot" not in callbacks
+    assert not any(callback.startswith(("love:topic:", "tarot:topic:", "psy:topic:")) for callback in callbacks)
 
 
-def test_persona_choice_still_exists_in_more_menu() -> None:
+def test_more_menu_is_not_a_second_persona_storefront() -> None:
     callbacks = _callbacks(more_menu_keyboard())
-    assert {"menu:love", "menu:tarot", "menu:psy", "menu:astro"}.issubset(callbacks)
+
+    assert callbacks == ["menu:memory", "menu:balance", "menu:privacy", "menu:home"]
+    assert "menu:psy" not in callbacks
 
 
-def test_onboarding_starts_from_question_not_persona() -> None:
-    assert _labels(onboarding_intro_keyboard()) == ["Выбрать вопрос"]
-    assert "Что хотите понять прямо сейчас?" in texts.MAIN_MENU
+def test_onboarding_starts_with_numa_not_a_topic_catalogue() -> None:
+    assert _labels(onboarding_intro_keyboard()) == ["Начать"]
+    assert "Что сегодня не даёт вам покоя?" in texts.MAIN_MENU
+    assert "сама выберет способ разбора" in texts.MAIN_MENU
 
 
 def test_preview_upgrade_is_framed_as_deep_reading() -> None:
