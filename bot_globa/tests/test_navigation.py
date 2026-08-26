@@ -26,38 +26,35 @@ def _buttons(keyboard: InlineKeyboardMarkup) -> dict[str, str | None]:
 def test_main_menu_contains_required_sections() -> None:
     keyboard = main_menu_keyboard()
     assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
-        ["💞 Что он / она чувствует?"],
-        ["💌 Стоит ли мне написать?"],
-        ["⚖️ Что выбрать: A или B?"],
-        ["🔮 Что меня ждёт дальше?"],
-        ["🌙 Почему это повторяется?"],
-        ["🪐 Разобрать по натальной карте"],
+        ["✨ Рассказать Numa"],
+        ["🔮 Таро", "💞 Любовный оракул"],
+        ["🪐 Астрология"],
         ["☀️ Сегодня для меня", "📚 Мои истории"],
         ["⋯ Ещё"],
     ]
     assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
-        ["love:topic:love"],
-        ["love:topic:communication"],
-        ["tarot:topic:decision"],
-        ["tarot:topic:general_forecast"],
-        ["psy:topic:repeating_pattern"],
-        ["menu:astro"],
+        ["oracle:auto"],
+        ["oracle:tarot", "oracle:love"],
+        ["oracle:astro"],
         ["menu:daily", "menu:readings"],
         ["menu:more"],
     ]
 
 
-def test_entry_copy_starts_from_question_and_keeps_personas_reachable() -> None:
-    assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Выбрать вопрос"
-    assert "Что хотите понять прямо сейчас?" in texts.MAIN_MENU
-    assert "Numa сама откроет подходящий способ разбора" in texts.MAIN_MENU
+def test_entry_copy_starts_from_numa_and_keeps_explicit_practices_reachable() -> None:
+    assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Начать"
+    assert "Что сегодня не даёт вам покоя?" in texts.MAIN_MENU
+    assert "сама выберет способ разбора" in texts.MAIN_MENU
 
-    more_labels = _buttons(more_menu_keyboard())
-    assert more_labels["💞 Любовный оракул"] == "menu:love"
-    assert more_labels["🔮 Таролог"] == "menu:tarot"
-    assert more_labels["🌙 Мистический психолог"] == "menu:psy"
-    assert more_labels["🪐 Астролог"] == "menu:astro"
+    main_labels = _buttons(main_menu_keyboard())
+    assert main_labels["✨ Рассказать Numa"] == "oracle:auto"
+    assert main_labels["💞 Любовный оракул"] == "oracle:love"
+    assert main_labels["🔮 Таро"] == "oracle:tarot"
+    assert main_labels["🪐 Астрология"] == "oracle:astro"
+    assert "🌙 Мистический психолог" not in main_labels
 
+    # Commands remain valid compatibility entry points even though the menu is no longer a
+    # persona storefront.
     commands = {command.command: command.description for command in BOT_COMMANDS}
     assert {name: commands[name] for name in ("love", "tarot", "psy", "astro")} == {
         "love": "💞 Любовный оракул",
@@ -67,22 +64,13 @@ def test_entry_copy_starts_from_question_and_keeps_personas_reachable() -> None:
     }
 
 
-def test_secondary_navigation_keeps_history_settings_privacy_and_personas_reachable() -> None:
+def test_secondary_navigation_keeps_history_settings_and_privacy_without_persona_storefront() -> None:
     more = {button.callback_data for row in more_menu_keyboard().inline_keyboard for button in row}
     readings = {
         button.callback_data for row in readings_menu_keyboard().inline_keyboard for button in row
     }
 
-    assert {
-        "menu:love",
-        "menu:tarot",
-        "menu:psy",
-        "menu:astro",
-        "menu:memory",
-        "menu:balance",
-        "menu:privacy",
-        "menu:home",
-    } == more
+    assert {"menu:memory", "menu:balance", "menu:privacy", "menu:home"} == more
     assert {
         "tarot:history",
         "love:history",
@@ -113,6 +101,7 @@ def test_daily_horoscope_has_an_explicit_back_path_at_every_nested_step() -> Non
 
 
 def test_consent_returns_to_the_selected_persona() -> None:
+    # Legacy persona entry points remain valid for stale messages and direct commands.
     assert _buttons(consent_keyboard("tarot"))["← Назад"] == "menu:tarot"
 
 
