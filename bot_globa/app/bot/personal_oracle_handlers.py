@@ -11,10 +11,10 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.bot import texts
 from app.bot.horoscope_handlers import HoroscopeHandlers
-from app.bot.keyboards import main_menu_keyboard
 from app.bot.persona_flow import QUESTION_LIMIT, PersonaFlow
 from app.bot.persona_flows import LOVE_ORACLE_FLOW, MYSTICAL_PSYCHOLOGIST_FLOW, TAROT_FLOW
 from app.bot.persona_handlers import PersonaReadingHandlers, PersonaReadings
+from app.bot.safety_intake import SafetyIntake, state_name
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.bot.states import IntakeStates, OnboardingStates
@@ -32,12 +32,12 @@ ASTRO_CALLBACK = "oracle:astro"
 _CONSENT_PREFIX = "oracle:consent:"
 
 AUTO_PROMPT = (
-    "✨ <b>Расскажи Numa</b>\n\n"
-    "Опиши одним сообщением, что происходит и что больше всего не даёт покоя. "
+    "✨ <b>Расскажите Numa</b>\n\n"
+    "Опишите одним сообщением, что происходит и что больше всего не даёт покоя. "
     "Не нужно выбирать практику или формулировать вопрос особым образом — Numa сама поймёт, "
     "какой способ разбора здесь уместнее."
 )
-INVALID_QUESTION = "Расскажи ситуацию обычным текстовым сообщением до 8000 символов."
+INVALID_QUESTION = "Расскажите ситуацию обычным текстовым сообщением до 8000 символов."
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +101,16 @@ def choose_route(question: str) -> RouteChoice:
     if _WORK_RE.search(value):
         return RouteChoice(TAROT_FLOW, "work")
     return RouteChoice(TAROT_FLOW, "general_forecast")
+
+
+def personal_oracle_safety_intake() -> SafetyIntake:
+    """Protect the free-form Numa entry before its question is routed to a persona."""
+
+    return SafetyIntake(
+        persona_code="personal_oracle",
+        question_state=state_name(IntakeStates.waiting_for_conversation),
+        handoff_keyboard=_question_keyboard,
+    )
 
 
 @router.callback_query(F.data.in_({AUTO_CALLBACK, TAROT_CALLBACK, LOVE_CALLBACK}))
@@ -328,12 +338,12 @@ def _mechanic_prompt(mode: str) -> str:
     if mode == "tarot":
         return (
             "🔮 <b>Таро</b>\n\n"
-            "Задай вопрос своими словами. Не нужно выбирать тему: отношения, работа, решение "
+            "Задайте вопрос своими словами. Не нужно выбирать тему: отношения, работа, решение "
             "или будущее — расклад соберётся под сам вопрос."
         )
     return (
         "💞 <b>Любовный оракул</b>\n\n"
-        "Расскажи о человеке или ситуации между вами и напиши, что хочешь понять. "
+        "Расскажите о человеке или ситуации между вами и напишите, что хотите понять. "
         "Numa сама выберет, на какую сторону этой истории посмотреть глубже."
     )
 
