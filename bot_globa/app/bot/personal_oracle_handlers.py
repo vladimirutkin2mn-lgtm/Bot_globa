@@ -129,7 +129,14 @@ async def start_personal_oracle(
     if not await onboarding.analysis_allowed(callback.from_user.id):
         await _ask_consent(callback.message, state, privacy_retention_days, mode)
         return
-    await _open_mode(callback.message, callback.from_user.id, state, mode, onboarding, oracle_analytics)
+    await _open_mode(
+        callback.message,
+        callback.from_user.id,
+        state,
+        mode,
+        onboarding,
+        oracle_analytics,
+    )
 
 
 @router.callback_query(F.data == ASTRO_CALLBACK)
@@ -225,7 +232,6 @@ async def receive_personal_question(
                 {
                     "persona_code": choice.flow.persona_code,
                     "topic_code": choice.topic,
-                    "entrypoint": "numa_auto",
                 },
             )
     await PersonaReadingHandlers(choice.flow).receive_question(
@@ -269,7 +275,6 @@ async def _open_mode(
                 {
                     "persona_code": choice.flow.persona_code,
                     "topic_code": choice.topic,
-                    "entrypoint": "mechanic_direct",
                 },
             )
     await show_screen(
