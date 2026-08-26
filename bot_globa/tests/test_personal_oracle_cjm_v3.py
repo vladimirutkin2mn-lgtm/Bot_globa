@@ -1,3 +1,5 @@
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from app.bot.horoscope_flow import topics_keyboard as astrology_topics_keyboard
 from app.bot.keyboards import main_menu_keyboard, more_menu_keyboard
 from app.bot.personal_oracle_handlers import choose_route, personal_oracle_safety_intake
@@ -5,7 +7,7 @@ from app.bot.persona_flows import LOVE_ORACLE_FLOW, MYSTICAL_PSYCHOLOGIST_FLOW, 
 from app.bot.states import IntakeStates
 
 
-def _buttons(keyboard):
+def _buttons(keyboard: InlineKeyboardMarkup) -> list[InlineKeyboardButton]:
     return [button for row in keyboard.inline_keyboard for button in row]
 
 
