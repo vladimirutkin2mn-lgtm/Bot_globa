@@ -36,6 +36,12 @@ HOROSCOPE_TOPIC_EXAMPLES = MappingProxyType(
         "love": "как мои привычные способы сближения проявляются в отношениях",
     }
 )
+_ASTROLOGY_MENU_TOPICS = (
+    "natal_profile",
+    "day_forecast",
+    "week_forecast",
+    "month_forecast",
+)
 
 # The second paragraph describes the offline provider, which is the default and what
 # production runs. Configuring `opencage` sends the city name to a third party again and
@@ -102,7 +108,7 @@ BIRTH_TIME_AMBIGUOUS = _step(
 )
 TIME_SUMMER_BUTTON = "{clock} — летнее время ({offset})"
 TIME_WINTER_BUTTON = "{clock} — зимнее время ({offset})"
-PROFILE_SAVED = "✅" * INTAKE_STEPS + "\n\nДанные рождения сохранены. Выберите тему разбора."
+PROFILE_SAVED = "✅" * INTAKE_STEPS + "\n\nДанные рождения сохранены. Выберите астрологический разбор."
 PROFILE_MISSING = "Данные рождения не найдены. Заполните их заново."
 PROFILE_TITLE = "Ваши данные рождения:"
 PROFILE_DELETED = "Данные рождения и согласие удалены."
@@ -121,8 +127,9 @@ HOROSCOPE_FLOW = ReadingFlow(
     topic_examples=HOROSCOPE_TOPIC_EXAMPLES,
     texts=PersonaFlowTexts(
         welcome=(
-            "🪐 Астролог\n\nВыберите тему персонального разбора. Если пришли из ежедневного "
-            "гороскопа — начните с «Прогноз на сегодня»."
+            "🪐 Астрология\n\nВыберите, что именно посмотреть по карте: саму натальную карту "
+            "или прогноз на нужный период. Вопросы об отношениях и выборе можно просто "
+            "рассказать Numa из главного меню."
         ),
         processing=(
             "Вопрос принят. Фиксирую расчётные опоры и собираю разбор — обычно это "
@@ -277,9 +284,17 @@ def profile_keyboard() -> InlineKeyboardMarkup:
 
 
 def topics_keyboard() -> InlineKeyboardMarkup:
-    rows = list(HOROSCOPE_FLOW.topics_keyboard().inline_keyboard)
-    rows.insert(
-        len(HOROSCOPE_TOPIC_LABELS),
-        [InlineKeyboardButton(text=PROFILE_BUTTON, callback_data=callback("profile"))],
-    )
+    """Expose astrology-native scopes while keeping legacy topic callbacks valid."""
+
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=HOROSCOPE_TOPIC_LABELS[topic],
+                callback_data=callback("topic", topic),
+            )
+        ]
+        for topic in _ASTROLOGY_MENU_TOPICS
+    ]
+    rows.append([InlineKeyboardButton(text=PROFILE_BUTTON, callback_data=callback("profile"))])
+    rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("menu"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
