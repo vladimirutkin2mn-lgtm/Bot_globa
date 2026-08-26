@@ -8,7 +8,7 @@ from app.bot import texts
 from app.bot.keyboards import (
     consent_keyboard,
     daily_horoscope_keyboard,
-    more_menu_keyboard,
+    main_menu_keyboard,
     payment_success_keyboard,
     privacy_keyboard,
     reading_resume_callback,
@@ -97,9 +97,12 @@ def test_stars_invoice_and_support_never_expose_the_credit_ledger() -> None:
     assert "Доступ" in description
 
 
-def test_love_oracle_stays_reachable_without_owning_the_main_menu() -> None:
-    labels = [button.text for row in more_menu_keyboard().inline_keyboard for button in row]
+def test_love_oracle_is_an_explicit_mechanic_without_turning_menu_into_a_storefront() -> None:
+    labels = [button.text for row in main_menu_keyboard().inline_keyboard for button in row]
+    callbacks = _callbacks(main_menu_keyboard())
 
     assert "💞 Любовный оракул" in labels
-    assert "Что хотите понять прямо сейчас?" in texts.MAIN_MENU
+    assert "oracle:love" in callbacks
+    assert "✨ Рассказать Numa" in labels
+    assert "Что сегодня не даёт вам покоя?" in texts.MAIN_MENU
     assert "Любовный оракул — чувства, притяжение и динамика отношений." not in texts.MAIN_MENU
