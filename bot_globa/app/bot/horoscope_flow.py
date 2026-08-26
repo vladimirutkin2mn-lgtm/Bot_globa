@@ -108,7 +108,9 @@ BIRTH_TIME_AMBIGUOUS = _step(
 )
 TIME_SUMMER_BUTTON = "{clock} — летнее время ({offset})"
 TIME_WINTER_BUTTON = "{clock} — зимнее время ({offset})"
-PROFILE_SAVED = "✅" * INTAKE_STEPS + "\n\nДанные рождения сохранены. Выберите астрологический разбор."
+PROFILE_SAVED = (
+    "✅" * INTAKE_STEPS + "\n\nДанные рождения сохранены. Выберите астрологический разбор."
+)
 PROFILE_MISSING = "Данные рождения не найдены. Заполните их заново."
 PROFILE_TITLE = "Ваши данные рождения:"
 PROFILE_DELETED = "Данные рождения и согласие удалены."
