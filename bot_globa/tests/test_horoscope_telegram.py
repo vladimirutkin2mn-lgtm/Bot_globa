@@ -116,7 +116,9 @@ def test_the_astrologer_is_reachable_from_the_main_menu() -> None:
         button.callback_data for row in main_menu_keyboard().inline_keyboard for button in row
     }
 
-    assert f"menu:{HOROSCOPE_FLOW.namespace}" in callbacks
+    assert "oracle:astro" in callbacks
+    # Old messages are still supported by the dedicated astrologer router.
+    assert list(_matches(f"menu:{HOROSCOPE_FLOW.namespace}"))
 
 
 def test_the_astrologer_keeps_its_own_state_group() -> None:
@@ -146,19 +148,24 @@ def test_the_astrologer_is_registered_with_the_crisis_middleware() -> None:
         "tarot_reader",
         "love_oracle",
         "mystical_psychologist",
+        "personal_oracle",
         "astrologer",
         "reading_followup",
     }
 
 
-def test_topics_keyboard_offers_every_supported_scope_plus_the_profile_screen() -> None:
+def test_topics_keyboard_exposes_only_astrology_native_scopes_plus_profile() -> None:
     callbacks = [
         button.callback_data for row in flow.topics_keyboard().inline_keyboard for button in row
     ]
 
-    for scope in flow.HOROSCOPE_TOPIC_LABELS:
+    for scope in ("natal_profile", "day_forecast", "week_forecast", "month_forecast"):
         assert flow.callback("topic", scope) in callbacks
+    assert flow.callback("topic", "decision") not in callbacks
+    assert flow.callback("topic", "love") not in callbacks
     assert flow.callback("profile") in callbacks
+    # Legacy scopes remain in the contract so stale Telegram buttons still validate.
+    assert {"decision", "love"} <= set(flow.HOROSCOPE_TOPIC_LABELS)
 
 
 def test_place_choice_keyboard_references_candidates_by_index_not_by_name() -> None:
