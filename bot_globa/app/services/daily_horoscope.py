@@ -1,6 +1,6 @@
 """Durable default-on and lease-based delivery for the common daily digest."""
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
