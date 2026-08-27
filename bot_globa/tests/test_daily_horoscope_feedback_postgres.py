@@ -53,10 +53,7 @@ async def test_morning_delivery_schedules_one_local_2030_feedback_prompt(
         assert feedback is not None
         assert feedback.due_at == datetime(2026, 8, 27, 17, 30, tzinfo=UTC)
 
-    assert (
-        await service.claim_feedback_due(now=datetime(2026, 8, 27, 17, 29, tzinfo=UTC))
-        is None
-    )
+    assert await service.claim_feedback_due(now=datetime(2026, 8, 27, 17, 29, tzinfo=UTC)) is None
     prompt = await service.claim_feedback_due(
         now=datetime(2026, 8, 27, 17, 30, tzinfo=UTC),
         lease_seconds=120,
@@ -65,10 +62,7 @@ async def test_morning_delivery_schedules_one_local_2030_feedback_prompt(
     assert prompt.user_id == user.id
     assert prompt.telegram_user_id == 976001
     assert prompt.forecast_date == delivery.delivery_date
-    assert (
-        await service.claim_feedback_due(now=datetime(2026, 8, 27, 17, 30, tzinfo=UTC))
-        is None
-    )
+    assert await service.claim_feedback_due(now=datetime(2026, 8, 27, 17, 30, tzinfo=UTC)) is None
 
     assert await service.reserve_feedback_prompt(
         prompt,
@@ -78,10 +72,7 @@ async def test_morning_delivery_schedules_one_local_2030_feedback_prompt(
         prompt,
         now=datetime(2026, 8, 27, 17, 31, tzinfo=UTC),
     )
-    assert (
-        await service.claim_feedback_due(now=datetime(2026, 8, 27, 18, 0, tzinfo=UTC))
-        is None
-    )
+    assert await service.claim_feedback_due(now=datetime(2026, 8, 27, 18, 0, tzinfo=UTC)) is None
 
 
 async def test_daily_feedback_accepts_only_the_first_answer(
