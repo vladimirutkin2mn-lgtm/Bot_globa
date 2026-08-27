@@ -21,6 +21,11 @@ class DailyHoroscopeMode(StrEnum):
     DISABLED = "disabled"
 
 
+class DailyHoroscopeFeedbackAnswer(StrEnum):
+    USEFUL = "useful"
+    NOT_USEFUL = "not_useful"
+
+
 @dataclass(frozen=True, slots=True)
 class DailyHoroscopePreferenceView:
     mode: DailyHoroscopeMode
@@ -35,6 +40,14 @@ class DailyHoroscopeClaim:
     telegram_user_id: int
     delivery_date: date
     mode: DailyHoroscopeMode
+
+
+@dataclass(frozen=True, slots=True)
+class DailyHoroscopeFeedbackClaim:
+    claim_id: UUID
+    user_id: UUID
+    telegram_user_id: int
+    forecast_date: date
 
 
 def daily_horoscope_enabled(mode: DailyHoroscopeMode) -> bool:
