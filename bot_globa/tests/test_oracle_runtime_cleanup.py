@@ -19,17 +19,14 @@ def _callback_data() -> set[str]:
 
 def test_main_menu_contains_only_active_oracle_navigation() -> None:
     callbacks = _callback_data()
+    legacy_topic_prefixes = ("love:topic:", "tarot:topic:", "psy:topic:")
 
-    # All four MVP personas remain reachable in the secondary menu, while the primary menu
-    # can now deep-link straight into selected topics without reviving legacy analysis routes.
-    assert {"menu:tarot", "menu:love", "menu:psy", "menu:astro"} <= callbacks
-    assert {
-        "love:topic:love",
-        "love:topic:communication",
-        "tarot:topic:decision",
-        "tarot:topic:general_forecast",
-        "psy:topic:repeating_pattern",
-    } <= callbacks
+    # CJM v3 exposes one personal-oracle entry plus the mechanics users explicitly seek.
+    assert {"oracle:auto", "oracle:tarot", "oracle:love", "oracle:astro"} <= callbacks
+    # The internal reflection persona and legacy topic catalogue are still supported by their
+    # routers, but are deliberately not advertised as a second storefront.
+    assert "menu:psy" not in callbacks
+    assert not any(callback.startswith(legacy_topic_prefixes) for callback in callbacks)
     assert "menu:memory" in callbacks
     assert "menu:balance" in callbacks
     assert "menu:privacy" in callbacks

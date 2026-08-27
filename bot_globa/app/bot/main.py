@@ -18,6 +18,7 @@ from app.bot.oracle_dependencies import OracleDependencyMiddleware
 from app.bot.persona_flow import PersonaReadingBundle
 from app.bot.persona_flows import MVP_READING_FLOWS, TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
+from app.bot.personal_oracle_handlers import router as personal_oracle_router
 from app.bot.postgres_fsm import PostgresEventIsolation, PostgresFSMStorage
 from app.bot.pricing import product_price_label
 from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
@@ -201,6 +202,7 @@ def create_dispatcher(
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
     dispatcher.include_router(memory_router)
+    dispatcher.include_router(personal_oracle_router)
     for flow in MVP_READING_FLOWS:
         dispatcher.include_router(create_persona_router(flow))
     dispatcher.include_router(daily_conversion_router)
@@ -311,7 +313,7 @@ async def close_dispatcher(dispatcher: Dispatcher) -> None:
     try:
         await close_geocoding_client(dispatcher["geocoding_client"])
     except Exception:
-        logger.warning("geocoding client shutdown failed")
+        logger.warning("Geocoding client shutdown failed")
     await dispatcher.fsm.close()
     if dispatcher["owns_database_engine"]:
         await dispatcher["database_engine"].dispose()

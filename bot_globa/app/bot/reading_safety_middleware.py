@@ -2,8 +2,8 @@
 
 Classification happens here, ahead of persistence and the LLM, so an unsafe question
 never reaches a prompt and never becomes stored ciphertext. Every intake surface — the
-three shared persona flows and the astrologer — registers a `SafetyIntake` so none of
-them can be added without safety coverage.
+three shared persona flows, the personal-oracle entry and the astrologer — registers a
+`SafetyIntake` so none of them can be added without safety coverage.
 """
 
 import logging
@@ -15,6 +15,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app.bot.horoscope_flow import horoscope_safety_intake
 from app.bot.persona_flows import MVP_READING_FLOWS
+from app.bot.personal_oracle_handlers import personal_oracle_safety_intake
 from app.bot.reading_followup_handlers import followup_safety_intake
 from app.bot.safety_intake import SafetyIntake
 from app.domain.oracle_safety import OracleInputSafetyClassifier
@@ -35,6 +36,7 @@ def mvp_safety_intakes() -> tuple[SafetyIntake, ...]:
     """Every intake surface that may carry a user-authored question."""
     return (
         *(flow.safety_intake() for flow in MVP_READING_FLOWS),
+        personal_oracle_safety_intake(),
         horoscope_safety_intake(),
         followup_safety_intake(),
     )
