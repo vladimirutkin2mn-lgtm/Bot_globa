@@ -15,7 +15,11 @@ from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import DeploymentSettings, get_deployment_settings
-from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeFeedbackClaim, DailyHoroscopeMode
+from app.domain.daily_horoscope import (
+    DailyHoroscopeClaim,
+    DailyHoroscopeFeedbackClaim,
+    DailyHoroscopeMode,
+)
 from app.logging import configure_logging
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
@@ -98,7 +102,7 @@ async def run(
     deployment: DeploymentSettings | None = None,
     stop: asyncio.Event | None = None,
 ) -> None:
-    """Deliver every due local-morning schedule until SIGTERM/SIGINT."""
+    """Deliver due morning digests and evening feedback prompts until SIGTERM/SIGINT."""
 
     resolved = settings or get_settings()
     runtime = deployment or get_deployment_settings()
@@ -153,7 +157,6 @@ async def run(
                             stopped.wait(),
                             timeout=runtime.daily_horoscope_send_interval_seconds,
                         )
-                continue
 
             claim = await preferences.claim_due(lease_seconds=runtime.daily_horoscope_lease_seconds)
             if claim is None:
