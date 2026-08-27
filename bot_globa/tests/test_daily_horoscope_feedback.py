@@ -22,7 +22,10 @@ def test_feedback_keyboard_is_one_tap_and_date_scoped() -> None:
         "daily:feedback:useful:2026-08-27",
         "daily:feedback:not_useful:2026-08-27",
     ]
-    assert all(button.callback_data is not None and len(button.callback_data.encode()) <= 64 for button in buttons)
+    assert all(
+        button.callback_data is not None and len(button.callback_data.encode()) <= 64
+        for button in buttons
+    )
 
 
 def test_feedback_callback_parser_rejects_stale_or_malformed_payloads() -> None:
