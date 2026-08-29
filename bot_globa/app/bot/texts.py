@@ -64,6 +64,10 @@ CHECKOUT_STALE_BUTTON = (
     "Эта кнопка из старого сообщения больше не действует. "
     "Откройте «Покупки» заново — актуальные цены и способы оплаты там."
 )
+# A hosted checkout finishes outside Telegram, often inside a banking app that never returns
+# to the browser. This is the only thing that tells the buyer their money arrived.
+PURCHASE_RECEIVED = "Оплата получена. Доступно полных разборов: {readings}."
+PURCHASE_RECEIVED_BUTTON = "Открыть разбор"
 
 BALANCE = "💳 Покупки"
 PRIVACY = "🛡 Приватность и удаление"

@@ -207,6 +207,35 @@ catalog = BillingCatalog(get_settings())
 catalog.resolve_product_offer("reading_single", "INTERNATIONAL", "EUR")
 ```
 
+## YooKassa notifications
+
+Two things must both be true or the provider's notifications never reach the inbox. As of
+2026-08-20 neither was, and `provider_webhook_events` was empty while real payments
+succeeded — every order settled only through the 15-minute reconciliation sweep, when it
+settled at all.
+
+1. **The notification URL is set in the YooKassa merchant panel** (Настройки → HTTP-
+   уведомления) to `https://predict.mypresence.ru/webhooks/yookassa`, subscribed to
+   `payment.succeeded` and `payment.canceled` only. Do **not** subscribe
+   `payment.waiting_for_capture`: the endpoint drops it deliberately, because completion
+   treats that state as `unexpected_waiting_for_capture` and parks the order. There is no
+   API for this list — a shop key cannot read or write `/v3/webhooks`, it answers
+   `invalid_credentials`.
+2. **`YOOKASSA_TRUSTED_PROXY_ALLOWLIST` includes Caddy.** YooKassa authenticates by source
+   address alone, and Caddy adds `X-Forwarded-For`; a forwarded request from an unlisted
+   peer is rejected with `403` *before* `YOOKASSA_WEBHOOK_IP_ALLOWLIST` is consulted, so an
+   empty list drops 100% of notifications. Caddy reaches the API over the `web` network as
+   `172.19.0.3`, so `172.19.0.0/16` is the correct value.
+
+Both rejection paths now log `yookassa_webhook_rejected` with the peer address and which
+list failed. To check whether the provider is calling at all:
+
+```bash
+docker logs bot_globa-api-1 --since 48h 2>&1 | grep webhooks/yookassa
+```
+
+An empty result means the panel URL is missing, not that requests are being refused.
+
 ## Release switches
 
 All in `.env.prod`, all fail-closed. Flip one, then recreate the stack so every worker
@@ -242,9 +271,35 @@ charges.
 To re-test the permission, create a 1 RUB payment with `save_payment_method: true` and
 cancel it immediately. A rejected creation charges nothing and leaves no object.
 
-**Nothing has ever been paid.** `payment_orders` is empty. Every money path is covered by
-tests and by mocks, and no real Stripe checkout, signed webhook or subscription renewal has
-ever run here. Treat the first real purchase as the actual acceptance test.
+**The first real purchases were lost, and the cause is worth remembering.** Between
+2026-08-18 and 2026-08-20 five live YooKassa payments of 1 RUB were captured
+(`status=succeeded, paid=true`, sberbank and bank_card) and never became credits. Every one
+sits in `payment_orders` as `manual_review / retry_exhausted`, and no `purchase` row exists
+for provider `yookassa` in `credit_transactions`.
+
+The billing worker could not insert into `credit_transactions` at all:
+
+```
+sqlalchemy.exc.NoReferencedTableError: Foreign key associated with column
+'credit_transactions.reading_id' could not find table 'readings'
+```
+
+`credit_transactions.reading_id` references `readings`, whose model lives in
+`app/db/reading_models.py`, and nothing in the worker's import graph pulled it in.
+SQLAlchemy resolves a foreign key at flush time, so the process started clean and then
+failed on every write, ten times, until `retry_exhausted` parked the order — which also
+removes it from the stale-order sweeper, so nothing recovers on its own. Telegram Stars was
+unaffected because it grants inside the bot process, which does import the reading models.
+
+`app/db/__init__.py` now registers every mapped model, and
+`tests/test_runtime_model_registry.py` runs each entrypoint in a fresh interpreter and fails
+if any foreign key is unresolvable. It is in the protected invariants gate. A normal test
+process imports everything, which is exactly why a green suite hid this.
+
+If a paid order ever needs recovering by hand: confirm at the provider that the payment is
+`succeeded` and `paid`, then set the order back to `pending` and its
+`payment_reconciliation` job to `pending` with `attempt_count = 0`. The grant is idempotent
+on `purchase:{order.id}`, so a replay cannot double-credit.
 
 **Staging attestations are unrecorded.** The readiness gate requires `APP_ENV=staging` and
 an `sk_test_`/`rk_test_` key, and refuses live credentials by design.

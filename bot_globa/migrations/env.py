@@ -10,19 +10,11 @@ from sqlalchemy import pool, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Importing the package registers every mapped model exactly once; `app/db/__init__.py`
+# is the single list, so autogenerate and the running processes can never disagree.
+import app.db  # noqa: F401
 from app.config import get_settings
-from app.db.analytics import AnalyticsEvent  # noqa: F401
 from app.db.base import Base
-from app.db.birth_profile_models import BirthProfile  # noqa: F401
-from app.db.daily_horoscope_models import DailyHoroscopePreference  # noqa: F401
-from app.db.fsm_models import TelegramFSMState  # noqa: F401
-from app.db.memory_models import OracleMemoryItem  # noqa: F401
-from app.db.models import User  # noqa: F401
-from app.db.reading_followups import ReadingFollowUp  # noqa: F401
-from app.db.reading_models import Reading  # noqa: F401
-from app.db.release_gates import ReleaseGateAttestation  # noqa: F401
-from app.db.subscription_models import SubscriptionPeriod  # noqa: F401
-from app.db.telegram_models import TelegramUpdateInbox  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

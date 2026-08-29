@@ -8,6 +8,7 @@ import socket
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from app.bot.purchase_notifier import TelegramBuyerNotifier
 from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
@@ -23,6 +24,7 @@ from app.services.billing_outbox_service import BillingOutboxWorker
 from app.services.checkout_service import ReceiptContactCipher
 from app.services.payment_completion_service import PaymentCompletionService
 from app.services.payment_reconciliation_service import PaymentReconciliationSweeper
+from app.services.purchase_notification_service import PurchaseNotificationWorker
 from app.services.refund_reconciliation_service import RefundReconciliationService
 from app.services.subscription_event_processor import SubscriptionEventProcessor
 from app.services.subscription_lifecycle import SubscriptionLifecycleService
@@ -54,11 +56,9 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
     configure_logging(resolved.log_level)
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
-    telegram_bot = (
-        create_bot(resolved.telegram_bot_token.get_secret_value())
-        if resolved.telegram_stars_enabled and resolved.refunds_enabled
-        else None
-    )
+    # The bot is no longer only for Stars refunds: a hosted checkout completes here, and the
+    # buyer only learns about it if this process can talk to Telegram.
+    telegram_bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     components = create_payment_components(resolved, telegram_bot)
     gateways = {name.value: gateway for name, gateway in components.gateways.items()}
     subscription_gateways = {
@@ -105,6 +105,11 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
     sweeper = PaymentReconciliationSweeper(
         sessions, resolved.billing_pending_reconciliation_seconds, set(gateways)
     )
+    purchase_notifications = PurchaseNotificationWorker(
+        sessions,
+        TelegramBuyerNotifier(telegram_bot),
+        resolved.reading_full_price_credits,
+    )
     stopped = stop or asyncio.Event()
     worker_id = f"{socket.gethostname()}:{id(stopped)}"
     loop = asyncio.get_running_loop()
@@ -133,6 +138,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
             try:
                 worked = await jobs.run_once(worker_id)
                 worked = await outbox.run_once(worker_id) or worked
+                worked = await purchase_notifications.run_once() or worked
                 _touch_billing_worker_heartbeat()
             except asyncio.CancelledError:
                 raise

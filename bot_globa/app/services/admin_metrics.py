@@ -15,6 +15,7 @@ from app.db.models import (
     BillingJob,
     BillingOutboxEvent,
     CreditTransaction,
+    PaymentOrder,
 )
 from app.observability.oracle_quality import (
     ASTROLOGY_EVENT,
@@ -101,6 +102,11 @@ class OracleBillingHealth(BaseModel):
     jobs_pending_or_claimed: int
     outbox_manual_review: int
     outbox_pending_or_claimed: int
+    # Money the provider took that this product never turned into an entitlement. A parked
+    # order is excluded from the stale-order sweeper, so nothing recovers it on its own.
+    orders_manual_review: int
+    orders_pending_or_creating: int
+    buyers_awaiting_notification: int
 
 
 class OracleQualityMetrics(BaseModel):
@@ -122,6 +128,7 @@ class AdminMetrics(BaseModel):
     failures: FailureMetrics
     billing_jobs_by_status: dict[str, int]
     billing_outbox_by_status: dict[str, int]
+    payment_orders_by_status: dict[str, int]
     oracle_quality: OracleQualityMetrics
 
 
@@ -231,6 +238,25 @@ class AdminMetricsService:
                     )
                 )
             ).all()
+            # Captured money that never became an entitlement is the failure nobody notices:
+            # a parked order stops being swept, so it needs its own counter rather than a
+            # line in a log. `orders_manual_review` above zero means a human must look.
+            order_rows = (
+                await session.execute(
+                    select(PaymentOrder.status, func.count()).group_by(PaymentOrder.status)
+                )
+            ).all()
+            awaiting_notification = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(PaymentOrder)
+                    .where(
+                        PaymentOrder.status == "completed",
+                        PaymentOrder.buyer_notified_at.is_(None),
+                    )
+                )
+                or 0
+            )
             quality_rows = list(
                 (
                     await session.execute(
@@ -245,6 +271,7 @@ class AdminMetricsService:
 
         jobs = {status: int(count) for status, count in job_rows}
         outbox = {status: int(count) for status, count in outbox_rows}
+        orders = {status: int(count) for status, count in order_rows}
         technical_total = failed
         return AdminMetrics(
             analyses_by_status=statuses,
@@ -279,7 +306,10 @@ class AdminMetricsService:
             ),
             billing_jobs_by_status=jobs,
             billing_outbox_by_status=outbox,
-            oracle_quality=_oracle_quality(quality_rows, jobs, outbox),
+            payment_orders_by_status=orders,
+            oracle_quality=_oracle_quality(
+                quality_rows, jobs, outbox, orders, awaiting_notification
+            ),
         )
 
 
@@ -287,6 +317,8 @@ def _oracle_quality(
     rows: Iterable[tuple[str, Mapping[str, str]]],
     jobs: dict[str, int],
     outbox: dict[str, int],
+    orders: dict[str, int],
+    awaiting_notification: int,
 ) -> OracleQualityMetrics:
     llm: dict[tuple[str, str, str, str], _LLMAccumulator] = {}
     astrology: dict[tuple[str, str], _AstrologyAccumulator] = {}
@@ -416,6 +448,9 @@ def _oracle_quality(
             jobs_pending_or_claimed=jobs.get("pending", 0) + jobs.get("claimed", 0),
             outbox_manual_review=outbox.get("manual_review", 0),
             outbox_pending_or_claimed=outbox.get("pending", 0) + outbox.get("claimed", 0),
+            orders_manual_review=orders.get("manual_review", 0),
+            orders_pending_or_creating=orders.get("pending", 0) + orders.get("creating", 0),
+            buyers_awaiting_notification=awaiting_notification,
         ),
     )
 

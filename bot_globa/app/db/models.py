@@ -257,6 +257,11 @@ class PaymentOrder(Base):
             unique=True,
             postgresql_where=text("status IN ('creating','pending')"),
         ),
+        Index(
+            "ix_payment_orders_pending_buyer_notification",
+            "completed_at",
+            postgresql_where=text("status = 'completed' AND buyer_notified_at IS NULL"),
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
@@ -309,6 +314,9 @@ class PaymentOrder(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checkout_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A hosted checkout is completed by a worker minutes after the buyer left the browser,
+    # so the bot has to tell them; this stamp keeps that message exactly once.
+    buyer_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     provider_live_mode: Mapped[bool | None] = mapped_column(Boolean)
     encrypted_receipt_contact: Mapped[bytes | None] = mapped_column(LargeBinary)
 
