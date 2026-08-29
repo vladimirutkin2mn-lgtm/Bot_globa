@@ -60,3 +60,37 @@ class DailyHoroscopeSnapshotRow(Base):
     sky_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DailyHoroscopeFeedback(Base):
+    """One evening usefulness response for one delivered daily horoscope."""
+
+    __tablename__ = "daily_horoscope_feedback"
+    __table_args__ = (
+        CheckConstraint(
+            "answer IS NULL OR answer IN ('useful','not_useful')",
+            name="ck_daily_horoscope_feedback_answer",
+        ),
+        CheckConstraint(
+            "(answer IS NULL AND answered_at IS NULL) OR "
+            "(answer IS NOT NULL AND answered_at IS NOT NULL)",
+            name="ck_daily_horoscope_feedback_answered",
+        ),
+        CheckConstraint(
+            "(prompt_claim_id IS NULL AND prompt_lease_until IS NULL) OR "
+            "(prompt_claim_id IS NOT NULL AND prompt_lease_until IS NOT NULL)",
+            name="ck_daily_horoscope_feedback_claim",
+        ),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    forecast_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    prompt_claim_id: Mapped[UUID | None] = mapped_column(index=True)
+    prompt_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    prompted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    answer: Mapped[str | None] = mapped_column(String(16))
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
