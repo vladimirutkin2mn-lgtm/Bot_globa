@@ -43,6 +43,10 @@ TIMEZONE_ERROR = (
     "например: 0, +2 или -1."
 )
 
+DAILY_FEEDBACK_PROMPT = "🌙 Как прошёл ваш день?\n\nУдалось ли сегодня воспользоваться прогнозом?"
+DAILY_FEEDBACK_THANKS = "Спасибо ✨ Это помогает делать ежедневные прогнозы полезнее."
+DAILY_FEEDBACK_CLOSED = "Этот вопрос уже закрыт."
+
 
 def render_daily_horoscope(value: date | DailyHoroscopeSnapshot) -> str:
     """Render one bounded digest shared by every user for the same calculated snapshot."""
