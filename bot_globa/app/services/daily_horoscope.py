@@ -1,17 +1,19 @@
 """Durable default-on and lease-based delivery for the common daily digest."""
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import Date, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.daily_horoscope_models import DailyHoroscopePreference
+from app.db.daily_horoscope_models import DailyHoroscopeFeedback, DailyHoroscopePreference
 from app.db.models import User
 from app.domain.daily_horoscope import (
     DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
     DailyHoroscopeClaim,
+    DailyHoroscopeFeedbackAnswer,
+    DailyHoroscopeFeedbackClaim,
     DailyHoroscopeMode,
     DailyHoroscopePreferenceView,
     timezone_for_moscow_time_difference,
@@ -28,6 +30,7 @@ _DELIVERY_TIMES = {
     DailyHoroscopeMode.MORNING: time(8, 0),
     DailyHoroscopeMode.EVENING: time(20, 0),
 }
+_FEEDBACK_TIME = time(20, 30)
 
 
 class DailyHoroscopePreferenceService:
@@ -226,6 +229,157 @@ class DailyHoroscopePreferenceService:
                 return False
             preference.claim_id = None
             preference.lease_until = None
+            if claim.mode is DailyHoroscopeMode.MORNING:
+                feedback = await session.get(
+                    DailyHoroscopeFeedback,
+                    (claim.user_id, claim.delivery_date),
+                )
+                if feedback is None:
+                    session.add(
+                        DailyHoroscopeFeedback(
+                            user_id=claim.user_id,
+                            forecast_date=claim.delivery_date,
+                            due_at=_feedback_due_at(claim.delivery_date, preference.timezone),
+                        )
+                    )
+            return True
+
+    async def claim_feedback_due(
+        self,
+        *,
+        now: datetime | None = None,
+        lease_seconds: int = 60,
+    ) -> DailyHoroscopeFeedbackClaim | None:
+        """Lease one evening usefulness prompt that has not been sent yet."""
+
+        if lease_seconds < 1:
+            raise ValueError("daily horoscope feedback lease must be positive")
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            row = (
+                await session.execute(
+                    select(DailyHoroscopeFeedback, User.telegram_user_id)
+                    .join(User, User.id == DailyHoroscopeFeedback.user_id)
+                    .where(
+                        DailyHoroscopeFeedback.due_at <= current,
+                        DailyHoroscopeFeedback.prompted_at.is_(None),
+                        or_(
+                            DailyHoroscopeFeedback.prompt_lease_until.is_(None),
+                            DailyHoroscopeFeedback.prompt_lease_until <= current,
+                        ),
+                        User.telegram_user_id.is_not(None),
+                        User.privacy_status != "deleted",
+                        User.consent_version == CURRENT_CONSENT_VERSION,
+                    )
+                    .order_by(DailyHoroscopeFeedback.due_at)
+                    .with_for_update(of=DailyHoroscopeFeedback, skip_locked=True)
+                    .limit(1)
+                )
+            ).one_or_none()
+            if row is None:
+                return None
+            feedback, telegram_user_id = row
+            claim_id = uuid4()
+            feedback.prompt_claim_id = claim_id
+            feedback.prompt_lease_until = current + timedelta(seconds=lease_seconds)
+            await session.flush()
+            return DailyHoroscopeFeedbackClaim(
+                claim_id=claim_id,
+                user_id=feedback.user_id,
+                telegram_user_id=int(telegram_user_id),
+                forecast_date=feedback.forecast_date,
+            )
+
+    async def reserve_feedback_prompt(
+        self,
+        claim: DailyHoroscopeFeedbackClaim,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        """Reserve the prompt before Telegram I/O so a crash cannot duplicate it."""
+
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            feedback = await session.get(
+                DailyHoroscopeFeedback,
+                (claim.user_id, claim.forecast_date),
+                with_for_update=True,
+            )
+            if feedback is None or feedback.prompt_claim_id != claim.claim_id:
+                return False
+            if feedback.prompted_at is not None:
+                return False
+            feedback.prompted_at = current
+            await session.flush()
+            return True
+
+    async def complete_feedback_prompt(
+        self,
+        claim: DailyHoroscopeFeedbackClaim,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        """Acknowledge a reserved feedback prompt and clear its lease."""
+
+        _utc(now)
+        async with self._sessions.begin() as session:
+            feedback = await session.get(
+                DailyHoroscopeFeedback,
+                (claim.user_id, claim.forecast_date),
+                with_for_update=True,
+            )
+            if (
+                feedback is None
+                or feedback.prompt_claim_id != claim.claim_id
+                or feedback.prompted_at is None
+            ):
+                return False
+            feedback.prompt_claim_id = None
+            feedback.prompt_lease_until = None
+            return True
+
+    async def release_feedback_prompt(
+        self,
+        claim: DailyHoroscopeFeedbackClaim,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        """Drop a feedback lease without making an unsent prompt look delivered."""
+
+        _utc(now)
+        async with self._sessions.begin() as session:
+            feedback = await session.get(
+                DailyHoroscopeFeedback,
+                (claim.user_id, claim.forecast_date),
+                with_for_update=True,
+            )
+            if feedback is None or feedback.prompt_claim_id != claim.claim_id:
+                return False
+            feedback.prompt_claim_id = None
+            feedback.prompt_lease_until = None
+            return True
+
+    async def submit_feedback(
+        self,
+        user_id: UUID,
+        forecast_date: date,
+        answer: DailyHoroscopeFeedbackAnswer,
+        *,
+        now: datetime | None = None,
+    ) -> bool:
+        """Persist the first one-tap answer for a prompt that was actually sent."""
+
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            feedback = await session.get(
+                DailyHoroscopeFeedback,
+                (user_id, forecast_date),
+                with_for_update=True,
+            )
+            if feedback is None or feedback.prompted_at is None or feedback.answer is not None:
+                return False
+            feedback.answer = answer.value
+            feedback.answered_at = current
             return True
 
     async def release(
@@ -308,3 +462,8 @@ def _next_delivery(mode: DailyHoroscopeMode, now: datetime, timezone: str) -> da
     if candidate <= local_now:
         candidate += timedelta(days=1)
     return candidate.astimezone(UTC)
+
+
+def _feedback_due_at(forecast_date: date, timezone: str) -> datetime:
+    zone = ZoneInfo(timezone)
+    return datetime.combine(forecast_date, _FEEDBACK_TIME, tzinfo=zone).astimezone(UTC)
