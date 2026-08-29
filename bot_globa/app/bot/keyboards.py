@@ -109,6 +109,25 @@ def daily_horoscope_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def daily_feedback_keyboard(forecast_date: str) -> InlineKeyboardMarkup:
+    """Collect one low-friction usefulness signal for a specific forecast date."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Да, пригодился",
+                    callback_data=f"daily:feedback:useful:{forecast_date}",
+                ),
+                InlineKeyboardButton(
+                    text="Нет, не пригодился",
+                    callback_data=f"daily:feedback:not_useful:{forecast_date}",
+                ),
+            ]
+        ]
+    )
+
+
 def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> InlineKeyboardMarkup:
     """Offer one delivery switch plus the user's local-time setting."""
 
