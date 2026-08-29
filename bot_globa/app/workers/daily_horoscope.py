@@ -8,14 +8,18 @@ import signal
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 
-from app.bot.daily_horoscope import render_daily_horoscope
-from app.bot.keyboards import daily_horoscope_keyboard
+from app.bot.daily_horoscope import DAILY_FEEDBACK_PROMPT, render_daily_horoscope
+from app.bot.keyboards import daily_feedback_keyboard, daily_horoscope_keyboard
 from app.bot.scene_media import Scene, send_scene_photo
 from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.deployment import DeploymentSettings, get_deployment_settings
-from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeMode
+from app.domain.daily_horoscope import (
+    DailyHoroscopeClaim,
+    DailyHoroscopeFeedbackClaim,
+    DailyHoroscopeMode,
+)
 from app.logging import configure_logging
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
@@ -62,12 +66,43 @@ async def _send_digest(
                 raise
 
 
+async def _send_feedback_prompt(
+    bot: Bot,
+    claim: DailyHoroscopeFeedbackClaim,
+    *,
+    max_attempts: int,
+    stopped: asyncio.Event,
+) -> None:
+    """Send one lightweight evening prompt, retrying only explicit Telegram throttling."""
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            await bot.send_message(
+                claim.telegram_user_id,
+                DAILY_FEEDBACK_PROMPT,
+                reply_markup=daily_feedback_keyboard(claim.forecast_date.isoformat()),
+            )
+            return
+        except TelegramRetryAfter as throttled:
+            if attempt == max_attempts:
+                raise
+            logger.info(
+                "daily_horoscope_feedback_throttled attempt=%s retry_after=%s",
+                attempt,
+                throttled.retry_after,
+            )
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stopped.wait(), timeout=throttled.retry_after)
+            if stopped.is_set():
+                raise
+
+
 async def run(
     settings: Settings | None = None,
     deployment: DeploymentSettings | None = None,
     stop: asyncio.Event | None = None,
 ) -> None:
-    """Deliver every due local-morning schedule until SIGTERM/SIGINT."""
+    """Deliver due morning digests and evening feedback prompts until SIGTERM/SIGINT."""
 
     resolved = settings or get_settings()
     runtime = deployment or get_deployment_settings()
@@ -84,6 +119,45 @@ async def run(
             loop.add_signal_handler(sig, stopped.set)
     try:
         while not stopped.is_set():
+            feedback_claim = await preferences.claim_feedback_due(
+                lease_seconds=runtime.daily_horoscope_lease_seconds
+            )
+            if feedback_claim is not None:
+                try:
+                    reserved = await preferences.reserve_feedback_prompt(feedback_claim)
+                    if not reserved:
+                        await preferences.release_feedback_prompt(feedback_claim)
+                        continue
+                    await _send_feedback_prompt(
+                        bot,
+                        feedback_claim,
+                        max_attempts=runtime.daily_horoscope_send_max_attempts,
+                        stopped=stopped,
+                    )
+                except asyncio.CancelledError:
+                    await preferences.release_feedback_prompt(feedback_claim)
+                    raise
+                except TelegramForbiddenError:
+                    logger.info("daily_horoscope_feedback_recipient_unavailable")
+                    with contextlib.suppress(LookupError):
+                        await preferences.configure(
+                            feedback_claim.user_id,
+                            DailyHoroscopeMode.DISABLED,
+                        )
+                except Exception:
+                    logger.exception("daily_horoscope_feedback_delivery_failed")
+                    await preferences.release_feedback_prompt(feedback_claim)
+                else:
+                    await preferences.complete_feedback_prompt(feedback_claim)
+                    logger.info("daily_horoscope_feedback_prompt_delivered")
+
+                if runtime.daily_horoscope_send_interval_seconds:
+                    with contextlib.suppress(TimeoutError):
+                        await asyncio.wait_for(
+                            stopped.wait(),
+                            timeout=runtime.daily_horoscope_send_interval_seconds,
+                        )
+
             claim = await preferences.claim_due(lease_seconds=runtime.daily_horoscope_lease_seconds)
             if claim is None:
                 with contextlib.suppress(TimeoutError):

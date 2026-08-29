@@ -14,7 +14,7 @@ from app.db.birth_profile_models import (
     BirthProfileConsent,
     BirthProfilePrivateContent,
 )
-from app.db.daily_horoscope_models import DailyHoroscopePreference
+from app.db.daily_horoscope_models import DailyHoroscopeFeedback, DailyHoroscopePreference
 from app.db.memory_models import (
     OracleMemoryConsent,
     OracleMemoryItem,
@@ -96,7 +96,7 @@ class DataDeletionService:
         # AnalysisPrivateContent -> Reading -> ReadingPrivateContent -> ReadingSymbol ->
         # OracleMemoryConsent -> OracleMemoryItem -> OracleMemoryPrivateContent ->
         # BirthProfileConsent -> BirthProfile -> BirthProfilePrivateContent ->
-        # DailyHoroscopePreference.
+        # DailyHoroscopeFeedback -> DailyHoroscopePreference.
         discovered_orders = list(
             (
                 await self.session.execute(
@@ -242,6 +242,9 @@ class DataDeletionService:
             await self.session.execute(
                 delete(BirthProfileConsent).where(BirthProfileConsent.user_id == user_id)
             )
+        await self.session.execute(
+            delete(DailyHoroscopeFeedback).where(DailyHoroscopeFeedback.user_id == user_id)
+        )
         await self.session.execute(
             delete(DailyHoroscopePreference).where(DailyHoroscopePreference.user_id == user_id)
         )
