@@ -50,10 +50,15 @@ def event_belongs_to_this_product(event_type: str, metadata: Mapping[str, object
     return marker is None or marker == PRODUCT_IDENTITY.repository_slug
 
 
+# Only terminal outcomes are accepted. Every checkout this product creates carries
+# `capture: true`, so a hold is never expected — and `payment.waiting_for_capture` is not a
+# harmless extra notification: completion treats that state as `unexpected_waiting_for_capture`
+# and parks the order in `manual_review`, which the stale-order sweeper no longer looks at.
+# A hold that later captures would then be money taken against a permanently dead order, so
+# the notification is dropped and the terminal `payment.succeeded` does the work.
 YOOKASSA_PAYMENT_EVENTS = {
     "payment.succeeded",
     "payment.canceled",
-    "payment.waiting_for_capture",
 }
 
 
@@ -162,11 +167,28 @@ async def yookassa_webhook(request: Request) -> dict[str, str]:
     ):
         raise HTTPException(503, "provider unavailable")
     peer = request.client.host if request.client else ""
+    # YooKassa authenticates by source address alone, so a rejection here silently discards a
+    # real payment notification. Both rejections name the address that failed and which list
+    # it failed against: behind a reverse proxy the peer is the proxy, and an empty
+    # YOOKASSA_TRUSTED_PROXY_ALLOWLIST rejects every forwarded request before the provider
+    # allowlist is ever consulted.
     try:
         source = resolve_source_ip(peer, request.headers, settings.yookassa_trusted_proxy_allowlist)
-    except (PaymentPayloadError, PaymentSignatureError):
+    except (PaymentPayloadError, PaymentSignatureError) as exc:
+        logger.warning(
+            "yookassa_webhook_rejected reason=forwarding peer=%s detail=%s "
+            "(check YOOKASSA_TRUSTED_PROXY_ALLOWLIST)",
+            peer,
+            exc,
+        )
         raise HTTPException(403, "invalid source") from None
     if not source_is_allowed(source, settings.yookassa_webhook_ip_allowlist):
+        logger.warning(
+            "yookassa_webhook_rejected reason=source_not_allowed peer=%s source=%s "
+            "(check YOOKASSA_WEBHOOK_IP_ALLOWLIST)",
+            peer,
+            source,
+        )
         raise HTTPException(403, "invalid source")
     try:
         value = json.loads(body)

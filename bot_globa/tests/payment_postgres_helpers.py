@@ -14,9 +14,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-# Imported for its side effect: the shared metadata needs every mapped table before
-# create_all can resolve the foreign keys that point at `readings`.
-from app.db import reading_models as _reading_models  # noqa: F401
+# `app.db` registers every mapped model on import, which create_all needs before it can
+# resolve the foreign keys that point at `readings`.
 from app.db.base import Base
 from app.db.models import BillingJob, PaymentOrder, ProviderWebhookEvent, User
 from app.providers.payments.gateway import AuthoritativePayment, CreateCheckout, HostedCheckout

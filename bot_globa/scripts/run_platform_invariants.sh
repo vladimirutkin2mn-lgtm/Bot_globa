@@ -4,6 +4,8 @@ set -euo pipefail
 # These tests freeze production-sensitive billing, privacy and consent behavior.
 # Keep the list small and explicit so a green full suite cannot hide a broken invariant.
 pytest \
+  tests/test_runtime_model_registry.py::test_entrypoint_resolves_every_mapped_foreign_key \
+  tests/test_runtime_model_registry.py::test_the_billing_worker_can_build_a_credit_transaction_insert \
   tests/test_credits_repository_postgres.py::test_same_analysis_spend_and_refund_are_exactly_once \
   tests/test_credits_repository_postgres.py::test_different_spends_never_make_balance_negative \
   tests/test_credits_repository_postgres.py::test_cross_user_spend_never_exposes_or_refunds_owner_transaction \
