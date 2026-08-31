@@ -79,7 +79,7 @@ def test_daily_v5_changes_shared_theme_on_adjacent_days() -> None:
 
 def test_daily_v5_fourteen_day_audit_never_repeats_identical_sign_copy() -> None:
     snapshots = [
-        build_editorial_daily_horoscope(date(2026, 8, 18).fromordinal(date(2026, 8, 18).toordinal() + offset))
+        build_editorial_daily_horoscope(date.fromordinal(date(2026, 8, 18).toordinal() + offset))
         for offset in range(14)
     ]
 
@@ -90,7 +90,7 @@ def test_daily_v5_fourteen_day_audit_never_repeats_identical_sign_copy() -> None
 
     for sign_index, _sign in enumerate(ZodiacSign):
         texts = [snapshot.signs[sign_index].text for snapshot in snapshots]
-        assert all(previous != current for previous, current in zip(texts, texts[1:], strict=True))
+        assert all(previous != current for previous, current in zip(texts, texts[1:]))
         assert len(set(texts)) >= 4
 
 
@@ -104,7 +104,7 @@ def test_daily_v5_fourteen_day_audit_limits_topic_streaks() -> None:
         topics = [snapshot.signs[sign_index].text.partition(": ")[0] for snapshot in snapshots]
         longest = 1
         current = 1
-        for previous, topic in zip(topics, topics[1:], strict=True):
+        for previous, topic in zip(topics, topics[1:]):
             current = current + 1 if previous == topic else 1
             longest = max(longest, current)
         assert longest <= 2
