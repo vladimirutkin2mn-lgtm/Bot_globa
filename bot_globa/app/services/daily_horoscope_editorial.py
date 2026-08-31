@@ -16,7 +16,7 @@ from app.services.daily_sky import (
     build_daily_horoscope,
 )
 
-DAILY_EDITORIAL_METHOD_VERSION = "solar-sign-daily-v4"
+DAILY_EDITORIAL_METHOD_VERSION = "solar-sign-daily-v5"
 
 _STORIES = MappingProxyType(
     {
@@ -110,7 +110,7 @@ _GENERAL_STORIES = (
 
 
 def build_editorial_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
-    """Build one v4 snapshot with concise, non-repetitive human-facing forecasts."""
+    """Build one v5 snapshot with date-rotated, non-repetitive human-facing forecasts."""
 
     base = build_daily_horoscope(forecast_date)
     used: set[str] = set()
@@ -132,7 +132,8 @@ def _editorialize(
 ) -> DailySignForecast:
     topic, separator, signal = item.text.partition(": ")
     candidates = _STORIES.get(topic, _GENERAL_STORIES) if separator else _GENERAL_STORIES
-    start = _stable_index(forecast_date, item.sign, signal or item.text, len(candidates))
+    rotation_key = topic if separator else "general"
+    start = _stable_index(forecast_date, item.sign, rotation_key, len(candidates))
     for offset in range(len(candidates)):
         candidate = candidates[(start + offset) % len(candidates)]
         if candidate not in used:
@@ -147,6 +148,9 @@ def _editorialize(
     return DailySignForecast(item.sign, distinct)
 
 
-def _stable_index(forecast_date: date, sign: ZodiacSign, signal: str, size: int) -> int:
-    payload = f"{forecast_date.isoformat()}|{sign.value}|{signal}".encode()
-    return int.from_bytes(hashlib.sha256(payload).digest()[:4], "big") % size
+def _stable_index(forecast_date: date, sign: ZodiacSign, rotation_key: str, size: int) -> int:
+    """Advance one slot per civil day while keeping a stable per-sign/topic phase."""
+
+    payload = f"{sign.value}|{rotation_key}".encode()
+    phase = int.from_bytes(hashlib.sha256(payload).digest()[:4], "big") % size
+    return (phase + forecast_date.toordinal()) % size
