@@ -366,9 +366,7 @@ def build_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
         driver,
         avoid=_theme_for_date(previous_sky.forecast_date, previous_driver),
     )
-    signs = tuple(
-        _forecast_for_sign(sky, sign, previous_sky=previous_sky) for sign in ZodiacSign
-    )
+    signs = tuple(_forecast_for_sign(sky, sign, previous_sky=previous_sky) for sign in ZodiacSign)
     return DailyHoroscopeSnapshot(
         forecast_date=forecast_date,
         sky_digest=sky.digest(),
@@ -383,9 +381,7 @@ def _theme_for_date(
     *,
     avoid: str | None = None,
 ) -> str:
-    options = (
-        _ASPECT_THEME_VARIANTS[driver.kind] if driver is not None else _NEUTRAL_THEME_VARIANTS
-    )
+    options = _ASPECT_THEME_VARIANTS[driver.kind] if driver is not None else _NEUTRAL_THEME_VARIANTS
     body_offset = 0
     if driver is not None:
         body_offset = _BODY_PRIORITY[driver.first_body] * 3 + _BODY_PRIORITY[driver.second_body]
@@ -470,9 +466,7 @@ def _credible_distinct_house_candidates(
     """Keep up to three strong stories in distinct houses for product-level variety."""
 
     best_house_priority = ranked[0][0][0]
-    candidates: list[
-        tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]
-    ] = []
+    candidates: list[tuple[tuple[int, int, int, int], DailySkyPlanet, DailySkyAspect | None]] = []
     seen_houses: set[int] = set()
     fast_bodies = {
         NatalBody.MOON,
