@@ -130,7 +130,7 @@ def _editorialize(
     forecast_date: date,
     used: set[str],
 ) -> DailySignForecast:
-    topic, separator, signal = item.text.partition(": ")
+    topic, separator, _signal = item.text.partition(": ")
     candidates = _STORIES.get(topic, _GENERAL_STORIES) if separator else _GENERAL_STORIES
     rotation_key = topic if separator else "general"
     start = _stable_index(forecast_date, item.sign, rotation_key, len(candidates))
