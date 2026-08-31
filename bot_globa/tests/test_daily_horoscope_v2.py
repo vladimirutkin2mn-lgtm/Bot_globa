@@ -1,4 +1,5 @@
 from datetime import date
+from itertools import pairwise
 
 from app.bot.daily_horoscope import render_daily_horoscope
 from app.bot.scene_media import TELEGRAM_CAPTION_LIMIT
@@ -89,7 +90,7 @@ def test_daily_v5_fourteen_day_audit_never_repeats_identical_sign_copy() -> None
 
     for sign_index, _sign in enumerate(ZodiacSign):
         texts = [snapshot.signs[sign_index].text for snapshot in snapshots]
-        assert all(previous != current for previous, current in zip(texts, texts[1:]))
+        assert all(previous != current for previous, current in pairwise(texts))
         assert len(set(texts)) >= 4
 
 
@@ -103,7 +104,7 @@ def test_daily_v5_fourteen_day_audit_limits_topic_streaks() -> None:
         topics = [snapshot.signs[sign_index].text.partition(": ")[0] for snapshot in snapshots]
         longest = 1
         current = 1
-        for previous, topic in zip(topics, topics[1:]):
+        for previous, topic in pairwise(topics):
             current = current + 1 if previous == topic else 1
             longest = max(longest, current)
         assert longest <= 2
