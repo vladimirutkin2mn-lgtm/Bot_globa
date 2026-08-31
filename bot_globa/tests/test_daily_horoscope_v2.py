@@ -84,8 +84,7 @@ def test_daily_v5_fourteen_day_audit_never_repeats_identical_sign_copy() -> None
     ]
 
     assert all(
-        snapshots[index - 1].theme != snapshots[index].theme
-        for index in range(1, len(snapshots))
+        snapshots[index - 1].theme != snapshots[index].theme for index in range(1, len(snapshots))
     )
 
     for sign_index, _sign in enumerate(ZodiacSign):
