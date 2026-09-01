@@ -100,6 +100,8 @@ class LangSmithLLMTraceSink:
         if completion is not None:
             metadata["provider"] = completion.provider
             metadata["model"] = completion.model
+            metadata["ls_provider"] = completion.provider
+            metadata["ls_model_name"] = completion.model
             if completion.input_tokens is not None:
                 metadata["input_tokens"] = completion.input_tokens
             if completion.output_tokens is not None:
