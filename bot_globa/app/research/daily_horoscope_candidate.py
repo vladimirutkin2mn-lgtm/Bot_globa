@@ -16,7 +16,7 @@ from app.services.daily_sky import (
     build_daily_horoscope,
 )
 
-RESEARCH_CANDIDATE_VERSION = "v6-exp-001-stable-per-sign"
+RESEARCH_CANDIDATE_VERSION = "v6-exp-002-unique-duplicate-openers"
 
 _STORIES = MappingProxyType(
     {
@@ -108,19 +108,19 @@ _GENERAL_STORIES = (
     "Суета собьёт темп — оставьте запас между делами.",
 )
 
-_DUPLICATE_TAILS = (
-    "Смелее.",
-    "Без спешки.",
-    "Держите курс.",
-    "Сначала главное.",
-    "Оставьте запас.",
-    "Не форсируйте.",
-    "Проверьте детали.",
-    "Сверьтесь с фактами.",
-    "Сделайте паузу.",
-    "Действуйте точнее.",
-    "Сохраните фокус.",
-    "Выберите главное.",
+_DUPLICATE_OPENERS = (
+    "Сейчас",
+    "Ваш ход",
+    "Точка дня",
+    "Главный акцент",
+    "Верный темп",
+    "Ключевой момент",
+    "Полезный фокус",
+    "Лучший ход",
+    "Точный ориентир",
+    "Важный нюанс",
+    "Сильная позиция",
+    "Личный ориентир",
 )
 
 
@@ -158,7 +158,7 @@ def _editorialize(
     # order. If two signs land on the same story today, disambiguate only the later one
     # instead of shifting it to another story and accidentally repeating yesterday's copy.
     sign_index = tuple(ZodiacSign).index(item.sign)
-    distinct = f"{candidate} {_DUPLICATE_TAILS[sign_index]}"
+    distinct = f"{_DUPLICATE_OPENERS[sign_index]}: {candidate}"
     used.add(distinct)
     return DailySignForecast(item.sign, distinct)
 
