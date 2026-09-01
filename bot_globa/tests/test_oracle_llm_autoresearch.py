@@ -47,7 +47,7 @@ class GoldenResearchLLM:
 
 def _reading_payload(request: LLMRequest) -> dict[str, object]:
     raw = request.user_prompt.split("INPUT_JSON:\n", 1)[1]
-    input_payload = json.loads(raw)
+    input_payload = json.loads(raw.split("\n\nCORRECTION_INSTRUCTION:", 1)[0])
     persona = request.telemetry_persona_code
     selected = input_payload["selected_symbols"]
 
@@ -110,7 +110,7 @@ def _reading_payload(request: LLMRequest) -> dict[str, object]:
 def _horoscope_payload(request: LLMRequest) -> dict[str, object]:
     input_block, facts_block = request.user_prompt.split("\n\nFACT_BUNDLE_JSON:\n", 1)
     input_payload = json.loads(input_block.split("INPUT_JSON:\n", 1)[1])
-    facts = json.loads(facts_block)
+    facts = json.loads(facts_block.split("\n\nCORRECTION_INSTRUCTION:", 1)[0])
     fact_id = facts["facts"][0]["fact_id"]
     return {
         "title": "Главный акцент вашей карты",
