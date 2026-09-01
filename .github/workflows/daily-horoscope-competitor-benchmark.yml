@@ -1,0 +1,62 @@
+name: Daily horoscope competitor benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      period:
+        description: Relative Orakul period to benchmark
+        type: choice
+        options:
+          - today
+          - yesterday
+          - tomorrow
+        default: today
+  schedule:
+    # 08:15 Moscow time. This is deliberately after Numa's 08:00 daily send.
+    - cron: "15 5 * * *"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: bot_globa
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.28"
+          enable-cache: true
+          cache-dependency-glob: bot_globa/uv.lock
+
+      - name: Install the exact locked dependency set
+        run: uv sync --frozen
+
+      - name: Benchmark Numa against Orakul
+        env:
+          BENCHMARK_PERIOD: ${{ github.event_name == 'workflow_dispatch' && inputs.period || 'today' }}
+        run: |
+          uv run python scripts/benchmark_daily_horoscope.py \
+            --period "${BENCHMARK_PERIOD}" \
+            --output-dir benchmark-artifacts
+
+      - name: Publish benchmark summary
+        run: cat benchmark-artifacts/daily-horoscope-benchmark.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload derived benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-horoscope-competitor-benchmark-${{ github.run_number }}
+          path: |
+            bot_globa/benchmark-artifacts/daily-horoscope-benchmark.json
+            bot_globa/benchmark-artifacts/daily-horoscope-benchmark.md
+          if-no-files-found: error
+          retention-days: 30
