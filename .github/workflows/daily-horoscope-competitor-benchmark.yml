@@ -1,6 +1,12 @@
 name: Daily horoscope competitor benchmark
 
 on:
+  pull_request:
+    paths:
+      - "bot_globa/app/services/daily_horoscope_benchmark.py"
+      - "bot_globa/scripts/benchmark_daily_horoscope.py"
+      - "bot_globa/tests/test_daily_horoscope_benchmark.py"
+      - ".github/workflows/daily-horoscope-competitor-benchmark.yml"
   workflow_dispatch:
     inputs:
       period:
