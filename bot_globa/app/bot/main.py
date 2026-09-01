@@ -36,6 +36,7 @@ from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog, ProductCode
 from app.logging import configure_logging
 from app.observability.errors import LoggingErrorReporter, NoOpErrorReporter
+from app.observability.langsmith import wrap_llm_with_langsmith
 from app.observability.oracle_quality import (
     LLMCostPolicy,
     ObservedLLMClient,
@@ -125,6 +126,7 @@ def create_dispatcher(
         events_isolation=PostgresEventIsolation(resolved_engine),
     )
     raw_llm = create_llm_client(settings)
+    traced_llm = wrap_llm_with_langsmith(raw_llm, resolved_observability)
     payments = create_payment_components(settings, bot)
     product_catalog = ProductCatalog(settings)
     billing_catalog = BillingCatalog(settings)
@@ -145,7 +147,7 @@ def create_dispatcher(
             resolved_observability.llm_output_cost_usd_per_million_tokens,
         ),
     )
-    llm = ObservedLLMClient(raw_llm, quality_observer)
+    llm = ObservedLLMClient(traced_llm, quality_observer)
     reporter = (
         LoggingErrorReporter()
         if resolved_observability.error_reporting_backend == "logging"
