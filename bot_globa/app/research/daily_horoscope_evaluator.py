@@ -160,7 +160,8 @@ def evaluate_builder(
 
         daily_unique_ratios.append(len(set(texts)) / len(ZodiacSign))
         max_caption_chars = max(max_caption_chars, len(render_daily_horoscope(snapshot)))
-        max_words = max(max_words, max(_word_count(text) for text in texts))
+        for text in texts:
+            max_words = max(max_words, _word_count(text))
 
         forecasts = [BenchmarkForecast(sign=item.sign, text=item.text) for item in snapshot.signs]
         metrics = build_benchmark_metrics(forecasts)
