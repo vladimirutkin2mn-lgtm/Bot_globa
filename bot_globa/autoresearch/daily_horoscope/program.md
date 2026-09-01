@@ -10,7 +10,7 @@ one immutable evaluator, one comparable score, keep improvements and discard reg
 Increase `numa_score` while preserving every hard product gate.
 
 The score is deterministic and evaluated on the same 60 civil dates every experiment.
-Production Numa v6 is evaluated on the exact same dates and is the baseline.
+Production Numa v7 is evaluated on the exact same dates and is the baseline.
 
 ## The only file you may edit
 
