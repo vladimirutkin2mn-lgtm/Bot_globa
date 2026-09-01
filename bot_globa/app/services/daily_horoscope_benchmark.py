@@ -324,17 +324,10 @@ def build_benchmark_metrics(forecasts: Sequence[BenchmarkForecast]) -> Benchmark
     for topic in topics:
         topic_distribution[topic] = topic_distribution.get(topic, 0) + 1
 
-    pair_overlaps = [
-        _jaccard(set(first), set(second))
-        for first, second in combinations(tokens, 2)
-    ]
+    pair_overlaps = [_jaccard(set(first), set(second)) for first, second in combinations(tokens, 2)]
     lexical_diversity = 1.0 - (fmean(pair_overlaps) if pair_overlaps else 0.0)
 
-    openings = {
-        tuple(significant[:4])
-        for significant in tokens
-        if significant
-    }
+    openings = {tuple(significant[:4]) for significant in tokens if significant}
     unique_opening_ratio = len(openings) / len(texts)
 
     covered = sum(topic != "other" for topic in topics)
