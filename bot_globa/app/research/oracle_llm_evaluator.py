@@ -7,7 +7,7 @@ experiments must never edit this module.
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from statistics import fmean
 from typing import Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
