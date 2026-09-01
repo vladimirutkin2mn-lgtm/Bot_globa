@@ -5,6 +5,12 @@ on:
   pull_request:
     paths:
       - "bot_globa/app/research/**"
+      - "bot_globa/app/services/daily_horoscope_editorial.py"
+      - "bot_globa/app/services/daily_horoscope_benchmark.py"
+      - "bot_globa/app/services/daily_sky.py"
+      - "bot_globa/app/bot/daily_horoscope.py"
+      - "bot_globa/app/bot/scene_media.py"
+      - "bot_globa/app/domain/natal_chart.py"
       - "bot_globa/scripts/run_daily_horoscope_autoresearch.py"
       - "bot_globa/tests/test_daily_horoscope_autoresearch.py"
       - "bot_globa/autoresearch/daily_horoscope/program.md"
