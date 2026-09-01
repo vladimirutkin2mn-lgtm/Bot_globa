@@ -73,10 +73,15 @@ def main() -> None:
     )
     (output_dir / "daily-horoscope-autoresearch.md").write_text(markdown, encoding="utf-8")
 
+    failed_gates = [
+        name for name, passed in comparison.candidate.hard_gates.items() if not passed
+    ]
     print(f"numa_score: {comparison.candidate.numa_score:.4f}")
+    print(f"quality_score: {comparison.candidate.quality_score:.4f}")
     print(f"baseline_score: {comparison.baseline.numa_score:.4f}")
     print(f"delta: {comparison.delta:+.4f}")
     print(f"gates_passed: {str(comparison.candidate.gates_passed).lower()}")
+    print(f"failed_gates: {','.join(sorted(failed_gates)) or 'none'}")
     print("---")
     print(markdown)
 
