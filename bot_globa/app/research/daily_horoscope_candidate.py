@@ -16,7 +16,7 @@ from app.services.daily_sky import (
     build_daily_horoscope,
 )
 
-RESEARCH_CANDIDATE_VERSION = "v6-baseline"
+RESEARCH_CANDIDATE_VERSION = "v6-exp-001-stable-per-sign"
 
 _STORIES = MappingProxyType(
     {
@@ -108,6 +108,21 @@ _GENERAL_STORIES = (
     "Суета собьёт темп — оставьте запас между делами.",
 )
 
+_DUPLICATE_TAILS = (
+    "Смелее.",
+    "Без спешки.",
+    "Держите курс.",
+    "Сначала главное.",
+    "Оставьте запас.",
+    "Не форсируйте.",
+    "Проверьте детали.",
+    "Сверьтесь с фактами.",
+    "Сделайте паузу.",
+    "Действуйте точнее.",
+    "Сохраните фокус.",
+    "Выберите главное.",
+)
+
 
 def build_candidate_daily_horoscope(forecast_date: date) -> DailyHoroscopeSnapshot:
     """Build the current research candidate from the immutable astronomy signal."""
@@ -134,16 +149,16 @@ def _editorialize(
     candidates = _STORIES.get(topic, _GENERAL_STORIES) if separator else _GENERAL_STORIES
     rotation_key = topic if separator else "general"
     start = _stable_index(forecast_date, item.sign, rotation_key, len(candidates))
-    for offset in range(len(candidates)):
-        candidate = candidates[(start + offset) % len(candidates)]
-        if candidate not in used:
-            used.add(candidate)
-            return DailySignForecast(item.sign, candidate)
-
-    # This is only an emergency guard for an unusually concentrated sky. It preserves a
-    # meaningful forecast instead of exposing the old mechanical "topic: phrase" format.
     candidate = candidates[start]
-    distinct = f"{candidate}. Выберите ритм, который подходит вам."
+    if candidate not in used:
+        used.add(candidate)
+        return DailySignForecast(item.sign, candidate)
+
+    # Keep each sign's day-to-day rotation independent from earlier signs in the rendering
+    # order. If two signs land on the same story today, disambiguate only the later one
+    # instead of shifting it to another story and accidentally repeating yesterday's copy.
+    sign_index = tuple(ZodiacSign).index(item.sign)
+    distinct = f"{candidate} {_DUPLICATE_TAILS[sign_index]}"
     used.add(distinct)
     return DailySignForecast(item.sign, distinct)
 
