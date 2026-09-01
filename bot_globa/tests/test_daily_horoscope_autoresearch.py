@@ -8,7 +8,7 @@ from app.services.daily_horoscope_editorial import build_editorial_daily_horosco
 from app.services.daily_sky import DailyHoroscopeSnapshot, DailySignForecast
 
 
-def test_v6_action_language_is_recognized_by_benchmark() -> None:
+def test_v7_action_language_is_recognized_by_benchmark() -> None:
     forecasts = [
         BenchmarkForecast(ZodiacSign.ARIES, "Разговор изменит планы — задайте прямой вопрос."),
         BenchmarkForecast(ZodiacSign.TAURUS, "В переписке всплывёт нюанс — перечитайте детали."),
@@ -20,7 +20,7 @@ def test_v6_action_language_is_recognized_by_benchmark() -> None:
     assert metrics.actionable_ratio == 1.0
 
 
-def test_autoresearch_candidate_starts_from_production_v6_copy() -> None:
+def test_autoresearch_candidate_starts_from_production_v7_copy() -> None:
     forecast_date = date(2026, 9, 1)
     candidate = build_candidate_daily_horoscope(forecast_date)
     production = build_editorial_daily_horoscope(forecast_date)
@@ -30,7 +30,7 @@ def test_autoresearch_candidate_starts_from_production_v6_copy() -> None:
     assert candidate.sky_digest == production.sky_digest
 
 
-def test_autoresearch_baseline_passes_fixed_product_gates_on_sample_window() -> None:
+def test_autoresearch_v7_baseline_passes_sample_product_gates() -> None:
     evaluation = evaluate_builder(build_editorial_daily_horoscope, days=14)
 
     assert evaluation.gates_passed
