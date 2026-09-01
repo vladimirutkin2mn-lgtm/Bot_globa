@@ -190,10 +190,12 @@ async def _run(period: str, output_dir: Path) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    markdown = _render_markdown(today, period, numa, reference, comparison)
     (output_dir / "daily-horoscope-benchmark.md").write_text(
-        _render_markdown(today, period, numa, reference, comparison),
+        markdown,
         encoding="utf-8",
     )
+    print(markdown)
 
 
 def main() -> None:
