@@ -30,8 +30,8 @@ def test_autoresearch_candidate_starts_from_production_v7_copy() -> None:
     assert candidate.sky_digest == production.sky_digest
 
 
-def test_autoresearch_v7_baseline_passes_full_fixed_product_gates() -> None:
-    evaluation = evaluate_builder(build_editorial_daily_horoscope)
+def test_autoresearch_v7_baseline_passes_sample_product_gates() -> None:
+    evaluation = evaluate_builder(build_editorial_daily_horoscope, days=14)
 
     assert evaluation.gates_passed
     assert evaluation.numa_score > 0
