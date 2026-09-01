@@ -57,3 +57,37 @@ def test_production_admin_metrics_accept_strong_secret_without_exposing_it() -> 
     assert settings.analytics_backend == "postgres"
     assert secret not in rendered
     assert "**********" in rendered
+
+
+def test_enabled_langsmith_requires_secret_and_project() -> None:
+    with pytest.raises(ValidationError):
+        ObservabilitySettings(langsmith_enabled=True)
+    with pytest.raises(ValidationError):
+        ObservabilitySettings(
+            langsmith_enabled=True,
+            langsmith_api_key=SecretStr("test-key"),
+            langsmith_project="   ",
+        )
+
+
+def test_production_langsmith_requires_https_and_keeps_key_secret() -> None:
+    with pytest.raises(ValidationError):
+        ObservabilitySettings(
+            app_env="production",
+            langsmith_enabled=True,
+            langsmith_api_key=SecretStr("langsmith-production-secret"),
+            langsmith_endpoint="http://langsmith.internal",
+        )
+
+    secret = "langsmith-production-secret"
+    settings = ObservabilitySettings(
+        app_env="production",
+        langsmith_enabled=True,
+        langsmith_api_key=SecretStr(secret),
+        langsmith_endpoint="https://eu.api.smith.langchain.com/",
+        langsmith_project="numa-production",
+    )
+    rendered = f"{settings!r}\n{settings}\n{settings.model_dump_json()}"
+    assert settings.langsmith_endpoint == "https://eu.api.smith.langchain.com"
+    assert secret not in rendered
+    assert "**********" in rendered
