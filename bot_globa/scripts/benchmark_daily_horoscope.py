@@ -52,10 +52,7 @@ class BenchmarkFetchError(RuntimeError):
 
 
 def _build_url(sign: ZodiacSign, period: str) -> str:
-    return (
-        f"{ORAKUL_BASE_URL}/horoscope/astrologic/general/"
-        f"{_ORAKUL_SLUGS[sign]}/{period}.html"
-    )
+    return f"{ORAKUL_BASE_URL}/horoscope/astrologic/general/{_ORAKUL_SLUGS[sign]}/{period}.html"
 
 
 async def _load_robots(client: httpx.AsyncClient) -> RobotFileParser:
