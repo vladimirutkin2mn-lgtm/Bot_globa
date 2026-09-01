@@ -45,9 +45,7 @@ class LangSmithLLMTraceSink:
         self._api_key = settings.langsmith_api_key.get_secret_value().strip()
         self._app_env = settings.app_env
         self._max_pending = settings.langsmith_max_pending_traces
-        self._client = client or httpx.AsyncClient(
-            timeout=settings.langsmith_trace_timeout_seconds
-        )
+        self._client = client or httpx.AsyncClient(timeout=settings.langsmith_trace_timeout_seconds)
         self._owns_client = client is None
         self._pending: set[asyncio.Task[None]] = set()
 
@@ -156,7 +154,7 @@ class LangSmithLLMTraceSink:
                 headers=headers,
             )
             finished.raise_for_status()
-        except httpx.HTTPError:
+        except (httpx.HTTPError, RuntimeError, TypeError, ValueError):
             logger.warning("langsmith_trace_submission_failed")
 
 
