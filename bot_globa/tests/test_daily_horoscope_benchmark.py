@@ -120,3 +120,16 @@ def test_benchmark_recognizes_current_numa_action_verbs() -> None:
     ]
 
     assert build_benchmark_metrics(forecasts).actionable_ratio == 1.0
+
+
+def test_benchmark_does_not_treat_strong_as_health_energy() -> None:
+    forecasts = [
+        BenchmarkForecast(
+            ZodiacSign.ARIES,
+            "Сильная позиция поможет сохранить спокойствие.",
+        )
+    ]
+
+    metrics = build_benchmark_metrics(forecasts)
+
+    assert metrics.topic_distribution == {"other": 1}

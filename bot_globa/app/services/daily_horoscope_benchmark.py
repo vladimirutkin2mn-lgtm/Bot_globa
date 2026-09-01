@@ -132,7 +132,10 @@ _TOPIC_KEYWORDS = MappingProxyType(
             "устал",
             "отдых",
             "сон",
-            "сил",
+            "сила",
+            "силы",
+            "силу",
+            "силой",
         ),
         "travel_learning": (
             "поезд",
