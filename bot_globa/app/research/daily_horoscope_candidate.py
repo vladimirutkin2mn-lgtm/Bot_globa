@@ -16,7 +16,7 @@ from app.services.daily_sky import (
     build_daily_horoscope,
 )
 
-RESEARCH_CANDIDATE_VERSION = "v6-exp-004-neutral-openers"
+RESEARCH_CANDIDATE_VERSION = "v6-exp-003-topic-clear-copy"
 
 _STORIES = MappingProxyType(
     {
@@ -119,7 +119,7 @@ _DUPLICATE_OPENERS = (
     "Лучший ход",
     "Точный ориентир",
     "Важный нюанс",
-    "Ясный акцент",
+    "Сильная позиция",
     "Личный ориентир",
 )
 
