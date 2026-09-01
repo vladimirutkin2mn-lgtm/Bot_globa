@@ -164,9 +164,9 @@ def evaluate_builder(
             max_words = max(max_words, _word_count(text))
 
         forecasts = [BenchmarkForecast(sign=item.sign, text=item.text) for item in snapshot.signs]
-        metrics = build_benchmark_metrics(forecasts)
-        daily_metrics.append(metrics)
-        topic_counts.update(metrics.topic_distribution)
+        daily_metric = build_benchmark_metrics(forecasts)
+        daily_metrics.append(daily_metric)
+        topic_counts.update(daily_metric.topic_distribution)
 
         for item in snapshot.signs:
             per_sign_texts[item.sign].append(item.text)
@@ -199,7 +199,7 @@ def evaluate_builder(
                 repeat_count += 1
             temporal_diversities.append(1.0 - _jaccard(_tokens(previous), _tokens(current)))
 
-    metrics = ResearchMetrics(
+    research_metrics = ResearchMetrics(
         avg_words=avg_words,
         avg_chars=avg_chars,
         max_words=max_words,
@@ -216,15 +216,15 @@ def evaluate_builder(
         min_distinct_texts_per_sign=min(distinct_counts),
         adjacent_repeat_rate=repeat_count / pair_count if pair_count else 0.0,
     )
-    hard_gates = _hard_gates(metrics)
-    quality_score = _quality_score(metrics)
+    hard_gates = _hard_gates(research_metrics)
+    quality_score = _quality_score(research_metrics)
     gates_passed = all(hard_gates.values())
     return ResearchEvaluation(
         numa_score=quality_score if gates_passed else 0.0,
         quality_score=quality_score,
         gates_passed=gates_passed,
         hard_gates=hard_gates,
-        metrics=metrics,
+        metrics=research_metrics,
     )
 
 
