@@ -133,3 +133,20 @@ def test_benchmark_does_not_treat_strong_as_health_energy() -> None:
     metrics = build_benchmark_metrics(forecasts)
 
     assert metrics.topic_distribution == {"other": 1}
+
+
+def test_benchmark_recognizes_additional_current_numa_action_verbs() -> None:
+    forecasts = [
+        BenchmarkForecast(
+            ZodiacSign.ARIES,
+            "Решение созреет быстро — не откладывайте шаг.",
+        ),
+        BenchmarkForecast(
+            ZodiacSign.TAURUS,
+            "Чужие финансовые ожидания давят — отделите обязательства.",
+        ),
+    ]
+
+    metrics = build_benchmark_metrics(forecasts)
+
+    assert metrics.actionable_ratio == 1.0
