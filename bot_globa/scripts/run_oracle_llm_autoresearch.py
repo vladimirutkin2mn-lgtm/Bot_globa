@@ -129,6 +129,9 @@ def _markdown(
             f"{'✅' if case.gates_passed else '❌'} | {'yes' if case.repair_used else 'no'} |"
         )
     if comparison is not None:
+        beats_baseline = str(
+            comparison.candidate.gates_passed and comparison.quality_delta > 0
+        ).lower()
         lines.extend(
             (
                 "",
@@ -141,12 +144,7 @@ def _markdown(
                     if comparison.cost_delta_usd is None
                     else f"- cost delta: USD {comparison.cost_delta_usd:+.6f}"
                 ),
-                (
-                    "- candidate beats baseline: "
-                    str(
-                        comparison.candidate.gates_passed and comparison.quality_delta > 0
-                    ).lower()
-                ),
+                f"- candidate beats baseline: {beats_baseline}",
             )
         )
     lines.append("")
