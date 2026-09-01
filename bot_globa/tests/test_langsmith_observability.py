@@ -105,6 +105,8 @@ async def test_langsmith_trace_exports_only_safe_operational_metadata() -> None:
         "prompt_version": "tarot-v5",
         "provider": "openai",
         "model": "gpt-test",
+        "ls_provider": "openai",
+        "ls_model_name": "gpt-test",
         "input_tokens": 123,
         "output_tokens": 45,
         "latency_ms": 678,
