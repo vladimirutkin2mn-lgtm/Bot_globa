@@ -9,6 +9,8 @@ import socket
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.logging import configure_logging
+from app.observability.langsmith import wrap_llm_with_langsmith
+from app.observability.settings import get_observability_settings
 from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
@@ -32,7 +34,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
     cipher = AESGCMSensitiveContentCipher(
         decode_configured_key(resolved.content_encryption_key.get_secret_value())
     )
-    llm = create_llm_client(resolved)
+    llm = wrap_llm_with_langsmith(create_llm_client(resolved), get_observability_settings())
     memory = QualityManagedOracleMemoryService(sessions, cipher)
     extraction = ReadingMemoryExtractionService(
         sessions,
