@@ -162,7 +162,7 @@ def test_daily_v6_is_compact_actionable_and_caption_safe_across_two_weeks() -> N
         assert len(rendered) <= TELEGRAM_CAPTION_LIMIT
         assert all(" — " in text for text in texts)
         assert all(text.endswith(".") for text in texts)
-        assert all(7 <= len(text.split()) <= 13 for text in texts)
+        assert all(6 <= len(text.split()) <= 10 for text in texts)
         assert (
             sum(any(marker in text.casefold() for marker in action_markers) for text in texts) >= 10
         )
