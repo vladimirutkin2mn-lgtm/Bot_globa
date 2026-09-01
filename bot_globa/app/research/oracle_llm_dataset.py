@@ -96,10 +96,7 @@ ORACLE_RESEARCH_CASES: tuple[OracleResearchCase, ...] = (
         persona_code="mystical_psychologist",
         topic="repeating_pattern",
         question="Почему я каждый раз откладываю запуск проекта, когда почти всё готово?",
-        context=(
-            "Пока задача большая, я работаю спокойно, но перед публикацией "
-            "начинаю переделывать."
-        ),
+        context="Я работаю спокойно, но перед публикацией снова начинаю всё переделывать.",
         specificity_terms=("запуск", "проект", "публикац", "передел"),
     ),
     OracleResearchCase(
