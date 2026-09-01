@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "bot_globa/app/research/**"
+      - "bot_globa/app/research/daily_horoscope_candidate.py"
+      - "bot_globa/app/research/daily_horoscope_evaluator.py"
       - "bot_globa/app/services/daily_horoscope_editorial.py"
       - "bot_globa/app/services/daily_horoscope_benchmark.py"
       - "bot_globa/app/services/daily_sky.py"
