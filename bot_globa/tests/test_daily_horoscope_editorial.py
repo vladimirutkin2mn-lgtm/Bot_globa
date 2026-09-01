@@ -2,6 +2,7 @@ from datetime import date
 
 from app.domain.natal_chart import ZodiacSign
 from app.services.daily_horoscope_editorial import (
+    _DUPLICATE_OPENERS,
     _GENERAL_STORIES,
     _STORIES,
     _editorialize,
@@ -36,4 +37,5 @@ def test_duplicate_fallback_stays_natural_without_semicolon() -> None:
     result = _editorialize(item, date(2026, 8, 17), used)
 
     assert ";" not in result.text
-    assert result.text.endswith("Выберите ритм, который подходит вам.")
+    assert result.text.startswith(f"{_DUPLICATE_OPENERS[0]}: ")
+    assert result.text.removeprefix(f"{_DUPLICATE_OPENERS[0]}: ") in _GENERAL_STORIES
