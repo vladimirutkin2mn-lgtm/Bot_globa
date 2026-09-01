@@ -14,6 +14,7 @@ from app.observability.settings import ObservabilitySettings
 from app.providers.llm.base import LLMClient, close_llm_client
 from app.providers.llm.openai import OpenAILLMClient
 from app.research.oracle_llm_evaluator import (
+    OracleResearchCaseEvaluation,
     OracleResearchComparison,
     OracleResearchEvaluation,
     PromptSource,
@@ -47,8 +48,6 @@ def _load_baseline(path: str) -> OracleResearchEvaluation:
     cases_payload = payload.get("cases")
     if not isinstance(cases_payload, list):
         raise ValueError("baseline report is missing cases")
-
-    from app.research.oracle_llm_evaluator import OracleResearchCaseEvaluation
 
     cases = tuple(
         OracleResearchCaseEvaluation(
@@ -144,7 +143,9 @@ def _markdown(
                 ),
                 (
                     "- candidate beats baseline: "
-                    f"{str(comparison.candidate.gates_passed and comparison.quality_delta > 0).lower()}"
+                    str(
+                        comparison.candidate.gates_passed and comparison.quality_delta > 0
+                    ).lower()
                 ),
             )
         )
@@ -187,14 +188,9 @@ async def _run() -> None:
         else _comparison(evaluation, _load_baseline(str(args.baseline_report)))
     )
     output_dir = Path(str(args.output_dir))
-    output_dir.mkdir(parents=True, exist_ok=True)
     payload = evaluation.payload()
-    (output_dir / "oracle-llm-autoresearch.json").write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
     markdown = _markdown(evaluation, comparison)
-    (output_dir / "oracle-llm-autoresearch.md").write_text(markdown, encoding="utf-8")
+    await asyncio.to_thread(_write_reports, output_dir, payload, markdown)
 
     print(f"numa_score: {evaluation.numa_score:.4f}")
     print(f"quality_score: {evaluation.quality_score:.4f}")
@@ -220,6 +216,19 @@ async def _run() -> None:
         )
     print("---")
     print(markdown)
+
+
+def _write_reports(
+    output_dir: Path,
+    payload: dict[str, object],
+    markdown: str,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "oracle-llm-autoresearch.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "oracle-llm-autoresearch.md").write_text(markdown, encoding="utf-8")
 
 
 def main() -> None:
