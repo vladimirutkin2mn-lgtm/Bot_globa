@@ -14,3 +14,4 @@ build/
 .coverage
 coverage.xml
 htmlcov/
+\nautoresearch/daily_horoscope/results.tsv\nrun.log\nautoresearch-artifacts/\n

@@ -110,3 +110,13 @@ def test_comparison_flags_material_length_and_topic_gap() -> None:
     assert isinstance(signals, list)
     assert "Numa forecasts are materially shorter than the reference." in signals
     assert "Numa covers fewer distinct life topics than the reference." in signals
+
+
+def test_benchmark_recognizes_current_numa_action_verbs() -> None:
+    forecasts = [
+        BenchmarkForecast(ZodiacSign.ARIES, "Разговор изменит планы — задайте прямой вопрос."),
+        BenchmarkForecast(ZodiacSign.TAURUS, "В переписке всплывёт нюанс — перечитайте детали."),
+        BenchmarkForecast(ZodiacSign.GEMINI, "Карьерный вопрос сдвинется — инициируйте разговор."),
+    ]
+
+    assert build_benchmark_metrics(forecasts).actionable_ratio == 1.0
