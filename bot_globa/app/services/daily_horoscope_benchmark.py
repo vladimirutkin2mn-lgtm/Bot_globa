@@ -9,12 +9,12 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from itertools import combinations
 from statistics import fmean
 from types import MappingProxyType
-from typing import Sequence
 
 from app.domain.natal_chart import ZodiacSign
 
