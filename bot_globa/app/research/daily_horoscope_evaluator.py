@@ -162,10 +162,7 @@ def evaluate_builder(
         max_caption_chars = max(max_caption_chars, len(render_daily_horoscope(snapshot)))
         max_words = max(max_words, max(_word_count(text) for text in texts))
 
-        forecasts = [
-            BenchmarkForecast(sign=item.sign, text=item.text)
-            for item in snapshot.signs
-        ]
+        forecasts = [BenchmarkForecast(sign=item.sign, text=item.text) for item in snapshot.signs]
         metrics = build_benchmark_metrics(forecasts)
         daily_metrics.append(metrics)
         topic_counts.update(metrics.topic_distribution)
