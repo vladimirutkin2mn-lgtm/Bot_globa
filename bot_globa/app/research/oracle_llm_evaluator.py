@@ -197,9 +197,7 @@ class OracleResearchComparison:
                 None if self.cost_delta_usd is None else round(self.cost_delta_usd, 8)
             ),
             "latency_delta_ms": self.latency_delta_ms,
-            "candidate_beats_baseline": (
-                self.candidate.gates_passed and self.quality_delta > 0.0
-            ),
+            "candidate_beats_baseline": (self.candidate.gates_passed and self.quality_delta > 0.0),
         }
 
 
@@ -240,11 +238,7 @@ async def evaluate_oracle_llm(
         input_cost_usd_per_million,
         output_cost_usd_per_million,
     )
-    coordinate = (
-        "production"
-        if prompt_source == "production"
-        else RESEARCH_CANDIDATE_VERSION
-    )
+    coordinate = "production" if prompt_source == "production" else RESEARCH_CANDIDATE_VERSION
     return OracleResearchEvaluation(
         dataset_version=ORACLE_RESEARCH_DATASET_VERSION,
         prompt_source=prompt_source,
@@ -547,11 +541,7 @@ def _visible_texts(result: ReadingResult | AstrologyReadingResult) -> tuple[str,
         *(symbol.interpretation for symbol in result.symbols),
         *result.patterns,
         *(scenario.scenario for scenario in result.possible_scenarios),
-        *(
-            condition
-            for scenario in result.possible_scenarios
-            for condition in scenario.conditions
-        ),
+        *(condition for scenario in result.possible_scenarios for condition in scenario.conditions),
         *result.reflection_questions,
         result.practical_step,
         result.uncertainty_note,
