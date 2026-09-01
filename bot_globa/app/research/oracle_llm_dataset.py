@@ -5,7 +5,7 @@ birth data belongs in this module.
 """
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 from app.domain.horoscope import (
     HOROSCOPE_FACTS_VERSION,
@@ -96,7 +96,10 @@ ORACLE_RESEARCH_CASES: tuple[OracleResearchCase, ...] = (
         persona_code="mystical_psychologist",
         topic="repeating_pattern",
         question="Почему я каждый раз откладываю запуск проекта, когда почти всё готово?",
-        context="Пока задача большая, я работаю спокойно, но перед публикацией начинаю переделывать.",
+        context=(
+            "Пока задача большая, я работаю спокойно, но перед публикацией "
+            "начинаю переделывать."
+        ),
         specificity_terms=("запуск", "проект", "публикац", "передел"),
     ),
     OracleResearchCase(
