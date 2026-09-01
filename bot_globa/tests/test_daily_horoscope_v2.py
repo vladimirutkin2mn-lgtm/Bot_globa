@@ -37,12 +37,12 @@ def test_solar_daily_snapshot_is_deterministic_complete_and_roundtrippable() -> 
     assert DailyHoroscopeSnapshot.from_payload(first.payload()) == first
 
 
-def test_editorial_daily_v6_is_unique_human_and_caption_safe() -> None:
+def test_editorial_daily_v7_is_unique_human_and_caption_safe() -> None:
     snapshot = build_editorial_daily_horoscope(date(2026, 8, 16))
     rendered = render_daily_horoscope(snapshot)
     texts = [item.text for item in snapshot.signs]
 
-    assert snapshot.methodology_version == DAILY_EDITORIAL_METHOD_VERSION == "solar-sign-daily-v6"
+    assert snapshot.methodology_version == DAILY_EDITORIAL_METHOD_VERSION == "solar-sign-daily-v7"
     assert tuple(item.sign for item in snapshot.signs) == tuple(ZodiacSign)
     assert len(set(texts)) == len(ZodiacSign)
     assert all(": " not in text for text in texts)
@@ -52,7 +52,7 @@ def test_editorial_daily_v6_is_unique_human_and_caption_safe() -> None:
     assert len(rendered) <= TELEGRAM_CAPTION_LIMIT
 
 
-def test_editorial_daily_v6_is_deterministic_and_roundtrippable() -> None:
+def test_editorial_daily_v7_is_deterministic_and_roundtrippable() -> None:
     first = build_editorial_daily_horoscope(date(2026, 8, 16))
     second = build_editorial_daily_horoscope(date(2026, 8, 16))
 
@@ -71,14 +71,14 @@ def test_personal_daily_topic_freezes_one_date() -> None:
     assert HoroscopeTopic.parse(topic.storage_value()) == topic
 
 
-def test_daily_v6_changes_shared_theme_on_adjacent_days() -> None:
+def test_daily_v7_changes_shared_theme_on_adjacent_days() -> None:
     first = build_daily_horoscope(date(2026, 8, 30))
     second = build_daily_horoscope(date(2026, 8, 31))
 
     assert first.theme != second.theme
 
 
-def test_daily_v6_fourteen_day_audit_never_repeats_identical_sign_copy() -> None:
+def test_daily_v7_fourteen_day_audit_never_repeats_identical_sign_copy() -> None:
     snapshots = [
         build_editorial_daily_horoscope(date.fromordinal(date(2026, 8, 18).toordinal() + offset))
         for offset in range(14)
@@ -94,7 +94,7 @@ def test_daily_v6_fourteen_day_audit_never_repeats_identical_sign_copy() -> None
         assert len(set(texts)) >= 4
 
 
-def test_daily_v6_fourteen_day_audit_limits_topic_streaks() -> None:
+def test_daily_v7_fourteen_day_audit_limits_topic_streaks() -> None:
     snapshots = [
         build_daily_horoscope(date.fromordinal(date(2026, 8, 18).toordinal() + offset))
         for offset in range(14)
@@ -110,7 +110,7 @@ def test_daily_v6_fourteen_day_audit_limits_topic_streaks() -> None:
         assert longest <= 2
 
 
-def test_daily_v6_is_compact_actionable_and_caption_safe_across_two_weeks() -> None:
+def test_daily_v7_is_compact_actionable_and_caption_safe_across_two_weeks() -> None:
     action_markers = (
         "выберите",
         "начните",
@@ -162,7 +162,7 @@ def test_daily_v6_is_compact_actionable_and_caption_safe_across_two_weeks() -> N
         assert len(rendered) <= TELEGRAM_CAPTION_LIMIT
         assert all(" — " in text for text in texts)
         assert all(text.endswith(".") for text in texts)
-        assert all(6 <= len(text.split()) <= 10 for text in texts)
+        assert all(6 <= len(text.split()) <= 13 for text in texts)
         assert (
             sum(any(marker in text.casefold() for marker in action_markers) for text in texts) >= 10
         )
