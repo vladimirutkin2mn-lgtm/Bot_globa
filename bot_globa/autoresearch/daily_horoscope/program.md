@@ -61,7 +61,7 @@ commit\tnuma_score\tdelta\tgates\tstatus\tdescription
 
 ```bash
 uv run python scripts/run_daily_horoscope_autoresearch.py > run.log 2>&1
-grep "^numa_score:\|^baseline_score:\|^delta:\|^gates_passed:" run.log
+grep "^numa_score:\|^quality_score:\|^baseline_score:\|^delta:\|^gates_passed:\|^failed_gates:" run.log
 ```
 
 ## Experiment loop
@@ -82,7 +82,7 @@ uv run python scripts/run_daily_horoscope_autoresearch.py > run.log 2>&1
 7. Read:
 
 ```bash
-grep "^numa_score:\|^baseline_score:\|^delta:\|^gates_passed:" run.log
+grep "^numa_score:\|^quality_score:\|^baseline_score:\|^delta:\|^gates_passed:\|^failed_gates:" run.log
 ```
 
 8. Append one line to `results.tsv` (do not commit the TSV).
