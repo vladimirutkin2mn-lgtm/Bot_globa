@@ -81,9 +81,7 @@ def _load_baseline(path: str) -> OracleResearchEvaluation:
         output_tokens=int(payload["output_tokens"]),
         latency_ms=int(payload["latency_ms"]),
         estimated_cost_usd=(
-            None
-            if payload["estimated_cost_usd"] is None
-            else float(payload["estimated_cost_usd"])
+            None if payload["estimated_cost_usd"] is None else float(payload["estimated_cost_usd"])
         ),
         cases=cases,
     )
