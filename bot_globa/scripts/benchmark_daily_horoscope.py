@@ -139,7 +139,10 @@ def _render_markdown(
             "| --- | ---: | ---: |",
             f"| Avg words / sign | {n.avg_words:.1f} | {r.avg_words:.1f} |",
             f"| Avg sentences / sign | {n.avg_sentences:.1f} | {r.avg_sentences:.1f} |",
-            f"| Cross-sign lexical diversity | {n.lexical_diversity:.1%} | {r.lexical_diversity:.1%} |",
+            (
+                f"| Cross-sign lexical diversity | {n.lexical_diversity:.1%} | "
+                f"{r.lexical_diversity:.1%} |"
+            ),
             f"| Unique openings | {n.unique_opening_ratio:.1%} | {r.unique_opening_ratio:.1%} |",
             f"| Topic coverage | {n.topic_coverage_ratio:.1%} | {r.topic_coverage_ratio:.1%} |",
             f"| Distinct topics | {n.topic_variety} | {r.topic_variety} |",
@@ -182,12 +185,16 @@ async def _run(period: str, output_dir: Path) -> None:
         "benchmark": comparison,
     }
 
+    markdown = _render_markdown(today, period, numa, reference, comparison)
+    await asyncio.to_thread(_write_reports, output_dir, payload, markdown)
+
+
+def _write_reports(output_dir: Path, payload: dict[str, object], markdown: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "daily-horoscope-benchmark.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    markdown = _render_markdown(today, period, numa, reference, comparison)
     (output_dir / "daily-horoscope-benchmark.md").write_text(
         markdown,
         encoding="utf-8",
