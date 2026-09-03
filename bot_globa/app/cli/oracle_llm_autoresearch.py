@@ -89,7 +89,10 @@ def _preflight(max_budget_usd: float) -> dict[str, object]:
 async def _run(max_budget_usd: float) -> dict[str, object]:
     preflight = _preflight(max_budget_usd)
     if not bool(preflight["can_run_paid_baseline"]):
-        reasons = ",".join(str(value) for value in preflight["blocking_reasons"])
+        blocking_reasons = preflight["blocking_reasons"]
+        if not isinstance(blocking_reasons, list):
+            raise TypeError("preflight blocking reasons are malformed")
+        reasons = ",".join(str(value) for value in blocking_reasons)
         raise ValueError(f"paid baseline preflight failed: {reasons}")
 
     settings = get_settings()
