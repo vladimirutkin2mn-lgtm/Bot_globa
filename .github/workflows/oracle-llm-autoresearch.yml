@@ -1,0 +1,84 @@
+name: Numa LLM autoresearch
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt_source:
+        description: Prompt source to evaluate
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - candidate
+      model:
+        description: OpenAI Responses API model
+        required: true
+        type: string
+      input_cost_usd_per_million:
+        description: Input token price in USD per 1M tokens
+        required: true
+        type: string
+      output_cost_usd_per_million:
+        description: Output token price in USD per 1M tokens
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: bot_globa
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.28"
+          enable-cache: true
+          cache-dependency-glob: bot_globa/uv.lock
+
+      - name: Install the exact locked dependency set
+        run: uv sync --frozen
+
+      - name: Refuse unconfigured provider secret
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: test -n "$OPENAI_API_KEY"
+
+      - name: Run paid fixed-dataset evaluation
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGSMITH_ENABLED: ${{ secrets.LANGSMITH_API_KEY != '' && 'true' || 'false' }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_ENDPOINT: ${{ vars.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com' }}
+          LANGSMITH_PROJECT: numa-autoresearch
+          LANGSMITH_WORKSPACE_ID: ${{ vars.LANGSMITH_WORKSPACE_ID }}
+        run: |
+          uv run python scripts/run_oracle_llm_autoresearch.py \
+            --prompt-source "${{ inputs.prompt_source }}" \
+            --model "${{ inputs.model }}" \
+            --input-cost-usd-per-million "${{ inputs.input_cost_usd_per_million }}" \
+            --output-cost-usd-per-million "${{ inputs.output_cost_usd_per_million }}" \
+            --output-dir autoresearch-artifacts/oracle-llm
+
+      - name: Publish research summary
+        run: cat autoresearch-artifacts/oracle-llm/oracle-llm-autoresearch.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate research report
+        uses: actions/upload-artifact@v4
+        with:
+          name: numa-llm-autoresearch-${{ github.run_number }}
+          path: |
+            bot_globa/autoresearch-artifacts/oracle-llm/oracle-llm-autoresearch.json
+            bot_globa/autoresearch-artifacts/oracle-llm/oracle-llm-autoresearch.md
+          if-no-files-found: error
+          retention-days: 30
