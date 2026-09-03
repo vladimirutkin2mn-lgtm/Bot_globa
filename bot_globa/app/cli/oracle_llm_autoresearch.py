@@ -73,12 +73,8 @@ async def _run(max_budget_usd: float) -> dict[str, object]:
             prompt_source="production",
             provider=settings.llm_provider,
             model=settings.llm_model,
-            input_cost_usd_per_million=(
-                observability.llm_input_cost_usd_per_million_tokens
-            ),
-            output_cost_usd_per_million=(
-                observability.llm_output_cost_usd_per_million_tokens
-            ),
+            input_cost_usd_per_million=(observability.llm_input_cost_usd_per_million_tokens),
+            output_cost_usd_per_million=(observability.llm_output_cost_usd_per_million_tokens),
         )
     finally:
         await close_llm_client(llm)
