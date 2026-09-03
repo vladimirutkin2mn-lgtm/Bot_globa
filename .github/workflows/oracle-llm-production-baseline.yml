@@ -1,0 +1,140 @@
+name: Numa production LLM baseline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "bot_globa/autoresearch/oracle_llm/production-baseline.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Load the deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Pin the host key
+        env:
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify deployed autoresearch CLI exists
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
+        run: |
+          ssh -o BatchMode=yes "$DEPLOY_HOST" "
+            cd '$DEPLOY_PATH' &&
+            docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api               python -c 'import app.cli.oracle_llm_autoresearch'
+          "
+
+      - name: Capture zero-cost production preflight
+        id: preflight
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
+        run: |
+          mkdir -p bot_globa/autoresearch-artifacts/oracle-llm
+          ssh -o BatchMode=yes "$DEPLOY_HOST" "
+            cd '$DEPLOY_PATH' &&
+            docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api               python -m app.cli.oracle_llm_autoresearch                 --max-budget-usd 1.0 --preflight-only
+          " > bot_globa/autoresearch-artifacts/oracle-llm/production-preflight.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(
+              Path("bot_globa/autoresearch-artifacts/oracle-llm/production-preflight.json")
+              .read_text(encoding="utf-8")
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(
+                  "can_run=" + str(payload["can_run_paid_baseline"]).lower() + "\n"
+              )
+          PY
+
+      - name: Run one budget-capped production baseline
+        if: steps.preflight.outputs.can_run == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
+        run: |
+          ssh -o BatchMode=yes "$DEPLOY_HOST" "
+            cd '$DEPLOY_PATH' &&
+            docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api               python -m app.cli.oracle_llm_autoresearch --max-budget-usd 1.0
+          " > bot_globa/autoresearch-artifacts/oracle-llm/production-baseline.json
+
+      - name: Summarize safe aggregate report
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("bot_globa/autoresearch-artifacts/oracle-llm")
+          preflight = json.loads(
+              (root / "production-preflight.json").read_text(encoding="utf-8")
+          )
+          lines = [
+              "# Numa production LLM baseline",
+              "",
+              f"- model: {preflight['provider']}:{preflight['model']}",
+              f"- paid baseline allowed: {preflight['can_run_paid_baseline']}",
+              f"- blocking reasons: {','.join(preflight['blocking_reasons']) or 'none'}",
+              f"- reserved upper bound: USD {preflight['reserved_upper_bound_usd']}",
+              f"- hard ceiling: USD {preflight['max_budget_usd']}",
+          ]
+          baseline = root / "production-baseline.json"
+          if baseline.exists():
+              payload = json.loads(baseline.read_text(encoding="utf-8"))
+              evaluation = payload["evaluation"]
+              lines.extend(
+                  [
+                      "",
+                      f"- numa_score: {evaluation['numa_score']}",
+                      f"- quality_score: {evaluation['quality_score']}",
+                      f"- hard gates passed: {evaluation['gates_passed']}",
+                      f"- repair rate: {evaluation['repair_rate']}",
+                      f"- input tokens: {evaluation['input_tokens']}",
+                      f"- output tokens: {evaluation['output_tokens']}",
+                      f"- latency: {evaluation['latency_ms']} ms",
+                      f"- estimated cost: USD {evaluation['estimated_cost_usd']}",
+                  ]
+              )
+          Path("baseline-summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          cat baseline-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numa-production-llm-baseline-${{ github.run_number }}
+          path: |
+            bot_globa/autoresearch-artifacts/oracle-llm/production-preflight.json
+            bot_globa/autoresearch-artifacts/oracle-llm/production-baseline.json
+            baseline-summary.md
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Refuse unsafe paid run
+        if: steps.preflight.outputs.can_run != 'true'
+        run: |
+          echo "Paid baseline was not started because production preflight blocked it." >&2
+          exit 1
