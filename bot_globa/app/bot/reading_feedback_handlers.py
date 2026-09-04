@@ -6,12 +6,14 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
 from app.bot.persona_flow import FEEDBACK_NAMESPACE
+from app.bot.reading_share_handlers import router as reading_share_router
 from app.providers.analytics import OracleProductEvent
 from app.services.onboarding import OnboardingService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.reading_history import ReadingHistoryService
 
 router = Router(name="reading-feedback")
+router.include_router(reading_share_router)
 
 
 @router.callback_query(F.data.startswith(f"{FEEDBACK_NAMESPACE}:"))

@@ -27,6 +27,7 @@ RETRY_BUTTON = "Попробовать ещё раз"
 FOLLOWUP_BUTTON = "💬 Продолжить — Numa помнит этот сеанс"
 FOLLOWUP_NAMESPACE = "rfu"
 FEEDBACK_NAMESPACE = "rfb"
+SHARE_NAMESPACE = "rfs"
 
 NOT_ONBOARDED = "Сначала отправьте /start и примите условия использования."
 INVALID_TEXT = "Нужно обычное текстовое сообщение допустимой длины."
@@ -149,12 +150,18 @@ class ReadingFlow:
         self,
         reading_id: UUID,
     ) -> InlineKeyboardMarkup:
-        """A paid result is the entry point back into its 24-hour session."""
+        """A paid result is the entry point back into its session and organic share loop."""
         rows = [
             [
                 InlineKeyboardButton(
                     text=FOLLOWUP_BUTTON,
                     callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✨ Поделиться инсайтом",
+                    callback_data=f"{SHARE_NAMESPACE}:preview:{reading_id}",
                 )
             ],
             [
