@@ -6,6 +6,7 @@ owner sees the exact card before opening Telegram's share picker, and only aggre
 product metadata is emitted to analytics.
 """
 
+import json
 import logging
 from html import escape
 from urllib.parse import urlencode
@@ -242,14 +243,15 @@ async def _owned_share_card(
 
 
 def _share_card_from_payload(payload: dict[str, object]) -> ShareCardPayload | None:
-    """Accept both personal-reading schemas without weakening either strict contract."""
+    """Accept persisted JSON for both strict reading schemas without weakening validation."""
 
+    encoded = json.dumps(payload, ensure_ascii=False)
     try:
-        return ReadingResult.model_validate(payload).share_card
+        return ReadingResult.model_validate_json(encoded).share_card
     except ValidationError:
         pass
     try:
-        return AstrologyReadingResult.model_validate(payload).share_card
+        return AstrologyReadingResult.model_validate_json(encoded).share_card
     except ValidationError:
         return None
 
