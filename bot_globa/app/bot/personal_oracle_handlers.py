@@ -282,7 +282,7 @@ async def receive_personal_question(
         )
         return
     if needs_route_clarification(question):
-        await state.update_data(**{_PENDING_QUESTION_KEY: question})
+        await state.update_data({_PENDING_QUESTION_KEY: question})
         await show_screen(
             message,
             Scene.QUESTION,
