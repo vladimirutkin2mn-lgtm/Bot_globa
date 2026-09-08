@@ -31,6 +31,7 @@ class DailyHoroscopePreferenceView:
     mode: DailyHoroscopeMode
     timezone: str
     next_delivery_at: datetime | None
+    feedback_enabled: bool = False
 
 
 @dataclass(frozen=True, slots=True)
