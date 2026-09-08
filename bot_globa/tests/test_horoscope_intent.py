@@ -40,7 +40,10 @@ async def test_daily_intent_survives_state_transitions_and_is_consumed_on_resume
     assert resumed is True
     assert await state.get_state() == HoroscopeStates.waiting_for_question.state
     assert await state.get_data() == {"topic": "day_forecast"}
-    assert screen.await_args.args[2] == horoscope_intent.PERSONAL_DAILY_PROMPT
+    screen.assert_awaited_once()
+    awaited = screen.await_args
+    assert awaited is not None
+    assert awaited.args[2] == horoscope_intent.PERSONAL_DAILY_PROMPT
 
 
 async def test_resume_without_pending_intent_leaves_current_state_untouched(
