@@ -15,7 +15,7 @@ def test_duel_result_keeps_group_compatibility_and_private_love_separate() -> No
     assert group_button.text == "💞 Проверить совместимость"
     assert group_button.callback_data == "gc:a:101:101:202"
     assert private_button.text == "💬 Разобрать отношения лично"
-    assert private_button.url == "https://t.me/numa_test_bot?start=personal_love"
+    assert private_button.url == "https://t.me/numa_test_bot?start=love"
 
 
 def test_duel_compatibility_callback_stays_within_telegram_limit() -> None:
