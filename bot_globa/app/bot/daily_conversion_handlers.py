@@ -114,4 +114,6 @@ async def open_personal_daily(
         # Defensive fallback: the intent was written in this handler, so reaching this
         # branch means storage was externally cleared between reads.
         await state.clear()
-        await callback.message.answer("Не удалось восстановить персональный прогноз. Попробуйте ещё раз.")
+        await callback.message.answer(
+            "Не удалось восстановить персональный прогноз. Попробуйте ещё раз."
+        )
