@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot import horoscope_flow as flow
+from app.bot import horoscope_intent
 from app.bot.consent import ensure_consent
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
@@ -20,12 +21,8 @@ from app.services.oracle_product_analytics import OracleProductAnalytics
 logger = logging.getLogger(__name__)
 router = Router(name="daily_conversion")
 
-PERSONAL_DAILY_PROMPT = (
-    "✨ Сегодня для вас\n\n"
-    "Общий гороскоп — только фон. Теперь можно посмотреть, где сегодняшний день касается именно "
-    "вашей истории. Что важнее: отношения, работа, деньги или общее направление? Можно задать "
-    "свой вопрос — не нужно формулировать его «правильно»."
-)
+# Backwards-compatible import surface for tests/templates that reference the prompt here.
+PERSONAL_DAILY_PROMPT = horoscope_intent.PERSONAL_DAILY_PROMPT
 
 
 @router.callback_query(F.data == "daily:personal")
@@ -42,6 +39,12 @@ async def open_personal_daily(
     await callback.answer()
     if not isinstance(callback.message, Message):
         return
+    # Store the source intent before either consent gate changes the FSM state. Production
+    # uses PostgreSQL FSM storage, so this small code also survives worker restarts.
+    await horoscope_intent.remember_horoscope_intent(
+        state,
+        horoscope_intent.DAY_FORECAST_INTENT,
+    )
     if not await ensure_consent(
         callback.message,
         callback.from_user.id,
@@ -107,12 +110,8 @@ async def open_personal_daily(
         )
         return
 
-    await state.update_data(topic="day_forecast")
-    await state.set_state(HoroscopeStates.waiting_for_question)
-    await show_screen(
-        callback.message,
-        Scene.QUESTION,
-        PERSONAL_DAILY_PROMPT,
-        reply_markup=flow.HOROSCOPE_FLOW.question_keyboard(),
-        state=state,
-    )
+    if not await horoscope_intent.resume_horoscope_intent(callback.message, state):
+        # Defensive fallback: the intent was written in this handler, so reaching this
+        # branch means storage was externally cleared between reads.
+        await state.clear()
+        await callback.message.answer("Не удалось восстановить персональный прогноз. Попробуйте ещё раз.")
