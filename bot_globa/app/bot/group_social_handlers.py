@@ -249,6 +249,38 @@ def _cards_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def _duel_result_keyboard(
+    bot_username: str | None,
+    first_user_id: int,
+    second_user_id: int,
+) -> InlineKeyboardMarkup:
+    if first_user_id <= 0 or second_user_id <= 0 or first_user_id == second_user_id:
+        raise ValueError("duel compatibility requires two distinct users")
+    compatibility_callback = (
+        f"gc:a:{first_user_id}:{first_user_id}:{second_user_id}"
+    )
+    if len(compatibility_callback.encode()) > 64:
+        raise ValueError("duel compatibility callback exceeds Telegram limit")
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text="💞 Проверить совместимость",
+                callback_data=compatibility_callback,
+            )
+        ]
+    ]
+    if bot_username:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="💬 Разобрать отношения лично",
+                    url=private_deep_link(bot_username, "love"),
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def _bot_username(bot: Bot) -> str | None:
     return (await bot.get_me()).username
 
@@ -325,18 +357,7 @@ async def group_duel(message: Message, bot: Bot) -> None:
     first_id, first_name, second_id, second_name = pair
     result = duel_for_day(first_id, second_id, message.date.date())
     username = await _bot_username(bot)
-    keyboard = None
-    if username:
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="💞 Полный разбор динамики",
-                        url=private_deep_link(username, "love"),
-                    )
-                ]
-            ]
-        )
+    keyboard = _duel_result_keyboard(username, first_id, second_id)
     text = (
         f"⚔️ Дуэль дня: {first_name} × {second_name}\n\n"
         f"{first_name} — {result.first_card.name_ru}: {result.first_card.upright_theme}.\n\n"
