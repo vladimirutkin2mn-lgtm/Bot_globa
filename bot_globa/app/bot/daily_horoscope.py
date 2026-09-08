@@ -68,6 +68,7 @@ def render_daily_settings(preference: DailyHoroscopePreferenceView) -> str:
     """Render the saved delivery switch and Moscow-relative clock in user language."""
 
     status = "включена" if daily_horoscope_enabled(preference.mode) else "отключена"
+    feedback_status = "включён" if preference.feedback_enabled else "отключён"
     difference = moscow_time_difference_for_timezone(preference.timezone)
     timezone_label = (
         _format_time_difference(difference)
@@ -78,7 +79,21 @@ def render_daily_settings(preference: DailyHoroscopePreferenceView) -> str:
         "Настройки гороскопа\n\n"
         f"Ежедневная отправка: {status}.\n"
         "Время отправки: 08:00 по вашему времени.\n"
-        f"Разница с Москвой: {timezone_label}."
+        f"Разница с Москвой: {timezone_label}.\n"
+        f"Вечерний вопрос о прогнозе: {feedback_status}."
+    )
+
+
+def render_daily_feedback_settings(enabled: bool) -> str:
+    """Explain the separate, optional evening usefulness prompt before opt-in."""
+
+    status = "включён" if enabled else "отключён"
+    return (
+        "🌙 Вечерний вопрос\n\n"
+        "Если включить, в 20:30 по вашему времени Numa коротко спросит, "
+        "пригодился ли сегодняшний прогноз.\n\n"
+        "Вопрос приходит только в дни, когда Numa прислал утренний гороскоп.\n\n"
+        f"Сейчас: {status}."
     )
 
 
