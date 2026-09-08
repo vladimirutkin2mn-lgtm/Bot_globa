@@ -16,8 +16,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from app.bot import horoscope_flow as flow
-from app.bot import horoscope_intent
-from app.bot import texts
+from app.bot import horoscope_intent, texts
 from app.bot.consent import ensure_consent
 from app.bot.horoscope_flow import HOROSCOPE_FLOW
 from app.bot.horoscope_renderer import HoroscopeRenderer
