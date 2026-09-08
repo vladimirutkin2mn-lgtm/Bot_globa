@@ -256,9 +256,7 @@ def _duel_result_keyboard(
 ) -> InlineKeyboardMarkup:
     if first_user_id <= 0 or second_user_id <= 0 or first_user_id == second_user_id:
         raise ValueError("duel compatibility requires two distinct users")
-    compatibility_callback = (
-        f"gc:a:{first_user_id}:{first_user_id}:{second_user_id}"
-    )
+    compatibility_callback = f"gc:a:{first_user_id}:{first_user_id}:{second_user_id}"
     if len(compatibility_callback.encode()) > 64:
         raise ValueError("duel compatibility callback exceeds Telegram limit")
     rows: list[list[InlineKeyboardButton]] = [
