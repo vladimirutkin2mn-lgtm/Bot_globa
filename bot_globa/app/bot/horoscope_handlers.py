@@ -16,7 +16,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from app.bot import horoscope_flow as flow
-from app.bot import texts
+from app.bot import horoscope_intent, texts
 from app.bot.consent import ensure_consent
 from app.bot.horoscope_flow import HOROSCOPE_FLOW
 from app.bot.horoscope_renderer import HoroscopeRenderer
@@ -1073,6 +1073,8 @@ class HoroscopeHandlers:
         if view is None:
             await self._ask_birth_date(message, state)
             return
+        if await horoscope_intent.resume_horoscope_intent(message, state):
+            return
         await state.clear()
         await show_screen(
             message,
@@ -1148,6 +1150,8 @@ class HoroscopeHandlers:
             await birth_profile_service.save(user.id, profile)
         except BirthProfileConsentRequiredError:
             await self._ask_consent(message, state)
+            return
+        if await horoscope_intent.resume_horoscope_intent(message, state):
             return
         await state.clear()
         await show_screen(
