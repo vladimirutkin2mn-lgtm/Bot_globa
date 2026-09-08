@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.daily_horoscope_models import DailyHoroscopeFeedback
 from app.db.models import User
-from app.domain.daily_horoscope import DailyHoroscopeFeedbackAnswer, DailyHoroscopeMode
+from app.domain.daily_horoscope import (
+    DailyHoroscopeClaim,
+    DailyHoroscopeFeedbackAnswer,
+    DailyHoroscopeMode,
+)
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.onboarding import CURRENT_CONSENT_VERSION
 
@@ -31,7 +35,7 @@ async def _user(
 
 async def _complete_morning_delivery(
     service: DailyHoroscopePreferenceService,
-) -> object:
+) -> DailyHoroscopeClaim:
     delivery = await service.claim_due(now=datetime(2026, 8, 27, 5, 0, tzinfo=UTC))
     assert delivery is not None
     assert await service.reserve_send(delivery, now=datetime(2026, 8, 27, 5, 0, tzinfo=UTC))
