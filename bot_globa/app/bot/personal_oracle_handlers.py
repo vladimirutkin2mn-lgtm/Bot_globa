@@ -30,6 +30,8 @@ TAROT_CALLBACK = "oracle:tarot"
 LOVE_CALLBACK = "oracle:love"
 ASTRO_CALLBACK = "oracle:astro"
 _CONSENT_PREFIX = "oracle:consent:"
+_ROUTE_PREFIX = "oracle:route:"
+_PENDING_QUESTION_KEY = "personal_oracle_pending_question"
 
 AUTO_PROMPT = (
     "✨ <b>Расскажите Numa</b>\n\n"
@@ -37,6 +39,7 @@ AUTO_PROMPT = (
     "Не нужно выбирать практику или формулировать вопрос особым образом — Numa сама поймёт, "
     "какой способ разбора здесь уместнее."
 )
+ROUTE_CLARIFICATION = "Здесь можно посмотреть на ситуацию по-разному. Что для вас сейчас главное?"
 INVALID_QUESTION = "Расскажите ситуацию обычным текстовым сообщением до 8000 символов."
 
 
@@ -51,14 +54,17 @@ _DIRECT_MODES: dict[str, RouteChoice] = {
     "love": RouteChoice(LOVE_ORACLE_FLOW, "boundaries"),
 }
 
-_LOVE_RE = re.compile(
-    r"(отношен|любов|влюб|чувств|бывш|муж\b|жена\b|парень|девуш|между нами|"
-    r"свидан|расстал|верн[её]т|измен|ревну|написать (?:ему|ей)|позвонить (?:ему|ей))",
+_STRONG_LOVE_RE = re.compile(
+    r"(любов|влюб|бывш|муж\b|жена\b|парень|девуш|между нами|свидан|расстал|"
+    r"верн[её]т|измен|ревну|написать (?:ему|ей)|позвонить (?:ему|ей)|"
+    r"\b(?:он|она)\b.{0,30}(?:ко мне )?чувств|любит ли|нравлюсь ли|отношение ко мне)",
     re.IGNORECASE,
 )
+_BROAD_RELATIONSHIP_RE = re.compile(r"(отношен|чувств)", re.IGNORECASE)
 _REFLECTION_RE = re.compile(
     r"(почему я|почему у меня|повторя|снова и снова|постоянно одно и то же|паттерн|"
-    r"самосабот|не могу перестать|боюсь|страх|тревог|внутренн(?:ий|яя) конфликт)",
+    r"самосабот|не могу перестать|боюсь|страх|тревог|выгора|"
+    r"внутренн(?:ий|яя) конфликт)",
     re.IGNORECASE,
 )
 _COMMUNICATION_RE = re.compile(r"(написать|позвонить|проявит|ответить|связаться)", re.IGNORECASE)
@@ -69,38 +75,54 @@ _RELATIONSHIP_DIRECTION_RE = re.compile(
 )
 _DECISION_RE = re.compile(r"(выбрать|выбор|вариант|решени|стоит ли|что лучше)", re.IGNORECASE)
 _WORK_RE = re.compile(
-    r"(работ|карьер|деньг|финанс|бизнес|проект|увол|офер|предложени[ея] по работе)",
+    r"(работ|начальник|руководител|коллег|карьер|деньг|финанс|бизнес|проект|увол|"
+    r"офер|предложени[ея] по работе)",
     re.IGNORECASE,
 )
 _REPEAT_RE = re.compile(r"(повторя|снова и снова|одно и то же|по кругу|паттерн)", re.IGNORECASE)
 
 
 def choose_route(question: str) -> RouteChoice:
-    """Choose the existing mechanic without making the user navigate its topic catalogue."""
+    """Choose the existing mechanic using strong intent and surrounding context."""
 
-    value = " ".join(question.lower().split())
-    if _LOVE_RE.search(value):
-        if _COMMUNICATION_RE.search(value):
-            topic = "communication"
-        elif _FEELINGS_RE.search(value):
-            topic = "love"
-        elif _REPEAT_RE.search(value):
-            topic = "repeating_pattern"
-        elif _RELATIONSHIP_DIRECTION_RE.search(value):
-            topic = "choice"
-        else:
-            topic = "boundaries"
-        return RouteChoice(LOVE_ORACLE_FLOW, topic)
-
+    value = _normalized(question)
+    if _STRONG_LOVE_RE.search(value):
+        return _love_route(value)
+    if _WORK_RE.search(value):
+        return RouteChoice(TAROT_FLOW, "work")
     if _REFLECTION_RE.search(value):
         topic = "repeating_pattern" if _REPEAT_RE.search(value) else "self_reflection"
         return RouteChoice(MYSTICAL_PSYCHOLOGIST_FLOW, topic)
-
     if _DECISION_RE.search(value):
         return RouteChoice(TAROT_FLOW, "decision")
-    if _WORK_RE.search(value):
-        return RouteChoice(TAROT_FLOW, "work")
     return RouteChoice(TAROT_FLOW, "general_forecast")
+
+
+def needs_route_clarification(question: str) -> bool:
+    """Return true only for broad social/feeling wording without a stronger context cue."""
+
+    value = _normalized(question)
+    if not _BROAD_RELATIONSHIP_RE.search(value):
+        return False
+    return not any(
+        pattern.search(value)
+        for pattern in (_STRONG_LOVE_RE, _WORK_RE, _REFLECTION_RE, _DECISION_RE)
+    )
+
+
+def route_from_clarification(question: str, mode: str) -> RouteChoice | None:
+    """Honor the user's explicit practice choice for one stored ambiguous question."""
+
+    value = _normalized(question)
+    if mode == "love":
+        return _love_route(value)
+    if mode == "reflection":
+        topic = "repeating_pattern" if _REPEAT_RE.search(value) else "self_reflection"
+        return RouteChoice(MYSTICAL_PSYCHOLOGIST_FLOW, topic)
+    if mode == "work":
+        topic = "decision" if _DECISION_RE.search(value) else "work"
+        return RouteChoice(TAROT_FLOW, topic)
+    return None
 
 
 def personal_oracle_safety_intake() -> SafetyIntake:
@@ -198,6 +220,46 @@ async def accept_personal_oracle_consent(
         )
 
 
+@router.callback_query(F.data.startswith(_ROUTE_PREFIX))
+async def choose_personal_route(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    persona_readings: PersonaReadings,
+    oracle_analytics: OracleProductAnalytics | None = None,
+) -> None:
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    data = await state.get_data()
+    question = data.get(_PENDING_QUESTION_KEY)
+    if not isinstance(question, str) or not question.strip():
+        await state.clear()
+        await state.set_state(IntakeStates.waiting_for_conversation)
+        await show_screen(
+            callback.message,
+            Scene.QUESTION,
+            AUTO_PROMPT,
+            reply_markup=_question_keyboard(),
+            state=state,
+        )
+        return
+    mode = (callback.data or "").removeprefix(_ROUTE_PREFIX)
+    choice = route_from_clarification(question, mode)
+    if choice is None:
+        return
+    await _generate_routed_question(
+        callback.message,
+        callback.from_user.id,
+        question,
+        choice,
+        state,
+        onboarding,
+        persona_readings,
+        oracle_analytics,
+    )
+
+
 @router.message(IntakeStates.waiting_for_conversation)
 async def receive_personal_question(
     message: Message,
@@ -219,12 +281,44 @@ async def receive_personal_question(
             state=state,
         )
         return
+    if needs_route_clarification(question):
+        await state.update_data({_PENDING_QUESTION_KEY: question})
+        await show_screen(
+            message,
+            Scene.QUESTION,
+            ROUTE_CLARIFICATION,
+            reply_markup=_route_clarification_keyboard(),
+            state=state,
+        )
+        return
     choice = choose_route(question)
+    await _generate_routed_question(
+        message,
+        message.from_user.id,
+        question,
+        choice,
+        state,
+        onboarding,
+        persona_readings,
+        oracle_analytics,
+    )
+
+
+async def _generate_routed_question(
+    message: Message,
+    telegram_user_id: int,
+    question: str,
+    choice: RouteChoice,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    persona_readings: PersonaReadings,
+    oracle_analytics: OracleProductAnalytics | None,
+) -> None:
     await state.clear()
-    await state.update_data(topic=choice.topic)
+    await state.update_data(topic=choice.topic, question=question)
     await state.set_state(choice.flow.states.waiting_for_question)
     if oracle_analytics is not None:
-        user = await onboarding.current_user(message.from_user.id)
+        user = await onboarding.current_user(telegram_user_id)
         if user is not None:
             await oracle_analytics.track(
                 user.id,
@@ -234,12 +328,13 @@ async def receive_personal_question(
                     "topic_code": choice.topic,
                 },
             )
-    await PersonaReadingHandlers(choice.flow).receive_question(
+    await PersonaReadingHandlers(choice.flow)._generate_new(
         message,
+        telegram_user_id,
         state,
         onboarding,
         persona_readings,
-        privacy_retention_days,
+        context=None,
     )
 
 
@@ -331,6 +426,32 @@ def _consent_keyboard(mode: str) -> InlineKeyboardMarkup:
     )
 
 
+def _route_clarification_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="💞 Личные отношения",
+                    callback_data=f"{_ROUTE_PREFIX}love",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🌙 О себе и состоянии",
+                    callback_data=f"{_ROUTE_PREFIX}reflection",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🧭 Работа или выбор",
+                    callback_data=f"{_ROUTE_PREFIX}work",
+                )
+            ],
+            [InlineKeyboardButton(text="← В главное меню", callback_data="menu:home")],
+        ]
+    )
+
+
 def _question_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -351,6 +472,24 @@ def _mechanic_prompt(mode: str) -> str:
         "Расскажите о человеке или ситуации между вами и напишите, что хотите понять. "
         "Numa сама выберет, на какую сторону этой истории посмотреть глубже."
     )
+
+
+def _love_route(value: str) -> RouteChoice:
+    if _COMMUNICATION_RE.search(value):
+        topic = "communication"
+    elif _FEELINGS_RE.search(value):
+        topic = "love"
+    elif _REPEAT_RE.search(value):
+        topic = "repeating_pattern"
+    elif _RELATIONSHIP_DIRECTION_RE.search(value):
+        topic = "choice"
+    else:
+        topic = "boundaries"
+    return RouteChoice(LOVE_ORACLE_FLOW, topic)
+
+
+def _normalized(question: str) -> str:
+    return " ".join(question.casefold().split())
 
 
 def _bounded_text(message: Message) -> str | None:
