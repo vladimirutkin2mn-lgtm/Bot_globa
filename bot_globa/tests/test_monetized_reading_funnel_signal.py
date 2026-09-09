@@ -9,7 +9,12 @@ import pytest
 from app.db.reading_models import Reading
 from app.domain.reading import ReadingAccess, ReadingStatus
 from app.domain.reading_result import ReadingResult
-from app.services.credits_service import RefundOutcome, SpendOutcome
+from app.services.credits_service import (
+    CreditsService,
+    RefundOutcome,
+    SpendOutcome,
+    SpendResult,
+)
 from app.services.monetized_reading import (
     MonetizedReadingService,
     MonetizedReadingStatus,
@@ -33,9 +38,14 @@ class FakeCredits:
         self.balance = balance
         self.spend_calls = 0
 
-    async def spend_reading(self, user_id: UUID, reading_id: UUID, price: int):
+    async def spend_reading(
+        self,
+        user_id: UUID,
+        reading_id: UUID,
+        price: int,
+    ) -> SpendResult:
         self.spend_calls += 1
-        return SimpleNamespace(
+        return SpendResult(
             outcome=self.outcome,
             transaction_id=self.transaction_id,
             balance=self.balance,
@@ -55,7 +65,11 @@ class FakeReadings:
     def __init__(self) -> None:
         self.promotions = 0
 
-    async def load_result(self, reading_id: UUID, user_id: UUID):
+    async def load_result(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> dict[str, object] | None:
         return None
 
     async def promote_full_access(
@@ -66,28 +80,28 @@ class FakeReadings:
         transaction_id: UUID,
     ) -> Reading:
         self.promotions += 1
-        return cast(Reading, SimpleNamespace())
+        return cast("Reading", SimpleNamespace())
 
 
 class StubMonetizedReadingService(MonetizedReadingService):
     def __init__(self, state: object, credits: FakeCredits, readings: FakeReadings) -> None:
         super().__init__(
-            cast(Any, None),
-            cast(Any, credits),
+            cast("Any", None),
+            cast("CreditsService", credits),
             readings,
             price_credits=3,
         )
         self.state = state
 
     async def _state(self, reading_id: UUID, user_id: UUID) -> Reading | None:
-        return cast(Reading, self.state)
+        return cast("Reading", self.state)
 
     async def _validated_result(
         self,
         reading_id: UUID,
         user_id: UUID,
     ) -> ReadingResult | None:
-        return cast(ReadingResult, object())
+        return cast("ReadingResult", object())
 
 
 def preview_state() -> object:
