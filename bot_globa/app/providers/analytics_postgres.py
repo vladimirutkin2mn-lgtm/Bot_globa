@@ -15,6 +15,11 @@ from app.providers.analytics import (
     event_identity,
     validate_event_properties,
 )
+from app.providers.numa_product_analytics import (
+    is_numa_product_event,
+    numa_product_event_identity,
+    validate_numa_product_event,
+)
 
 
 class PostgresAnalyticsClient:
@@ -26,11 +31,17 @@ class PostgresAnalyticsClient:
     async def track(
         self, user_id: str | None, event: str, properties: Mapping[str, str] | None = None
     ) -> None:
-        safe_properties = validate_event_properties(event, properties)
         correlation_id = correlation_id_for_event()
-        subject_id, idempotency_key = event_identity(
-            user_id, event, safe_properties, correlation_id
-        )
+        if is_numa_product_event(event):
+            safe_properties = validate_numa_product_event(event, properties)
+            subject_id, idempotency_key = numa_product_event_identity(
+                user_id, event, safe_properties
+            )
+        else:
+            safe_properties = validate_event_properties(event, properties)
+            subject_id, idempotency_key = event_identity(
+                user_id, event, safe_properties, correlation_id
+            )
         async with self._sessions.begin() as session:
             await session.execute(
                 insert(AnalyticsEvent)
