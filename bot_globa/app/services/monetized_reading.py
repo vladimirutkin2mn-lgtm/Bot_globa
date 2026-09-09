@@ -15,6 +15,11 @@ from app.db.reading_models import Reading
 from app.domain.reading import ReadingAccess, ReadingStatus
 from app.domain.reading_result import ReadingResult
 from app.services.credits_service import CreditsService, RefundOutcome, SpendOutcome
+from app.services.numa_reading_funnel_signal import (
+    ReadingFunnelOutcome,
+    clear_reading_funnel_signal,
+    record_reading_funnel_signal,
+)
 
 
 class PaidReadingStore(Protocol):
@@ -46,6 +51,7 @@ class MonetizedReadingResult:
     status: MonetizedReadingStatus
     result: ReadingResult | None = None
     balance: int | None = None
+    newly_unlocked: bool = False
 
 
 class MonetizedReadingService:
@@ -70,6 +76,7 @@ class MonetizedReadingService:
         return self._price
 
     async def unlock_full(self, reading_id: UUID, user_id: UUID) -> MonetizedReadingResult:
+        clear_reading_funnel_signal()
         state = await self._state(reading_id, user_id)
         if state is None:
             return MonetizedReadingResult(MonetizedReadingStatus.NOT_FOUND)
@@ -89,6 +96,11 @@ class MonetizedReadingService:
 
         spent = await self._credits.spend_reading(user_id, reading_id, self._price)
         if spent.outcome is SpendOutcome.INSUFFICIENT_BALANCE:
+            record_reading_funnel_signal(
+                ReadingFunnelOutcome.PAYWALL_REQUIRED,
+                reading_id,
+                user_id,
+            )
             return MonetizedReadingResult(
                 MonetizedReadingStatus.INSUFFICIENT_CREDITS,
                 balance=spent.balance,
@@ -122,7 +134,16 @@ class MonetizedReadingService:
                 reading_id,
                 spent.transaction_id,
             )
-        return MonetizedReadingResult(MonetizedReadingStatus.FULL_COMPLETED, result)
+        record_reading_funnel_signal(
+            ReadingFunnelOutcome.FULL_UNLOCKED,
+            reading_id,
+            user_id,
+        )
+        return MonetizedReadingResult(
+            MonetizedReadingStatus.FULL_COMPLETED,
+            result,
+            newly_unlocked=True,
+        )
 
     async def _state(self, reading_id: UUID, user_id: UUID) -> Reading | None:
         async with self._sessions() as session:

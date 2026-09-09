@@ -23,6 +23,11 @@ from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionService
 from app.services.numa_delivery_analytics import NumaDeliveryAnalytics, SqlAlchemyNumaDeliveryStore
 from app.services.numa_product_analytics import NumaProductAnalytics
+from app.services.numa_reading_funnel import (
+    NumaReadingFunnelAnalytics,
+    SqlAlchemyNumaReadingFunnelStore,
+)
+from app.services.numa_reading_funnel_signal import clear_reading_funnel_signal
 from app.services.onboarding import OnboardingService
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.payment_completion_service import PaymentCompletionService
@@ -63,6 +68,10 @@ class OracleDependencyMiddleware(BaseMiddleware):
             SqlAlchemyNumaDeliveryStore(sessions),
             self._numa_product_analytics,
         )
+        self._numa_reading_funnel = NumaReadingFunnelAnalytics(
+            SqlAlchemyNumaReadingFunnelStore(sessions),
+            self._numa_product_analytics,
+        )
         self._settings = settings
         self._payment_provider = payment_provider
         self._product_catalog = product_catalog
@@ -83,6 +92,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        clear_reading_funnel_signal()
         async with self._sessions() as session:
             cipher = AESGCMSensitiveContentCipher(
                 decode_configured_key(self._settings.content_encryption_key.get_secret_value())
@@ -128,7 +138,12 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["data_deletion"] = DataDeletionService(session, self._analytics)
             data["daily_horoscopes"] = daily_horoscopes
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
-            result = await handler(event, data)
+            try:
+                result = await handler(event, data)
+            except Exception:
+                await self._track_reading_funnel(handler_succeeded=False)
+                raise
+            await self._track_reading_funnel(handler_succeeded=True)
             await self._track_runtime_signal(event, onboarding)
             await self._track_confirmed_delivery()
             return result
@@ -165,3 +180,12 @@ class OracleDependencyMiddleware(BaseMiddleware):
         except Exception:
             # A delivered Telegram answer stays successful even if analytics is unavailable.
             logger.warning("numa_delivery_analytics_failed")
+
+    async def _track_reading_funnel(self, *, handler_succeeded: bool) -> None:
+        try:
+            await self._numa_reading_funnel.confirm_current_outcome(
+                handler_succeeded=handler_succeeded
+            )
+        except Exception:
+            # Payment and entitlement state are authoritative; analytics is best-effort only.
+            logger.warning("numa_reading_funnel_analytics_failed")
