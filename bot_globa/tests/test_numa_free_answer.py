@@ -1,12 +1,10 @@
 """P1-05 free-answer and feedback tests without database or LLM I/O."""
 
 from types import SimpleNamespace
-from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery
 
 from app.bot.persona_flow import (
     PersonaFlowTexts,
@@ -105,7 +103,7 @@ def _flow() -> ReadingFlow:
     return ReadingFlow(
         persona_code="tarot_reader",
         namespace="tarot",
-        states=cast(Any, TestStates),
+        states=TestStates,
         topic_labels={},
         topic_examples={},
         texts=texts,
@@ -201,10 +199,10 @@ async def test_preview_feedback_uses_ready_authorization_and_tracks_hit() -> Non
     analytics = FakeOracleAnalytics()
 
     await submit_reading_feedback(
-        cast(CallbackQuery, callback),
-        cast(Any, FakeOnboarding(user_id)),
-        cast(Any, history),
-        cast(Any, analytics),
+        callback,
+        FakeOnboarding(user_id),
+        history,
+        analytics,
     )
 
     assert history.ready_checks == [(user_id, reading_id)]
@@ -219,10 +217,10 @@ async def test_base_miss_does_not_emit_feedback_before_reason_choice() -> None:
     analytics = FakeOracleAnalytics()
 
     await submit_reading_feedback(
-        cast(CallbackQuery, callback),
-        cast(Any, FakeOnboarding(user_id)),
-        cast(Any, FakeReadingHistory()),
-        cast(Any, analytics),
+        callback,
+        FakeOnboarding(user_id),
+        FakeReadingHistory(),
+        analytics,
     )
 
     assert analytics.events == []
