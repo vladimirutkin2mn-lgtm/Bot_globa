@@ -21,6 +21,7 @@ from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionService
+from app.services.numa_delivery_analytics import NumaDeliveryAnalytics, SqlAlchemyNumaDeliveryStore
 from app.services.numa_product_analytics import NumaProductAnalytics
 from app.services.onboarding import OnboardingService
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
@@ -58,6 +59,10 @@ class OracleDependencyMiddleware(BaseMiddleware):
         self._sessions = sessions
         self._analytics = analytics
         self._numa_product_analytics = NumaProductAnalytics(analytics)
+        self._numa_delivery_analytics = NumaDeliveryAnalytics(
+            SqlAlchemyNumaDeliveryStore(sessions),
+            self._numa_product_analytics,
+        )
         self._settings = settings
         self._payment_provider = payment_provider
         self._product_catalog = product_catalog
@@ -125,6 +130,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
             result = await handler(event, data)
             await self._track_runtime_signal(event, onboarding)
+            await self._track_confirmed_delivery()
             return result
 
     async def _track_runtime_signal(
@@ -152,3 +158,10 @@ class OracleDependencyMiddleware(BaseMiddleware):
                 "numa_runtime_analytics_failed source=%s",
                 signal.attribution.source.value,
             )
+
+    async def _track_confirmed_delivery(self) -> None:
+        try:
+            await self._numa_delivery_analytics.confirm_current_free_answer()
+        except Exception:
+            # A delivered Telegram answer stays successful even if analytics is unavailable.
+            logger.warning("numa_delivery_analytics_failed")
