@@ -143,7 +143,7 @@ def test_question_and_paid_result_keep_navigation_explicit() -> None:
     assert _buttons(TAROT_FLOW.full_result_keyboard(reading_id)) == [
         ("💬 Продолжить — Numa помнит этот сеанс", f"rfu:ask:{reading_id}"),
         ("Попало", f"rfb:hit:{reading_id}"),
-        ("Не откликнулось", f"rfb:miss:{reading_id}"),
+        ("Мимо", f"rfb:miss:{reading_id}"),
         ("← К моим разборам", "menu:readings"),
         ("← В главное меню", "tarot:menu"),
     ]
