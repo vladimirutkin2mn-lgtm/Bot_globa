@@ -12,6 +12,10 @@ from app.providers.analytics import (
     OracleProductEvent,
 )
 from app.providers.analytics_postgres import PostgresAnalyticsClient
+from app.providers.numa_product_analytics import (
+    NUMA_PRODUCT_EVENT_VERSION,
+    ProductFunnelEvent,
+)
 from app.services.oracle_product_analytics import OracleProductAnalytics
 
 
@@ -89,17 +93,26 @@ async def test_oracle_events_deduplicate_by_reading_memory_item_and_action(
             ).all()
         )
 
-    assert len(rows) == 6
+    assert len(rows) == 8
     assert {row.idempotency_key for row in rows} == {
         f"reading_started:{reading_id}",
         f"reading_preview_ready:{reading_id}",
+        f"{ProductFunnelEvent.QUESTION_ACCEPTED.value}:{reading_id}",
+        f"{ProductFunnelEvent.FREE_ANSWER_READY.value}:{reading_id}",
         f"memory_item_created:{first_memory_id}",
         f"memory_item_created:{second_memory_id}",
         "persona_selected:persona-action-one",
         "persona_selected:persona-action-two",
     }
     assert all(row.subject_id == str(user_id) for row in rows)
-    assert all(row.properties["event_version"] == PRODUCT_EVENT_TAXONOMY_VERSION for row in rows)
+    for row in rows:
+        if row.event_name in {
+            ProductFunnelEvent.QUESTION_ACCEPTED.value,
+            ProductFunnelEvent.FREE_ANSWER_READY.value,
+        }:
+            assert row.properties["event_version"] == NUMA_PRODUCT_EVENT_VERSION
+        else:
+            assert row.properties["event_version"] == PRODUCT_EVENT_TAXONOMY_VERSION
     serialized = str([row.properties for row in rows])
     assert "question" not in serialized
     assert "reading_text" not in serialized
