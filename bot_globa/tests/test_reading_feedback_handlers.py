@@ -57,7 +57,7 @@ class FakeHistory:
     def __init__(self, owned: UUID | None) -> None:
         self.owned = owned
 
-    async def owns_full(self, user_id: UUID, reading_id: UUID) -> bool:
+    async def owns_ready(self, user_id: UUID, reading_id: UUID) -> bool:
         return self.owned is not None and reading_id == self.owned
 
 
@@ -104,7 +104,7 @@ def _answers(session: RecordingSession) -> list[AnswerCallbackQuery]:
     return [method for method in session.methods if isinstance(method, AnswerCallbackQuery)]
 
 
-async def test_feedback_on_an_owned_paid_reading_is_recorded_without_content(
+async def test_feedback_on_an_owned_ready_reading_is_recorded_without_content(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
