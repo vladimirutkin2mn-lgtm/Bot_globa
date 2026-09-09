@@ -63,7 +63,7 @@ def test_compatibility_percentages_are_described_as_playful_indicators() -> None
         verdict="есть интересный ритм для разговора",
     )
 
-    rendered = _render_result("А", "Б", chart, chart, result)
+    rendered = _render_result("А", "Б", chart, chart, result)  # type: ignore[arg-type]
 
     assert "Проценты здесь — игровые показатели совместимости" in rendered
     assert "не вероятность будущих событий" in rendered
