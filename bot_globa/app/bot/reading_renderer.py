@@ -45,32 +45,30 @@ class ReadingCopy:
 
 
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Give the diagnosis for free and reserve scenarios/conditions/action for the unlock."""
+    """Give one useful answer for free while reserving depth and scenarios for unlock."""
     result = _completed_result(outcome)
     sections = [
         f"{copy.emoji} <b>Быстрый взгляд</b>",
         f"<b>{quote(result.title)}</b>",
+        f"<b>Что видно:</b>\n{quote(result.opening)}",
     ]
-    if outcome.symbols:
-        drawn = "\n".join(
-            f"{index}. <b>{quote(context.display_name)}</b> — "
-            f"{orientation_label(context.symbol.orientation)}"
-            for index, context in enumerate(outcome.symbols, start=1)
+
+    if result.symbols:
+        names = {context.symbol.position: context.display_name for context in outcome.symbols}
+        symbol = result.symbols[0]
+        display_name = names.get(symbol.position, symbol.symbol_id)
+        sections.append(
+            f"<b>Образ:</b>\n"
+            f"<b>{quote(display_name)}</b> — {orientation_label(symbol.orientation)}\n"
+            f"{quote(symbol.interpretation)}"
         )
-        sections.append(f"<b>{copy.drawn_symbols_title}</b>\n{drawn}")
-    pattern = result.patterns[0] if result.patterns else result.opening
+
     sections.extend(
         [
-            f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
-            _locked_hook(
-                result,
-                copy,
-                outcome.symbol_set_code,
-                outcome.conversion_variant,
-            ),
+            f"<b>Небольшой шаг:</b>\n{quote(result.practical_step)}",
             (
-                "<i>Это короткий слой разбора. Глубокий разбор покажет связи, условия "
-                "сценариев и следующий шаг — без нового вопроса с нуля.</i>"
+                "<i>В полном разборе — детали остальных символов, возможные сценарии и "
+                "условия, плюс уточняющий вопрос в рамках этого сеанса.</i>"
             ),
         ]
     )
