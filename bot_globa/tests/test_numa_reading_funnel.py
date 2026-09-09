@@ -1,7 +1,7 @@
 """Reading-funnel analytics tests without Telegram, database or LLM I/O."""
 
 from collections.abc import Mapping
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -20,9 +20,13 @@ from app.services.numa_reading_funnel_signal import (
 class FakeReadingFunnelStore:
     def __init__(self, candidate: ReadingFunnelCandidate | None) -> None:
         self.value = candidate
-        self.lookups: list[tuple[object, object]] = []
+        self.lookups: list[tuple[UUID, UUID]] = []
 
-    async def candidate(self, reading_id, user_id):
+    async def candidate(
+        self,
+        reading_id: UUID,
+        user_id: UUID,
+    ) -> ReadingFunnelCandidate | None:
         self.lookups.append((reading_id, user_id))
         return self.value
 
@@ -40,7 +44,7 @@ class CaptureAnalyticsClient:
         self.events.append((user_id, event, dict(properties or {})))
 
 
-def candidate():
+def candidate() -> ReadingFunnelCandidate:
     user_id, reading_id = uuid4(), uuid4()
     return ReadingFunnelCandidate(
         user_id=user_id,
