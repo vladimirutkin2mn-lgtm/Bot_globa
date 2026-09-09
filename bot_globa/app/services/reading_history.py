@@ -71,6 +71,28 @@ class ReadingHistoryService:
             has_next=has_next,
         )
 
+    async def owns_ready(self, user_id: UUID, reading_id: UUID) -> bool:
+        """Authorize feedback on either a free preview or an unlocked full reading."""
+
+        async with self._sessions() as session:
+            return bool(
+                await session.scalar(
+                    select(
+                        exists().where(
+                            Reading.id == reading_id,
+                            Reading.user_id == user_id,
+                            Reading.status.in_(
+                                (
+                                    ReadingStatus.PREVIEW_READY.value,
+                                    ReadingStatus.FULL_READY.value,
+                                )
+                            ),
+                            Reading.deleted_at.is_(None),
+                        )
+                    )
+                )
+            )
+
     async def owns_full(self, user_id: UUID, reading_id: UUID) -> bool:
         """Authorize a result action using metadata only, without decrypting the reading."""
 
