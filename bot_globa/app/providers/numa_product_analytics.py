@@ -25,8 +25,12 @@ class ProductFlow(StrEnum):
 class ProductSource(StrEnum):
     NORMAL_START = "normal_start"
     DAILY_HOROSCOPE = "daily_horoscope"
+    GROUP_CARD = "group_card"
     GROUP_COMPATIBILITY = "group_compatibility"
     GROUP_DUEL = "group_duel"
+    GROUP_PARTY = "group_party"
+    GROUP_EVENT = "group_event"
+    GROUP_CHAT = "group_chat"
     SHARED_INSIGHT = "shared_insight"
     TEST_CAMPAIGN = "test_campaign"
 

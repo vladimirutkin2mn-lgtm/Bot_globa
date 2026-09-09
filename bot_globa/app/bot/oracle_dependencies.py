@@ -1,5 +1,6 @@
 """Per-update dependencies for the AI-oracle Telegram runtime."""
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -7,10 +8,12 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.bot.numa_runtime_analytics import runtime_entity_id, runtime_signal
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
+from app.providers.numa_product_analytics import ProductFunnelEvent
 from app.providers.payments.base import PaymentProvider
 from app.providers.payments.gateway import OneTimePaymentGateway
 from app.repositories.users import SqlAlchemyUserRepository
@@ -18,6 +21,7 @@ from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.data_deletion import DataDeletionService
+from app.services.numa_product_analytics import NumaProductAnalytics
 from app.services.onboarding import OnboardingService
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
 from app.services.payment_completion_service import PaymentCompletionService
@@ -29,6 +33,8 @@ from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_
 from app.services.subscription_checkout_service import SubscriptionCheckoutService
 from app.services.subscription_management_service import SubscriptionManagementService
 from app.services.telegram_stars_service import TelegramStarsPaymentService
+
+logger = logging.getLogger(__name__)
 
 
 class OracleDependencyMiddleware(BaseMiddleware):
@@ -51,6 +57,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
     ) -> None:
         self._sessions = sessions
         self._analytics = analytics
+        self._numa_product_analytics = NumaProductAnalytics(analytics)
         self._settings = settings
         self._payment_provider = payment_provider
         self._product_catalog = product_catalog
@@ -76,9 +83,10 @@ class OracleDependencyMiddleware(BaseMiddleware):
                 decode_configured_key(self._settings.content_encryption_key.get_secret_value())
             )
             daily_horoscopes = DailyHoroscopePreferenceService(self._sessions)
-            data["onboarding"] = OnboardingService(
+            onboarding = OnboardingService(
                 SqlAlchemyUserRepository(session), self._analytics, daily_horoscopes
             )
+            data["onboarding"] = onboarding
             data["oracle_memory"] = QualityManagedOracleMemoryService(self._sessions, cipher)
             data["credits"] = CreditsService(self._sessions)
             data["previews"] = PreviewEntitlementService(self._sessions)
@@ -111,7 +119,36 @@ class OracleDependencyMiddleware(BaseMiddleware):
             # Transitional handler coordinate only: value now comes from the Oracle price.
             data["analysis_price"] = self._settings.reading_full_price_credits
             data["analytics"] = self._analytics
+            data["numa_product_analytics"] = self._numa_product_analytics
             data["data_deletion"] = DataDeletionService(session, self._analytics)
             data["daily_horoscopes"] = daily_horoscopes
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
-            return await handler(event, data)
+            result = await handler(event, data)
+            await self._track_runtime_signal(event, onboarding)
+            return result
+
+    async def _track_runtime_signal(
+        self,
+        event: TelegramObject,
+        onboarding: OnboardingService,
+    ) -> None:
+        signal = runtime_signal(event)
+        if signal is None:
+            return
+        internal_user_id = None
+        if signal.telegram_user_id is not None:
+            user = await onboarding.current_user(signal.telegram_user_id)
+            if user is not None:
+                internal_user_id = user.id
+        try:
+            await self._numa_product_analytics.track(
+                user_id=internal_user_id,
+                entity_id=runtime_entity_id(signal, internal_user_id),
+                event=ProductFunnelEvent.ENTRY,
+                attribution=signal.attribution,
+            )
+        except Exception:
+            logger.warning(
+                "numa_runtime_analytics_failed source=%s",
+                signal.attribution.source.value,
+            )
