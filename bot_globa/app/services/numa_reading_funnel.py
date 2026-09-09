@@ -120,7 +120,7 @@ class NumaReadingFunnelAnalytics:
             event = ProductFunnelEvent.FULL_UNLOCKED
             properties = {
                 "unlock_kind": UnlockKind.EXISTING_CREDIT,
-                "product_code": ProductCode.READING,
+                "product_code": ProductCode.READING_SINGLE,
             }
         await self._analytics.track(
             user_id=candidate.user_id,
