@@ -163,6 +163,7 @@ def test_daily_delivery_is_default_on_and_can_be_configured_or_disabled() -> Non
     assert _buttons(daily_settings_keyboard()) == [
         ("Отключить ежедневный гороскоп", "daily:set:disabled"),
         ("Изменить часовой пояс", "daily:timezone"),
+        ("🌙 Вечерний вопрос о прогнозе", "daily:feedback-settings"),
         ("← Назад к гороскопу", "menu:daily"),
     ]
 

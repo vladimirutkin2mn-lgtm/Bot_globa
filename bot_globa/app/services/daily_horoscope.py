@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Date, cast, func, or_, select
+from sqlalchemy import Date, cast, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.daily_horoscope_models import DailyHoroscopeFeedback, DailyHoroscopePreference
@@ -84,6 +84,29 @@ class DailyHoroscopePreferenceService:
         async with self._sessions() as session:
             preference = await session.get(DailyHoroscopePreference, user_id)
             return _DEFAULT_VIEW if preference is None else _view(preference)
+
+    async def set_feedback_enabled(
+        self,
+        user_id: UUID,
+        enabled: bool,
+        *,
+        now: datetime | None = None,
+    ) -> DailyHoroscopePreferenceView:
+        """Persist the separate evening-feedback choice and clear stale unsent work."""
+
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            preference = await _locked_preference(session, user_id, current)
+            preference.feedback_enabled = enabled
+            if not enabled:
+                await session.execute(
+                    delete(DailyHoroscopeFeedback).where(
+                        DailyHoroscopeFeedback.user_id == user_id,
+                        DailyHoroscopeFeedback.prompted_at.is_(None),
+                    )
+                )
+            await session.flush()
+            return _view(preference)
 
     async def set_moscow_time_difference(
         self,
@@ -229,7 +252,7 @@ class DailyHoroscopePreferenceService:
                 return False
             preference.claim_id = None
             preference.lease_until = None
-            if claim.mode is DailyHoroscopeMode.MORNING:
+            if claim.mode is DailyHoroscopeMode.MORNING and preference.feedback_enabled:
                 feedback = await session.get(
                     DailyHoroscopeFeedback,
                     (claim.user_id, claim.delivery_date),
@@ -250,7 +273,7 @@ class DailyHoroscopePreferenceService:
         now: datetime | None = None,
         lease_seconds: int = 60,
     ) -> DailyHoroscopeFeedbackClaim | None:
-        """Lease one evening usefulness prompt that has not been sent yet."""
+        """Lease one opted-in evening usefulness prompt that has not been sent yet."""
 
         if lease_seconds < 1:
             raise ValueError("daily horoscope feedback lease must be positive")
@@ -259,6 +282,10 @@ class DailyHoroscopePreferenceService:
             row = (
                 await session.execute(
                     select(DailyHoroscopeFeedback, User.telegram_user_id)
+                    .join(
+                        DailyHoroscopePreference,
+                        DailyHoroscopePreference.user_id == DailyHoroscopeFeedback.user_id,
+                    )
                     .join(User, User.id == DailyHoroscopeFeedback.user_id)
                     .where(
                         DailyHoroscopeFeedback.due_at <= current,
@@ -267,6 +294,7 @@ class DailyHoroscopePreferenceService:
                             DailyHoroscopeFeedback.prompt_lease_until.is_(None),
                             DailyHoroscopeFeedback.prompt_lease_until <= current,
                         ),
+                        DailyHoroscopePreference.feedback_enabled.is_(True),
                         User.telegram_user_id.is_not(None),
                         User.privacy_status != "deleted",
                         User.consent_version == CURRENT_CONSENT_VERSION,
@@ -296,16 +324,25 @@ class DailyHoroscopePreferenceService:
         *,
         now: datetime | None = None,
     ) -> bool:
-        """Reserve the prompt before Telegram I/O so a crash cannot duplicate it."""
+        """Recheck opt-in and reserve the prompt immediately before Telegram I/O."""
 
         current = _utc(now)
         async with self._sessions.begin() as session:
+            preference = await session.get(
+                DailyHoroscopePreference,
+                claim.user_id,
+                with_for_update=True,
+            )
             feedback = await session.get(
                 DailyHoroscopeFeedback,
                 (claim.user_id, claim.forecast_date),
                 with_for_update=True,
             )
             if feedback is None or feedback.prompt_claim_id != claim.claim_id:
+                return False
+            if preference is None or not preference.feedback_enabled:
+                if feedback.prompted_at is None:
+                    await session.delete(feedback)
                 return False
             if feedback.prompted_at is not None:
                 return False
@@ -414,6 +451,7 @@ def _view(preference: DailyHoroscopePreference) -> DailyHoroscopePreferenceView:
         mode=DailyHoroscopeMode(preference.mode),
         timezone=preference.timezone,
         next_delivery_at=preference.next_delivery_at,
+        feedback_enabled=preference.feedback_enabled,
     )
 
 
@@ -435,6 +473,7 @@ async def _locked_preference(
             user_id=user_id,
             mode=DailyHoroscopeMode.MORNING.value,
             timezone=DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+            feedback_enabled=False,
             next_delivery_at=_next_delivery(
                 DailyHoroscopeMode.MORNING,
                 now,

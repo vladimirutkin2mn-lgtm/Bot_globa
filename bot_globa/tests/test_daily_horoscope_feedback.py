@@ -3,9 +3,21 @@
 from datetime import date
 
 from app.bot.daily_feedback_handlers import _parse_feedback_callback
-from app.bot.daily_horoscope import DAILY_FEEDBACK_PROMPT
-from app.bot.keyboards import daily_feedback_keyboard
-from app.domain.daily_horoscope import DailyHoroscopeFeedbackAnswer
+from app.bot.daily_horoscope import (
+    DAILY_FEEDBACK_PROMPT,
+    render_daily_feedback_settings,
+    render_daily_settings,
+)
+from app.bot.keyboards import (
+    daily_feedback_keyboard,
+    daily_feedback_settings_keyboard,
+    daily_settings_keyboard,
+)
+from app.domain.daily_horoscope import (
+    DailyHoroscopeFeedbackAnswer,
+    DailyHoroscopeMode,
+    DailyHoroscopePreferenceView,
+)
 
 
 def test_feedback_prompt_is_about_usefulness_not_prediction_accuracy() -> None:
@@ -39,3 +51,34 @@ def test_feedback_callback_parser_rejects_stale_or_malformed_payloads() -> None:
     )
     assert _parse_feedback_callback("daily:feedback:maybe:2026-08-27") is None
     assert _parse_feedback_callback("daily:feedback:useful:not-a-date") is None
+
+
+def test_evening_feedback_is_a_separate_default_off_setting() -> None:
+    preference = DailyHoroscopePreferenceView(
+        DailyHoroscopeMode.MORNING,
+        "Europe/Moscow",
+        None,
+    )
+
+    settings_text = render_daily_settings(preference)
+    assert "Ежедневная отправка: включена." in settings_text
+    assert "Вечерний вопрос о прогнозе: отключён." in settings_text
+
+    settings_keyboard = daily_settings_keyboard(preference.mode)
+    assert any(
+        button.callback_data == "daily:feedback-settings"
+        for row in settings_keyboard.inline_keyboard
+        for button in row
+    )
+
+    detail = render_daily_feedback_settings(False)
+    assert "Если включить" in detail
+    assert "20:30" in detail
+
+    disabled_keyboard = daily_feedback_settings_keyboard(False)
+    assert disabled_keyboard.inline_keyboard[0][0].text == "Включить вечерний вопрос"
+    assert disabled_keyboard.inline_keyboard[0][0].callback_data == "daily:feedback-setting:on"
+
+    enabled_keyboard = daily_feedback_settings_keyboard(True)
+    assert enabled_keyboard.inline_keyboard[0][0].text == "Отключить вечерний вопрос"
+    assert enabled_keyboard.inline_keyboard[0][0].callback_data == "daily:feedback-setting:off"

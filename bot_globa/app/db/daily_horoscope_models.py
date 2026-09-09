@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import JSON, CheckConstraint, Date, DateTime, ForeignKey, String, func
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -38,6 +38,9 @@ class DailyHoroscopePreference(Base):
     mode: Mapped[str] = mapped_column(String(16))
     timezone: Mapped[str] = mapped_column(
         String(64), default="Europe/Moscow", server_default="Europe/Moscow"
+    )
+    feedback_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
     )
     next_delivery_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     claim_id: Mapped[UUID | None] = mapped_column(index=True)
