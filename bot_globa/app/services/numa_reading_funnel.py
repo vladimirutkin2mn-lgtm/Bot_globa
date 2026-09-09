@@ -58,8 +58,7 @@ class SqlAlchemyNumaReadingFunnelStore:
                 await session.scalars(
                     select(AnalyticsEvent)
                     .where(
-                        AnalyticsEvent.event_name
-                        == ProductFunnelEvent.FREE_ANSWER_READY.value,
+                        AnalyticsEvent.event_name == ProductFunnelEvent.FREE_ANSWER_READY.value,
                         AnalyticsEvent.subject_id == str(user_id),
                     )
                     .order_by(AnalyticsEvent.created_at.desc())
@@ -67,11 +66,7 @@ class SqlAlchemyNumaReadingFunnelStore:
                 )
             ).all()
             event = next(
-                (
-                    item
-                    for item in events
-                    if item.properties.get("entity_id") == str(reading_id)
-                ),
+                (item for item in events if item.properties.get("entity_id") == str(reading_id)),
                 None,
             )
             if event is None:
