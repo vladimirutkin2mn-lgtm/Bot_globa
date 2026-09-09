@@ -19,9 +19,9 @@ _READING_RESUME_PREFIXES = (
 
 
 def onboarding_intro_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Начать", callback_data="onboarding:intro")]]
-    )
+    """Show useful choices immediately; consent remains just-in-time inside personal flows."""
+
+    return main_menu_keyboard()
 
 
 def consent_keyboard(destination: str | None = None) -> InlineKeyboardMarkup:
