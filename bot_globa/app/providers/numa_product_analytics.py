@@ -99,7 +99,7 @@ _REQUIRED_COMMON = frozenset(
         "calculation_timezone",
     }
 )
-_REQUIRED: dict[str, frozenset[str]] = {event: _REQUIRED_COMMON for event in _EVENT_PROPERTIES}
+_REQUIRED: dict[str, frozenset[str]] = dict.fromkeys(_EVENT_PROPERTIES, _REQUIRED_COMMON)
 _REQUIRED.update(
     {
         ProductFunnelEvent.FREE_ANSWER_DELIVERED.value: _REQUIRED_COMMON | {"delivery_status"},
