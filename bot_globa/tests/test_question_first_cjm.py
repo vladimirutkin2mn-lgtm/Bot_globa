@@ -55,7 +55,14 @@ def test_more_menu_is_not_a_second_persona_storefront() -> None:
 
 
 def test_onboarding_starts_with_numa_not_a_topic_catalogue() -> None:
-    assert _labels(onboarding_intro_keyboard()) == ["Начать"]
+    labels = _labels(onboarding_intro_keyboard())
+    assert labels[:4] == [
+        "✨ Рассказать Numa",
+        "🔮 Таро",
+        "💞 Любовный оракул",
+        "🪐 Астрология",
+    ]
+    assert "Начать" not in labels
     assert "Что сегодня не даёт вам покоя?" in texts.MAIN_MENU
     assert "сама выберет способ разбора" in texts.MAIN_MENU
 
