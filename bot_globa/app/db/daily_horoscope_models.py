@@ -17,6 +17,12 @@ class DailyHoroscopePreference(Base):
             name="ck_daily_horoscope_preferences_mode",
         ),
         CheckConstraint(
+            "zodiac_sign IS NULL OR zodiac_sign IN ("
+            "'aries','taurus','gemini','cancer','leo','virgo','libra','scorpio',"
+            "'sagittarius','capricorn','aquarius','pisces')",
+            name="ck_daily_horoscope_preferences_zodiac_sign",
+        ),
+        CheckConstraint(
             "(mode IN ('morning','evening') AND next_delivery_at IS NOT NULL) OR "
             "(mode IN ('on_request','disabled') AND next_delivery_at IS NULL)",
             name="ck_daily_horoscope_preferences_schedule",
@@ -39,6 +45,7 @@ class DailyHoroscopePreference(Base):
     timezone: Mapped[str] = mapped_column(
         String(64), default="Europe/Moscow", server_default="Europe/Moscow"
     )
+    zodiac_sign: Mapped[str | None] = mapped_column(String(16), nullable=True)
     feedback_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
