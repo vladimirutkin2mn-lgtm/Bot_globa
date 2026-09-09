@@ -17,10 +17,13 @@ from aiogram.types import CallbackQuery, Chat, Message
 from aiogram.types import User as TelegramUser
 
 from app.bot.core_handlers import (
+    choose_daily_horoscope_sign,
+    daily_horoscope_all_signs,
     daily_horoscope_screen,
     daily_horoscope_settings,
     request_daily_horoscope_timezone,
     set_daily_horoscope,
+    set_daily_horoscope_sign,
     set_daily_horoscope_timezone,
 )
 from app.bot.states import DailyHoroscopeStates, TarotStates
@@ -30,6 +33,7 @@ from app.domain.daily_horoscope import (
     DailyHoroscopeMode,
     DailyHoroscopePreferenceView,
 )
+from app.domain.natal_chart import ZodiacSign
 from tests.telegram_doubles import sent, shown_texts
 
 
@@ -70,17 +74,24 @@ class FakeOnboarding:
 
 
 class FakePreferences:
-    def __init__(self, mode: DailyHoroscopeMode = DailyHoroscopeMode.MORNING) -> None:
+    def __init__(
+        self,
+        mode: DailyHoroscopeMode = DailyHoroscopeMode.MORNING,
+        zodiac_sign: ZodiacSign | None = None,
+    ) -> None:
         self.mode = mode
         self.timezone = DEFAULT_DAILY_HOROSCOPE_TIMEZONE
+        self.zodiac_sign = zodiac_sign
         self.configured: list[tuple[UUID, DailyHoroscopeMode]] = []
         self.differences: list[tuple[UUID, int]] = []
+        self.signs: list[tuple[UUID, ZodiacSign | None]] = []
 
     async def current(self, user_id: UUID) -> DailyHoroscopePreferenceView:
         return DailyHoroscopePreferenceView(
             self.mode,
             self.timezone,
             None,
+            zodiac_sign=self.zodiac_sign,
         )
 
     async def configure(
@@ -90,6 +101,15 @@ class FakePreferences:
     ) -> DailyHoroscopePreferenceView:
         self.configured.append((user_id, mode))
         self.mode = mode
+        return await self.current(user_id)
+
+    async def set_zodiac_sign(
+        self,
+        user_id: UUID,
+        zodiac_sign: ZodiacSign | None,
+    ) -> DailyHoroscopePreferenceView:
+        self.signs.append((user_id, zodiac_sign))
+        self.zodiac_sign = zodiac_sign
         return await self.current(user_id)
 
     async def set_moscow_time_difference(
@@ -175,13 +195,100 @@ async def test_the_digest_screen_opens_its_settings(
 
     assert "Гороскоп на сегодня" in _copy(session)[-1]
     assert "Настройки" in _markup_labels(session)
+    assert "Выбрать свой знак" in _markup_labels(session)
+
+
+async def test_selected_sign_opens_as_a_compact_daily_view(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+
+    await daily_horoscope_screen(
+        _callback(instance, "menu:daily"),
+        _state(instance),
+        FakeOnboarding(),
+        FakePreferences(zodiac_sign=ZodiacSign.ARIES),
+    )
+
+    rendered = _copy(session)[-1]
+    assert "♈ Овен" in rendered
+    assert "♉ Телец" not in rendered
+    assert "Все знаки" in _markup_labels(session)
+    assert "Сменить знак" in _markup_labels(session)
+
+
+async def test_all_signs_expands_without_forgetting_the_saved_sign(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+    preferences = FakePreferences(zodiac_sign=ZodiacSign.ARIES)
+
+    await daily_horoscope_all_signs(
+        _callback(instance, "daily:all"),
+        _state(instance),
+        FakeOnboarding(),
+        preferences,
+    )
+
+    rendered = _copy(session)[-1]
+    assert "♈ Овен" in rendered
+    assert "♉ Телец" in rendered
+    assert preferences.zodiac_sign is ZodiacSign.ARIES
+    assert preferences.signs == []
+
+
+async def test_sign_picker_does_not_ask_for_birth_profile_data(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+
+    await choose_daily_horoscope_sign(
+        _callback(instance, "daily:sign"),
+        _state(instance),
+        FakeOnboarding(),
+        FakePreferences(),
+    )
+
+    rendered = _copy(session)[-1]
+    labels = _markup_labels(session)
+    assert "Дата, место и время рождения не нужны" in rendered
+    assert "♈ Овен" in labels
+    assert "♓ Рыбы" in labels
+    assert len([label for label in labels if any(symbol in label for symbol in "♈♉♊♋♌♍♎♏♐♑♒♓")]) == 12
+
+
+async def test_selecting_and_clearing_a_sign_persists_only_the_daily_preference(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+    onboarding = FakeOnboarding()
+    preferences = FakePreferences()
+
+    await set_daily_horoscope_sign(
+        _callback(instance, "daily:sign:aries"),
+        _state(instance),
+        onboarding,
+        preferences,
+    )
+    assert preferences.signs == [(onboarding.user.id, ZodiacSign.ARIES)]
+    assert "♈ Овен" in _copy(session)[-1]
+    assert "♉ Телец" not in _copy(session)[-1]
+
+    await set_daily_horoscope_sign(
+        _callback(instance, "daily:sign:clear"),
+        _state(instance),
+        onboarding,
+        preferences,
+    )
+    assert preferences.signs[-1] == (onboarding.user.id, None)
+    assert "♉ Телец" in _copy(session)[-1]
 
 
 async def test_the_settings_screen_states_the_choice_already_saved(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
-    preferences = FakePreferences(DailyHoroscopeMode.MORNING)
+    preferences = FakePreferences(DailyHoroscopeMode.MORNING, ZodiacSign.ARIES)
 
     await daily_horoscope_settings(
         _callback(instance, "daily:settings"),
@@ -190,6 +297,7 @@ async def test_the_settings_screen_states_the_choice_already_saved(
         preferences,
     )
 
+    assert "Знак: ♈ Овен." in _copy(session)[-1]
     assert "Ежедневная отправка: включена." in _copy(session)[-1]
     assert "Время отправки: 08:00 по вашему времени." in _copy(session)[-1]
     assert "Отключить ежедневный гороскоп" in _markup_labels(session)
@@ -208,6 +316,7 @@ async def test_an_unknown_account_sees_the_enabled_default(
         FakePreferences(DailyHoroscopeMode.EVENING),
     )
 
+    assert "Знак: все знаки." in _copy(session)[-1]
     assert "Ежедневная отправка: включена." in _copy(session)[-1]
     assert "Разница с Москвой: 0 ч." in _copy(session)[-1]
 
