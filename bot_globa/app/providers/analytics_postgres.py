@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -16,10 +17,13 @@ from app.providers.analytics import (
     validate_event_properties,
 )
 from app.providers.numa_product_analytics import (
+    ProductFlow,
+    ProductFunnelEvent,
     is_numa_product_event,
     numa_product_event_identity,
     validate_numa_product_event,
 )
+from app.providers.numa_reading_projection import project_personal_reading_event
 
 
 class PostgresAnalyticsClient:
@@ -43,17 +47,77 @@ class PostgresAnalyticsClient:
                 user_id, event, safe_properties, correlation_id
             )
         async with self._sessions.begin() as session:
-            await session.execute(
-                insert(AnalyticsEvent)
-                .values(
-                    event_name=event,
-                    subject_id=subject_id,
-                    properties=safe_properties,
-                    idempotency_key=idempotency_key,
+            await self._insert(
+                session,
+                event=event,
+                subject_id=subject_id,
+                properties=safe_properties,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+            )
+            projected = project_personal_reading_event(
+                event,
+                safe_properties,
+                await self._latest_personal_entry(session, subject_id),
+            )
+            if projected is not None:
+                projected_event, projected_properties = projected
+                projected_subject, projected_key = numa_product_event_identity(
+                    user_id,
+                    projected_event,
+                    projected_properties,
+                )
+                await self._insert(
+                    session,
+                    event=projected_event,
+                    subject_id=projected_subject,
+                    properties=projected_properties,
+                    idempotency_key=projected_key,
                     correlation_id=correlation_id,
                 )
-                .on_conflict_do_nothing(index_elements=[AnalyticsEvent.idempotency_key])
+
+    @staticmethod
+    async def _insert(
+        session: AsyncSession,
+        *,
+        event: str,
+        subject_id: str | None,
+        properties: Mapping[str, str],
+        idempotency_key: str,
+        correlation_id: str,
+    ) -> None:
+        await session.execute(
+            insert(AnalyticsEvent)
+            .values(
+                event_name=event,
+                subject_id=subject_id,
+                properties=dict(properties),
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
             )
+            .on_conflict_do_nothing(index_elements=[AnalyticsEvent.idempotency_key])
+        )
+
+    @staticmethod
+    async def _latest_personal_entry(
+        session: AsyncSession,
+        subject_id: str | None,
+    ) -> Mapping[str, str] | None:
+        if subject_id is None:
+            return None
+        entries = await session.scalars(
+            select(AnalyticsEvent)
+            .where(
+                AnalyticsEvent.event_name == ProductFunnelEvent.ENTRY.value,
+                AnalyticsEvent.subject_id == subject_id,
+            )
+            .order_by(AnalyticsEvent.created_at.desc())
+            .limit(50)
+        )
+        for entry in entries:
+            if entry.properties.get("flow") == ProductFlow.PERSONAL.value:
+                return entry.properties
+        return None
 
 
 def create_analytics_client(
