@@ -169,7 +169,7 @@ class FakeOnboarding:
     def __init__(self, user_id: UUID) -> None:
         self.user_id = user_id
 
-    async def current_user(self, telegram_user_id: int):
+    async def current_user(self, telegram_user_id: int) -> SimpleNamespace:
         return SimpleNamespace(id=self.user_id)
 
 
