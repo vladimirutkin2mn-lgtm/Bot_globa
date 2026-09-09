@@ -55,12 +55,17 @@ class PostgresAnalyticsClient:
                 idempotency_key=idempotency_key,
                 correlation_id=correlation_id,
             )
-            projected = project_personal_reading_event(
-                event,
-                safe_properties,
-                await self._latest_personal_entry(session, subject_id),
-            )
+            projected = project_personal_reading_event(event, safe_properties)
             if projected is not None:
+                latest_entry = await self._latest_personal_entry(session, subject_id)
+                if latest_entry is not None:
+                    projected = project_personal_reading_event(
+                        event,
+                        safe_properties,
+                        latest_entry,
+                    )
+                if projected is None:
+                    return
                 projected_event, projected_properties = projected
                 projected_subject, projected_key = numa_product_event_identity(
                     user_id,
