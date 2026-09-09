@@ -7,13 +7,8 @@ text — only the already validated result and copy configured for the selected 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.bot.conversion_hooks import (
-    DEFAULT_READING_HOOK,
-    ConversionHookCopy,
-    render_grounded_hook,
-)
+from app.bot.conversion_hooks import DEFAULT_READING_HOOK, ConversionHookCopy
 from app.bot.typography import quote
-from app.domain.conversion_experiment import ConversionHookVariant
 from app.domain.reading import SymbolOrientation
 from app.domain.reading_generation import ReadingSymbolContext
 from app.domain.reading_result import ReadingResult
@@ -76,26 +71,18 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
 
 
 def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Give later readings one personal signal plus a grounded reason to unlock."""
+    """Give later readings one compact signal without repeating the full free answer."""
 
     result = _completed_result(outcome)
     insight = result.patterns[0] if result.patterns else result.opening
     sections = [f"{copy.emoji} <b>Быстрый взгляд</b>"]
     if outcome.symbols:
         drawn = ", ".join(quote(context.display_name) for context in outcome.symbols)
-        sections.append(f"<b>Зафиксированные карты:</b> {drawn}")
-    sections.extend(
-        (
-            f"<b>{copy.main_theme_title}</b> — {quote(insight)}",
-            _locked_hook(
-                result,
-                copy,
-                outcome.symbol_set_code,
-                outcome.conversion_variant,
-            ),
-            "<i>Глубокий разбор продолжит именно эту историю и этот расклад.</i>",
-        )
-    )
+        sections.append(f"<b>Карты:</b> {drawn}")
+    sections.append(f"<b>{copy.main_theme_title}</b> — {quote(insight)}")
+    if result.possible_scenarios:
+        sections.append(f"<b>Одна из линий:</b> {quote(result.possible_scenarios[0].scenario)}")
+    sections.append("<i>Глубокий разбор покажет детали и условия этой линии.</i>")
     return chunk_sections(tuple(sections))
 
 
@@ -173,21 +160,6 @@ def render_reveal(
         f"{drawn}\n\n"
         f"<i>{REVEAL_CLOSING}</i>"
     )
-
-
-def _locked_hook(
-    result: ReadingResult,
-    copy: ReadingCopy,
-    symbol_set_code: str | None,
-    variant: ConversionHookVariant,
-) -> str:
-    hook = copy.hook
-    if symbol_set_code is not None:
-        hook = next(
-            (candidate for code, candidate in copy.hook_by_symbol_set if code == symbol_set_code),
-            hook,
-        )
-    return render_grounded_hook(result.possible_scenarios, hook, variant)
 
 
 def chunk_text(text: str) -> tuple[str, ...]:
