@@ -129,7 +129,7 @@ def daily_feedback_keyboard(forecast_date: str) -> InlineKeyboardMarkup:
 
 
 def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> InlineKeyboardMarkup:
-    """Offer one delivery switch plus the user's local-time setting."""
+    """Offer one delivery switch plus the user's local-time and feedback settings."""
 
     enabled = daily_horoscope_enabled(current or DailyHoroscopeMode.MORNING)
     toggle_mode = DailyHoroscopeMode.DISABLED if enabled else DailyHoroscopeMode.MORNING
@@ -148,7 +148,31 @@ def daily_settings_keyboard(current: DailyHoroscopeMode | None = None) -> Inline
                     callback_data="daily:timezone",
                 )
             ],
+            [
+                InlineKeyboardButton(
+                    text="🌙 Вечерний вопрос о прогнозе",
+                    callback_data="daily:feedback-settings",
+                )
+            ],
             [InlineKeyboardButton(text="← Назад к гороскопу", callback_data="menu:daily")],
+        ]
+    )
+
+
+def daily_feedback_settings_keyboard(enabled: bool) -> InlineKeyboardMarkup:
+    """Offer an explicit opt-in/out for the optional evening usefulness prompt."""
+
+    action = "off" if enabled else "on"
+    label = "Отключить вечерний вопрос" if enabled else "Включить вечерний вопрос"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=label,
+                    callback_data=f"daily:feedback-setting:{action}",
+                )
+            ],
+            [InlineKeyboardButton(text="← Назад к настройкам", callback_data="daily:settings")],
         ]
     )
 
