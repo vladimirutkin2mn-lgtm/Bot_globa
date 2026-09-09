@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from app.bot.conversion_hooks import DEFAULT_READING_HOOK, ConversionHookCopy
 from app.bot.typography import quote
+from app.domain.conversion_experiment import ConversionHookVariant
 from app.domain.reading import SymbolOrientation
 from app.domain.reading_generation import ReadingSymbolContext
 from app.domain.reading_result import ReadingResult
@@ -81,7 +82,8 @@ def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> t
         sections.append(f"<b>Карты:</b> {drawn}")
     sections.append(f"<b>{copy.main_theme_title}</b> — {quote(insight)}")
     if result.possible_scenarios:
-        sections.append(f"<b>Одна из линий:</b> {quote(result.possible_scenarios[0].scenario)}")
+        label = _micro_scenario_label(outcome.conversion_variant)
+        sections.append(f"<b>{label}</b> {quote(result.possible_scenarios[0].scenario)}")
     sections.append("<i>Глубокий разбор покажет детали и условия этой линии.</i>")
     return chunk_sections(tuple(sections))
 
@@ -134,6 +136,16 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         ]
     )
     return chunk_sections(tuple(sections))
+
+
+def _micro_scenario_label(variant: ConversionHookVariant) -> str:
+    """Keep the existing conversion cohort alive with only a one-line wording change."""
+
+    return {
+        ConversionHookVariant.A: "Одна из линий:",
+        ConversionHookVariant.B: "Здесь есть развилка:",
+        ConversionHookVariant.C: "Если смотреть вперёд:",
+    }[variant]
 
 
 def reveal_progress(revealed: int, total: int) -> str:
