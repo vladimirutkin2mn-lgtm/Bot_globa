@@ -6,9 +6,9 @@ Telegram identifiers, questions, answers, birth data and payment secrets are not
 part of the contract.
 """
 
+import re
 from collections.abc import Mapping
 from enum import StrEnum
-import re
 from uuid import UUID
 
 NUMA_PRODUCT_EVENT_VERSION = "numa-product-funnel-v1"
@@ -99,26 +99,20 @@ _REQUIRED_COMMON = frozenset(
         "calculation_timezone",
     }
 )
-_REQUIRED: dict[str, frozenset[str]] = {
-    event: _REQUIRED_COMMON for event in _EVENT_PROPERTIES
-}
+_REQUIRED: dict[str, frozenset[str]] = {event: _REQUIRED_COMMON for event in _EVENT_PROPERTIES}
 _REQUIRED.update(
     {
-        ProductFunnelEvent.FREE_ANSWER_DELIVERED.value: _REQUIRED_COMMON
-        | {"delivery_status"},
-        ProductFunnelEvent.CHECKOUT_STARTED.value: _REQUIRED_COMMON
-        | {"product_code", "provider"},
+        ProductFunnelEvent.FREE_ANSWER_DELIVERED.value: _REQUIRED_COMMON | {"delivery_status"},
+        ProductFunnelEvent.CHECKOUT_STARTED.value: _REQUIRED_COMMON | {"product_code", "provider"},
         ProductFunnelEvent.PURCHASE_CONFIRMED.value: _REQUIRED_COMMON
         | {"product_code", "provider", "purchase_kind", "amount_minor", "currency"},
-        ProductFunnelEvent.FULL_UNLOCKED.value: _REQUIRED_COMMON
-        | {"unlock_kind", "product_code"},
+        ProductFunnelEvent.FULL_UNLOCKED.value: _REQUIRED_COMMON | {"unlock_kind", "product_code"},
         ProductFunnelEvent.REPEAT_ACTIVITY.value: _REQUIRED_COMMON
         | {"activity_kind", "day_bucket"},
         ProductFunnelEvent.DAILY_PREPARED.value: _REQUIRED_COMMON | {"local_date"},
         ProductFunnelEvent.DAILY_DELIVERED.value: _REQUIRED_COMMON
         | {"local_date", "delivery_status"},
-        ProductFunnelEvent.DAILY_ACTION.value: _REQUIRED_COMMON
-        | {"local_date", "action_code"},
+        ProductFunnelEvent.DAILY_ACTION.value: _REQUIRED_COMMON | {"local_date", "action_code"},
         ProductFunnelEvent.SHARE_CARD_SHOWN.value: _REQUIRED_COMMON | {"share_format"},
         ProductFunnelEvent.SHARE_INTENT.value: _REQUIRED_COMMON | {"share_format"},
         ProductFunnelEvent.RECIPIENT_ENTRY.value: _REQUIRED_COMMON | {"campaign_code"},
@@ -138,9 +132,7 @@ def is_numa_product_event(event: str) -> bool:
     return event in _EVENT_PROPERTIES
 
 
-def validate_numa_product_event(
-    event: str, properties: Mapping[str, str] | None
-) -> dict[str, str]:
+def validate_numa_product_event(event: str, properties: Mapping[str, str] | None) -> dict[str, str]:
     """Validate one product event using an explicit allow-list."""
 
     allowed = _EVENT_PROPERTIES.get(event)
