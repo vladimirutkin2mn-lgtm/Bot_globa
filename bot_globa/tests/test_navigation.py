@@ -42,7 +42,9 @@ def test_main_menu_contains_required_sections() -> None:
 
 
 def test_entry_copy_starts_from_numa_and_keeps_explicit_practices_reachable() -> None:
-    assert onboarding_intro_keyboard().inline_keyboard[0][0].text == "Начать"
+    intro_labels = _buttons(onboarding_intro_keyboard())
+    assert "Начать" not in intro_labels
+    assert intro_labels["✨ Рассказать Numa"] == "oracle:auto"
     assert "Что сегодня не даёт вам покоя?" in texts.MAIN_MENU
     assert "сама выберет способ разбора" in texts.MAIN_MENU
 
