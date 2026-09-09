@@ -67,12 +67,16 @@ def test_onboarding_starts_with_numa_not_a_topic_catalogue() -> None:
     assert "сама выберет способ разбора" in texts.MAIN_MENU
 
 
-def test_preview_upgrade_is_framed_as_deep_reading() -> None:
+def test_preview_feedback_precedes_deep_reading_upgrade() -> None:
     reading_id = UUID("00000000-0000-0000-0000-000000000123")
     keyboard = TAROT_FLOW.result_keyboard(reading_id, "99 ₽")
     paywall = texts.PAYWALL.casefold()
 
-    assert _labels(keyboard)[0] == "✨ Открыть глубокий разбор — 99 ₽"
+    assert _labels(keyboard)[:3] == [
+        "Попало",
+        "Мимо",
+        "✨ Открыть глубокий разбор — 99 ₽",
+    ]
     assert "быстром взгляде" in paywall
     assert "глубокий разбор" in paywall
 
