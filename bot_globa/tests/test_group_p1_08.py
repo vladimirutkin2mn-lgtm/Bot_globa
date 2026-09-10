@@ -142,10 +142,10 @@ async def test_compatibility_without_natal_profiles_uses_existing_sign_fallback(
     monkeypatch.setattr(p1, "_PREVIOUS_COMPATIBILITY_RENDER", should_not_delegate)
 
     await p1._render_compatibility_p1_08(
-        cast(Any, object()),
-        cast(Any, object()),
-        cast(Any, object()),
-        cast(Any, object()),
+        cast("Any", object()),
+        cast("Any", object()),
+        cast("Any", object()),
+        cast("Any", object()),
         context=CompatibilityContext.LOVE,
         inviter_id=1,
         first_id=101,
@@ -161,7 +161,7 @@ async def test_compatibility_keeps_full_natal_renderer_when_both_profiles_exist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     delegated = False
-    chart = cast(NatalChartResult, object())
+    chart = cast("NatalChartResult", object())
 
     async def pair_names(*args: object, **kwargs: object) -> tuple[str, str]:
         return "First", "Second"
@@ -178,10 +178,10 @@ async def test_compatibility_keeps_full_natal_renderer_when_both_profiles_exist(
     monkeypatch.setattr(p1, "_PREVIOUS_COMPATIBILITY_RENDER", delegate)
 
     await p1._render_compatibility_p1_08(
-        cast(Any, object()),
-        cast(Any, object()),
-        cast(Any, object()),
-        cast(Any, object()),
+        cast("Any", object()),
+        cast("Any", object()),
+        cast("Any", object()),
+        cast("Any", object()),
         context=CompatibilityContext.LOVE,
         inviter_id=1,
         first_id=101,
