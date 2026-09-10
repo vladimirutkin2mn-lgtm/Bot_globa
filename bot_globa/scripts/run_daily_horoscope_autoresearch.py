@@ -40,10 +40,60 @@ def _render_markdown(payload: dict[str, object]) -> str:
         "unique_opening_ratio",
         "temporal_diversity",
         "distinct_text_ratio",
+        "semantic_review_days",
+        "semantic_review_cells",
+        "semantic_review_pairs",
+        "semantic_near_repeat_rate",
+        "max_semantic_near_repeat_rate_per_sign",
+        "max_semantic_similarity",
         "avg_words",
         "max_caption_chars",
     ):
         lines.append(f"| {key} | {candidate_metrics[key]} | {baseline_metrics[key]} |")
+
+    lines.extend(("", "## 14-day semantic repetition review", ""))
+    semantic_repeats = candidate.get("semantic_repeats")
+    if not isinstance(semantic_repeats, list):
+        raise TypeError("autoresearch semantic repetition payload is malformed")
+    if semantic_repeats:
+        lines.extend(
+            (
+                "These are non-identical pairs whose deterministic semantic similarity "
+                "crossed the review threshold.",
+                "",
+                "| Sign | First date | Second date | Similarity | First | Second |",
+                "| --- | --- | --- | ---: | --- | --- |",
+            )
+        )
+        for finding in semantic_repeats:
+            if not isinstance(finding, dict):
+                raise TypeError("autoresearch semantic finding is malformed")
+            first_text = str(finding["first_text"]).replace("|", "\\|")
+            second_text = str(finding["second_text"]).replace("|", "\\|")
+            finding_row = " | ".join(
+                (
+                    "",
+                    "{sign}",
+                    "{first_date}",
+                    "{second_date}",
+                    "{similarity}",
+                    "{first}",
+                    "{second}",
+                    "",
+                )
+            )
+            lines.append(
+                finding_row.format(
+                    sign=finding["sign"],
+                    first_date=finding["first_date"],
+                    second_date=finding["second_date"],
+                    similarity=finding["similarity"],
+                    first=first_text,
+                    second=second_text,
+                )
+            )
+    else:
+        lines.append("No non-identical semantic near-repeats crossed the review threshold.")
 
     lines.extend(("", "## Hard gates", ""))
     hard_gates = candidate["hard_gates"]
