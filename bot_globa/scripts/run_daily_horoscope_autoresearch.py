@@ -70,8 +70,12 @@ def _render_markdown(payload: dict[str, object]) -> str:
                 raise TypeError("autoresearch semantic finding is malformed")
             first_text = str(finding["first_text"]).replace("|", "\\|")
             second_text = str(finding["second_text"]).replace("|", "\\|")
+            finding_row = (
+                "| {sign} | {first_date} | {second_date} | {similarity} | "
+                "{first} | {second} |"
+            )
             lines.append(
-                "| {sign} | {first_date} | {second_date} | {similarity} | {first} | {second} |".format(
+                finding_row.format(
                     sign=finding["sign"],
                     first_date=finding["first_date"],
                     second_date=finding["second_date"],
