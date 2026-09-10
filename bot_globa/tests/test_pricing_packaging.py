@@ -8,7 +8,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 from app.bot import refund_handlers, subscription_handlers, texts
 from app.bot.keyboards import more_menu_keyboard, products_keyboard
-from app.bot.pricing import product_price_label
+from app.bot.pricing import product_price_label, reading_count_label, subscription_offer_terms
 from app.bot.telegram_stars_handlers import payment_support_text
 from app.config import Settings
 from app.domain.billing import BillingCatalog
@@ -45,13 +45,32 @@ def test_generic_purchase_screen_sells_deep_readings_instead_of_ledger_units(
     assert "кредит" not in " ".join(buttons).casefold()
 
 
-def test_subscription_is_presented_without_a_visible_reading_cap(settings: Settings) -> None:
-    subscription_settings = settings.model_copy(update={"subscriptions_enabled": True})
+def test_subscription_exposes_real_reading_count_period_and_renewal(settings: Settings) -> None:
+    subscription_settings = settings.model_copy(
+        update={
+            "subscriptions_enabled": True,
+            "product_subscription_monthly_credits": 12,
+        }
+    )
     catalog = BillingCatalog(subscription_settings)
     buttons = _button_texts(products_keyboard(catalog, subscription_settings))
 
-    assert any(button.startswith("🌙 Numa Plus · месяц — ") for button in buttons)
-    assert all("30 разборов" not in button for button in buttons)
+    assert any(button.startswith("🌙 Numa Plus · 12 разборов/мес — ") for button in buttons)
+    assert subscription_offer_terms(catalog, subscription_settings) == (
+        "1 месяц · 12 разборов · с автопродлением"
+    )
+    assert subscription_handlers.subscription_choice_text(catalog, subscription_settings) == (
+        "Numa Plus: 1 месяц · 12 разборов · с автопродлением.\n"
+        "Выберите способ оплаты. Провайдер покажет сумму и подтвердит условия до оплаты."
+    )
+
+
+def test_reading_count_label_uses_russian_plural_forms() -> None:
+    assert reading_count_label(1) == "1 разбор"
+    assert reading_count_label(2) == "2 разбора"
+    assert reading_count_label(5) == "5 разборов"
+    assert reading_count_label(11) == "11 разборов"
+    assert reading_count_label(21) == "21 разбор"
 
 
 def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> None:

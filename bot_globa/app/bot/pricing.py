@@ -48,6 +48,36 @@ def reading_count(
     return max(offer.credits // settings.reading_full_price_credits, 1)
 
 
+def reading_count_label(count: int) -> str:
+    """Render a Russian reading count without exposing the internal entitlement ledger."""
+
+    remainder_100 = count % 100
+    remainder_10 = count % 10
+    if 11 <= remainder_100 <= 14:
+        noun = "разборов"
+    elif remainder_10 == 1:
+        noun = "разбор"
+    elif 2 <= remainder_10 <= 4:
+        noun = "разбора"
+    else:
+        noun = "разборов"
+    return f"{count} {noun}"
+
+
+def subscription_offer_terms(catalog: BillingCatalog, settings: Settings) -> str:
+    """Describe the current subscription period, usable readings, and renewal behavior."""
+
+    offer = catalog.resolve_product_offer(
+        ProductCode.SUBSCRIPTION_MONTHLY,
+        BillingMarket.RU,
+        "RUB",
+    )
+    period = "1 месяц" if offer.billing_interval == "month" else "1 период"
+    count = reading_count(catalog, ProductCode.SUBSCRIPTION_MONTHLY, settings)
+    renewal = "с автопродлением" if settings.subscriptions_enabled else "без автопродления"
+    return f"{period} · {reading_count_label(count)} · {renewal}"
+
+
 def product_choice_label(
     catalog: BillingCatalog,
     code: ProductCode,
@@ -64,5 +94,5 @@ def product_choice_label(
     elif code is ProductCode.READING_PACK_5:
         outcome = f"🔮 {count} глубоких разборов"
     else:
-        outcome = "🌙 Numa Plus · месяц"
+        outcome = f"🌙 Numa Plus · {reading_count_label(count)}/мес"
     return f"{outcome} — {price}"

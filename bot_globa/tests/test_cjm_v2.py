@@ -53,7 +53,7 @@ def test_purchase_screen_has_single_pack_and_monthly_deep_reading_choices() -> N
         ("✨ 1 глубокий разбор — 199 ₽ / 40 ⭐", "credits:buy:reading_single"),
         ("🔮 5 глубоких разборов — 699 ₽ / 200 ⭐", "credits:buy:reading_pack_5"),
         (
-            "🌙 Numa Plus · месяц — 990 ₽ / 280 ⭐",
+            "🌙 Numa Plus · 30 разборов/мес — 990 ₽ / 280 ⭐",
             "credits:buy:subscription_monthly",
         ),
     ]
