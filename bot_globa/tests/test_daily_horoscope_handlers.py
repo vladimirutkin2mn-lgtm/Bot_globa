@@ -254,7 +254,16 @@ async def test_sign_picker_does_not_ask_for_birth_profile_data(
     assert "Дата, место и время рождения не нужны" in rendered
     assert "♈ Овен" in labels
     assert "♓ Рыбы" in labels
-    assert len([label for label in labels if any(symbol in label for symbol in "♈♉♊♋♌♍♎♏♐♑♒♓")]) == 12
+    assert (
+        len(
+            [
+                label
+                for label in labels
+                if any(symbol in label for symbol in "♈♉♊♋♌♍♎♏♐♑♒♓")
+            ]
+        )
+        == 12
+    )
 
 
 async def test_selecting_and_clearing_a_sign_persists_only_the_daily_preference(
