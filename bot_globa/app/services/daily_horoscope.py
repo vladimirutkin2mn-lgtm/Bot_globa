@@ -469,7 +469,9 @@ def _view(preference: DailyHoroscopePreference) -> DailyHoroscopePreferenceView:
         timezone=preference.timezone,
         next_delivery_at=preference.next_delivery_at,
         feedback_enabled=preference.feedback_enabled,
-        zodiac_sign=(ZodiacSign(preference.zodiac_sign) if preference.zodiac_sign is not None else None),
+        zodiac_sign=(
+            ZodiacSign(preference.zodiac_sign) if preference.zodiac_sign is not None else None
+        ),
     )
 
 
