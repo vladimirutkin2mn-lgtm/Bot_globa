@@ -452,8 +452,7 @@ def _hard_gates(metrics: ResearchMetrics) -> dict[str, bool]:
             metrics.semantic_near_repeat_rate <= MAX_SEMANTIC_NEAR_REPEAT_RATE
         ),
         "fourteen_day_per_sign_semantic_repeat_rate": (
-            metrics.max_semantic_near_repeat_rate_per_sign
-            <= MAX_SEMANTIC_NEAR_REPEAT_RATE_PER_SIGN
+            metrics.max_semantic_near_repeat_rate_per_sign <= MAX_SEMANTIC_NEAR_REPEAT_RATE_PER_SIGN
         ),
         "minimum_actionability": metrics.actionable_ratio >= MIN_ACTIONABLE_RATIO,
         "minimum_topic_coverage": metrics.topic_coverage_ratio >= MIN_TOPIC_COVERAGE_RATIO,
