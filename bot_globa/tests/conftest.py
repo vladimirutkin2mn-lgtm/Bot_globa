@@ -2,6 +2,8 @@
 
 import os
 import re
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import pytest
 from pydantic import SecretStr
@@ -59,6 +61,46 @@ def bind_migration_safety_tests_to_current_head(
     assert len(heads) == 1
     for name in head_constants:
         monkeypatch.setattr(module, name, heads[0])
+
+
+@pytest.fixture(autouse=True)
+def keep_checkout_handler_test_double_forward_compatible(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Let the legacy handler fake ignore the new optional server-owned reading target.
+
+    The durable-resume behavior itself is covered by dedicated checkout-service and
+    reading-resume tests. Existing generic handler tests intentionally keep asserting the
+    old call tuple, so their fake should accept but not reinterpret the optional target.
+    """
+
+    module = request.module
+    if module.__name__ != "tests.test_production_checkout_handlers":
+        return
+    fake_checkout = getattr(module, "FakeCheckout", None)
+    if fake_checkout is None:
+        return
+    original: Callable[..., Awaitable[Any]] = fake_checkout.create_one_time_checkout
+
+    async def compatible_create_one_time_checkout(
+        self: object,
+        user_id: Any,
+        product: str,
+        market: str,
+        currency: str,
+        receipt_contact: str | None = None,
+        *,
+        reading_target: object | None = None,
+    ) -> Any:
+        del reading_target
+        return await original(self, user_id, product, market, currency, receipt_contact)
+
+    monkeypatch.setattr(
+        fake_checkout,
+        "create_one_time_checkout",
+        compatible_create_one_time_checkout,
+    )
 
 
 @pytest.fixture
