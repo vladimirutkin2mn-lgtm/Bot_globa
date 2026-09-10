@@ -207,7 +207,7 @@ async def test_preview_feedback_uses_ready_authorization_and_tracks_hit() -> Non
 
     assert history.ready_checks == [(user_id, reading_id)]
     assert len(analytics.events) == 1
-    assert analytics.events[0][2] == {"reading_id": reading_id, "reaction_code": "hit"}
+    assert analytics.events[0][2] == {"reaction_code": "hit"}
 
 
 @pytest.mark.asyncio
