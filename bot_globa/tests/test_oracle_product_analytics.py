@@ -97,15 +97,15 @@ async def test_facade_rejects_content_and_caller_managed_version() -> None:
         )
 
 
-async def test_reading_feedback_records_only_an_owned_reading_id_and_reaction_code() -> None:
+async def test_feedback_records_reaction_without_reading_identity() -> None:
     recording = RecordingAnalytics()
     analytics = OracleProductAnalytics(recording)
-    user_id, reading_id = uuid4(), uuid4()
+    user_id = uuid4()
 
     await analytics.track(
         user_id,
         OracleProductEvent.READING_FEEDBACK_SUBMITTED,
-        {"reading_id": reading_id, "reaction_code": "hit"},
+        {"reaction_code": "hit"},
     )
 
     assert recording.calls == [
@@ -114,11 +114,46 @@ async def test_reading_feedback_records_only_an_owned_reading_id_and_reaction_co
             "reading_feedback_submitted",
             {
                 "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
-                "reading_id": str(reading_id),
                 "reaction_code": "hit",
             },
         )
     ]
+
+    with pytest.raises(AnalyticsContractError):
+        await analytics.track(
+            user_id,
+            OracleProductEvent.READING_FEEDBACK_SUBMITTED,
+            {"reading_id": uuid4(), "reaction_code": "hit"},
+        )
+
+
+@pytest.mark.parametrize(
+    "event",
+    [OracleProductEvent.SHARE_PREVIEWED, OracleProductEvent.SHARE_CONFIRMED],
+)
+async def test_share_events_are_aggregate_and_reject_reading_identity(
+    event: OracleProductEvent,
+) -> None:
+    recording = RecordingAnalytics()
+    analytics = OracleProductAnalytics(recording)
+    user_id = uuid4()
+    properties = {
+        "share_format": "insight_card_v1",
+        "renderer_version": "personal_share_v2",
+    }
+
+    await analytics.track(user_id, event, properties)
+
+    assert recording.calls == [
+        (
+            str(user_id),
+            event.value,
+            {"event_version": PRODUCT_EVENT_TAXONOMY_VERSION, **properties},
+        )
+    ]
+
+    with pytest.raises(AnalyticsContractError):
+        await analytics.track(user_id, event, {**properties, "reading_id": uuid4()})
 
 
 @pytest.mark.parametrize(
