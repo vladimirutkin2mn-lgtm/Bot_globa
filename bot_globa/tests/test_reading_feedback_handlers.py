@@ -16,7 +16,7 @@ from aiogram.types import User as TelegramUser
 from app.bot.reading_feedback_handlers import submit_reading_feedback
 from app.bot.reading_share_handlers import SHARE_PROMPT
 from app.db.models import User
-from app.providers.analytics import OracleProductEvent
+from app.providers.analytics import PRODUCT_EVENT_TAXONOMY_VERSION, OracleProductEvent
 from app.services.oracle_product_analytics import OracleProductAnalytics
 
 
@@ -132,7 +132,10 @@ async def test_paid_hit_records_private_feedback_and_offers_share(
     user_id, event, properties = analytics.events[0]
     assert user_id == str(onboarding.user.id)
     assert event == OracleProductEvent.READING_FEEDBACK_SUBMITTED.value
-    assert properties == {"reaction_code": "hit"}
+    assert properties == {
+        "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
+        "reaction_code": "hit",
+    }
     assert _answers(session)[-1].show_alert is not True
     share = _messages(session)[-1]
     assert share.text == SHARE_PROMPT
