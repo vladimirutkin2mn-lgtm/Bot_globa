@@ -8,8 +8,10 @@ from aiogram.types import CallbackQuery, Message
 from app.bot.persona_flow import FEEDBACK_NAMESPACE, feedback_reason_keyboard
 from app.bot.reading_share_handlers import (
     SHARE_PROMPT,
-    router as reading_share_router,
     share_offer_keyboard,
+)
+from app.bot.reading_share_handlers import (
+    router as reading_share_router,
 )
 from app.providers.analytics import OracleProductEvent
 from app.services.onboarding import OnboardingService
