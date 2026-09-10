@@ -242,9 +242,7 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     OracleProductEvent.READING_REOPENED.value: _oracle_properties(
         "reading_id", "persona_code", "access_level"
     ),
-    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: _oracle_properties(
-        "reading_id", "reaction_code"
-    ),
+    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: _oracle_properties("reaction_code"),
     OracleProductEvent.READING_FAILED.value: _oracle_properties(
         "reading_id",
         "persona_code",
@@ -309,10 +307,10 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
         "reading_id", "followup_version", "failure_code"
     ),
     OracleProductEvent.SHARE_PREVIEWED.value: _oracle_properties(
-        "reading_id", "share_format", "renderer_version"
+        "share_format", "renderer_version"
     ),
     OracleProductEvent.SHARE_CONFIRMED.value: _oracle_properties(
-        "reading_id", "share_format", "renderer_version"
+        "share_format", "renderer_version"
     ),
     OracleProductEvent.SAFETY_INPUT_CLASSIFIED.value: _oracle_properties(
         "persona_code", "stage_code", "action_code", "category_codes"
@@ -375,7 +373,7 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
         {"event_version", "reading_id", "persona_code", "access_level"}
     ),
     OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: frozenset(
-        {"event_version", "reading_id", "reaction_code"}
+        {"event_version", "reaction_code"}
     ),
     OracleProductEvent.READING_FAILED.value: frozenset(
         {"event_version", "reading_id", "persona_code", "failure_code"}
@@ -452,10 +450,10 @@ _ORACLE_REQUIRED: dict[str, frozenset[str]] = {
         {"event_version", "reading_id", "followup_version", "failure_code"}
     ),
     OracleProductEvent.SHARE_PREVIEWED.value: frozenset(
-        {"event_version", "reading_id", "share_format", "renderer_version"}
+        {"event_version", "share_format", "renderer_version"}
     ),
     OracleProductEvent.SHARE_CONFIRMED.value: frozenset(
-        {"event_version", "reading_id", "share_format", "renderer_version"}
+        {"event_version", "share_format", "renderer_version"}
     ),
     OracleProductEvent.SAFETY_INPUT_CLASSIFIED.value: frozenset(
         {"event_version", "persona_code", "stage_code", "action_code"}
@@ -537,7 +535,7 @@ _EVENT_SCOPES: dict[str, EventScope] = {
     OracleProductEvent.READING_PREVIEW_READY.value: EventScope.READING,
     OracleProductEvent.READING_FULL_UNLOCKED.value: EventScope.READING,
     OracleProductEvent.READING_REOPENED.value: EventScope.ACTION,
-    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: EventScope.READING,
+    OracleProductEvent.READING_FEEDBACK_SUBMITTED.value: EventScope.ACTION,
     OracleProductEvent.READING_FAILED.value: EventScope.READING,
     OracleProductEvent.BIRTH_PROFILE_CONSENT_GRANTED.value: EventScope.ACTION,
     OracleProductEvent.BIRTH_PROFILE_CONSENT_REVOKED.value: EventScope.ACTION,
