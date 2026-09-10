@@ -8,9 +8,13 @@ import signal
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 
-from app.bot.daily_horoscope import DAILY_FEEDBACK_PROMPT, render_daily_horoscope
-from app.bot.keyboards import daily_feedback_keyboard, daily_horoscope_keyboard
-from app.bot.scene_media import Scene, send_scene_photo
+from app.bot.daily_horoscope import (
+    DAILY_FEEDBACK_PROMPT,
+    render_compact_daily_horoscope,
+    render_daily_horoscope,
+)
+from app.bot.daily_keyboards import daily_horoscope_with_sign_keyboard
+from app.bot.keyboards import daily_feedback_keyboard
 from app.bot.typography import create_bot
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
@@ -20,6 +24,7 @@ from app.domain.daily_horoscope import (
     DailyHoroscopeFeedbackClaim,
     DailyHoroscopeMode,
 )
+from app.domain.natal_chart import ZodiacSign
 from app.logging import configure_logging
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
@@ -30,12 +35,13 @@ logger = logging.getLogger(__name__)
 async def _send_digest(
     bot: Bot,
     claim: DailyHoroscopeClaim,
-    caption: str,
+    text: str,
     *,
+    zodiac_sign: ZodiacSign | None,
     max_attempts: int,
     stopped: asyncio.Event,
 ) -> None:
-    """Deliver a prepared digest, waiting out explicit Telegram throttling.
+    """Deliver a prepared text digest, waiting out explicit Telegram throttling.
 
     The caller reserves the local delivery day immediately before entering this function.
     From this point onward a non-429 failure is treated as ambiguous: Telegram may already
@@ -44,12 +50,10 @@ async def _send_digest(
 
     for attempt in range(1, max_attempts + 1):
         try:
-            await send_scene_photo(
-                bot,
+            await bot.send_message(
                 claim.telegram_user_id,
-                Scene.DAILY_HOROSCOPE,
-                caption,
-                reply_markup=daily_horoscope_keyboard(),
+                text,
+                reply_markup=daily_horoscope_with_sign_keyboard(zodiac_sign),
             )
             return
         except TelegramRetryAfter as throttled:
@@ -171,8 +175,13 @@ async def run(
             # have happened before any Telegram send attempt, so releasing the lease must
             # keep the same local day eligible for retry.
             try:
+                preference = await preferences.current(claim.user_id)
                 snapshot = await snapshots.get_or_create(claim.delivery_date)
-                caption = render_daily_horoscope(snapshot)
+                text = (
+                    render_daily_horoscope(snapshot)
+                    if preference.zodiac_sign is None
+                    else render_compact_daily_horoscope(snapshot, preference.zodiac_sign)
+                )
             except asyncio.CancelledError:
                 await preferences.release(claim)
                 raise
@@ -191,7 +200,8 @@ async def run(
                 await _send_digest(
                     bot,
                     claim,
-                    caption,
+                    text,
+                    zodiac_sign=preference.zodiac_sign,
                     max_attempts=runtime.daily_horoscope_send_max_attempts,
                     stopped=stopped,
                 )

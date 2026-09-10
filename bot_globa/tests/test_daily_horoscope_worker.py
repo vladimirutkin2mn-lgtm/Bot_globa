@@ -1,23 +1,21 @@
-"""The broadcast survives Telegram throttling after content has been prepared.
-
-The worker now calculates and renders the digest before reserving the local delivery day.
-These tests pin the send-side boundary: once Telegram I/O begins, only an explicit 429 is
-retried against the same reserved claim and ambiguous failures stay at-most-once.
-"""
+"""The text-only daily broadcast preserves its at-most-once Telegram boundary."""
 
 import asyncio
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator
 from datetime import date
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 from aiogram import Bot
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
-from aiogram.methods import SendMessage
+from aiogram.methods import SendMessage, SendPhoto, TelegramMethod
+from aiogram.methods.base import TelegramType
 from aiogram.types import InlineKeyboardMarkup
 
-from app.bot.scene_media import Scene
 from app.domain.daily_horoscope import DailyHoroscopeClaim, DailyHoroscopeMode
+from app.domain.natal_chart import ZodiacSign
 from app.workers import daily_horoscope as worker
 
 
@@ -29,50 +27,36 @@ def _throttled() -> TelegramRetryAfter:
     )
 
 
-class RecordingSender:
-    """Stand in for `send_scene_photo`, failing the first `failures` deliveries."""
-
-    def __init__(self, failures: int, error: Exception | None = None) -> None:
+class RecordingSession(AiohttpSession):
+    def __init__(self, failures: int = 0, error: Exception | None = None) -> None:
+        super().__init__()
+        self.failures = failures
+        self.error = error or _throttled()
         self.attempts = 0
-        self.captions: list[str] = []
-        self._failures = failures
-        self._error = error or _throttled()
+        self.methods: list[TelegramMethod[Any]] = []
 
-    async def __call__(
+    async def make_request(
         self,
         bot: Bot,
-        chat_id: int,
-        scene: Scene,
-        caption: str,
-        *,
-        reply_markup: InlineKeyboardMarkup | None = None,
-    ) -> None:
+        method: TelegramMethod[TelegramType],
+        timeout: int | None = None,  # noqa: ASYNC109 -- aiogram session contract
+    ) -> TelegramType:
         self.attempts += 1
-        if self.attempts <= self._failures:
-            raise self._error
-        self.captions.append(caption)
+        self.methods.append(method)
+        if self.attempts <= self.failures:
+            raise self.error
+        return cast("TelegramType", True)
 
-
-InstallSender = Callable[[int, Exception | None], RecordingSender]
-
-
-@pytest.fixture
-def sender(monkeypatch: pytest.MonkeyPatch) -> InstallSender:
-    def install(failures: int, error: Exception | None = None) -> RecordingSender:
-        recorder = RecordingSender(failures, error)
-        monkeypatch.setattr(worker, "send_scene_photo", recorder)
-        return recorder
-
-    return install
-
-
-@pytest.fixture
-async def bot() -> AsyncGenerator[Bot, None]:
-    instance = Bot(token="42:TEST")
-    try:
-        yield instance
-    finally:
-        await instance.session.close()
+    async def stream_content(
+        self,
+        url: str,
+        headers: dict[str, Any] | None = None,
+        timeout: int = 30,  # noqa: ASYNC109 -- aiogram session contract
+        chunk_size: int = 65536,
+        raise_for_status: bool = True,
+    ) -> AsyncGenerator[bytes, None]:
+        if False:
+            yield b""
 
 
 def _claim() -> DailyHoroscopeClaim:
@@ -85,87 +69,122 @@ def _claim() -> DailyHoroscopeClaim:
     )
 
 
-def _caption() -> str:
-    return "Гороскоп на сегодня · 13.08.2026\nПерсональный учитывает вашу натальную карту"
+def _text() -> str:
+    return "Гороскоп на сегодня · 13.08.2026\nЭто общий прогноз по знаку."
 
 
-async def test_a_throttled_send_is_retried_against_the_same_claim(
-    bot: Bot,
-    sender: InstallSender,
-) -> None:
-    recorder = sender(2, None)
-
-    await worker._send_digest(
-        bot,
-        _claim(),
-        _caption(),
-        max_attempts=4,
-        stopped=asyncio.Event(),
-    )
-
-    assert recorder.attempts == 3
-    assert "Гороскоп на сегодня · 13.08.2026" in recorder.captions[0]
-    assert "Персональный учитывает вашу натальную карту" in recorder.captions[0]
+def _bot(session: RecordingSession) -> Bot:
+    return Bot(token="42:TEST", session=session)
 
 
-async def test_throttling_past_the_retry_budget_surfaces_to_the_caller(
-    bot: Bot,
-    sender: InstallSender,
-) -> None:
-    """Exhausting the budget must reach the caller instead of pretending success."""
+def _labels(method: SendMessage) -> list[str]:
+    markup = method.reply_markup
+    assert isinstance(markup, InlineKeyboardMarkup)
+    return [button.text for row in markup.inline_keyboard for button in row]
 
-    recorder = sender(5, None)
 
-    with pytest.raises(TelegramRetryAfter):
+async def test_a_throttled_text_send_is_retried_against_the_same_claim() -> None:
+    session = RecordingSession(failures=2)
+    bot = _bot(session)
+    try:
         await worker._send_digest(
             bot,
             _claim(),
-            _caption(),
-            max_attempts=2,
+            _text(),
+            zodiac_sign=ZodiacSign.ARIES,
+            max_attempts=4,
             stopped=asyncio.Event(),
         )
+    finally:
+        await bot.session.close()
 
-    assert recorder.attempts == 2
+    assert session.attempts == 3
+    sent = [method for method in session.methods if isinstance(method, SendMessage)][-1]
+    assert "Гороскоп на сегодня · 13.08.2026" in sent.text
+    assert "Все знаки" in _labels(sent)
+    assert "Сменить знак" in _labels(sent)
+    assert not any(isinstance(method, SendPhoto) for method in session.methods)
 
 
-async def test_shutdown_during_a_retry_stops_instead_of_waiting_out_the_limit(
-    bot: Bot,
-    sender: InstallSender,
-) -> None:
-    recorder = sender(5, None)
-    stopped = asyncio.Event()
-    stopped.set()
-
-    with pytest.raises(TelegramRetryAfter):
+async def test_an_unselected_sign_keeps_the_all_signs_entry_point() -> None:
+    session = RecordingSession()
+    bot = _bot(session)
+    try:
         await worker._send_digest(
             bot,
             _claim(),
-            _caption(),
-            max_attempts=4,
-            stopped=stopped,
+            _text(),
+            zodiac_sign=None,
+            max_attempts=1,
+            stopped=asyncio.Event(),
         )
+    finally:
+        await bot.session.close()
 
-    assert recorder.attempts == 1
+    sent = [method for method in session.methods if isinstance(method, SendMessage)][-1]
+    assert "Выбрать свой знак" in _labels(sent)
 
 
-async def test_a_blocked_recipient_is_not_retried(bot: Bot, sender: InstallSender) -> None:
-    """Only a rate limit is retried; a permanent rejection must reach the caller at once."""
+async def test_throttling_past_the_retry_budget_surfaces_to_the_caller() -> None:
+    session = RecordingSession(failures=5)
+    bot = _bot(session)
+    try:
+        with pytest.raises(TelegramRetryAfter):
+            await worker._send_digest(
+                bot,
+                _claim(),
+                _text(),
+                zodiac_sign=None,
+                max_attempts=2,
+                stopped=asyncio.Event(),
+            )
+    finally:
+        await bot.session.close()
 
-    recorder = sender(
-        5,
-        TelegramForbiddenError(
+    assert session.attempts == 2
+
+
+async def test_shutdown_during_a_retry_stops_instead_of_waiting_out_the_limit() -> None:
+    session = RecordingSession(failures=5)
+    bot = _bot(session)
+    stopped = asyncio.Event()
+    stopped.set()
+    try:
+        with pytest.raises(TelegramRetryAfter):
+            await worker._send_digest(
+                bot,
+                _claim(),
+                _text(),
+                zodiac_sign=None,
+                max_attempts=4,
+                stopped=stopped,
+            )
+    finally:
+        await bot.session.close()
+
+    assert session.attempts == 1
+
+
+async def test_a_blocked_recipient_is_not_retried() -> None:
+    session = RecordingSession(
+        failures=5,
+        error=TelegramForbiddenError(
             method=SendMessage(chat_id=1, text="x"),
             message="Forbidden: bot was blocked by the user",
         ),
     )
+    bot = _bot(session)
+    try:
+        with pytest.raises(TelegramForbiddenError):
+            await worker._send_digest(
+                bot,
+                _claim(),
+                _text(),
+                zodiac_sign=None,
+                max_attempts=4,
+                stopped=asyncio.Event(),
+            )
+    finally:
+        await bot.session.close()
 
-    with pytest.raises(TelegramForbiddenError):
-        await worker._send_digest(
-            bot,
-            _claim(),
-            _caption(),
-            max_attempts=4,
-            stopped=asyncio.Event(),
-        )
-
-    assert recorder.attempts == 1
+    assert session.attempts == 1
