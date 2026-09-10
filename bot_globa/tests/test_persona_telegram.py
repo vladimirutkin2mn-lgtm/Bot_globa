@@ -81,14 +81,18 @@ def _outcome(*, with_symbols: bool, long: bool = False) -> PersonaPreviewOutcome
     )
 
 
-def test_preview_exposes_bounded_sections_without_private_input() -> None:
+def test_preview_exposes_complete_free_value_without_private_input() -> None:
     chunks = render_preview(_outcome(with_symbols=True), TAROT_FLOW.copy)
     text = "\n".join(chunks)
 
-    assert "Ваш расклад" in text
-    assert SCENARIO in text
+    assert "Быстрый взгляд" in text
+    assert "Что видно" in text
+    assert "Образ" in text
+    assert "A bounded interpretation." in text
+    assert "A bounded practical step." in text
+    assert SCENARIO not in text
     assert SCENARIO_CONDITION not in text
-    assert TAROT_FLOW.copy.practical_step_title not in text
+    assert "Which value needs protection?" not in text
     assert "развлекательная практика" not in text
     assert PRIVATE_MARKER not in text
     assert all(0 < len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
@@ -99,10 +103,10 @@ def test_preview_omits_the_symbol_section_for_a_symbol_free_persona() -> None:
     text = "\n".join(chunks)
 
     assert LOVE_ORACLE_FLOW.copy.drawn_symbols_title not in text
-    assert SCENARIO in text
+    assert "Образ" not in text
+    assert SCENARIO not in text
     assert SCENARIO_CONDITION not in text
-    assert LOVE_ORACLE_FLOW.copy.practical_step_title not in text
-    assert "без чтения чужих мыслей" in text
+    assert "A bounded practical step." in text
     assert "развлекательная практика" not in text
 
 
@@ -154,10 +158,10 @@ def test_micro_preview_is_shorter_than_the_first_free_preview() -> None:
     assert len(micro) < len(preview)
 
 
-def test_renderer_chunks_large_valid_sections_below_telegram_limit() -> None:
+def test_renderer_keeps_large_valid_preview_below_telegram_limit() -> None:
     chunks = render_preview(_outcome(with_symbols=True, long=True), TAROT_FLOW.copy)
 
-    assert len(chunks) >= 2
+    assert chunks
     assert all(len(chunk) <= TELEGRAM_LIMIT for chunk in chunks)
 
 

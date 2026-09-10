@@ -7,11 +7,7 @@ text — only the already validated result and copy configured for the selected 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.bot.conversion_hooks import (
-    DEFAULT_READING_HOOK,
-    ConversionHookCopy,
-    render_grounded_hook,
-)
+from app.bot.conversion_hooks import DEFAULT_READING_HOOK, ConversionHookCopy
 from app.bot.typography import quote
 from app.domain.conversion_experiment import ConversionHookVariant
 from app.domain.reading import SymbolOrientation
@@ -45,32 +41,30 @@ class ReadingCopy:
 
 
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Give the diagnosis for free and reserve scenarios/conditions/action for the unlock."""
+    """Give one useful answer for free while reserving depth and scenarios for unlock."""
     result = _completed_result(outcome)
     sections = [
         f"{copy.emoji} <b>Быстрый взгляд</b>",
         f"<b>{quote(result.title)}</b>",
+        f"<b>Что видно:</b>\n{quote(result.opening)}",
     ]
-    if outcome.symbols:
-        drawn = "\n".join(
-            f"{index}. <b>{quote(context.display_name)}</b> — "
-            f"{orientation_label(context.symbol.orientation)}"
-            for index, context in enumerate(outcome.symbols, start=1)
+
+    if result.symbols:
+        names = {context.symbol.position: context.display_name for context in outcome.symbols}
+        symbol = result.symbols[0]
+        display_name = names.get(symbol.position, symbol.symbol_id)
+        sections.append(
+            f"<b>Образ:</b>\n"
+            f"<b>{quote(display_name)}</b> — {orientation_label(symbol.orientation)}\n"
+            f"{quote(symbol.interpretation)}"
         )
-        sections.append(f"<b>{copy.drawn_symbols_title}</b>\n{drawn}")
-    pattern = result.patterns[0] if result.patterns else result.opening
+
     sections.extend(
         [
-            f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
-            _locked_hook(
-                result,
-                copy,
-                outcome.symbol_set_code,
-                outcome.conversion_variant,
-            ),
+            f"<b>Небольшой шаг:</b>\n{quote(result.practical_step)}",
             (
-                "<i>Это короткий слой разбора. Глубокий разбор покажет связи, условия "
-                "сценариев и следующий шаг — без нового вопроса с нуля.</i>"
+                "<i>В полном разборе — детали остальных символов, альтернативные сценарии и "
+                "условия, плюс до 3 уточняющих вопросов в течение 24 часов.</i>"
             ),
         ]
     )
@@ -78,26 +72,19 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
 
 
 def render_micro_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
-    """Give later readings one personal signal plus a grounded reason to unlock."""
+    """Give later readings one compact signal without repeating the full free answer."""
 
     result = _completed_result(outcome)
     insight = result.patterns[0] if result.patterns else result.opening
     sections = [f"{copy.emoji} <b>Быстрый взгляд</b>"]
     if outcome.symbols:
         drawn = ", ".join(quote(context.display_name) for context in outcome.symbols)
-        sections.append(f"<b>Зафиксированные карты:</b> {drawn}")
-    sections.extend(
-        (
-            f"<b>{copy.main_theme_title}</b> — {quote(insight)}",
-            _locked_hook(
-                result,
-                copy,
-                outcome.symbol_set_code,
-                outcome.conversion_variant,
-            ),
-            "<i>Глубокий разбор продолжит именно эту историю и этот расклад.</i>",
-        )
-    )
+        sections.append(f"<b>Карты:</b> {drawn}")
+    sections.append(f"<b>{copy.main_theme_title}</b> — {quote(insight)}")
+    if result.possible_scenarios:
+        label = _micro_scenario_label(outcome.conversion_variant)
+        sections.append(f"<b>{label}</b> {quote(result.possible_scenarios[0].scenario)}")
+    sections.append("<i>Глубокий разбор покажет детали и условия этой линии.</i>")
     return chunk_sections(tuple(sections))
 
 
@@ -142,12 +129,23 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         [
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
             (
-                "Разбор сохранён в «Моих историях». В течение этого сеанса можно задать "
-                "уточняющий вопрос — Numa продолжит с уже известным контекстом."
+                "Разбор сохранён в «Моих историях». В течение 24 часов после открытия полного "
+                "разбора можно задать до 3 уточняющих вопросов — Numa продолжит с уже известным "
+                "контекстом."
             ),
         ]
     )
     return chunk_sections(tuple(sections))
+
+
+def _micro_scenario_label(variant: ConversionHookVariant) -> str:
+    """Keep the existing conversion cohort alive with only a one-line wording change."""
+
+    return {
+        ConversionHookVariant.A: "Одна из линий:",
+        ConversionHookVariant.B: "Здесь есть развилка:",
+        ConversionHookVariant.C: "Если смотреть вперёд:",
+    }[variant]
 
 
 def reveal_progress(revealed: int, total: int) -> str:
@@ -174,21 +172,6 @@ def render_reveal(
         f"{drawn}\n\n"
         f"<i>{REVEAL_CLOSING}</i>"
     )
-
-
-def _locked_hook(
-    result: ReadingResult,
-    copy: ReadingCopy,
-    symbol_set_code: str | None,
-    variant: ConversionHookVariant,
-) -> str:
-    hook = copy.hook
-    if symbol_set_code is not None:
-        hook = next(
-            (candidate for code, candidate in copy.hook_by_symbol_set if code == symbol_set_code),
-            hook,
-        )
-    return render_grounded_hook(result.possible_scenarios, hook, variant)
 
 
 def chunk_text(text: str) -> tuple[str, ...]:

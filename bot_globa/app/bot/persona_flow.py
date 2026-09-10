@@ -41,6 +41,51 @@ QUESTION_LIMIT = 8000
 CONTEXT_LIMIT = 12000
 
 
+def feedback_buttons(reading_id: UUID) -> list[InlineKeyboardButton]:
+    return [
+        InlineKeyboardButton(
+            text="Попало",
+            callback_data=f"{FEEDBACK_NAMESPACE}:hit:{reading_id}",
+        ),
+        InlineKeyboardButton(
+            text="Мимо",
+            callback_data=f"{FEEDBACK_NAMESPACE}:miss:{reading_id}",
+        ),
+    ]
+
+
+def feedback_reason_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
+    """Optional structured reasons: no free text enters analytics."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Слишком общее",
+                    callback_data=f"{FEEDBACK_NAMESPACE}:miss_too_general:{reading_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Не про мой вопрос",
+                    callback_data=f"{FEEDBACK_NAMESPACE}:miss_off_question:{reading_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Непонятно",
+                    callback_data=f"{FEEDBACK_NAMESPACE}:miss_unclear:{reading_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Без причины",
+                    callback_data=f"{FEEDBACK_NAMESPACE}:miss_plain:{reading_id}",
+                )
+            ],
+        ]
+    )
+
+
 class ReadingStates(Protocol):
     """The three FSM states every reading intake goes through.
 
@@ -157,16 +202,7 @@ class ReadingFlow:
                     callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    text="Попало",
-                    callback_data=f"{FEEDBACK_NAMESPACE}:hit:{reading_id}",
-                ),
-                InlineKeyboardButton(
-                    text="Не откликнулось",
-                    callback_data=f"{FEEDBACK_NAMESPACE}:miss:{reading_id}",
-                ),
-            ],
+            feedback_buttons(reading_id),
             [InlineKeyboardButton(text=BACK_TO_READINGS_BUTTON, callback_data="menu:readings")],
             [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
         ]
@@ -179,6 +215,7 @@ class ReadingFlow:
     ) -> InlineKeyboardMarkup:
         rows: list[list[InlineKeyboardButton]] = []
         if reading_id is not None and price is not None:
+            rows.append(feedback_buttons(reading_id))
             rows.append(
                 [
                     InlineKeyboardButton(

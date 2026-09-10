@@ -80,21 +80,21 @@ def test_hook_reveals_a_real_scenario_but_keeps_its_conditions_paid() -> None:
     assert "условия первого сценария" in hook
 
 
-def test_tarot_decision_preview_uses_spread_specific_value_and_withholds_action() -> None:
+def test_first_free_tarot_answer_gives_action_but_keeps_scenarios_paid() -> None:
     result = _two_scenario_reading()
     outcome = _preview_outcome(result, symbol_set_code="decision_five_v1")
 
     rendered = "\n".join(render_preview(outcome, TAROT_FLOW.copy))
 
-    assert result.possible_scenarios[0].scenario in rendered
+    assert result.possible_scenarios[0].scenario not in rendered
     assert result.possible_scenarios[0].conditions[0] not in rendered
-    assert result.practical_step not in rendered
-    assert "что даёт вариант A" in rendered
-    assert "что даёт вариант B" in rendered
-    assert "другая линия" in rendered
+    assert result.practical_step in rendered
+    assert "В полном разборе" in rendered
+    assert "что даёт вариант A" not in rendered
+    assert "другая линия" not in rendered
 
 
-def test_micro_preview_keeps_the_same_grounded_open_loop() -> None:
+def test_micro_preview_keeps_one_grounded_open_loop_compact() -> None:
     result = _two_scenario_reading()
     outcome = _preview_outcome(result, symbol_set_code="pattern_five_v1")
 
@@ -104,8 +104,8 @@ def test_micro_preview_keeps_the_same_grounded_open_loop() -> None:
     assert result.possible_scenarios[0].scenario in rendered
     assert result.possible_scenarios[0].conditions[0] not in rendered
     assert result.practical_step not in rendered
-    assert "что запускает повторяющийся цикл" in rendered
-    assert "точка" in rendered
+    assert "Одна из линий" in rendered
+    assert "что запускает повторяющийся цикл" not in rendered
 
 
 def test_astrology_preview_uses_validated_scenario_without_revealing_conditions_or_action() -> None:
