@@ -100,7 +100,8 @@ def test_group_private_cta_becomes_trackable_without_ids() -> None:
 
     assert button.url is None
     assert button.callback_data == "p108:private:compatibility:astro"
-    assert all(char.isdigit() is False for char in button.callback_data)
+    assert "101" not in button.callback_data
+    assert "202" not in button.callback_data
 
 
 def test_each_player_must_choose_their_own_sign_before_quick_result() -> None:
