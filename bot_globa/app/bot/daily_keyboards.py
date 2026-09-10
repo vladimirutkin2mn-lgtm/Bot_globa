@@ -13,9 +13,7 @@ def daily_horoscope_with_sign_keyboard(
 
     sign_rows: list[list[InlineKeyboardButton]]
     if selected_sign is None:
-        sign_rows = [
-            [InlineKeyboardButton(text="Выбрать свой знак", callback_data="daily:sign")]
-        ]
+        sign_rows = [[InlineKeyboardButton(text="Выбрать свой знак", callback_data="daily:sign")]]
     else:
         sign_rows = [
             [
