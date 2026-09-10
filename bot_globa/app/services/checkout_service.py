@@ -13,7 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings
 from app.db.models import BillingJob, BillingOutboxEvent, PaymentOrder, User
+from app.db.reading_models import Persona, Reading
 from app.domain.billing import BillingCatalog, PurchaseMode
+from app.domain.reading import ReadingStatus
+from app.domain.reading_checkout_resume import (
+    ReadingCheckoutTarget,
+    reading_target_from_snapshot,
+)
 from app.providers.payments.base import (
     BillingMarket,
     PaymentProviderName,
@@ -102,6 +108,8 @@ class CheckoutService:
         market: BillingMarket | str,
         currency: str,
         receipt_contact: str | None = None,
+        *,
+        reading_target: ReadingCheckoutTarget | None = None,
     ) -> OneTimeCheckoutResult:
         if not self._settings.permits_new_checkout():
             raise CheckoutRejectedError("billing unavailable")
@@ -131,6 +139,10 @@ class CheckoutService:
                 raise CheckoutRejectedError("user not found")
             if user.privacy_status != "active":
                 raise CheckoutRejectedError("user deleted")
+            if reading_target is not None and not await _owns_unlockable_reading(
+                session, user_id, reading_target
+            ):
+                raise CheckoutRejectedError("reading unavailable")
             order = await session.scalar(
                 select(PaymentOrder)
                 .where(
@@ -145,6 +157,13 @@ class CheckoutService:
                 .limit(1)
                 .with_for_update()
             )
+            if (
+                order is not None
+                and reading_target_from_snapshot(order.commercial_snapshot) != reading_target
+            ):
+                # The active-order unique index only permits one checkout for this commercial
+                # coordinate. Never retarget a provider URL that may still complete later.
+                raise CheckoutRejectedError("another checkout is already active")
             if order and order.status == "pending" and order.checkout_url:
                 return OneTimeCheckoutResult(
                     order.id, order.checkout_token, order.checkout_url, order.status
@@ -161,6 +180,21 @@ class CheckoutService:
             if order is None:
                 if offer.price_reference.startswith("unconfigured:"):
                     raise CheckoutRejectedError("product price unavailable")
+                snapshot: dict[str, object] = {
+                    "product_code": offer.product_code.value,
+                    "product_version": offer.product_version,
+                    "title": offer.title,
+                    "receipt_label": offer.receipt_label,
+                    "credits": offer.credits,
+                    "amount_minor": offer.amount_minor,
+                    "currency": offer.currency,
+                    "provider": offer.provider.value,
+                    "market": offer.market.value,
+                    "price_reference": offer.price_reference,
+                    "billing_period": None,
+                }
+                if reading_target is not None:
+                    snapshot["resume_target"] = reading_target.snapshot()
                 order = PaymentOrder(
                     user_id=user_id,
                     provider=offer.provider.value,
@@ -172,19 +206,7 @@ class CheckoutService:
                     market=offer.market.value,
                     mode="one_time",
                     product_version=offer.product_version,
-                    commercial_snapshot={
-                        "product_code": offer.product_code.value,
-                        "product_version": offer.product_version,
-                        "title": offer.title,
-                        "receipt_label": offer.receipt_label,
-                        "credits": offer.credits,
-                        "amount_minor": offer.amount_minor,
-                        "currency": offer.currency,
-                        "provider": offer.provider.value,
-                        "market": offer.market.value,
-                        "price_reference": offer.price_reference,
-                        "billing_period": None,
-                    },
+                    commercial_snapshot=snapshot,
                 )
                 session.add(order)
                 await session.flush()
@@ -304,6 +326,27 @@ class CheckoutService:
                     idempotency_key=f"payment_failed:{order.id}",
                 )
             )
+
+
+async def _owns_unlockable_reading(
+    session: AsyncSession,
+    user_id: UUID,
+    target: ReadingCheckoutTarget,
+) -> bool:
+    """Authorize a checkout target from metadata only; never decrypt private content."""
+
+    reading_id = await session.scalar(
+        select(Reading.id)
+        .join(Persona, Persona.id == Reading.persona_id)
+        .where(
+            Reading.id == target.reading_id,
+            Reading.user_id == user_id,
+            Reading.status == ReadingStatus.PREVIEW_READY.value,
+            Reading.deleted_at.is_(None),
+            Persona.code == target.persona_code,
+        )
+    )
+    return reading_id is not None
 
 
 def _snapshot_text(snapshot: dict[str, object], key: str) -> str:

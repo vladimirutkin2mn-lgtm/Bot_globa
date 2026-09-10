@@ -53,6 +53,7 @@ from app.domain.daily_horoscope import (
     parse_moscow_time_difference,
 )
 from app.domain.natal_chart import ZodiacSign
+from app.domain.reading_checkout_resume import parse_reading_resume_callback
 from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
@@ -743,6 +744,8 @@ async def create_production_checkout(
     user = await onboarding.current_user(callback.from_user.id)
     if user is None:
         return
+    state_data = await state.get_data()
+    reading_target = parse_reading_resume_callback(_stored_resume(state_data))
     parts = _callback_parts(callback)
     if len(parts) != 5:
         await show_screen(
@@ -766,7 +769,13 @@ async def create_production_checkout(
         )
         return
     try:
-        result = await checkout.create_one_time_checkout(user.id, product_code, market, currency)
+        result = await checkout.create_one_time_checkout(
+            user.id,
+            product_code,
+            market,
+            currency,
+            reading_target=reading_target,
+        )
     except CheckoutRejectedError:
         await show_screen(
             callback.message,
@@ -834,6 +843,7 @@ async def receive_receipt_contact(
             market,
             currency,
             receipt_contact=contact.value,
+            reading_target=parse_reading_resume_callback(_stored_resume(data)),
         )
     except InvalidReceiptContactError:
         await show_screen(

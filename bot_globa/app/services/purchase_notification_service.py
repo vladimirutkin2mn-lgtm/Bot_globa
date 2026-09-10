@@ -7,7 +7,8 @@ completed later by the billing worker. Without this worker nothing in Telegram e
 and a paid reading is indistinguishable from a failed payment.
 
 The message carries no reading content and no financial detail beyond the entitlement that
-was granted: it says the payment arrived and offers the screen that opens the reading.
+was granted. When checkout was opened for a concrete reading, the worker re-authorizes that
+server-owned target before exposing its callback to Telegram.
 """
 
 import logging
@@ -18,10 +19,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import PaymentOrder, User
+from app.db.reading_models import Persona, Reading
+from app.domain.reading import ReadingStatus
+from app.domain.reading_checkout_resume import reading_target_from_snapshot
 
 logger = logging.getLogger(__name__)
 
 PROVIDER_HOSTED_CHECKOUT = ("stripe", "yookassa")
+_READY_READING_STATUSES = (ReadingStatus.PREVIEW_READY.value, ReadingStatus.FULL_READY.value)
 
 
 class NotifierError(RuntimeError):
@@ -29,7 +34,12 @@ class NotifierError(RuntimeError):
 
 
 class BuyerNotifier(Protocol):
-    async def notify_purchase(self, telegram_user_id: int, readings: int) -> None:
+    async def notify_purchase(
+        self,
+        telegram_user_id: int,
+        readings: int,
+        resume_callback: str | None = None,
+    ) -> None:
         """Send the completion notice, or raise `NotifierError`."""
         ...
 
@@ -67,7 +77,12 @@ class PurchaseNotificationWorker:
                     return False
                 order, telegram_user_id = claimed
                 readings = max(order.credits // self._price, 1)
-                await self._notifier.notify_purchase(telegram_user_id, readings)
+                resume_callback = await self._authorized_resume_callback(session, order)
+                await self._notifier.notify_purchase(
+                    telegram_user_id,
+                    readings,
+                    resume_callback=resume_callback,
+                )
                 order.buyer_notified_at = datetime.now(UTC)
         except NotifierError:
             # The stamp rolled back with the failed send; the next tick retries this order.
@@ -99,3 +114,24 @@ class PurchaseNotificationWorker:
         order, telegram_user_id = row
         assert telegram_user_id is not None
         return order, telegram_user_id
+
+    @staticmethod
+    async def _authorized_resume_callback(
+        session: AsyncSession,
+        order: PaymentOrder,
+    ) -> str | None:
+        target = reading_target_from_snapshot(order.commercial_snapshot)
+        if target is None:
+            return None
+        reading_id = await session.scalar(
+            select(Reading.id)
+            .join(Persona, Persona.id == Reading.persona_id)
+            .where(
+                Reading.id == target.reading_id,
+                Reading.user_id == order.user_id,
+                Reading.status.in_(_READY_READING_STATUSES),
+                Reading.deleted_at.is_(None),
+                Persona.code == target.persona_code,
+            )
+        )
+        return target.callback_data if reading_id is not None else None
