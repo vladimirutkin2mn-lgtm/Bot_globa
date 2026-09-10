@@ -12,7 +12,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
-from itertools import pairwise
+from itertools import combinations, pairwise
 from statistics import fmean
 
 from app.bot.daily_horoscope import render_daily_horoscope
@@ -25,6 +25,11 @@ from app.services.daily_sky import DailyHoroscopeSnapshot
 
 RESEARCH_START_DATE = date(2026, 7, 1)
 RESEARCH_DAYS = 60
+SEMANTIC_REVIEW_DAYS = 14
+SEMANTIC_REPEAT_SIMILARITY = 0.80
+MAX_SEMANTIC_NEAR_REPEAT_RATE = 0.18
+MAX_SEMANTIC_NEAR_REPEAT_RATE_PER_SIGN = 0.30
+MAX_SEMANTIC_FINDINGS = 12
 MIN_ACTIONABLE_RATIO = 0.75
 MIN_TOPIC_COVERAGE_RATIO = 0.45
 MIN_TOPIC_VARIETY = 5
@@ -53,7 +58,142 @@ _TOKEN_STOPWORDS = frozenset(
     }
 )
 
+# These broad concepts intentionally collapse common Russian paraphrases. The review is not
+# pretending to be an embedding model: it is a deterministic product guard that catches the
+# repetitive meaning patterns our short editorial templates are most likely to produce.
+_SEMANTIC_CONCEPT_ROOTS: dict[str, tuple[str, ...]] = {
+    "finance": (
+        "деньг",
+        "денеж",
+        "финанс",
+        "бюджет",
+        "расход",
+        "трат",
+        "выгод",
+        "цифр",
+    ),
+    "relationships": (
+        "отношен",
+        "любов",
+        "симпат",
+        "взаимн",
+        "близк",
+        "семь",
+    ),
+    "work": (
+        "работ",
+        "карьер",
+        "проект",
+        "задач",
+        "дел",
+        "навык",
+    ),
+    "communication": (
+        "разговор",
+        "переписк",
+        "сообщен",
+        "вопрос",
+        "ответ",
+        "говор",
+        "выслуш",
+        "проговор",
+    ),
+    "learning_travel": (
+        "обуч",
+        "информац",
+        "источник",
+        "поезд",
+        "дорог",
+        "знан",
+    ),
+    "energy_rest": (
+        "устал",
+        "отдых",
+        "энерг",
+        "пауза",
+        "тишин",
+        "ритм",
+    ),
+    "choice_plan": (
+        "выбор",
+        "план",
+        "цель",
+        "решен",
+        "решён",
+        "вариант",
+        "возможност",
+    ),
+    "inspect": (
+        "проверь",
+        "перепров",
+        "перечит",
+        "уточн",
+        "оцен",
+        "сравн",
+        "свер",
+        "зафикс",
+    ),
+    "communicate_action": (
+        "задай",
+        "задайте",
+        "поговор",
+        "обсуд",
+        "назов",
+        "обознач",
+        "выслуш",
+        "проговор",
+        "говорите",
+    ),
+    "take_action": (
+        "сдела",
+        "шаг",
+        "начн",
+        "инициир",
+        "исправ",
+        "покаж",
+        "идите",
+        "решите",
+    ),
+    "slow_down": (
+        "не спеш",
+        "не тороп",
+        "остав",
+        "останов",
+        "освобод",
+        "снимите",
+        "не дав",
+    ),
+    "boundaries": (
+        "границ",
+        "отдел",
+        "не додум",
+        "обязательств",
+        "услови",
+        "роли",
+    ),
+}
+
 SnapshotBuilder = Callable[[date], DailyHoroscopeSnapshot]
+
+
+@dataclass(frozen=True, slots=True)
+class SemanticRepeatFinding:
+    sign: str
+    first_date: str
+    second_date: str
+    similarity: float
+    first_text: str
+    second_text: str
+
+    def payload(self) -> dict[str, object]:
+        return {
+            "sign": self.sign,
+            "first_date": self.first_date,
+            "second_date": self.second_date,
+            "similarity": round(self.similarity, 4),
+            "first_text": self.first_text,
+            "second_text": self.second_text,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +213,12 @@ class ResearchMetrics:
     distinct_text_ratio: float
     min_distinct_texts_per_sign: int
     adjacent_repeat_rate: float
+    semantic_review_days: int
+    semantic_review_cells: int
+    semantic_review_pairs: int
+    semantic_near_repeat_rate: float
+    max_semantic_near_repeat_rate_per_sign: float
+    max_semantic_similarity: float
 
     def payload(self) -> dict[str, object]:
         payload = asdict(self)
@@ -89,6 +235,7 @@ class ResearchEvaluation:
     gates_passed: bool
     hard_gates: dict[str, bool]
     metrics: ResearchMetrics
+    semantic_repeats: tuple[SemanticRepeatFinding, ...] = ()
 
     def payload(self) -> dict[str, object]:
         return {
@@ -97,6 +244,7 @@ class ResearchEvaluation:
             "gates_passed": self.gates_passed,
             "hard_gates": dict(sorted(self.hard_gates.items())),
             "metrics": self.metrics.payload(),
+            "semantic_repeats": [item.payload() for item in self.semantic_repeats],
         }
 
 
@@ -118,6 +266,8 @@ class ResearchComparison:
             "window": {
                 "start_date": RESEARCH_START_DATE.isoformat(),
                 "days": RESEARCH_DAYS,
+                "semantic_review_days": SEMANTIC_REVIEW_DAYS,
+                "semantic_review_signs": len(ZodiacSign),
             },
         }
 
@@ -199,6 +349,52 @@ def evaluate_builder(
                 repeat_count += 1
             temporal_diversities.append(1.0 - _jaccard(_tokens(previous), _tokens(current)))
 
+    semantic_review_days = min(days, SEMANTIC_REVIEW_DAYS)
+    semantic_review_cells = semantic_review_days * len(ZodiacSign)
+    semantic_review_pairs = 0
+    semantic_repeat_count = 0
+    max_semantic_similarity = 0.0
+    per_sign_semantic_rates: list[float] = []
+    semantic_findings: list[SemanticRepeatFinding] = []
+
+    for sign, texts in per_sign_texts.items():
+        reviewed = texts[:semantic_review_days]
+        sign_pairs = 0
+        sign_repeats = 0
+        for first_index, second_index in combinations(range(len(reviewed)), 2):
+            first = reviewed[first_index]
+            second = reviewed[second_index]
+            # Exact duplicates already have their own gate. This review deliberately measures
+            # meaning-preserving surface variation that an exact-string check would miss.
+            if first == second:
+                continue
+            sign_pairs += 1
+            semantic_review_pairs += 1
+            similarity = _semantic_similarity(first, second)
+            max_semantic_similarity = max(max_semantic_similarity, similarity)
+            if similarity < SEMANTIC_REPEAT_SIMILARITY:
+                continue
+            sign_repeats += 1
+            semantic_repeat_count += 1
+            semantic_findings.append(
+                SemanticRepeatFinding(
+                    sign=sign.value,
+                    first_date=(start_date + timedelta(days=first_index)).isoformat(),
+                    second_date=(start_date + timedelta(days=second_index)).isoformat(),
+                    similarity=similarity,
+                    first_text=first,
+                    second_text=second,
+                )
+            )
+        per_sign_semantic_rates.append(sign_repeats / sign_pairs if sign_pairs else 0.0)
+
+    semantic_findings.sort(
+        key=lambda item: (-item.similarity, item.sign, item.first_date, item.second_date)
+    )
+    semantic_near_repeat_rate = (
+        semantic_repeat_count / semantic_review_pairs if semantic_review_pairs else 0.0
+    )
+
     research_metrics = ResearchMetrics(
         avg_words=avg_words,
         avg_chars=avg_chars,
@@ -215,6 +411,12 @@ def evaluate_builder(
         distinct_text_ratio=fmean(distinct_ratios),
         min_distinct_texts_per_sign=min(distinct_counts),
         adjacent_repeat_rate=repeat_count / pair_count if pair_count else 0.0,
+        semantic_review_days=semantic_review_days,
+        semantic_review_cells=semantic_review_cells,
+        semantic_review_pairs=semantic_review_pairs,
+        semantic_near_repeat_rate=semantic_near_repeat_rate,
+        max_semantic_near_repeat_rate_per_sign=max(per_sign_semantic_rates, default=0.0),
+        max_semantic_similarity=max_semantic_similarity,
     )
     hard_gates = _hard_gates(research_metrics)
     quality_score = _quality_score(research_metrics)
@@ -225,6 +427,7 @@ def evaluate_builder(
         gates_passed=gates_passed,
         hard_gates=hard_gates,
         metrics=research_metrics,
+        semantic_repeats=tuple(semantic_findings[:MAX_SEMANTIC_FINDINGS]),
     )
 
 
@@ -244,6 +447,13 @@ def _hard_gates(metrics: ResearchMetrics) -> dict[str, bool]:
         "minimum_temporal_diversity": metrics.temporal_diversity >= MIN_TEMPORAL_DIVERSITY,
         "minimum_distinct_copy_per_sign": (
             metrics.min_distinct_texts_per_sign >= MIN_DISTINCT_TEXTS_PER_SIGN
+        ),
+        "fourteen_day_semantic_repeat_rate": (
+            metrics.semantic_near_repeat_rate <= MAX_SEMANTIC_NEAR_REPEAT_RATE
+        ),
+        "fourteen_day_per_sign_semantic_repeat_rate": (
+            metrics.max_semantic_near_repeat_rate_per_sign
+            <= MAX_SEMANTIC_NEAR_REPEAT_RATE_PER_SIGN
         ),
         "minimum_actionability": metrics.actionable_ratio >= MIN_ACTIONABLE_RATIO,
         "minimum_topic_coverage": metrics.topic_coverage_ratio >= MIN_TOPIC_COVERAGE_RATIO,
@@ -293,6 +503,27 @@ def _tokens(text: str) -> set[str]:
         for token in (match.casefold() for match in _TOKEN_RE.findall(text))
         if len(token) > 2 and token not in _TOKEN_STOPWORDS
     }
+
+
+def _semantic_concepts(text: str) -> set[str]:
+    lowered = text.casefold()
+    return {
+        concept
+        for concept, roots in _SEMANTIC_CONCEPT_ROOTS.items()
+        if any(root in lowered for root in roots)
+    }
+
+
+def _semantic_similarity(first: str, second: str) -> float:
+    lexical_similarity = _jaccard(_tokens(first), _tokens(second))
+    first_concepts = _semantic_concepts(first)
+    second_concepts = _semantic_concepts(second)
+    concept_similarity = (
+        _jaccard(first_concepts, second_concepts)
+        if len(first_concepts) >= 2 and len(second_concepts) >= 2
+        else 0.0
+    )
+    return max(lexical_similarity, concept_similarity)
 
 
 def _jaccard(first: set[str], second: set[str]) -> float:
