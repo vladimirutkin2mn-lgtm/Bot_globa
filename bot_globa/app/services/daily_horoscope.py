@@ -18,6 +18,7 @@ from app.domain.daily_horoscope import (
     DailyHoroscopePreferenceView,
     timezone_for_moscow_time_difference,
 )
+from app.domain.natal_chart import ZodiacSign
 from app.services.onboarding import CURRENT_CONSENT_VERSION
 
 _DEFAULT_VIEW = DailyHoroscopePreferenceView(
@@ -84,6 +85,22 @@ class DailyHoroscopePreferenceService:
         async with self._sessions() as session:
             preference = await session.get(DailyHoroscopePreference, user_id)
             return _DEFAULT_VIEW if preference is None else _view(preference)
+
+    async def set_zodiac_sign(
+        self,
+        user_id: UUID,
+        zodiac_sign: ZodiacSign | None,
+        *,
+        now: datetime | None = None,
+    ) -> DailyHoroscopePreferenceView:
+        """Save only a solar-sign preference; never create or mutate a natal profile."""
+
+        current = _utc(now)
+        async with self._sessions.begin() as session:
+            preference = await _locked_preference(session, user_id, current)
+            preference.zodiac_sign = zodiac_sign.value if zodiac_sign is not None else None
+            await session.flush()
+            return _view(preference)
 
     async def set_feedback_enabled(
         self,
@@ -452,6 +469,9 @@ def _view(preference: DailyHoroscopePreference) -> DailyHoroscopePreferenceView:
         timezone=preference.timezone,
         next_delivery_at=preference.next_delivery_at,
         feedback_enabled=preference.feedback_enabled,
+        zodiac_sign=(
+            ZodiacSign(preference.zodiac_sign) if preference.zodiac_sign is not None else None
+        ),
     )
 
 

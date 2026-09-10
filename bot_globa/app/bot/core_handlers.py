@@ -14,17 +14,18 @@ from app.bot.daily_horoscope import (
     MODE_CONFIRMATIONS,
     TIMEZONE_ERROR,
     TIMEZONE_PROMPT,
+    render_compact_daily_horoscope,
     render_daily_horoscope,
     render_daily_settings,
     render_timezone_saved,
 )
+from app.bot.daily_keyboards import daily_horoscope_with_sign_keyboard, daily_sign_keyboard
 from app.bot.keyboards import (
     back_to_balance_keyboard,
     checkout_creating_keyboard,
     checkout_keyboard,
     checkout_unavailable_keyboard,
     consent_keyboard,
-    daily_horoscope_keyboard,
     daily_settings_keyboard,
     daily_timezone_keyboard,
     has_payment_routes,
@@ -51,6 +52,7 @@ from app.domain.daily_horoscope import (
     daily_horoscope_enabled,
     parse_moscow_time_difference,
 )
+from app.domain.natal_chart import ZodiacSign
 from app.services.checkout_service import CheckoutRejectedError, CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
@@ -231,6 +233,43 @@ async def _leave_timezone_input(state: FSMContext) -> None:
         await state.set_state(None)
 
 
+async def _daily_preference(
+    callback: CallbackQuery,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> DailyHoroscopePreferenceView:
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None:
+        return DailyHoroscopePreferenceView(
+            DailyHoroscopeMode.MORNING,
+            DEFAULT_DAILY_HOROSCOPE_TIMEZONE,
+            None,
+        )
+    return await daily_horoscopes.current(user.id)
+
+
+async def _show_daily_horoscope(
+    message: Message,
+    state: FSMContext,
+    preference: DailyHoroscopePreferenceView,
+    *,
+    all_signs: bool = False,
+) -> None:
+    today = datetime.now(ZoneInfo(preference.timezone)).date()
+    text = (
+        render_daily_horoscope(today)
+        if all_signs or preference.zodiac_sign is None
+        else render_compact_daily_horoscope(today, preference.zodiac_sign)
+    )
+    await send_artifact(
+        message,
+        Scene.DAILY_HOROSCOPE,
+        text,
+        reply_markup=daily_horoscope_with_sign_keyboard(preference.zodiac_sign),
+        state=state,
+    )
+
+
 @router.callback_query(F.data == "menu:daily")
 async def daily_horoscope_screen(
     callback: CallbackQuery,
@@ -239,20 +278,82 @@ async def daily_horoscope_screen(
     daily_horoscopes: DailyHoroscopePreferenceService,
 ) -> None:
     await callback.answer()
-    if isinstance(callback.message, Message):
-        await _leave_timezone_input(state)
-        timezone = DEFAULT_DAILY_HOROSCOPE_TIMEZONE
-        user = await onboarding.current_user(callback.from_user.id)
-        if user is not None:
-            preference = await daily_horoscopes.current(user.id)
-            timezone = preference.timezone
-        await send_artifact(
-            callback.message,
-            Scene.DAILY_HOROSCOPE,
-            render_daily_horoscope(datetime.now(ZoneInfo(timezone)).date()),
-            reply_markup=daily_horoscope_keyboard(),
-            state=state,
-        )
+    if not isinstance(callback.message, Message):
+        return
+    await _leave_timezone_input(state)
+    preference = await _daily_preference(callback, onboarding, daily_horoscopes)
+    await _show_daily_horoscope(callback.message, state, preference)
+
+
+@router.callback_query(F.data == "daily:all")
+async def daily_horoscope_all_signs(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
+    """Expand the common digest without forgetting the user's saved sign."""
+
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    await _leave_timezone_input(state)
+    preference = await _daily_preference(callback, onboarding, daily_horoscopes)
+    await _show_daily_horoscope(callback.message, state, preference, all_signs=True)
+
+
+@router.callback_query(F.data == "daily:sign")
+async def choose_daily_horoscope_sign(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
+    """Offer a solar-sign preference without collecting birth-profile data."""
+
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    await _leave_timezone_input(state)
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None:
+        await callback.message.answer("Сначала отправьте /start.")
+        return
+    preference = await daily_horoscopes.current(user.id)
+    await show_screen(
+        callback.message,
+        Scene.DAILY_SETTINGS,
+        "Выберите свой знак\n\n"
+        "Это только настройка общего гороскопа. Дата, место и время рождения не нужны.",
+        reply_markup=daily_sign_keyboard(preference.zodiac_sign),
+        state=state,
+    )
+
+
+@router.callback_query(F.data.startswith("daily:sign:"))
+async def set_daily_horoscope_sign(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
+    """Persist a selected sign and immediately return to the relevant daily view."""
+
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None:
+        await callback.message.answer("Сначала отправьте /start.")
+        return
+    raw_sign = (callback.data or "").removeprefix("daily:sign:")
+    try:
+        zodiac_sign = None if raw_sign == "clear" else ZodiacSign(raw_sign)
+        preference = await daily_horoscopes.set_zodiac_sign(user.id, zodiac_sign)
+    except (LookupError, ValueError):
+        await callback.message.answer("Не удалось сохранить знак. Попробуйте ещё раз.")
+        return
+    await _show_daily_horoscope(callback.message, state, preference)
 
 
 @router.callback_query(F.data == "daily:settings")

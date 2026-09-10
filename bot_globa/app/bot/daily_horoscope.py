@@ -9,6 +9,7 @@ from app.domain.daily_horoscope import (
     daily_horoscope_enabled,
     moscow_time_difference_for_timezone,
 )
+from app.domain.natal_chart import ZodiacSign
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 from app.services.daily_sky import SIGN_LABELS, DailyHoroscopeSnapshot
 
@@ -48,10 +49,14 @@ DAILY_FEEDBACK_THANKS = "Спасибо ✨ Это помогает делать
 DAILY_FEEDBACK_CLOSED = "Этот вопрос уже закрыт."
 
 
+def _snapshot(value: date | DailyHoroscopeSnapshot) -> DailyHoroscopeSnapshot:
+    return build_editorial_daily_horoscope(value) if isinstance(value, date) else value
+
+
 def render_daily_horoscope(value: date | DailyHoroscopeSnapshot) -> str:
     """Render one bounded digest shared by every user for the same calculated snapshot."""
 
-    snapshot = build_editorial_daily_horoscope(value) if isinstance(value, date) else value
+    snapshot = _snapshot(value)
     lines = [
         f"Гороскоп на сегодня · {snapshot.forecast_date:%d.%m.%Y}",
         f"🌙 Тема дня: {snapshot.theme}.",
@@ -64,11 +69,38 @@ def render_daily_horoscope(value: date | DailyHoroscopeSnapshot) -> str:
     return "\n".join(lines)
 
 
+def render_compact_daily_horoscope(
+    value: date | DailyHoroscopeSnapshot,
+    zodiac_sign: ZodiacSign,
+) -> str:
+    """Render the selected solar sign first without creating or implying a natal profile."""
+
+    snapshot = _snapshot(value)
+    selected = next((item for item in snapshot.signs if item.sign is zodiac_sign), None)
+    if selected is None:
+        raise ValueError("daily horoscope snapshot does not contain the selected zodiac sign")
+    emoji, name = SIGN_LABELS[zodiac_sign]
+    return "\n".join(
+        (
+            f"Гороскоп на сегодня · {snapshot.forecast_date:%d.%m.%Y}",
+            f"🌙 Тема дня: {snapshot.theme}.",
+            "",
+            f"{emoji} {name} — {selected.text}",
+            "",
+            "Это общий прогноз по знаку. Персональный прогноз отдельно использует натальную карту.",
+        )
+    )
+
+
 def render_daily_settings(preference: DailyHoroscopePreferenceView) -> str:
-    """Render the saved delivery switch and Moscow-relative clock in user language."""
+    """Render the saved delivery switch, sign and Moscow-relative clock in user language."""
 
     status = "включена" if daily_horoscope_enabled(preference.mode) else "отключена"
     feedback_status = "включён" if preference.feedback_enabled else "отключён"
+    sign_status = "все знаки"
+    if preference.zodiac_sign is not None:
+        emoji, name = SIGN_LABELS[preference.zodiac_sign]
+        sign_status = f"{emoji} {name}"
     difference = moscow_time_difference_for_timezone(preference.timezone)
     timezone_label = (
         _format_time_difference(difference)
@@ -77,6 +109,7 @@ def render_daily_settings(preference: DailyHoroscopePreferenceView) -> str:
     )
     return (
         "Настройки гороскопа\n\n"
+        f"Знак: {sign_status}.\n"
         f"Ежедневная отправка: {status}.\n"
         "Время отправки: 08:00 по вашему времени.\n"
         f"Разница с Москвой: {timezone_label}.\n"

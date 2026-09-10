@@ -6,6 +6,8 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
+from app.domain.natal_chart import ZodiacSign
+
 DEFAULT_DAILY_HOROSCOPE_TIMEZONE = "Europe/Moscow"
 MOSCOW_UTC_OFFSET_HOURS = 3
 MIN_MOSCOW_TIME_DIFFERENCE_HOURS = -15
@@ -32,6 +34,7 @@ class DailyHoroscopePreferenceView:
     timezone: str
     next_delivery_at: datetime | None
     feedback_enabled: bool = False
+    zodiac_sign: ZodiacSign | None = None
 
 
 @dataclass(frozen=True, slots=True)
