@@ -19,8 +19,10 @@ from app.providers.analytics import (
 from app.providers.numa_product_analytics import (
     ProductFlow,
     ProductFunnelEvent,
+    is_numa_group_event,
     is_numa_product_event,
     numa_product_event_identity,
+    validate_numa_group_event,
     validate_numa_product_event,
 )
 from app.providers.numa_reading_projection import project_personal_reading_event
@@ -36,7 +38,11 @@ class PostgresAnalyticsClient:
         self, user_id: str | None, event: str, properties: Mapping[str, str] | None = None
     ) -> None:
         correlation_id = correlation_id_for_event()
-        if is_numa_product_event(event):
+        if is_numa_group_event(event):
+            safe_properties = validate_numa_group_event(event, properties)
+            subject_id = None
+            idempotency_key = f"{event}:{correlation_id}"
+        elif is_numa_product_event(event):
             safe_properties = validate_numa_product_event(event, properties)
             subject_id, idempotency_key = numa_product_event_identity(
                 user_id, event, safe_properties
