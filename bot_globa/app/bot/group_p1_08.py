@@ -5,16 +5,16 @@ join games through existing callbacks, choose their own sign, and may upgrade to
 private natal flow later. Group funnel analytics is anonymous and code-only.
 """
 
+# ruff: noqa: PLW0603
+
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from aiogram import Bot, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot import core_handlers
+from app.bot import core_handlers, group_handlers
 from app.bot import group_compatibility_handlers as compatibility
-from app.bot import group_handlers
 from app.bot import group_viral_upgrade as viral_upgrade
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
