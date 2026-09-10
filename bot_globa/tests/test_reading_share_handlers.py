@@ -30,7 +30,9 @@ from app.domain.reading_result import (
 )
 
 
-def _card(short_text: str = "Ситуация меняется не от ожидания, а от одного ясного шага.") -> ShareCardPayload:
+def _card(
+    short_text: str = "Ситуация меняется не от ожидания, а от одного ясного шага.",
+) -> ShareCardPayload:
     return ShareCardPayload(
         headline="Иногда развилка важнее ответа",
         short_text=short_text,
