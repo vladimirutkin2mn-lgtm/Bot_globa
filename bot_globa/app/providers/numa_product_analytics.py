@@ -58,6 +58,19 @@ class ProductFunnelEvent(StrEnum):
     RECIPIENT_ENTRY = "numa_recipient_entry"
 
 
+class GroupFunnelEvent(StrEnum):
+    """Anonymous P1-08 group funnel; attribution is intentionally code-only."""
+
+    ENTRY_OPENED = "group_entry_opened"
+    ADD_STARTED = "group_add_started"
+    GAME_STARTED = "group_game_started"
+    GAME_COMPLETED = "group_game_completed"
+    TO_PRIVATE_CLICKED = "group_to_private_clicked"
+
+
+GROUP_FUNNEL_SOURCE = "group_add"
+GROUP_GAME_CODES = frozenset({"compatibility", "duel"})
+
 _COMMON = frozenset(
     {
         "event_version",
@@ -88,6 +101,13 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     ProductFunnelEvent.SHARE_CARD_SHOWN.value: _COMMON | {"share_format"},
     ProductFunnelEvent.SHARE_INTENT.value: _COMMON | {"share_format"},
     ProductFunnelEvent.RECIPIENT_ENTRY.value: _COMMON | {"campaign_code"},
+}
+_GROUP_EVENT_PROPERTIES: dict[str, frozenset[str]] = {
+    GroupFunnelEvent.ENTRY_OPENED.value: frozenset({"source"}),
+    GroupFunnelEvent.ADD_STARTED.value: frozenset({"source"}),
+    GroupFunnelEvent.GAME_STARTED.value: frozenset({"source", "game"}),
+    GroupFunnelEvent.GAME_COMPLETED.value: frozenset({"source", "game"}),
+    GroupFunnelEvent.TO_PRIVATE_CLICKED.value: frozenset({"source", "game"}),
 }
 
 _REQUIRED_COMMON = frozenset(
@@ -134,6 +154,39 @@ class ProductAnalyticsContractError(ValueError):
 
 def is_numa_product_event(event: str) -> bool:
     return event in _EVENT_PROPERTIES
+
+
+def is_numa_group_event(event: str) -> bool:
+    return event in _GROUP_EVENT_PROPERTIES
+
+
+def validate_numa_group_event(
+    event: str,
+    properties: Mapping[str, str] | None,
+) -> dict[str, str]:
+    """Accept only aggregate source/game codes for P1-08 group telemetry."""
+
+    allowed = _GROUP_EVENT_PROPERTIES.get(event)
+    if allowed is None:
+        raise ProductAnalyticsContractError
+    supplied = dict(properties or {})
+    if supplied.keys() != allowed:
+        raise ProductAnalyticsContractError
+    if supplied.get("source") != GROUP_FUNNEL_SOURCE:
+        raise ProductAnalyticsContractError
+    game = supplied.get("game")
+    if game is not None and game not in GROUP_GAME_CODES:
+        raise ProductAnalyticsContractError
+    if any(
+        not isinstance(value, str)
+        or not value
+        or len(value) > 128
+        or not value.isprintable()
+        or _SAFE_CODE.fullmatch(value) is None
+        for value in supplied.values()
+    ):
+        raise ProductAnalyticsContractError
+    return supplied
 
 
 def validate_numa_product_event(event: str, properties: Mapping[str, str] | None) -> dict[str, str]:
