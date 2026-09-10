@@ -15,6 +15,7 @@ from app.bot.keyboards import (
     payment_methods_back_button,
     products_keyboard,
 )
+from app.bot.pricing import subscription_offer_terms
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.config import Settings
@@ -115,6 +116,15 @@ def _subscription_scene(value: SubscriptionView) -> Scene:
     return Scene.SUBSCRIPTION_CHECKOUT
 
 
+def subscription_choice_text(catalog: BillingCatalog, settings: Settings) -> str:
+    """Show the exact current subscription terms before a buyer picks a payment rail."""
+
+    return (
+        f"Numa Plus: {subscription_offer_terms(catalog, settings)}.\n"
+        "Выберите способ оплаты. Провайдер покажет сумму и подтвердит условия до оплаты."
+    )
+
+
 async def _current_user_subscription(
     callback: CallbackQuery,
     onboarding: OnboardingService,
@@ -157,7 +167,11 @@ async def balance_and_subscription_screen(
     subscription_note = (
         "\n\n" + _status_text(current)
         if current is not None
-        else ("\n\nПодписка на месяц." if billing_settings.subscriptions_enabled else "")
+        else (
+            f"\n\nNuma Plus: {subscription_offer_terms(billing_catalog, billing_settings)}."
+            if billing_settings.subscriptions_enabled
+            else ""
+        )
     )
     await show_screen(
         callback.message,
@@ -225,8 +239,7 @@ async def choose_subscription_market(
     await show_screen(
         callback.message,
         Scene.SUBSCRIPTION_CHOICE,
-        "Выберите способ оплаты подписки на месяц. Провайдер покажет сумму, "
-        "период и условия автопродления до подтверждения оплаты.",
+        subscription_choice_text(billing_catalog, billing_settings),
         reply_markup=keyboard,
         state=state,
     )
