@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-
 _PERSONA_BY_ROUTE = {
     "tarot": "tarot_reader",
     "love": "love_oracle",
