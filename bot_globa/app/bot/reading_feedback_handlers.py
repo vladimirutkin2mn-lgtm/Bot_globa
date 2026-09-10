@@ -6,12 +6,18 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.persona_flow import FEEDBACK_NAMESPACE, feedback_reason_keyboard
+from app.bot.reading_share_handlers import (
+    SHARE_PROMPT,
+    router as reading_share_router,
+    share_offer_keyboard,
+)
 from app.providers.analytics import OracleProductEvent
 from app.services.onboarding import OnboardingService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.reading_history import ReadingHistoryService
 
 router = Router(name="reading-feedback")
+router.include_router(reading_share_router)
 
 _FINAL_REACTIONS = {
     "hit": "hit",
@@ -52,9 +58,19 @@ async def submit_reading_feedback(
     await oracle_analytics.track(
         user.id,
         OracleProductEvent.READING_FEEDBACK_SUBMITTED,
-        {"reading_id": reading_id, "reaction_code": reaction},
+        {"reaction_code": reaction},
     )
     await callback.answer("Спасибо, это поможет улучшить разбор.")
+
+    if (
+        action == "hit"
+        and isinstance(callback.message, Message)
+        and await reading_history.owns_full(user.id, reading_id)
+    ):
+        await callback.message.answer(
+            SHARE_PROMPT,
+            reply_markup=share_offer_keyboard(reading_id),
+        )
 
 
 def _parse(data: str | None) -> tuple[str, UUID] | None:
