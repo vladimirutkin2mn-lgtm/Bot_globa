@@ -9,7 +9,12 @@ from typing import Protocol
 from uuid import UUID
 
 from app.db.reading_models import Reading
-from app.domain.conversion_experiment import ConversionHookVariant, conversion_hook_variant
+from app.domain.conversion_experiment import (
+    ConversionHookVariant,
+    FreePreviewVariant,
+    conversion_hook_variant,
+    free_preview_variant,
+)
 from app.domain.oracle_safety import (
     OracleInputSafetyClassifier,
     OracleInputSafetyResult,
@@ -123,6 +128,7 @@ class PersonaPreviewOutcome:
     symbol_set_code: str | None = None
     visibility: ReadingPreviewVisibility = ReadingPreviewVisibility.PREVIEW
     conversion_variant: ConversionHookVariant = ConversionHookVariant.A
+    free_preview_variant: FreePreviewVariant = FreePreviewVariant.COMPLETE
 
 
 class PersonaReadingUseCase:
@@ -262,6 +268,7 @@ class PersonaReadingUseCase:
             symbol_set_code=symbol_set_code,
             visibility=visibility,
             conversion_variant=conversion_hook_variant(user_id),
+            free_preview_variant=free_preview_variant(user_id),
         )
 
     @property
