@@ -100,7 +100,7 @@ def test_group_command_opens_lobby_without_reply_contract() -> None:
 
     assert command.description == "💞 Совместимость участников"
     assert command.is_ephemeral is True
-    assert "совместимость по натальной карте" in group_handlers.GROUP_HELP
+    assert "совместимость по знакам или натальной карте" in group_handlers.GROUP_HELP
     assert "лобби" in group_handlers.GROUP_HELP
     assert "reply-команд" not in group_handlers.GROUP_HELP
     assert "/with" not in [command.command for command in GROUP_COMMANDS]
