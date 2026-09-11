@@ -105,7 +105,6 @@ async def friends_entry(
         "Права администратора для этих игр не нужны.",
         reply_markup=_friends_intro_keyboard(),
         state=state,
-        edit=True,
     )
 
 
@@ -132,7 +131,6 @@ async def friends_add(
         "обычные сообщения чата для игры не нужны.",
         reply_markup=_friends_add_keyboard(me.username),
         state=state,
-        edit=True,
     )
 
 
@@ -468,8 +466,8 @@ def install_group_p1_08() -> None:
     if "group_p1_08" in _INSTALL_MARKERS:
         return
 
-    _PREVIOUS_MORE_MENU = core_handlers.more_menu_keyboard
-    core_handlers.more_menu_keyboard = _more_menu_with_friends
+    _PREVIOUS_MORE_MENU = getattr(core_handlers, "more_menu_keyboard")
+    setattr(core_handlers, "more_menu_keyboard", _more_menu_with_friends)
 
     _PREVIOUS_COMPATIBILITY_RENDER = compatibility._render_compatibility
     compatibility._render_compatibility = _render_compatibility_p1_08
