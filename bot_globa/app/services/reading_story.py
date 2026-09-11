@@ -61,7 +61,7 @@ class ReadingStoryService:
         normalized = self._normalize_title(title)
         now = datetime.now(UTC)
         async with self._sessions.begin() as session:
-            story = ReadingStory(user_id=user_id, updated_at=now)
+            story = ReadingStory(user_id=user_id, updated_at=now, links=[])
             story.private_content = ReadingStoryPrivateContent(
                 title_ciphertext=self._cipher.encrypt_json(
                     ContentPurpose.READING_STORY_TITLE,
