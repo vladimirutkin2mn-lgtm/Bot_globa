@@ -1,6 +1,7 @@
 """PostgreSQL invariants for encrypted user-managed reading stories."""
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -43,8 +44,8 @@ async def _persona(sessions: async_sessionmaker[AsyncSession], code: str) -> Per
 async def _reading(
     sessions: async_sessionmaker[AsyncSession],
     *,
-    user_id,
-    persona_id,
+    user_id: UUID,
+    persona_id: UUID,
     ready: bool,
 ) -> Reading:
     async with sessions.begin() as session:
