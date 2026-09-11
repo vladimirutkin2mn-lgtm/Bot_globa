@@ -26,8 +26,12 @@ def test_commercial_price_template_is_disabled_and_contains_no_candidate_prices(
 def test_template_keeps_source_separate_and_blocks_mixed_product_tests() -> None:
     template = build_commercial_price_experiment_template()
 
-    assert "entry_source" in template["report_dimensions"]
+    report_dimensions = template["report_dimensions"]
+    assert isinstance(report_dimensions, list)
+    assert "entry_source" in report_dimensions
+
     guardrails = template["guardrails"]
+    assert isinstance(guardrails, dict)
     assert guardrails["current_catalog_unchanged"] is True
     assert guardrails["owner_supplies_candidate_prices"] is True
     assert guardrails["do_not_mix_with_text_or_frequency_test"] is True
