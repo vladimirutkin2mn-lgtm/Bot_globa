@@ -5,6 +5,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.domain.natal_chart import ZodiacSign
 from app.services.daily_sky import SIGN_LABELS
 
+DAILY_SHARE_CALLBACK = "daily:share"
+
 
 def daily_horoscope_with_sign_keyboard(
     selected_sign: ZodiacSign | None,
@@ -34,6 +36,12 @@ def daily_horoscope_with_sign_keyboard(
                 InlineKeyboardButton(
                     text="🔮 Задать вопрос о сегодняшнем дне",
                     callback_data="tarot:topic:general_forecast",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📤 Поделиться темой дня",
+                    callback_data=DAILY_SHARE_CALLBACK,
                 )
             ],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],

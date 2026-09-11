@@ -32,6 +32,7 @@ class ProductSource(StrEnum):
     GROUP_EVENT = "group_event"
     GROUP_CHAT = "group_chat"
     SHARED_INSIGHT = "shared_insight"
+    SHARED_DAILY = "shared_daily"
     TEST_CAMPAIGN = "test_campaign"
 
 
