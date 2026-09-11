@@ -7,9 +7,9 @@ text — only the already validated result and copy configured for the selected 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.bot.conversion_hooks import DEFAULT_READING_HOOK, ConversionHookCopy
+from app.bot.conversion_hooks import DEFAULT_READING_HOOK, ConversionHookCopy, render_grounded_hook
 from app.bot.typography import quote
-from app.domain.conversion_experiment import ConversionHookVariant
+from app.domain.conversion_experiment import ConversionHookVariant, FreePreviewVariant
 from app.domain.reading import SymbolOrientation
 from app.domain.reading_generation import ReadingSymbolContext
 from app.domain.reading_result import ReadingResult
@@ -41,6 +41,14 @@ class ReadingCopy:
 
 
 def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
+    """Render the stable old-vs-new first free-answer experiment."""
+
+    if outcome.free_preview_variant is FreePreviewVariant.BASELINE:
+        return _render_baseline_preview(outcome, copy)
+    return _render_complete_preview(outcome, copy)
+
+
+def _render_complete_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
     """Give one useful answer for free while reserving depth and scenarios for unlock."""
     result = _completed_result(outcome)
     sections = [
@@ -65,6 +73,35 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
             (
                 "<i>В полном разборе — детали остальных символов, альтернативные сценарии и "
                 "условия, плюс до 3 уточняющих вопросов в течение 24 часов.</i>"
+            ),
+        ]
+    )
+    return chunk_sections(tuple(sections))
+
+
+def _render_baseline_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
+    """Reproduce the pre-P1-05 free-preview content without reviving its A/B/C text split."""
+
+    result = _completed_result(outcome)
+    sections = [
+        f"{copy.emoji} <b>Быстрый взгляд</b>",
+        f"<b>{quote(result.title)}</b>",
+    ]
+    if outcome.symbols:
+        drawn = "\n".join(
+            f"{index}. <b>{quote(context.display_name)}</b> — "
+            f"{orientation_label(context.symbol.orientation)}"
+            for index, context in enumerate(outcome.symbols, start=1)
+        )
+        sections.append(f"<b>{copy.drawn_symbols_title}</b>\n{drawn}")
+    pattern = result.patterns[0] if result.patterns else result.opening
+    sections.extend(
+        [
+            f"<b>{copy.main_theme_title}:</b> {quote(pattern)}\n\n{quote(result.opening)}",
+            _locked_hook(result, copy, outcome.symbol_set_code, ConversionHookVariant.A),
+            (
+                "<i>Это короткий слой разбора. Глубокий разбор покажет связи, условия "
+                "сценариев и следующий шаг — без нового вопроса с нуля.</i>"
             ),
         ]
     )
@@ -146,6 +183,21 @@ def _micro_scenario_label(variant: ConversionHookVariant) -> str:
         ConversionHookVariant.B: "Здесь есть развилка:",
         ConversionHookVariant.C: "Если смотреть вперёд:",
     }[variant]
+
+
+def _locked_hook(
+    result: ReadingResult,
+    copy: ReadingCopy,
+    symbol_set_code: str | None,
+    variant: ConversionHookVariant,
+) -> str:
+    hook = copy.hook
+    if symbol_set_code is not None:
+        hook = next(
+            (candidate for code, candidate in copy.hook_by_symbol_set if code == symbol_set_code),
+            hook,
+        )
+    return render_grounded_hook(result.possible_scenarios, hook, variant)
 
 
 def reveal_progress(revealed: int, total: int) -> str:
