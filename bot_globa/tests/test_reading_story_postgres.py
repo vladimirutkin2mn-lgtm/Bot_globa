@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import User
 from app.db.reading_models import Persona, Reading
-from app.db.reading_story_models import ReadingStoryLink, ReadingStoryPrivateContent
+from app.db.reading_story_models import (
+    ReadingStory,
+    ReadingStoryLink,
+    ReadingStoryPrivateContent,
+)
+from app.providers.analytics import NoOpAnalyticsClient
+from app.services.data_deletion import DataDeletionOutcome, DataDeletionService
 from app.services.reading_story import (
     ReadingStoryNotFoundError,
     ReadingStoryReadingError,
@@ -171,3 +177,34 @@ async def test_deleting_story_keeps_reading_result(
     async with payment_db() as session:
         assert await session.get(Reading, ready.id) is not None
         assert await session.get(ReadingStoryLink, ready.id) is None
+
+
+async def test_account_deletion_physically_purges_story_private_content(
+    payment_db: async_sessionmaker[AsyncSession],
+) -> None:
+    owner = await _user(payment_db, 940030)
+    persona = await _persona(payment_db, "story_account_delete")
+    ready = await _reading(
+        payment_db,
+        user_id=owner.id,
+        persona_id=persona.id,
+        ready=True,
+    )
+    service = ReadingStoryService(
+        payment_db,
+        AESGCMSensitiveContentCipher("reading-story-account-delete-key"),
+    )
+    story = await service.create(owner.id, "Секретная личная история")
+    await service.link_reading(owner.id, story.id, ready.id)
+
+    async with payment_db() as session:
+        outcome = await DataDeletionService(session, NoOpAnalyticsClient()).delete_account(owner.id)
+    assert outcome is DataDeletionOutcome.DELETED
+
+    async with payment_db() as session:
+        assert await session.get(ReadingStoryPrivateContent, story.id) is None
+        assert await session.get(ReadingStory, story.id) is None
+        assert await session.get(ReadingStoryLink, ready.id) is None
+        deleted_reading = await session.get(Reading, ready.id)
+        assert deleted_reading is not None
+        assert deleted_reading.status == "deleted"
