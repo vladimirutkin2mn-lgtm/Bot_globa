@@ -110,8 +110,7 @@ def test_reading_story_migration_refuses_live_story_downgrade() -> None:
             _execute(
                 url,
                 schema,
-                "INSERT INTO reading_stories (id,user_id) "
-                f"VALUES ('{story_id}','{user_id}')",
+                f"INSERT INTO reading_stories (id,user_id) VALUES ('{story_id}','{user_id}')",
             )
         )
         failed = subprocess.run(
