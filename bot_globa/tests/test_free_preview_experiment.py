@@ -99,8 +99,12 @@ def test_runtime_assignment_does_not_replace_entry_source() -> None:
 
 def test_baseline_and_complete_preview_change_only_first_free_answer_content() -> None:
     result = _reading()
-    baseline = "\n".join(render_preview(_outcome(result, FreePreviewVariant.BASELINE), TAROT_FLOW.copy))
-    complete = "\n".join(render_preview(_outcome(result, FreePreviewVariant.COMPLETE), TAROT_FLOW.copy))
+    baseline = "\n".join(
+        render_preview(_outcome(result, FreePreviewVariant.BASELINE), TAROT_FLOW.copy)
+    )
+    complete = "\n".join(
+        render_preview(_outcome(result, FreePreviewVariant.COMPLETE), TAROT_FLOW.copy)
+    )
 
     assert result.possible_scenarios[0].scenario in baseline
     assert result.possible_scenarios[0].conditions[0] not in baseline
