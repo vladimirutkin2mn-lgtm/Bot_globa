@@ -5,7 +5,9 @@ question, answer, birth data or Telegram identity.
 """
 
 from collections.abc import Mapping
+from uuid import UUID
 
+from app.domain.conversion_experiment import free_preview_experiment_assignment
 from app.providers.analytics import OracleProductEvent
 from app.providers.numa_product_analytics import (
     NUMA_PRODUCT_EVENT_VERSION,
@@ -37,6 +39,8 @@ def project_personal_reading_event(
     event: str,
     properties: Mapping[str, str],
     latest_personal_entry: Mapping[str, str] | None = None,
+    *,
+    subject_id: str | None = None,
 ) -> tuple[str, dict[str, str]] | None:
     """Return one typed funnel event for a personal Reading transition, if applicable."""
 
@@ -52,13 +56,20 @@ def project_personal_reading_event(
     if persona_code not in _PERSONAL_PERSONAS or reading_id is None:
         return None
 
+    experiment_assignment = "control"
+    if subject_id is not None:
+        try:
+            experiment_assignment = free_preview_experiment_assignment(UUID(subject_id))
+        except ValueError:
+            pass
+
     projected = {
         "event_version": NUMA_PRODUCT_EVENT_VERSION,
         "entity_id": reading_id,
         "flow": ProductFlow.PERSONAL.value,
         "source": ProductSource.NORMAL_START.value,
         "scenario_version": f"{persona_code}_v1",
-        "experiment_assignment": "control",
+        "experiment_assignment": experiment_assignment,
         "conversion_hook": "conversion_hook_v1",
         "test_traffic": "false",
         "calculation_timezone": "UTC",
@@ -66,7 +77,14 @@ def project_personal_reading_event(
     if latest_personal_entry is not None and latest_personal_entry.get("flow") == "personal":
         for key in _ATTRIBUTION_KEYS:
             value = latest_personal_entry.get(key)
-            if value:
-                projected[key] = value
+            if not value:
+                continue
+            if (
+                key == "experiment_assignment"
+                and value == "control"
+                and experiment_assignment != "control"
+            ):
+                continue
+            projected[key] = value
 
     return target, validate_numa_product_event(target, projected)
