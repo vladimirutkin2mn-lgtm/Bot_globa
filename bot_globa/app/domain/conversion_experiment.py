@@ -1,9 +1,11 @@
-"""Deterministic privacy-safe assignment for conversion-hook experiments."""
+"""Deterministic privacy-safe assignment for conversion experiments."""
 
 from enum import StrEnum
+from hashlib import blake2s
 from uuid import UUID
 
 CONVERSION_HOOK_EXPERIMENT = "conversion_hook_v1"
+FREE_PREVIEW_EXPERIMENT = "free_preview_v1"
 
 
 class ConversionHookVariant(StrEnum):
@@ -14,7 +16,15 @@ class ConversionHookVariant(StrEnum):
     C = "c"
 
 
+class FreePreviewVariant(StrEnum):
+    """Old-vs-new first free-answer arms from the owner-approved product plan."""
+
+    BASELINE = "baseline"
+    COMPLETE = "complete"
+
+
 _VARIANTS = tuple(ConversionHookVariant)
+_FREE_PREVIEW_VARIANTS = tuple(FreePreviewVariant)
 
 
 def conversion_hook_variant(user_id: UUID) -> ConversionHookVariant:
@@ -28,6 +38,26 @@ def conversion_hook_variant(user_id: UUID) -> ConversionHookVariant:
     """
 
     return _VARIANTS[user_id.bytes[-1] % len(_VARIANTS)]
+
+
+def free_preview_variant(user_id: UUID) -> FreePreviewVariant:
+    """Assign a stable 50/50 preview arm independently from entry source and hook cohort.
+
+    A keyed-by-name digest keeps this experiment independent from the legacy A/B/C hook
+    byte split without storing a new assignment row or exposing any external identifier.
+    """
+
+    digest = blake2s(
+        FREE_PREVIEW_EXPERIMENT.encode() + user_id.bytes,
+        digest_size=1,
+    ).digest()[0]
+    return _FREE_PREVIEW_VARIANTS[digest % len(_FREE_PREVIEW_VARIANTS)]
+
+
+def free_preview_experiment_assignment(user_id: UUID) -> str:
+    """Warehouse-safe assignment code used by the typed Numa funnel."""
+
+    return f"{FREE_PREVIEW_EXPERIMENT}:{free_preview_variant(user_id).value}"
 
 
 def conversion_experiment_properties(user_id: UUID) -> dict[str, str]:

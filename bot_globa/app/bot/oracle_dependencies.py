@@ -8,7 +8,11 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.bot.numa_runtime_analytics import runtime_entity_id, runtime_signal
+from app.bot.numa_runtime_analytics import (
+    runtime_attribution_for_user,
+    runtime_entity_id,
+    runtime_signal,
+)
 from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
@@ -163,17 +167,18 @@ class OracleDependencyMiddleware(BaseMiddleware):
             user = await onboarding.current_user(signal.telegram_user_id)
             if user is not None:
                 internal_user_id = user.id
+        attribution = runtime_attribution_for_user(signal, internal_user_id)
         try:
             await self._numa_product_analytics.track(
                 user_id=internal_user_id,
                 entity_id=runtime_entity_id(signal, internal_user_id),
                 event=ProductFunnelEvent.ENTRY,
-                attribution=signal.attribution,
+                attribution=attribution,
             )
         except Exception:
             logger.warning(
                 "numa_runtime_analytics_failed source=%s",
-                signal.attribution.source.value,
+                attribution.source.value,
             )
 
     async def _track_confirmed_delivery(self) -> None:
