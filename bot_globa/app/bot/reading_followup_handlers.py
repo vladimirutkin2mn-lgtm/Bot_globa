@@ -19,6 +19,7 @@ from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen, show_thinking
 from app.bot.states import ReadingFollowUpStates
 from app.bot.typography import quote
+from app.config import Settings
 from app.services.onboarding import OnboardingService
 from app.services.reading_followup import (
     ReadingFollowUpResultView,
@@ -49,6 +50,12 @@ UNAVAILABLE = "Разбор недоступен. Откройте его из �
 ANSWER_TITLE = "Ответ в сеансе"
 LIMITATIONS_TITLE = "Границы ответа:"
 RETRY_BUTTON = "Спросить ещё раз"
+SUBSCRIPTION_PROMO_BUTTON = "🌙 Numa Plus — для регулярных разборов"
+SUBSCRIPTION_PROMO_CALLBACK = "credits:buy:subscription_monthly"
+SUBSCRIPTION_PROMO_TEXT = (
+    "Если вы возвращаетесь к разборам регулярно, можно посмотреть Numa Plus. "
+    "Точные условия будут показаны до оплаты."
+)
 
 
 def followup_safety_intake() -> SafetyIntake:
@@ -177,6 +184,7 @@ class ReadingFollowUpHandlers:
         state: FSMContext,
         onboarding: OnboardingService,
         reading_followups: ReadingFollowUpService,
+        billing_settings: Settings,
     ) -> None:
         if message.from_user is None:
             return
@@ -202,7 +210,12 @@ class ReadingFollowUpHandlers:
         await show_thinking(message)
         outcome = await reading_followups.ask(reading_id, user.id, question)
         if outcome.status is ReadingFollowUpStatus.COMPLETED:
-            await _send(message, state, outcome)
+            await _send(
+                message,
+                state,
+                outcome,
+                subscriptions_enabled=billing_settings.subscriptions_enabled,
+            )
             return
         if outcome.status is ReadingFollowUpStatus.EXPIRED:
             await show_screen(
@@ -261,6 +274,8 @@ async def _send(
     message: Message,
     state: FSMContext,
     outcome: ReadingFollowUpResultView,
+    *,
+    subscriptions_enabled: bool,
 ) -> None:
     view = outcome.view
     if view is None:
@@ -273,15 +288,19 @@ async def _send(
         )
     if outcome.remaining_questions > 0:
         sections.append(f"Осталось уточняющих вопросов: {outcome.remaining_questions}.")
-        keyboard = _continue_keyboard(view.reading_id, outcome.remaining_questions)
     else:
         sections.append("Сеанс завершён: все 3 уточняющих вопроса использованы.")
-        keyboard = main_menu_keyboard()
+    if subscriptions_enabled:
+        sections.append(SUBSCRIPTION_PROMO_TEXT)
     await send_artifact(
         message,
         Scene.FOLLOW_UP_RESULT,
         "\n\n".join(sections),
-        reply_markup=keyboard,
+        reply_markup=_followup_result_keyboard(
+            view.reading_id,
+            outcome.remaining_questions,
+            subscriptions_enabled=subscriptions_enabled,
+        ),
         state=state,
     )
 
@@ -305,18 +324,33 @@ def _cancel_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _continue_keyboard(reading_id: UUID, remaining: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def _followup_result_keyboard(
+    reading_id: UUID,
+    remaining: int,
+    *,
+    subscriptions_enabled: bool,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if remaining > 0:
+        rows.append(
             [
                 InlineKeyboardButton(
                     text=f"Ещё вопрос · осталось {remaining}",
                     callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
                 )
-            ],
-            [InlineKeyboardButton(text=MENU_BUTTON, callback_data="report:menu")],
-        ]
-    )
+            ]
+        )
+    if subscriptions_enabled:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=SUBSCRIPTION_PROMO_BUTTON,
+                    callback_data=SUBSCRIPTION_PROMO_CALLBACK,
+                )
+            ]
+        )
+    rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data="report:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _retry_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
