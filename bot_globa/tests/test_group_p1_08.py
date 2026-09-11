@@ -4,6 +4,7 @@ from typing import Any, cast
 import pytest
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, User
 
+from app.bot import group_compatibility_handlers as compatibility
 from app.bot import group_p1_08 as p1
 from app.bot import group_viral_upgrade as viral_upgrade
 from app.domain.natal_chart import NatalChartResult, ZodiacSign
@@ -136,9 +137,9 @@ async def test_compatibility_without_natal_profiles_uses_existing_sign_fallback(
     async def should_not_delegate(*args: object, **kwargs: object) -> None:
         raise AssertionError("natal renderer must not run when a profile is missing")
 
-    monkeypatch.setattr(p1.compatibility, "_pair_names", pair_names)
-    monkeypatch.setattr(p1.compatibility, "_chart_for", chart_for)
-    monkeypatch.setattr(p1.viral_upgrade, "_missing_screen", missing_screen)
+    monkeypatch.setattr(compatibility, "_pair_names", pair_names)
+    monkeypatch.setattr(compatibility, "_chart_for", chart_for)
+    monkeypatch.setattr(viral_upgrade, "_missing_screen", missing_screen)
     monkeypatch.setattr(p1, "_PREVIOUS_COMPATIBILITY_RENDER", should_not_delegate)
 
     await p1._render_compatibility_p1_08(
@@ -173,8 +174,8 @@ async def test_compatibility_keeps_full_natal_renderer_when_both_profiles_exist(
         nonlocal delegated
         delegated = True
 
-    monkeypatch.setattr(p1.compatibility, "_pair_names", pair_names)
-    monkeypatch.setattr(p1.compatibility, "_chart_for", chart_for)
+    monkeypatch.setattr(compatibility, "_pair_names", pair_names)
+    monkeypatch.setattr(compatibility, "_chart_for", chart_for)
     monkeypatch.setattr(p1, "_PREVIOUS_COMPATIBILITY_RENDER", delegate)
 
     await p1._render_compatibility_p1_08(
