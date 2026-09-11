@@ -61,7 +61,11 @@ class PostgresAnalyticsClient:
                 idempotency_key=idempotency_key,
                 correlation_id=correlation_id,
             )
-            projected = project_personal_reading_event(event, safe_properties)
+            projected = project_personal_reading_event(
+                event,
+                safe_properties,
+                subject_id=subject_id,
+            )
             if projected is not None:
                 latest_entry = await self._latest_personal_entry(session, subject_id)
                 if latest_entry is not None:
@@ -69,6 +73,7 @@ class PostgresAnalyticsClient:
                         event,
                         safe_properties,
                         latest_entry,
+                        subject_id=subject_id,
                     )
                 if projected is None:
                     return
