@@ -68,6 +68,15 @@ def story_detail_keyboard(
     has_next: bool,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+    if readings:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="✨ Продолжить историю",
+                    callback_data=f"stories:continue:{story_id}",
+                )
+            ]
+        )
     for reading in readings:
         rows.append(
             [
@@ -175,6 +184,33 @@ def story_delete_confirmation_keyboard(story_id: UUID) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="← Отмена",
+                    callback_data=f"stories:open:{story_id}:0",
+                )
+            ],
+        ]
+    )
+
+
+def story_continuation_cancel_keyboard(story_id: UUID) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="← Назад к истории",
+                    callback_data=f"stories:open:{story_id}:0",
+                )
+            ]
+        ]
+    )
+
+
+def story_astrology_profile_keyboard(story_id: UUID) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🪐 Открыть астролога", callback_data="menu:astro")],
+            [
+                InlineKeyboardButton(
+                    text="← Назад к истории",
                     callback_data=f"stories:open:{story_id}:0",
                 )
             ],
