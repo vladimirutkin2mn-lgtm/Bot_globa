@@ -5,6 +5,7 @@ question, answer, birth data or Telegram identity.
 """
 
 from collections.abc import Mapping
+from contextlib import suppress
 from uuid import UUID
 
 from app.domain.conversion_experiment import free_preview_experiment_assignment
@@ -58,10 +59,8 @@ def project_personal_reading_event(
 
     experiment_assignment = "control"
     if subject_id is not None:
-        try:
+        with suppress(ValueError):
             experiment_assignment = free_preview_experiment_assignment(UUID(subject_id))
-        except ValueError:
-            pass
 
     projected = {
         "event_version": NUMA_PRODUCT_EVENT_VERSION,
