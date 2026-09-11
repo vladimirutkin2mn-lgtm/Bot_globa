@@ -466,8 +466,9 @@ def install_group_p1_08() -> None:
     if "group_p1_08" in _INSTALL_MARKERS:
         return
 
-    _PREVIOUS_MORE_MENU = getattr(core_handlers, "more_menu_keyboard")
-    setattr(core_handlers, "more_menu_keyboard", _more_menu_with_friends)
+    more_menu_name = "more_menu_keyboard"
+    _PREVIOUS_MORE_MENU = getattr(core_handlers, more_menu_name)
+    setattr(core_handlers, more_menu_name, _more_menu_with_friends)
 
     _PREVIOUS_COMPATIBILITY_RENDER = compatibility._render_compatibility
     compatibility._render_compatibility = _render_compatibility_p1_08
