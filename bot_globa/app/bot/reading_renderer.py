@@ -7,7 +7,11 @@ text — only the already validated result and copy configured for the selected 
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from app.bot.conversion_hooks import DEFAULT_READING_HOOK, ConversionHookCopy, render_grounded_hook
+from app.bot.conversion_hooks import (
+    DEFAULT_READING_HOOK,
+    ConversionHookCopy,
+    render_grounded_hook,
+)
 from app.bot.typography import quote
 from app.domain.conversion_experiment import ConversionHookVariant, FreePreviewVariant
 from app.domain.reading import SymbolOrientation
@@ -48,7 +52,10 @@ def render_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[s
     return _render_complete_preview(outcome, copy)
 
 
-def _render_complete_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
+def _render_complete_preview(
+    outcome: PersonaPreviewOutcome,
+    copy: ReadingCopy,
+) -> tuple[str, ...]:
     """Give one useful answer for free while reserving depth and scenarios for unlock."""
     result = _completed_result(outcome)
     sections = [
@@ -79,7 +86,10 @@ def _render_complete_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) 
     return chunk_sections(tuple(sections))
 
 
-def _render_baseline_preview(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str, ...]:
+def _render_baseline_preview(
+    outcome: PersonaPreviewOutcome,
+    copy: ReadingCopy,
+) -> tuple[str, ...]:
     """Reproduce the pre-P1-05 free-preview content without reviving its A/B/C text split."""
 
     result = _completed_result(outcome)
