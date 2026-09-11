@@ -47,7 +47,10 @@ def free_preview_variant(user_id: UUID) -> FreePreviewVariant:
     byte split without storing a new assignment row or exposing any external identifier.
     """
 
-    digest = blake2s(FREE_PREVIEW_EXPERIMENT.encode() + user_id.bytes, digest_size=1).digest()[0]
+    digest = blake2s(
+        FREE_PREVIEW_EXPERIMENT.encode() + user_id.bytes,
+        digest_size=1,
+    ).digest()[0]
     return _FREE_PREVIEW_VARIANTS[digest % len(_FREE_PREVIEW_VARIANTS)]
 
 
