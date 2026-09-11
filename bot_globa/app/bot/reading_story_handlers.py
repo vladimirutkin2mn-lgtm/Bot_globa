@@ -320,7 +320,9 @@ async def pick_reading(
     story_id = _uuid_value(data.get(_ADD_STORY_KEY))
     user = await onboarding.current_user(callback.from_user.id)
     if reading_id is None or story_id is None or user is None:
-        await callback.answer("Откройте историю и выберите «Добавить разбор» ещё раз.", show_alert=True)
+        await callback.answer(
+            "Откройте историю и выберите «Добавить разбор» ещё раз.", show_alert=True
+        )
         return
     try:
         await reading_stories.link_reading(user.id, story_id, reading_id)
@@ -436,7 +438,9 @@ async def prompt_story_delete(
 
 @router.callback_query(F.data.startswith("stories:unavailable:"))
 async def unavailable_reading(callback: CallbackQuery) -> None:
-    await callback.answer("Этот старый тип разбора пока нельзя открыть из истории.", show_alert=True)
+    await callback.answer(
+        "Этот старый тип разбора пока нельзя открыть из истории.", show_alert=True
+    )
 
 
 async def _show_hub(
@@ -485,14 +489,11 @@ async def _show_story(
     visible = metadata[start : start + _PAGE_SIZE]
     buttons = tuple(_reading_button(item) for item in visible)
     count = len(metadata)
-    body = (
-        f"📖 <b>{escape(story.title)}</b>\n\n"
-        + (
-            f"Связано разборов: {count}. Нажмите на разбор, чтобы открыть его; ✕ убирает "
-            "только связь с этой историей."
-            if count
-            else "Здесь пока нет разборов. Добавьте любой готовый разбор вручную."
-        )
+    body = f"📖 <b>{escape(story.title)}</b>\n\n" + (
+        f"Связано разборов: {count}. Нажмите на разбор, чтобы открыть его; ✕ убирает "
+        "только связь с этой историей."
+        if count
+        else "Здесь пока нет разборов. Добавьте любой готовый разбор вручную."
     )
     await show_screen(
         message,
@@ -523,7 +524,7 @@ def _reading_button(item: ReadingHistoryChoice) -> StoryReadingButton:
 
 
 def _parse_uuid(data: str | None, prefix: str) -> UUID | None:
-    raw = (data or "")
+    raw = data or ""
     if not raw.startswith(prefix):
         return None
     try:
