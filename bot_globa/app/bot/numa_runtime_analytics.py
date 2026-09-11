@@ -4,18 +4,27 @@ Telegram identifiers are used only transiently to resolve an internal user and t
 an opaque idempotency UUID. They are never emitted as analytics properties.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import UUID, uuid5
 
 from aiogram.enums import ChatType
 from aiogram.types import CallbackQuery, Message, TelegramObject, Update
 
+from app.domain.conversion_experiment import free_preview_experiment_assignment
 from app.observability.context import current_correlation_id
 from app.providers.numa_product_analytics import ProductFlow, ProductSource
 from app.services.numa_product_analytics import ProductAttribution
 
 _RUNTIME_NAMESPACE = UUID("87e9d297-0ca6-4b8c-a8c3-83915c7ec559")
 _GROUP_TYPES = {ChatType.GROUP, ChatType.SUPERGROUP}
+_FREE_PREVIEW_SCENARIOS = frozenset(
+    {
+        "personal_oracle_v1",
+        "tarot_reader_v1",
+        "love_oracle_v1",
+        "mystical_psychologist_v1",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +58,25 @@ def runtime_entity_id(signal: RuntimeProductSignal, internal_user_id: UUID | Non
 
     namespace = internal_user_id or _RUNTIME_NAMESPACE
     return uuid5(namespace, f"numa-runtime:{signal.event_key}")
+
+
+def runtime_attribution_for_user(
+    signal: RuntimeProductSignal,
+    internal_user_id: UUID | None,
+) -> ProductAttribution:
+    """Attach the stable free-preview arm without changing acquisition source."""
+
+    attribution = signal.attribution
+    if (
+        internal_user_id is None
+        or attribution.flow is not ProductFlow.PERSONAL
+        or attribution.scenario_version not in _FREE_PREVIEW_SCENARIOS
+    ):
+        return attribution
+    return replace(
+        attribution,
+        experiment_assignment=free_preview_experiment_assignment(internal_user_id),
+    )
 
 
 def _callback_signal(callback: CallbackQuery, event_key: str) -> RuntimeProductSignal | None:
