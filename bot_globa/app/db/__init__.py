@@ -23,6 +23,7 @@ from app.db.memory_models import OracleMemoryItem  # noqa: F401
 from app.db.models import User  # noqa: F401
 from app.db.reading_followups import ReadingFollowUp  # noqa: F401
 from app.db.reading_models import Reading  # noqa: F401
+from app.db.reading_story_models import ReadingStory  # noqa: F401
 from app.db.refund_metadata import configure_refund_metadata
 from app.db.release_gates import ReleaseGateAttestation
 from app.db.subscription_models import SubscriptionPeriod  # noqa: F401
