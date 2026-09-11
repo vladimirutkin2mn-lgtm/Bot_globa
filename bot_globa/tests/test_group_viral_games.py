@@ -4,6 +4,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 from app.bot import group_handlers, group_social_handlers
 from app.bot.group_daily_cleanup import group_cosmic_weather
+from app.bot.group_p1_08 import viral_action_p1_08
 from app.bot.group_viral_handlers import (
     _couple_keyboard,
     _decode_users,
@@ -119,4 +120,5 @@ def test_new_group_handlers_replace_reply_duel_and_register_collective_games() -
     assert group_cosmic_weather in message_callbacks
     assert message_callbacks.count(group_handlers.group_card) >= 2
     assert viral_action not in callback_callbacks
-    assert viral_action_v2 in callback_callbacks
+    assert viral_action_v2 not in callback_callbacks
+    assert viral_action_p1_08 in callback_callbacks
