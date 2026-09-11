@@ -77,7 +77,10 @@ class ProductReviewComparison:
     def deltas(self) -> dict[ProductReviewDimension, int]:
         baseline = self.baseline.values()
         candidate = self.candidate.values()
-        return {dimension: candidate[dimension] - baseline[dimension] for dimension in PRODUCT_REVIEW_DIMENSIONS}
+        return {
+            dimension: candidate[dimension] - baseline[dimension]
+            for dimension in PRODUCT_REVIEW_DIMENSIONS
+        }
 
     @property
     def mean_delta(self) -> float:
