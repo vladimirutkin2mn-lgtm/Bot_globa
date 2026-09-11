@@ -31,3 +31,36 @@ class ReadingHistoryPage:
             raise ValueError("reading history page size is invalid")
         if len(self.items) > self.page_size:
             raise ValueError("reading history page exceeds page size")
+
+
+@dataclass(frozen=True, slots=True)
+class ReadingHistoryChoice:
+    """Operational metadata sufficient to select or reopen a ready reading."""
+
+    reading_id: UUID
+    persona_code: str
+    topic: str
+    status: str
+    created_at: datetime
+
+    def __post_init__(self) -> None:
+        if not self.persona_code or len(self.persona_code) > 64:
+            raise ValueError("invalid reading history persona")
+        if not self.topic or len(self.topic) > 64:
+            raise ValueError("invalid reading history topic")
+
+
+@dataclass(frozen=True, slots=True)
+class ReadingHistoryChoicePage:
+    items: tuple[ReadingHistoryChoice, ...]
+    page: int
+    page_size: int
+    has_next: bool
+
+    def __post_init__(self) -> None:
+        if self.page < 0:
+            raise ValueError("reading history choice page must be non-negative")
+        if self.page_size < 1 or self.page_size > 20:
+            raise ValueError("reading history choice page size is invalid")
+        if len(self.items) > self.page_size:
+            raise ValueError("reading history choice page exceeds page size")
