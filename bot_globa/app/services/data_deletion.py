@@ -32,6 +32,11 @@ from app.db.models import (
     User,
 )
 from app.db.reading_models import Reading, ReadingPrivateContent, ReadingSymbol
+from app.db.reading_story_models import (
+    ReadingStory,
+    ReadingStoryLink,
+    ReadingStoryPrivateContent,
+)
 from app.domain.reading import ReadingAccess, ReadingStatus
 from app.providers.analytics import AnalyticsClient
 
@@ -93,7 +98,8 @@ class DataDeletionService:
             return DataDeletionOutcome.ALREADY_DELETED
         # Canonical privacy/billing mutation lock order:
         # User -> PaymentOrder -> BillingJob -> ProviderWebhookEvent -> Analysis ->
-        # AnalysisPrivateContent -> Reading -> ReadingPrivateContent -> ReadingSymbol ->
+        # AnalysisPrivateContent -> ReadingStory -> ReadingStoryPrivateContent ->
+        # ReadingStoryLink -> Reading -> ReadingPrivateContent -> ReadingSymbol ->
         # OracleMemoryConsent -> OracleMemoryItem -> OracleMemoryPrivateContent ->
         # BirthProfileConsent -> BirthProfile -> BirthProfilePrivateContent ->
         # DailyHoroscopeFeedback -> DailyHoroscopePreference.
@@ -178,6 +184,7 @@ class DataDeletionService:
         for analysis in analyses:
             self._clear_analysis(analysis, now)
 
+        await self._purge_reading_stories(user_id)
         await self._purge_readings(user_id, now)
 
         memory_consent = await self.session.get(
@@ -396,6 +403,42 @@ class DataDeletionService:
         await self.session.commit()
         await self._track("all_data_deleted", {"user_id": str(user_id)})
         return DataDeletionOutcome.DELETED
+
+    async def _purge_reading_stories(self, user_id: UUID) -> None:
+        stories = list(
+            (
+                await self.session.scalars(
+                    select(ReadingStory)
+                    .where(ReadingStory.user_id == user_id)
+                    .order_by(ReadingStory.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        story_ids = [story.id for story in stories]
+        if not story_ids:
+            return
+        await self.session.scalars(
+            select(ReadingStoryPrivateContent)
+            .where(ReadingStoryPrivateContent.story_id.in_(story_ids))
+            .order_by(ReadingStoryPrivateContent.story_id)
+            .with_for_update()
+        )
+        await self.session.scalars(
+            select(ReadingStoryLink)
+            .where(ReadingStoryLink.story_id.in_(story_ids))
+            .order_by(ReadingStoryLink.reading_id)
+            .with_for_update()
+        )
+        await self.session.execute(
+            delete(ReadingStoryLink).where(ReadingStoryLink.story_id.in_(story_ids))
+        )
+        await self.session.execute(
+            delete(ReadingStoryPrivateContent).where(
+                ReadingStoryPrivateContent.story_id.in_(story_ids)
+            )
+        )
+        await self.session.execute(delete(ReadingStory).where(ReadingStory.id.in_(story_ids)))
 
     async def _purge_readings(self, user_id: UUID, now: datetime) -> None:
         readings = list(
