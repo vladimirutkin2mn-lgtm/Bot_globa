@@ -234,6 +234,7 @@ def create_dispatcher(
         analytics=oracle_analytics,
         release_controls=release_controls,
     )
+    dispatcher["reading_service"] = reading_service
     oracle_memory = QualityManagedOracleMemoryService(sessions, cipher)
     reading_store = SqlAlchemyReadingGenerationStore(
         sessions,

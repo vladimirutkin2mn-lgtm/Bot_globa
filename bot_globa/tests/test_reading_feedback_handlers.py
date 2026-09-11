@@ -8,14 +8,15 @@ from uuid import UUID, uuid4
 import pytest
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.methods import AnswerCallbackQuery, TelegramMethod
+from aiogram.methods import AnswerCallbackQuery, SendMessage, TelegramMethod
 from aiogram.methods.base import TelegramType
 from aiogram.types import CallbackQuery, Chat, Message
 from aiogram.types import User as TelegramUser
 
 from app.bot.reading_feedback_handlers import submit_reading_feedback
+from app.bot.reading_share_handlers import SHARE_PROMPT
 from app.db.models import User
-from app.providers.analytics import OracleProductEvent
+from app.providers.analytics import PRODUCT_EVENT_TAXONOMY_VERSION, OracleProductEvent
 from app.services.oracle_product_analytics import OracleProductAnalytics
 
 
@@ -54,11 +55,15 @@ class FakeOnboarding:
 
 
 class FakeHistory:
-    def __init__(self, owned: UUID | None) -> None:
+    def __init__(self, owned: UUID | None, *, full: bool = False) -> None:
         self.owned = owned
+        self.full = full
 
     async def owns_ready(self, user_id: UUID, reading_id: UUID) -> bool:
         return self.owned is not None and reading_id == self.owned
+
+    async def owns_full(self, user_id: UUID, reading_id: UUID) -> bool:
+        return self.full and self.owned is not None and reading_id == self.owned
 
 
 class RecordingAnalytics:
@@ -104,7 +109,11 @@ def _answers(session: RecordingSession) -> list[AnswerCallbackQuery]:
     return [method for method in session.methods if isinstance(method, AnswerCallbackQuery)]
 
 
-async def test_feedback_on_an_owned_ready_reading_is_recorded_without_content(
+def _messages(session: RecordingSession) -> list[SendMessage]:
+    return [method for method in session.methods if isinstance(method, SendMessage)]
+
+
+async def test_paid_hit_records_private_feedback_and_offers_share(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
@@ -115,7 +124,7 @@ async def test_feedback_on_an_owned_ready_reading_is_recorded_without_content(
     await submit_reading_feedback(
         _callback(instance, f"rfb:hit:{reading_id}"),
         onboarding,
-        FakeHistory(reading_id),
+        FakeHistory(reading_id, full=True),
         OracleProductAnalytics(analytics),
     )
 
@@ -123,9 +132,31 @@ async def test_feedback_on_an_owned_ready_reading_is_recorded_without_content(
     user_id, event, properties = analytics.events[0]
     assert user_id == str(onboarding.user.id)
     assert event == OracleProductEvent.READING_FEEDBACK_SUBMITTED.value
-    assert properties["reading_id"] == str(reading_id)
-    assert properties["reaction_code"] == "hit"
+    assert properties == {
+        "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
+        "reaction_code": "hit",
+    }
     assert _answers(session)[-1].show_alert is not True
+    share = _messages(session)[-1]
+    assert share.text == SHARE_PROMPT
+    assert share.reply_markup is not None
+    assert "Поделиться инсайтом" in str(share.reply_markup)
+
+
+async def test_free_hit_does_not_offer_share(
+    bot: tuple[Bot, RecordingSession],
+) -> None:
+    instance, session = bot
+    reading_id = uuid4()
+
+    await submit_reading_feedback(
+        _callback(instance, f"rfb:hit:{reading_id}"),
+        FakeOnboarding(),
+        FakeHistory(reading_id, full=False),
+        OracleProductAnalytics(RecordingAnalytics()),
+    )
+
+    assert _messages(session) == []
 
 
 async def test_feedback_on_someone_elses_reading_is_refused_and_not_recorded(
