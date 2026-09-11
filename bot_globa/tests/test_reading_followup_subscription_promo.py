@@ -16,9 +16,7 @@ def _buttons(*, subscriptions_enabled: bool, remaining: int = 2) -> list[tuple[s
         subscriptions_enabled=subscriptions_enabled,
     )
     return [
-        (button.text, button.callback_data)
-        for row in keyboard.inline_keyboard
-        for button in row
+        (button.text, button.callback_data) for row in keyboard.inline_keyboard for button in row
     ]
 
 
