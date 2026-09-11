@@ -40,7 +40,9 @@ DAILY_SHARE_CAMPAIGN = "daily_public_card_v1"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
 
 DAILY_SHARE_READY = "Тема дня готова. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
-DAILY_SHARE_UNAVAILABLE = "Не получилось подготовить тему дня. Откройте гороскоп и попробуйте ещё раз."
+DAILY_SHARE_UNAVAILABLE = (
+    "Не получилось подготовить тему дня. Откройте гороскоп и попробуйте ещё раз."
+)
 DAILY_SHARE_LANDING = (
     "🌙 <b>Вам прислали тему дня из Numa</b>\n\n"
     "В Numa есть общий гороскоп на день, личные разборы и групповые сценарии. "
