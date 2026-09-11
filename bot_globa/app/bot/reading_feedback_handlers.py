@@ -6,6 +6,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.persona_flow import FEEDBACK_NAMESPACE, feedback_reason_keyboard
+from app.bot.public_share_handlers import router as public_share_router
 from app.bot.reading_share_handlers import (
     SHARE_PROMPT,
     share_offer_keyboard,
@@ -21,6 +22,7 @@ from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.reading_history import ReadingHistoryService
 
 router = Router(name="reading-feedback")
+router.include_router(public_share_router)
 router.include_router(reading_share_router)
 router.include_router(reading_story_router)
 router.include_router(reading_story_continuation_router)
