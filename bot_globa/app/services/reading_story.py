@@ -167,6 +167,28 @@ class ReadingStoryService:
             story.updated_at = datetime.now(UTC)
             return True
 
+    async def unlink_owned_reading(self, user_id: UUID, reading_id: UUID) -> UUID | None:
+        """Remove a manual link only when its story belongs to the requesting user."""
+
+        async with self._sessions.begin() as session:
+            link = await session.scalar(
+                select(ReadingStoryLink)
+                .join(ReadingStory, ReadingStory.id == ReadingStoryLink.story_id)
+                .where(
+                    ReadingStoryLink.reading_id == reading_id,
+                    ReadingStory.user_id == user_id,
+                )
+                .with_for_update()
+            )
+            if link is None:
+                return None
+            story_id = link.story_id
+            story = await session.get(ReadingStory, story_id, with_for_update=True)
+            await session.delete(link)
+            if story is not None:
+                story.updated_at = datetime.now(UTC)
+            return story_id
+
     async def delete(self, user_id: UUID, story_id: UUID) -> None:
         async with self._sessions.begin() as session:
             story = await session.scalar(
