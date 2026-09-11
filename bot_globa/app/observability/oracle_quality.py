@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 LLM_ATTEMPT_EVENT: Final = "oracle_llm_attempt_observed"
 ASTROLOGY_EVENT: Final = "oracle_astrology_observed"
 GENERATION_EVENT: Final = "oracle_generation_observed"
+READING_FOLLOWUP_PROMPT_PREFIX: Final = "reading_followup_"
+READING_FOLLOWUP_TELEMETRY_PERSONA: Final = "reading_followup"
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,14 +175,14 @@ class OracleQualityObserver:
 
 
 class ObservedLLMClient:
-    """Observe only requests explicitly tagged with aggregate-safe oracle coordinates."""
+    """Observe requests with explicit safe coordinates plus included reading follow-ups."""
 
     def __init__(self, inner: LLMClient, observer: OracleQualityObserver) -> None:
         self._inner = inner
         self._observer = observer
 
     async def generate_structured(self, request: LLMRequest) -> LLMCompletion:
-        persona_code = request.telemetry_persona_code
+        persona_code = _resolved_persona_code(request)
         prompt_version = request.telemetry_prompt_version
         if persona_code is None or prompt_version is None:
             return await self._inner.generate_structured(request)
@@ -193,6 +195,17 @@ class ObservedLLMClient:
 
     async def aclose(self) -> None:
         await close_llm_client(self._inner)
+
+
+def _resolved_persona_code(request: LLMRequest) -> str | None:
+    """Backfill only the stable, content-free scope for included paid-session follow-ups."""
+
+    if request.telemetry_persona_code is not None:
+        return request.telemetry_persona_code
+    prompt_version = request.telemetry_prompt_version
+    if prompt_version is not None and prompt_version.startswith(READING_FOLLOWUP_PROMPT_PREFIX):
+        return READING_FOLLOWUP_TELEMETRY_PERSONA
+    return None
 
 
 def elapsed_ms(started_ns: int) -> int:
