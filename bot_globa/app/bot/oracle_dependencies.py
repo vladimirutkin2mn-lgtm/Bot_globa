@@ -34,6 +34,7 @@ from app.services.payment_completion_service import PaymentCompletionService
 from app.services.payment_service import PaymentService
 from app.services.payment_status_service import PaymentStatusService
 from app.services.preview_entitlement import PreviewEntitlementService
+from app.services.reading_story import ReadingStoryService
 from app.services.refund_service import RefundService
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
 from app.services.subscription_checkout_service import SubscriptionCheckoutService
@@ -103,6 +104,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
             )
             data["onboarding"] = onboarding
             data["oracle_memory"] = QualityManagedOracleMemoryService(self._sessions, cipher)
+            data["reading_stories"] = ReadingStoryService(self._sessions, cipher)
             data["credits"] = CreditsService(self._sessions)
             data["previews"] = PreviewEntitlementService(self._sessions)
             data["catalog"] = self._product_catalog

@@ -58,5 +58,11 @@ class ReadingFollowUpStates(StatesGroup):
     waiting_for_question = State()
 
 
+class ReadingStoryStates(StatesGroup):
+    """A title draft is transient; stories and links themselves live in PostgreSQL."""
+
+    waiting_for_title = State()
+
+
 class MemoryStates(StatesGroup):
     waiting_for_correction = State()

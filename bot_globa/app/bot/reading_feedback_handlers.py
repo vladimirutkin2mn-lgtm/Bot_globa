@@ -13,6 +13,7 @@ from app.bot.reading_share_handlers import (
 from app.bot.reading_share_handlers import (
     router as reading_share_router,
 )
+from app.bot.reading_story_handlers import router as reading_story_router
 from app.providers.analytics import OracleProductEvent
 from app.services.onboarding import OnboardingService
 from app.services.oracle_product_analytics import OracleProductAnalytics
@@ -20,6 +21,7 @@ from app.services.reading_history import ReadingHistoryService
 
 router = Router(name="reading-feedback")
 router.include_router(reading_share_router)
+router.include_router(reading_story_router)
 
 _FINAL_REACTIONS = {
     "hit": "hit",
