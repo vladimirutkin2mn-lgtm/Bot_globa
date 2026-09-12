@@ -12,6 +12,7 @@ from uuid import UUID
 
 
 class ReadingFunnelOutcome(StrEnum):
+    OFFER_SHOWN = "offer_shown"
     PAYWALL_REQUIRED = "paywall_required"
     FULL_UNLOCKED = "full_unlocked"
 
