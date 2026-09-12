@@ -1,4 +1,4 @@
-"""Privacy-safe analytics for paywall exposure and durable full unlocks."""
+"""Privacy-safe analytics for offer/paywall exposure and durable full unlocks."""
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -87,7 +87,7 @@ class SqlAlchemyNumaReadingFunnelStore:
 
 
 class NumaReadingFunnelAnalytics:
-    """Turn a request-local unlock outcome into one idempotent product event."""
+    """Turn a request-local reading outcome into one idempotent product event."""
 
     def __init__(
         self,
@@ -101,14 +101,20 @@ class NumaReadingFunnelAnalytics:
         signal = consume_reading_funnel_signal()
         if signal is None:
             return False
-        if signal.outcome is ReadingFunnelOutcome.PAYWALL_REQUIRED and not handler_succeeded:
+        if signal.outcome in {
+            ReadingFunnelOutcome.OFFER_SHOWN,
+            ReadingFunnelOutcome.PAYWALL_REQUIRED,
+        } and not handler_succeeded:
             return False
 
         candidate = await self._store.candidate(signal.reading_id, signal.user_id)
         if candidate is None:
             return False
 
-        if signal.outcome is ReadingFunnelOutcome.PAYWALL_REQUIRED:
+        if signal.outcome is ReadingFunnelOutcome.OFFER_SHOWN:
+            event = ProductFunnelEvent.OFFER_SHOWN
+            properties = None
+        elif signal.outcome is ReadingFunnelOutcome.PAYWALL_REQUIRED:
             event = ProductFunnelEvent.PAYWALL_SHOWN
             properties = None
         else:
