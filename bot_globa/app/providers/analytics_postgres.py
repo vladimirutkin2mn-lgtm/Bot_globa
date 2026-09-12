@@ -67,12 +67,16 @@ class PostgresAnalyticsClient:
                 subject_id=subject_id,
             )
             if projected is not None:
-                latest_entry = await self._latest_personal_entry(session, subject_id)
-                if latest_entry is not None:
+                _, default_projected_properties = projected
+                reading_id = default_projected_properties["entity_id"]
+                attribution = await self._reading_attribution(session, subject_id, reading_id)
+                if attribution is None:
+                    attribution = await self._latest_personal_entry(session, subject_id)
+                if attribution is not None:
                     projected = project_personal_reading_event(
                         event,
                         safe_properties,
-                        latest_entry,
+                        attribution,
                         subject_id=subject_id,
                     )
                 if projected is None:
@@ -113,6 +117,30 @@ class PostgresAnalyticsClient:
             )
             .on_conflict_do_nothing(index_elements=[AnalyticsEvent.idempotency_key])
         )
+
+    @staticmethod
+    async def _reading_attribution(
+        session: AsyncSession,
+        subject_id: str | None,
+        reading_id: str,
+    ) -> Mapping[str, str] | None:
+        """Reuse the source captured when this reading first entered the typed funnel."""
+
+        if subject_id is None:
+            return None
+        event = await session.scalar(
+            select(AnalyticsEvent)
+            .where(
+                AnalyticsEvent.event_name == ProductFunnelEvent.QUESTION_ACCEPTED.value,
+                AnalyticsEvent.subject_id == subject_id,
+                AnalyticsEvent.properties.contains({"entity_id": reading_id}),
+            )
+            .order_by(AnalyticsEvent.created_at.desc())
+            .limit(1)
+        )
+        if event is None or event.properties.get("flow") != ProductFlow.PERSONAL.value:
+            return None
+        return event.properties
 
     @staticmethod
     async def _latest_personal_entry(
