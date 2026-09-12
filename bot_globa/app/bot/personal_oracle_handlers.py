@@ -53,14 +53,18 @@ class RouteChoice:
 
 
 _STRONG_LOVE_RE = re.compile(
-    r"(любов|влюб|бывш|муж\b|жена\b|парень|девуш|между нами|свидан|расстал|"
+    r"(любов|люблю|влюб|бывш|муж\b|жена\b|парень|девуш|между нами|свидан|расстал|"
     r"верн[её]т|ревну|\bизмен(?:а|ы|е|у|ой)\b|"
     r"(?:изменил|изменила|изменяет)\s+(?:мне|ему|ей)\b|"
     r"написать (?:ему|ей)|позвонить (?:ему|ей)|"
     r"\b(?:он|она)\b.{0,30}(?:ко мне )?чувств|любит ли|нравлюсь ли|отношение ко мне)",
     re.IGNORECASE,
 )
-_BROAD_RELATIONSHIP_RE = re.compile(r"(отношен|чувств)", re.IGNORECASE)
+_BROAD_RELATIONSHIP_RE = re.compile(r"(отношен)", re.IGNORECASE)
+_RELATIONSHIP_CHANGE_RE = re.compile(
+    r"(отношен\w*.{0,40}\bизмен(?:ил|ила|ились|илось|яется|яются)\b)",
+    re.IGNORECASE,
+)
 _REFLECTION_RE = re.compile(
     r"(почему я|почему у меня|повторя|снова и снова|постоянно одно и то же|паттерн|"
     r"самосабот|не могу перестать|боюсь|страх|тревог|выгора|тянет к|недоступн\w*|"
@@ -114,17 +118,18 @@ def needs_route_clarification(question: str) -> bool:
     value = _normalized(question)
     strong_love = bool(_STRONG_LOVE_RE.search(value))
     broad_relationship = bool(_BROAD_RELATIONSHIP_RE.search(value))
-    relationship = strong_love or broad_relationship
     work = bool(_WORK_RE.search(value))
     reflection = bool(_REFLECTION_RE.search(value))
     decision = bool(_DECISION_RE.search(value))
-    if relationship and work:
+    if strong_love and work:
         return True
+    if broad_relationship and work:
+        return bool(_RELATIONSHIP_CHANGE_RE.search(value))
     if strong_love and reflection:
         return True
     if not broad_relationship:
         return False
-    return not any((strong_love, work, reflection, decision))
+    return not any((strong_love, reflection, decision))
 
 
 def route_within_practice(question: str, mode: str) -> RouteChoice | None:
