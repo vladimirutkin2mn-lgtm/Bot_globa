@@ -23,6 +23,7 @@ _PERSONAL_PERSONAS = frozenset(
         "tarot_reader",
         "love_oracle",
         "mystical_psychologist",
+        "astrologer",
     }
 )
 _ATTRIBUTION_KEYS = (
