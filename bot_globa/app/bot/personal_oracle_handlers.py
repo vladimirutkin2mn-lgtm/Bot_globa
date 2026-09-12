@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from aiogram import F, Router
+from aiogram.filters import BaseFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
@@ -32,6 +33,8 @@ ASTRO_CALLBACK = "oracle:astro"
 _CONSENT_PREFIX = "oracle:consent:"
 _ROUTE_PREFIX = "oracle:route:"
 _PENDING_QUESTION_KEY = "personal_oracle_pending_question"
+_DIRECT_MODE_KEY = "personal_oracle_mode"
+_DIRECT_PRACTICES = frozenset({"tarot", "love"})
 
 AUTO_PROMPT = (
     "✨ <b>Расскажите Numa</b>\n\n"
@@ -49,21 +52,18 @@ class RouteChoice:
     topic: str
 
 
-_DIRECT_MODES: dict[str, RouteChoice] = {
-    "tarot": RouteChoice(TAROT_FLOW, "general_forecast"),
-    "love": RouteChoice(LOVE_ORACLE_FLOW, "boundaries"),
-}
-
 _STRONG_LOVE_RE = re.compile(
     r"(любов|влюб|бывш|муж\b|жена\b|парень|девуш|между нами|свидан|расстал|"
-    r"верн[её]т|измен|ревну|написать (?:ему|ей)|позвонить (?:ему|ей)|"
+    r"верн[её]т|ревну|\bизмен(?:а|ы|е|у|ой)\b|"
+    r"(?:изменил|изменила|изменяет)\s+(?:мне|ему|ей)\b|"
+    r"написать (?:ему|ей)|позвонить (?:ему|ей)|"
     r"\b(?:он|она)\b.{0,30}(?:ко мне )?чувств|любит ли|нравлюсь ли|отношение ко мне)",
     re.IGNORECASE,
 )
 _BROAD_RELATIONSHIP_RE = re.compile(r"(отношен|чувств)", re.IGNORECASE)
 _REFLECTION_RE = re.compile(
     r"(почему я|почему у меня|повторя|снова и снова|постоянно одно и то же|паттерн|"
-    r"самосабот|не могу перестать|боюсь|страх|тревог|выгора|"
+    r"самосабот|не могу перестать|боюсь|страх|тревог|выгора|тянет к|недоступн\w*|"
     r"внутренн(?:ий|яя) конфликт)",
     re.IGNORECASE,
 )
@@ -79,17 +79,27 @@ _WORK_RE = re.compile(
     r"офер|предложени[ея] по работе)",
     re.IGNORECASE,
 )
-_REPEAT_RE = re.compile(r"(повторя|снова и снова|одно и то же|по кругу|паттерн)", re.IGNORECASE)
+_REPEAT_RE = re.compile(
+    r"(повторя|\bснова\b|\bопять\b|снова и снова|одно и то же|по кругу|паттерн)",
+    re.IGNORECASE,
+)
+
+
+class PlainTextBeforeConsentFilter(BaseFilter):
+    """Match a real question before consent without swallowing slash commands."""
+
+    async def __call__(self, message: Message) -> bool:
+        return bool(message.text and not message.text.lstrip().startswith("/"))
 
 
 def choose_route(question: str) -> RouteChoice:
     """Choose the existing mechanic using strong intent and surrounding context."""
 
     value = _normalized(question)
-    if _STRONG_LOVE_RE.search(value):
-        return _love_route(value)
     if _WORK_RE.search(value):
         return RouteChoice(TAROT_FLOW, "work")
+    if _STRONG_LOVE_RE.search(value):
+        return _love_route(value)
     if _REFLECTION_RE.search(value):
         topic = "repeating_pattern" if _REPEAT_RE.search(value) else "self_reflection"
         return RouteChoice(MYSTICAL_PSYCHOLOGIST_FLOW, topic)
@@ -99,15 +109,43 @@ def choose_route(question: str) -> RouteChoice:
 
 
 def needs_route_clarification(question: str) -> bool:
-    """Return true only for broad social/feeling wording without a stronger context cue."""
+    """Ask once when relationship intent is broad or materially mixed with another context."""
 
     value = _normalized(question)
-    if not _BROAD_RELATIONSHIP_RE.search(value):
+    strong_love = bool(_STRONG_LOVE_RE.search(value))
+    broad_relationship = bool(_BROAD_RELATIONSHIP_RE.search(value))
+    relationship = strong_love or broad_relationship
+    work = bool(_WORK_RE.search(value))
+    reflection = bool(_REFLECTION_RE.search(value))
+    decision = bool(_DECISION_RE.search(value))
+    if relationship and work:
+        return True
+    if strong_love and reflection:
+        return True
+    if not broad_relationship:
         return False
-    return not any(
-        pattern.search(value)
-        for pattern in (_STRONG_LOVE_RE, _WORK_RE, _REFLECTION_RE, _DECISION_RE)
-    )
+    return not any((strong_love, work, reflection, decision))
+
+
+def route_within_practice(question: str, mode: str) -> RouteChoice | None:
+    """Keep an explicit practice while choosing the most relevant topic inside it."""
+
+    value = _normalized(question)
+    if mode == "love":
+        return _love_route(value)
+    if mode != "tarot":
+        return None
+    if _WORK_RE.search(value):
+        topic = "work"
+    elif _DECISION_RE.search(value):
+        topic = "decision"
+    elif _REPEAT_RE.search(value):
+        topic = "repeating_pattern"
+    elif _STRONG_LOVE_RE.search(value) or _BROAD_RELATIONSHIP_RE.search(value):
+        topic = "love"
+    else:
+        topic = "general_forecast"
+    return RouteChoice(TAROT_FLOW, topic)
 
 
 def route_from_clarification(question: str, mode: str) -> RouteChoice | None:
@@ -184,6 +222,39 @@ async def start_astrology(
     )
 
 
+@router.message(OnboardingStates.waiting_for_consent, PlainTextBeforeConsentFilter())
+async def capture_question_before_consent(
+    message: Message,
+    state: FSMContext,
+    privacy_retention_days: int,
+) -> None:
+    """Preserve first-screen text and ask consent before any routing or generation."""
+
+    question = _bounded_text(message)
+    if question is None:
+        await message.answer(INVALID_QUESTION)
+        return
+    data = await state.get_data()
+    raw_mode = data.get(_DIRECT_MODE_KEY)
+    mode = (
+        raw_mode
+        if isinstance(raw_mode, str) and raw_mode in {*_DIRECT_PRACTICES, "astro"}
+        else "auto"
+    )
+    update: dict[str, str] = {_DIRECT_MODE_KEY: mode}
+    if mode != "astro":
+        update[_PENDING_QUESTION_KEY] = question
+    await state.update_data(update)
+    await state.set_state(OnboardingStates.waiting_for_consent)
+    await show_screen(
+        message,
+        Scene.ONBOARDING_CONSENT,
+        texts.CONSENT.format(days=privacy_retention_days),
+        reply_markup=_consent_keyboard(mode),
+        state=state,
+    )
+
+
 @router.callback_query(F.data.startswith(_CONSENT_PREFIX))
 async def accept_personal_oracle_consent(
     callback: CallbackQuery,
@@ -191,12 +262,15 @@ async def accept_personal_oracle_consent(
     onboarding: OnboardingService,
     birth_profile_service: BirthProfileService,
     privacy_retention_days: int,
+    persona_readings: PersonaReadings,
     oracle_analytics: OracleProductAnalytics | None = None,
 ) -> None:
     mode = (callback.data or "").removeprefix(_CONSENT_PREFIX)
     if mode not in {"auto", "tarot", "love", "astro"}:
         await callback.answer()
         return
+    data = await state.get_data()
+    question = data.get(_PENDING_QUESTION_KEY)
     await _ensure_user(callback, onboarding)
     await onboarding.accept_consent(callback.from_user.id)
     if mode == "astro":
@@ -209,15 +283,28 @@ async def accept_personal_oracle_consent(
         )
         return
     await callback.answer()
-    if isinstance(callback.message, Message):
-        await _open_mode(
+    if not isinstance(callback.message, Message):
+        return
+    if isinstance(question, str) and question.strip():
+        await _continue_pending_question(
             callback.message,
             callback.from_user.id,
-            state,
+            question,
             mode,
+            state,
             onboarding,
+            persona_readings,
             oracle_analytics,
         )
+        return
+    await _open_mode(
+        callback.message,
+        callback.from_user.id,
+        state,
+        mode,
+        onboarding,
+        oracle_analytics,
+    )
 
 
 @router.callback_query(F.data.startswith(_ROUTE_PREFIX))
@@ -281,8 +368,11 @@ async def receive_personal_question(
             state=state,
         )
         return
-    if needs_route_clarification(question):
-        await state.update_data({_PENDING_QUESTION_KEY: question})
+    data = await state.get_data()
+    raw_mode = data.get(_DIRECT_MODE_KEY)
+    mode = raw_mode if isinstance(raw_mode, str) and raw_mode in _DIRECT_PRACTICES else "auto"
+    if mode == "auto" and needs_route_clarification(question):
+        await state.update_data({_PENDING_QUESTION_KEY: question, _DIRECT_MODE_KEY: "auto"})
         await show_screen(
             message,
             Scene.QUESTION,
@@ -291,10 +381,57 @@ async def receive_personal_question(
             state=state,
         )
         return
-    choice = choose_route(question)
+    choice = (
+        route_within_practice(question, mode)
+        if mode in _DIRECT_PRACTICES
+        else choose_route(question)
+    )
+    if choice is None:
+        return
     await _generate_routed_question(
         message,
         message.from_user.id,
+        question,
+        choice,
+        state,
+        onboarding,
+        persona_readings,
+        oracle_analytics,
+    )
+
+
+async def _continue_pending_question(
+    message: Message,
+    telegram_user_id: int,
+    question: str,
+    mode: str,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    persona_readings: PersonaReadings,
+    oracle_analytics: OracleProductAnalytics | None,
+) -> None:
+    if mode == "auto" and needs_route_clarification(question):
+        await state.clear()
+        await state.update_data({_PENDING_QUESTION_KEY: question, _DIRECT_MODE_KEY: "auto"})
+        await state.set_state(IntakeStates.waiting_for_conversation)
+        await show_screen(
+            message,
+            Scene.QUESTION,
+            ROUTE_CLARIFICATION,
+            reply_markup=_route_clarification_keyboard(),
+            state=state,
+        )
+        return
+    choice = (
+        route_within_practice(question, mode)
+        if mode in _DIRECT_PRACTICES
+        else choose_route(question)
+    )
+    if choice is None:
+        return
+    await _generate_routed_question(
+        message,
+        telegram_user_id,
         question,
         choice,
         state,
@@ -347,35 +484,13 @@ async def _open_mode(
     oracle_analytics: OracleProductAnalytics | None,
 ) -> None:
     await state.clear()
-    if mode == "auto":
-        await state.set_state(IntakeStates.waiting_for_conversation)
-        await show_screen(
-            message,
-            Scene.QUESTION,
-            AUTO_PROMPT,
-            reply_markup=_question_keyboard(),
-            state=state,
-        )
-        return
-
-    choice = _DIRECT_MODES[mode]
-    await state.update_data(topic=choice.topic)
-    await state.set_state(choice.flow.states.waiting_for_question)
-    if oracle_analytics is not None:
-        user = await onboarding.current_user(telegram_user_id)
-        if user is not None:
-            await oracle_analytics.track(
-                user.id,
-                OracleProductEvent.PERSONA_SELECTED,
-                {
-                    "persona_code": choice.flow.persona_code,
-                    "topic_code": choice.topic,
-                },
-            )
+    await state.update_data({_DIRECT_MODE_KEY: mode})
+    await state.set_state(IntakeStates.waiting_for_conversation)
+    prompt = AUTO_PROMPT if mode == "auto" else _mechanic_prompt(mode)
     await show_screen(
         message,
         Scene.QUESTION,
-        _mechanic_prompt(mode),
+        prompt,
         reply_markup=_question_keyboard(),
         state=state,
     )
@@ -401,6 +516,8 @@ async def _ask_consent(
     privacy_retention_days: int,
     mode: str,
 ) -> None:
+    await state.clear()
+    await state.update_data({_DIRECT_MODE_KEY: mode})
     await state.set_state(OnboardingStates.waiting_for_consent)
     await show_screen(
         message,
