@@ -19,6 +19,11 @@ from app.domain.reading import ReadingDraftRequest
 from app.services.horoscope_generation import (
     HoroscopeGenerationResult,
     HoroscopeGenerationService,
+    HoroscopeGenerationStatus,
+)
+from app.services.numa_reading_funnel_signal import (
+    ReadingFunnelOutcome,
+    record_reading_funnel_signal,
 )
 from app.services.preview_entitlement import PreviewOutcome, ReadingPreviewVisibility
 from app.services.reading_service import ReadingService
@@ -159,6 +164,20 @@ class HoroscopeReadingUseCase:
             if self._entitlements is None
             else await self._entitlements.resolve_reading_visibility(user_id, reading_id)
         )
+        if (
+            generation.status is HoroscopeGenerationStatus.COMPLETED
+            and generation.result is not None
+            and generation.facts is not None
+            and visibility in {
+                ReadingPreviewVisibility.PREVIEW,
+                ReadingPreviewVisibility.LOCKED,
+            }
+        ):
+            record_reading_funnel_signal(
+                ReadingFunnelOutcome.OFFER_SHOWN,
+                reading_id,
+                user_id,
+            )
         return HoroscopePreviewOutcome(
             reading_id=reading_id,
             generation=generation,
