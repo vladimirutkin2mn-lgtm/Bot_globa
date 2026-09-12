@@ -6,6 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.bot.chat_scope_handlers import router as chat_scope_router
 from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
 from app.bot.daily_conversion_handlers import router as daily_conversion_router
@@ -201,6 +202,7 @@ def create_dispatcher(
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
 
+    dispatcher.include_router(chat_scope_router)
     dispatcher.include_router(telegram_stars_router)
     dispatcher.include_router(refund_router)
     dispatcher.include_router(subscription_router)
