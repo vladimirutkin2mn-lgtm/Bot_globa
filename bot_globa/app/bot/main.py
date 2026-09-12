@@ -12,6 +12,7 @@ from app.bot.core_handlers import router as core_router
 from app.bot.daily_conversion_handlers import router as daily_conversion_router
 from app.bot.daily_feedback_handlers import router as daily_feedback_router
 from app.bot.group_handlers import router as group_router
+from app.bot.group_runtime import install_group_runtime
 from app.bot.horoscope_handlers import create_horoscope_router
 from app.bot.horoscope_renderer import HoroscopeRenderer
 from app.bot.memory_handlers import router as memory_router
@@ -202,6 +203,7 @@ def create_dispatcher(
     dispatcher.update.outer_middleware(TelegramObservabilityMiddleware(reporter))
     dispatcher.update.outer_middleware(dependency_middleware)
 
+    install_group_runtime()
     dispatcher.include_router(chat_scope_router)
     dispatcher.include_router(telegram_stars_router)
     dispatcher.include_router(refund_router)
