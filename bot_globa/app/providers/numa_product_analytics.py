@@ -46,6 +46,7 @@ class ProductFunnelEvent(StrEnum):
     QUESTION_ACCEPTED = "numa_question_accepted"
     FREE_ANSWER_READY = "numa_free_answer_ready"
     FREE_ANSWER_DELIVERED = "numa_free_answer_delivered"
+    OFFER_SHOWN = "numa_offer_shown"
     PAYWALL_SHOWN = "numa_paywall_shown"
     CHECKOUT_STARTED = "numa_checkout_started"
     PURCHASE_CONFIRMED = "numa_purchase_confirmed"
@@ -90,6 +91,7 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     ProductFunnelEvent.QUESTION_ACCEPTED.value: _COMMON,
     ProductFunnelEvent.FREE_ANSWER_READY.value: _COMMON | {"latency_ms"},
     ProductFunnelEvent.FREE_ANSWER_DELIVERED.value: _COMMON | {"delivery_status"},
+    ProductFunnelEvent.OFFER_SHOWN.value: _COMMON,
     ProductFunnelEvent.PAYWALL_SHOWN.value: _COMMON,
     ProductFunnelEvent.CHECKOUT_STARTED.value: _COMMON | {"product_code", "provider"},
     ProductFunnelEvent.PURCHASE_CONFIRMED.value: _COMMON
