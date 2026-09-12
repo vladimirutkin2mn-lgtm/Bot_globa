@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.db.analytics import AnalyticsEvent
 from app.db.base import Base
-from app.providers.analytics import OracleProductEvent, PRODUCT_EVENT_TAXONOMY_VERSION
+from app.providers.analytics import PRODUCT_EVENT_TAXONOMY_VERSION, OracleProductEvent
 from app.providers.analytics_postgres import PostgresAnalyticsClient
 from app.providers.numa_product_analytics import (
     NUMA_PRODUCT_EVENT_VERSION,
