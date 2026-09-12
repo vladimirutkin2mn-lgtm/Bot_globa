@@ -11,27 +11,27 @@ def test_group_runtime_installs_upgrades_in_dependency_order(
 ) -> None:
     calls: list[str] = []
     monkeypatch.setattr(
-        group_runtime.social,
+        group_runtime,
         "install_group_social_mechanics",
         lambda: calls.append("social"),
     )
     monkeypatch.setattr(
-        group_runtime.compatibility,
+        group_runtime,
         "install_group_compatibility_mechanics",
         lambda: calls.append("compatibility"),
     )
     monkeypatch.setattr(
-        group_runtime.viral,
+        group_runtime,
         "install_group_viral_mechanics",
         lambda: calls.append("viral"),
     )
     monkeypatch.setattr(
-        group_runtime.viral_upgrade,
+        group_runtime,
         "install_group_viral_upgrade",
         lambda: calls.append("viral_upgrade"),
     )
     monkeypatch.setattr(
-        group_runtime.p1,
+        group_runtime,
         "install_group_p1_08",
         lambda: calls.append("p1_08"),
     )
