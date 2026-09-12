@@ -118,9 +118,7 @@ async def test_later_personal_entry_does_not_rewrite_existing_reading_source(
             ).all()
         )
 
-    sources_by_reading = {
-        row.properties["entity_id"]: row.properties["source"] for row in previews
-    }
+    sources_by_reading = {row.properties["entity_id"]: row.properties["source"] for row in previews}
     assert sources_by_reading == {
         first_reading_id: ProductSource.GROUP_COMPATIBILITY.value,
         second_reading_id: ProductSource.NORMAL_START.value,
