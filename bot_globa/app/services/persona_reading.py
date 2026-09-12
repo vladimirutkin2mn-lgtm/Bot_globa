@@ -24,8 +24,16 @@ from app.domain.oracle_safety import (
 from app.domain.persona import PersonaDefinition, persona_definition
 from app.domain.reading import ReadingDraftRequest
 from app.domain.reading_generation import ReadingSymbolContext
+from app.services.numa_reading_funnel_signal import (
+    ReadingFunnelOutcome,
+    record_reading_funnel_signal,
+)
 from app.services.preview_entitlement import PreviewOutcome, ReadingPreviewVisibility
-from app.services.reading_generation import ReadingGenerationResult, ReadingGenerationService
+from app.services.reading_generation import (
+    ReadingGenerationResult,
+    ReadingGenerationService,
+    ReadingGenerationStatus,
+)
 from app.services.reading_service import ReadingService
 
 READING_RESULT_SCHEMA_VERSION = "reading-result-v1"
@@ -261,6 +269,19 @@ class PersonaReadingUseCase:
             if self._entitlements is None
             else await self._entitlements.resolve_reading_visibility(user_id, reading_id)
         )
+        if (
+            generation.status is ReadingGenerationStatus.COMPLETED
+            and generation.result is not None
+            and visibility in {
+                ReadingPreviewVisibility.PREVIEW,
+                ReadingPreviewVisibility.LOCKED,
+            }
+        ):
+            record_reading_funnel_signal(
+                ReadingFunnelOutcome.OFFER_SHOWN,
+                reading_id,
+                user_id,
+            )
         return PersonaPreviewOutcome(
             reading_id=reading_id,
             generation=generation,
