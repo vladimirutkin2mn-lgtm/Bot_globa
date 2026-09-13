@@ -123,9 +123,7 @@ async def run(
     preferences = DailyHoroscopePreferenceService(sessions)
     snapshots = DailyHoroscopeSnapshotService(sessions)
     daily_analytics = NumaDailyAnalytics(
-        NumaProductAnalytics(
-            create_analytics_client(sessions, get_observability_settings())
-        )
+        NumaProductAnalytics(create_analytics_client(sessions, get_observability_settings()))
     )
     bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     stopped = stop or asyncio.Event()
