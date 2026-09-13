@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,6 +15,7 @@ class ObservabilitySettings(BaseSettings):
 
     app_env: Literal["local", "test", "staging", "production"] = "local"
     analytics_backend: Literal["noop", "postgres"] = "noop"
+    analytics_test_user_ids: str = ""
     error_reporting_backend: Literal["noop", "logging"] = "logging"
     admin_metrics_enabled: bool = False
     admin_api_token: SecretStr = SecretStr("")
@@ -27,6 +29,22 @@ class ObservabilitySettings(BaseSettings):
     langsmith_trace_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
     langsmith_max_pending_traces: int = Field(default=100, ge=1, le=10_000)
 
+    @field_validator("analytics_test_user_ids")
+    @classmethod
+    def normalize_analytics_test_user_ids(cls, value: str) -> str:
+        normalized: list[str] = []
+        for raw in value.split(","):
+            candidate = raw.strip()
+            if not candidate:
+                continue
+            try:
+                user_id = str(UUID(candidate))
+            except ValueError:
+                raise ValueError("analytics test user ids must be UUIDs") from None
+            if user_id not in normalized:
+                normalized.append(user_id)
+        return ",".join(normalized)
+
     @field_validator("langsmith_endpoint")
     @classmethod
     def normalize_langsmith_endpoint(cls, value: str) -> str:
@@ -34,6 +52,12 @@ class ObservabilitySettings(BaseSettings):
         if not endpoint.startswith(("http://", "https://")):
             raise ValueError("LangSmith endpoint must be HTTP(S)")
         return endpoint
+
+    @property
+    def analytics_test_users(self) -> frozenset[str]:
+        """Return canonical internal user UUIDs excluded from decision metrics."""
+
+        return frozenset(filter(None, self.analytics_test_user_ids.split(",")))
 
     @model_validator(mode="after")
     def validate_admin_auth(self) -> "ObservabilitySettings":
