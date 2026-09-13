@@ -97,15 +97,19 @@ async def test_facade_rejects_content_and_caller_managed_version() -> None:
         )
 
 
-async def test_feedback_records_reaction_without_reading_identity() -> None:
+async def test_feedback_requires_reading_identity_and_stage() -> None:
     recording = RecordingAnalytics()
     analytics = OracleProductAnalytics(recording)
-    user_id = uuid4()
+    user_id, reading_id = uuid4(), uuid4()
 
     await analytics.track(
         user_id,
         OracleProductEvent.READING_FEEDBACK_SUBMITTED,
-        {"reaction_code": "hit"},
+        {
+            "reading_id": reading_id,
+            "stage_code": "preview",
+            "reaction_code": "hit",
+        },
     )
 
     assert recording.calls == [
@@ -115,15 +119,17 @@ async def test_feedback_records_reaction_without_reading_identity() -> None:
             {
                 "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
                 "reaction_code": "hit",
+                "reading_id": str(reading_id),
+                "stage_code": "preview",
             },
         )
     ]
 
-    with pytest.raises(AnalyticsContractError):
+    with pytest.raises(ValueError, match="reading feedback attribution is invalid"):
         await analytics.track(
             user_id,
             OracleProductEvent.READING_FEEDBACK_SUBMITTED,
-            {"reading_id": uuid4(), "reaction_code": "hit"},
+            {"reaction_code": "hit"},
         )
 
 

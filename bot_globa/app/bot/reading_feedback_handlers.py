@@ -1,5 +1,6 @@
 """Privacy-safe quick feedback for a ready reading."""
 
+import logging
 from uuid import UUID
 
 from aiogram import F, Router
@@ -16,10 +17,13 @@ from app.bot.reading_share_handlers import (
 )
 from app.bot.reading_story_continuation_handlers import router as reading_story_continuation_router
 from app.bot.reading_story_handlers import router as reading_story_router
+from app.domain.reading import ReadingStatus
 from app.providers.analytics import OracleProductEvent
 from app.services.onboarding import OnboardingService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 from app.services.reading_history import ReadingHistoryService
+
+logger = logging.getLogger(__name__)
 
 router = Router(name="reading-feedback")
 router.include_router(public_share_router)
@@ -63,10 +67,15 @@ async def submit_reading_feedback(
         return
 
     reaction = _FINAL_REACTIONS[action]
+    stage_code = await _feedback_stage_code(reading_history, user.id, reading_id)
     await oracle_analytics.track(
         user.id,
         OracleProductEvent.READING_FEEDBACK_SUBMITTED,
-        {"reaction_code": reaction},
+        {
+            "reaction_code": reaction,
+            "reading_id": str(reading_id),
+            "stage_code": stage_code,
+        },
     )
     await callback.answer("Спасибо, это поможет улучшить разбор.")
 
@@ -79,6 +88,27 @@ async def submit_reading_feedback(
             SHARE_PROMPT,
             reply_markup=share_offer_keyboard(reading_id),
         )
+
+
+async def _feedback_stage_code(
+    reading_history: ReadingHistoryService,
+    user_id: UUID,
+    reading_id: UUID,
+) -> str:
+    """Resolve safe server-side stage metadata without blocking feedback on lookup errors."""
+
+    try:
+        metadata = await reading_history.ready_metadata(user_id, (reading_id,))
+    except Exception:
+        logger.warning("reading_feedback_metadata_lookup_failed", exc_info=True)
+        return "unknown"
+
+    if not metadata:
+        return "unknown"
+    return {
+        ReadingStatus.PREVIEW_READY.value: "preview",
+        ReadingStatus.FULL_READY.value: "full",
+    }.get(metadata[0].status, "unknown")
 
 
 def _parse(data: str | None) -> tuple[str, UUID] | None:
