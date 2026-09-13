@@ -26,8 +26,12 @@ from app.domain.daily_horoscope import (
 )
 from app.domain.natal_chart import ZodiacSign
 from app.logging import configure_logging
+from app.observability.settings import get_observability_settings
+from app.providers.analytics_postgres import create_analytics_client
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
+from app.services.numa_daily_analytics import NumaDailyAnalytics
+from app.services.numa_product_analytics import NumaProductAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +57,10 @@ async def _send_digest(
             await bot.send_message(
                 claim.telegram_user_id,
                 text,
-                reply_markup=daily_horoscope_with_sign_keyboard(zodiac_sign),
+                reply_markup=daily_horoscope_with_sign_keyboard(
+                    zodiac_sign,
+                    claim.delivery_date,
+                ),
             )
             return
         except TelegramRetryAfter as throttled:
@@ -115,6 +122,9 @@ async def run(
     sessions = create_session_factory(engine)
     preferences = DailyHoroscopePreferenceService(sessions)
     snapshots = DailyHoroscopeSnapshotService(sessions)
+    daily_analytics = NumaDailyAnalytics(
+        NumaProductAnalytics(create_analytics_client(sessions, get_observability_settings()))
+    )
     bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     stopped = stop or asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -190,6 +200,16 @@ async def run(
                 await preferences.release(claim)
                 continue
 
+            try:
+                await daily_analytics.prepared(
+                    claim.user_id,
+                    claim.delivery_date,
+                    preference.timezone,
+                )
+            except Exception:
+                # Analytics must never turn a prepared digest into a failed delivery.
+                logger.warning("daily_horoscope_analytics_failed event=daily_prepared")
+
             # The at-most-once boundary is deliberately as late as possible: reserve the
             # local day only after content is ready, immediately before Telegram I/O.
             try:
@@ -217,8 +237,17 @@ async def run(
                 await preferences.release(claim)
             else:
                 await preferences.complete(claim)
-                # Telegram has no read receipt for bot messages. This aggregate, PII-free
-                # event is therefore the honest top-of-funnel denominator for daily sends.
+                try:
+                    await daily_analytics.delivered(
+                        claim.user_id,
+                        claim.delivery_date,
+                        preference.timezone,
+                    )
+                except Exception:
+                    # The message already succeeded; telemetry remains best-effort only.
+                    logger.warning("daily_horoscope_analytics_failed event=daily_delivered")
+                # Telegram has no read receipt for bot messages. This event means only that
+                # Telegram accepted the send, which is the honest daily denominator.
                 logger.info("daily_horoscope_delivered mode=%s", claim.mode.value)
 
             # Pace the broadcast: every active user shares one local 08:00, so without a

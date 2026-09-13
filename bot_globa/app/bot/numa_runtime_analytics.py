@@ -96,7 +96,7 @@ def _callback_signal(callback: CallbackQuery, event_key: str) -> RuntimeProductS
             ProductSource.NORMAL_START,
             personal_modes[data],
         )
-    if data == "daily:personal":
+    if data == "daily:personal" or data.startswith("daily:personal:"):
         return _signal(
             actor_id,
             event_key,

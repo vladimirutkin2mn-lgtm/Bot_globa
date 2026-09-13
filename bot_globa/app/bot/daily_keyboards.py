@@ -1,15 +1,27 @@
 """Inline controls for the optional compact solar-sign daily horoscope."""
 
+from datetime import date
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.domain.natal_chart import ZodiacSign
 from app.services.daily_sky import SIGN_LABELS
 
+DAILY_PERSONAL_CALLBACK = "daily:personal"
 DAILY_SHARE_CALLBACK = "daily:share"
+
+
+def daily_personal_callback(delivery_date: date | None = None) -> str:
+    """Keep legacy menu callbacks while dating scheduled-digest CTAs."""
+
+    if delivery_date is None:
+        return DAILY_PERSONAL_CALLBACK
+    return f"{DAILY_PERSONAL_CALLBACK}:{delivery_date.isoformat()}"
 
 
 def daily_horoscope_with_sign_keyboard(
     selected_sign: ZodiacSign | None,
+    delivery_date: date | None = None,
 ) -> InlineKeyboardMarkup:
     """Keep the existing daily actions while making the optional sign preference visible."""
 
@@ -29,7 +41,7 @@ def daily_horoscope_with_sign_keyboard(
             [
                 InlineKeyboardButton(
                     text="✨ Что сегодня важно именно для меня?",
-                    callback_data="daily:personal",
+                    callback_data=daily_personal_callback(delivery_date),
                 )
             ],
             [
