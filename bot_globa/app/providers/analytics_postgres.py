@@ -36,8 +36,13 @@ _FEEDBACK_STAGES = frozenset({"preview", "full", "unknown"})
 class PostgresAnalyticsClient:
     """Store only allow-listed metadata and suppress duplicate transitions."""
 
-    def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        test_user_ids: frozenset[str] = frozenset(),
+    ) -> None:
         self._sessions = sessions
+        self._test_user_ids = test_user_ids
 
     async def track(
         self, user_id: str | None, event: str, properties: Mapping[str, str] | None = None
@@ -51,6 +56,11 @@ class PostgresAnalyticsClient:
             safe_properties = validate_numa_product_event(event, properties)
             subject_id, idempotency_key = numa_product_event_identity(
                 user_id, event, safe_properties
+            )
+            safe_properties = _mark_test_traffic(
+                safe_properties,
+                subject_id,
+                self._test_user_ids,
             )
         elif event == OracleProductEvent.READING_FEEDBACK_SUBMITTED.value:
             safe_properties, subject_id, idempotency_key = _reading_feedback_event(
@@ -96,6 +106,11 @@ class PostgresAnalyticsClient:
                     user_id,
                     projected_event,
                     projected_properties,
+                )
+                projected_properties = _mark_test_traffic(
+                    projected_properties,
+                    projected_subject,
+                    self._test_user_ids,
                 )
                 await self._insert(
                     session,
@@ -208,10 +223,25 @@ def _reading_feedback_event(
     )
 
 
+def _mark_test_traffic(
+    properties: Mapping[str, str],
+    subject_id: str | None,
+    test_user_ids: frozenset[str],
+) -> dict[str, str]:
+    """Override only the explicit typed-funnel test flag for configured internal users."""
+
+    safe = dict(properties)
+    if subject_id is not None and subject_id in test_user_ids and "test_traffic" in safe:
+        safe["test_traffic"] = "true"
+    return safe
+
+
 def create_analytics_client(
     sessions: async_sessionmaker[AsyncSession], settings: ObservabilitySettings
 ) -> AnalyticsClient:
     """Compose one analytics provider for API and bot processes."""
     if settings.analytics_backend == "postgres":
-        return ResilientAnalyticsClient(PostgresAnalyticsClient(sessions))
+        return ResilientAnalyticsClient(
+            PostgresAnalyticsClient(sessions, settings.analytics_test_users)
+        )
     return NoOpAnalyticsClient()
