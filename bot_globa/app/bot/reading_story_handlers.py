@@ -26,6 +26,7 @@ from app.bot.screen import show_screen
 from app.bot.states import ReadingStoryStates
 from app.domain.reading_history import ReadingHistoryChoice
 from app.services.onboarding import OnboardingService
+from app.services.reading_followup import ReadingFollowUpService, ReadingFollowUpStatus
 from app.services.reading_history import ReadingHistoryService
 from app.services.reading_story import (
     ReadingStoryNotFoundError,
@@ -86,6 +87,8 @@ async def stories_home(
     state: FSMContext,
     onboarding: OnboardingService,
     reading_stories: ReadingStoryService,
+    reading_history: ReadingHistoryService,
+    reading_followups: ReadingFollowUpService,
 ) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
@@ -95,6 +98,8 @@ async def stories_home(
             state,
             onboarding,
             reading_stories,
+            reading_history,
+            reading_followups,
         )
 
 
@@ -176,6 +181,7 @@ async def save_story_title(
     onboarding: OnboardingService,
     reading_stories: ReadingStoryService,
     reading_history: ReadingHistoryService,
+    reading_followups: ReadingFollowUpService,
 ) -> None:
     if message.from_user is None:
         return
@@ -195,7 +201,15 @@ async def save_story_title(
             story = await reading_stories.rename(user.id, story_id, title)
         else:
             await state.clear()
-            await _show_hub(message, message.from_user.id, state, onboarding, reading_stories)
+            await _show_hub(
+                message,
+                message.from_user.id,
+                state,
+                onboarding,
+                reading_stories,
+                reading_history,
+                reading_followups,
+            )
             return
     except ReadingStoryTitleError:
         await show_screen(
@@ -209,7 +223,15 @@ async def save_story_title(
     except ReadingStoryNotFoundError:
         await state.clear()
         await message.answer(_STALE)
-        await _show_hub(message, message.from_user.id, state, onboarding, reading_stories)
+        await _show_hub(
+            message,
+            message.from_user.id,
+            state,
+            onboarding,
+            reading_stories,
+            reading_history,
+            reading_followups,
+        )
         return
     await state.clear()
     await _show_story(
@@ -230,6 +252,7 @@ async def open_story(
     onboarding: OnboardingService,
     reading_stories: ReadingStoryService,
     reading_history: ReadingHistoryService,
+    reading_followups: ReadingFollowUpService,
 ) -> None:
     await callback.answer()
     if not isinstance(callback.message, Message):
@@ -259,6 +282,8 @@ async def open_story(
             state,
             onboarding,
             reading_stories,
+            reading_history,
+            reading_followups,
         )
 
 
@@ -381,6 +406,8 @@ async def confirm_story_delete(
     state: FSMContext,
     onboarding: OnboardingService,
     reading_stories: ReadingStoryService,
+    reading_history: ReadingHistoryService,
+    reading_followups: ReadingFollowUpService,
 ) -> None:
     if not isinstance(callback.message, Message):
         await callback.answer()
@@ -402,6 +429,8 @@ async def confirm_story_delete(
         state,
         onboarding,
         reading_stories,
+        reading_history,
+        reading_followups,
     )
 
 
@@ -449,6 +478,8 @@ async def _show_hub(
     state: FSMContext,
     onboarding: OnboardingService,
     reading_stories: ReadingStoryService,
+    reading_history: ReadingHistoryService,
+    reading_followups: ReadingFollowUpService,
 ) -> None:
     await state.clear()
     user = await onboarding.current_user(telegram_user_id)
@@ -456,20 +487,55 @@ async def _show_hub(
         await message.answer(_NOT_ONBOARDED)
         return
     stories = await reading_stories.list_for_user(user.id)
-    text = (
-        "📚 Мои истории\n\n"
-        "Собирайте связанные разборы в одну линию — только вручную. Numa ничего не "
-        "объединяет сама и не превращает такие связи в факты о вас."
+    recent_readings = await _recent_reading_buttons(
+        user.id,
+        reading_history,
+        reading_followups,
     )
-    if not stories:
-        text += "\n\nИсторий пока нет. Создайте первую или откройте все прошлые разборы."
+    text = "📚 Мои истории"
+    if recent_readings:
+        text += "\n\nПоследние разборы — сверху. 🟢 означает, что сеанс ещё можно продолжить."
+    if stories:
+        text += "\n\nНиже — ваши истории со связанными разборами."
+    elif recent_readings:
+        text += "\n\nИсторий пока нет — при желании соберите связанные разборы в одну."
+    else:
+        text += "\n\nГотовых разборов и историй пока нет."
+    text += (
+        "\n\nИстории создаёте только вы: Numa ничего не объединяет сама и не превращает "
+        "такие связи в факты о вас."
+    )
     await show_screen(
         message,
-        Scene.HISTORY if stories else Scene.HISTORY_EMPTY,
+        Scene.HISTORY if recent_readings or stories else Scene.HISTORY_EMPTY,
         text,
-        reply_markup=stories_hub_keyboard(stories),
+        reply_markup=stories_hub_keyboard(stories, recent_readings=recent_readings),
         state=state,
     )
+
+
+async def _recent_reading_buttons(
+    user_id: UUID,
+    reading_history: ReadingHistoryService,
+    reading_followups: ReadingFollowUpService,
+) -> tuple[StoryReadingButton, ...]:
+    choices = await reading_history.list_ready_all(user_id, page=0, page_size=3)
+    buttons: list[StoryReadingButton] = []
+    for item in choices.items:
+        button = _reading_button(item)
+        followup = await reading_followups.inspect(
+            reading_id=item.reading_id,
+            user_id=user_id,
+        )
+        buttons.append(
+            StoryReadingButton(
+                reading_id=button.reading_id,
+                label=button.label,
+                open_callback=button.open_callback,
+                active_followup=followup.status is ReadingFollowUpStatus.READY,
+            )
+        )
+    return tuple(buttons)
 
 
 async def _show_story(
