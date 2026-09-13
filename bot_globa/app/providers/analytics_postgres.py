@@ -1,7 +1,10 @@
 """Idempotent PostgreSQL implementation of the analytics boundary."""
 
 from collections.abc import Mapping
-from uuid import UUID
+from datetime import UTC, datetime
+from typing import cast
+from uuid import UUID, uuid5
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -31,6 +34,7 @@ from app.providers.numa_product_analytics import (
 from app.providers.numa_reading_projection import project_personal_reading_event
 
 _FEEDBACK_STAGES = frozenset({"preview", "full", "unknown"})
+_REPEAT_NAMESPACE = UUID("9de1a6b0-8fb9-499b-9226-fc1c587fa836")
 
 
 class PostgresAnalyticsClient:
@@ -73,7 +77,12 @@ class PostgresAnalyticsClient:
                 user_id, event, safe_properties, correlation_id
             )
         async with self._sessions.begin() as session:
-            await self._insert(
+            first_entry = (
+                await self._first_product_entry(session, subject_id)
+                if event == ProductFunnelEvent.ENTRY.value and subject_id is not None
+                else None
+            )
+            inserted = await self._insert(
                 session,
                 event=event,
                 subject_id=subject_id,
@@ -81,6 +90,31 @@ class PostgresAnalyticsClient:
                 idempotency_key=idempotency_key,
                 correlation_id=correlation_id,
             )
+            if inserted and first_entry is not None and subject_id is not None:
+                repeat_properties = _repeat_activity_properties(
+                    safe_properties,
+                    subject_id,
+                    first_entry.created_at,
+                    datetime.now(UTC),
+                )
+                if repeat_properties is not None:
+                    repeat_properties = validate_numa_product_event(
+                        ProductFunnelEvent.REPEAT_ACTIVITY.value,
+                        repeat_properties,
+                    )
+                    repeat_subject, repeat_key = numa_product_event_identity(
+                        subject_id,
+                        ProductFunnelEvent.REPEAT_ACTIVITY.value,
+                        repeat_properties,
+                    )
+                    await self._insert(
+                        session,
+                        event=ProductFunnelEvent.REPEAT_ACTIVITY.value,
+                        subject_id=repeat_subject,
+                        properties=repeat_properties,
+                        idempotency_key=repeat_key,
+                        correlation_id=correlation_id,
+                    )
             projected = project_personal_reading_event(
                 event,
                 safe_properties,
@@ -130,8 +164,8 @@ class PostgresAnalyticsClient:
         properties: Mapping[str, str],
         idempotency_key: str,
         correlation_id: str,
-    ) -> None:
-        await session.execute(
+    ) -> bool:
+        result = await session.execute(
             insert(AnalyticsEvent)
             .values(
                 event_name=event,
@@ -141,6 +175,26 @@ class PostgresAnalyticsClient:
                 correlation_id=correlation_id,
             )
             .on_conflict_do_nothing(index_elements=[AnalyticsEvent.idempotency_key])
+            .returning(AnalyticsEvent.id)
+        )
+        return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    async def _first_product_entry(
+        session: AsyncSession,
+        subject_id: str,
+    ) -> AnalyticsEvent | None:
+        return cast(
+            "AnalyticsEvent | None",
+            await session.scalar(
+                select(AnalyticsEvent)
+                .where(
+                    AnalyticsEvent.event_name == ProductFunnelEvent.ENTRY.value,
+                    AnalyticsEvent.subject_id == subject_id,
+                )
+                .order_by(AnalyticsEvent.created_at.asc())
+                .limit(1)
+            ),
         )
 
     @staticmethod
@@ -234,6 +288,45 @@ def _mark_test_traffic(
     if subject_id is not None and subject_id in test_user_ids and "test_traffic" in safe:
         safe["test_traffic"] = "true"
     return safe
+
+
+def _repeat_activity_properties(
+    entry_properties: Mapping[str, str],
+    subject_id: str,
+    first_entry_at: datetime,
+    current_at: datetime,
+) -> dict[str, str] | None:
+    """Build one return event per local activity day, bucketed from the first entry."""
+
+    timezone_name = entry_properties.get("calculation_timezone", "Europe/Moscow")
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    first_day = first_entry_at.astimezone(timezone).date()
+    current_day = current_at.astimezone(timezone).date()
+    elapsed_days = (current_day - first_day).days
+    if elapsed_days <= 0:
+        return None
+    if elapsed_days == 1:
+        day_bucket = "d1"
+    elif elapsed_days <= 6:
+        day_bucket = "d2_6"
+    elif elapsed_days <= 13:
+        day_bucket = "d7_13"
+    elif elapsed_days <= 29:
+        day_bucket = "d14_29"
+    else:
+        day_bucket = "d30_plus"
+    properties = dict(entry_properties)
+    properties.update(
+        {
+            "entity_id": str(uuid5(_REPEAT_NAMESPACE, f"{subject_id}:{current_day.isoformat()}")),
+            "activity_kind": "return",
+            "day_bucket": day_bucket,
+        }
+    )
+    return properties
 
 
 def create_analytics_client(
