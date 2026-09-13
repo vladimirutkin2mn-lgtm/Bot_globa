@@ -14,22 +14,38 @@ class StoryReadingButton:
     reading_id: UUID
     label: str
     open_callback: str
+    active_followup: bool = False
 
 
 def _compact_title(title: str, limit: int = 46) -> str:
     return title if len(title) <= limit else f"{title[: limit - 1].rstrip()}…"
 
 
-def stories_hub_keyboard(stories: Sequence[ReadingStoryView]) -> InlineKeyboardMarkup:
+def stories_hub_keyboard(
+    stories: Sequence[ReadingStoryView],
+    *,
+    recent_readings: Sequence[StoryReadingButton] = (),
+) -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(
-                text=f"📖 {_compact_title(story.title)}",
-                callback_data=f"stories:open:{story.id}:0",
+                text=f"{'🟢 ' if reading.active_followup else ''}{reading.label}",
+                callback_data=reading.open_callback,
             )
         ]
-        for story in stories
+        for reading in recent_readings
     ]
+    rows.extend(
+        [
+            [
+                InlineKeyboardButton(
+                    text=f"📖 {_compact_title(story.title)}",
+                    callback_data=f"stories:open:{story.id}:0",
+                )
+            ]
+            for story in stories
+        ]
+    )
     rows.extend(
         [
             [InlineKeyboardButton(text="＋ Новая история", callback_data="stories:create")],
