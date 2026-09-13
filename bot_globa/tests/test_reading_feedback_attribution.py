@@ -1,5 +1,6 @@
 """Regression coverage for privacy-safe reading feedback attribution."""
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import AsyncMock
@@ -23,7 +24,7 @@ class RecordingAnalyticsClient:
         self,
         user_id: str | None,
         event: str,
-        properties: dict[str, str] | None = None,
+        properties: Mapping[str, str] | None = None,
     ) -> None:
         self.calls.append((user_id, event, dict(properties or {})))
 
