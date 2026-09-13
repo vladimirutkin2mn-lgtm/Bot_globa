@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator, Mapping
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -64,6 +65,16 @@ class FakeHistory:
 
     async def owns_full(self, user_id: UUID, reading_id: UUID) -> bool:
         return self.full and self.owned is not None and reading_id == self.owned
+
+    async def ready_metadata(
+        self,
+        user_id: UUID,
+        reading_ids: tuple[UUID, ...],
+    ) -> tuple[SimpleNamespace, ...]:
+        if self.owned is None or not reading_ids or reading_ids[0] != self.owned:
+            return ()
+        status = "full_ready" if self.full else "preview_ready"
+        return (SimpleNamespace(status=status),)
 
 
 class RecordingAnalytics:
@@ -135,6 +146,8 @@ async def test_paid_hit_records_private_feedback_and_offers_share(
     assert properties == {
         "event_version": PRODUCT_EVENT_TAXONOMY_VERSION,
         "reaction_code": "hit",
+        "reading_id": str(reading_id),
+        "stage_code": "full",
     }
     assert _answers(session)[-1].show_alert is not True
     share = _messages(session)[-1]
