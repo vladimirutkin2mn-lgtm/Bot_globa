@@ -28,6 +28,8 @@ from app.bot.rate_limit import FixedWindowRateLimiter, RateLimitMiddleware
 from app.bot.reading_feedback_handlers import router as reading_feedback_router
 from app.bot.reading_followup_handlers import create_reading_followup_router
 from app.bot.reading_safety_middleware import ReadingSafetyHandoffMiddleware
+from app.bot.reading_story_continuation_handlers import router as reading_story_continuation_router
+from app.bot.reading_story_handlers import router as reading_story_router
 from app.bot.refund_handlers import router as refund_router
 from app.bot.subscription_handlers import router as subscription_router
 from app.bot.telegram_stars_handlers import router as telegram_stars_router
@@ -217,6 +219,8 @@ def create_dispatcher(
     dispatcher.include_router(create_horoscope_router())
     dispatcher.include_router(reading_feedback_router)
     dispatcher.include_router(create_reading_followup_router())
+    dispatcher.include_router(reading_story_router)
+    dispatcher.include_router(reading_story_continuation_router)
     dispatcher.include_router(group_router)
     dispatcher.include_router(core_router)
     dispatcher["database_engine"] = resolved_engine
