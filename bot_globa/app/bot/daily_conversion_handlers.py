@@ -1,6 +1,7 @@
 """Conversion bridge from the common daily digest into a personal day forecast."""
 
 import logging
+from datetime import date
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -9,12 +10,16 @@ from aiogram.types import CallbackQuery, Message
 from app.bot import horoscope_flow as flow
 from app.bot import horoscope_intent
 from app.bot.consent import ensure_consent
+from app.bot.daily_keyboards import DAILY_PERSONAL_CALLBACK
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.bot.states import HoroscopeStates
 from app.domain.birth_profile import BirthProfileConsentStatus
 from app.providers.analytics import OracleProductEvent
 from app.services.birth_profile import BirthProfileConsentRequiredError, BirthProfileService
+from app.services.daily_horoscope import DailyHoroscopePreferenceService
+from app.services.numa_daily_analytics import NumaDailyAnalytics
+from app.services.numa_product_analytics import NumaProductAnalytics
 from app.services.onboarding import OnboardingService
 from app.services.oracle_product_analytics import OracleProductAnalytics
 
@@ -25,7 +30,9 @@ router = Router(name="daily_conversion")
 PERSONAL_DAILY_PROMPT = horoscope_intent.PERSONAL_DAILY_PROMPT
 
 
-@router.callback_query(F.data == "daily:personal")
+@router.callback_query(
+    (F.data == DAILY_PERSONAL_CALLBACK) | F.data.startswith(f"{DAILY_PERSONAL_CALLBACK}:")
+)
 async def open_personal_daily(
     callback: CallbackQuery,
     state: FSMContext,
@@ -33,6 +40,8 @@ async def open_personal_daily(
     birth_profile_service: BirthProfileService,
     privacy_retention_days: int,
     oracle_analytics: OracleProductAnalytics | None = None,
+    numa_product_analytics: NumaProductAnalytics | None = None,
+    daily_horoscopes: DailyHoroscopePreferenceService | None = None,
 ) -> None:
     """Continue the free digest into the existing Astrologer day-forecast funnel."""
 
@@ -60,10 +69,25 @@ async def open_personal_daily(
         await callback.message.answer("Сначала отправьте /start.")
         return
 
-    # Aggregate click count pairs with `daily_horoscope_delivered` without putting a
-    # Telegram id, question or birth data in logs. The existing privacy-safe analytics
-    # event below carries the internal user subject into the downstream reading funnel.
     logger.info("daily_horoscope_personal_cta_clicked")
+    delivery_date = _delivery_date(callback.data)
+    if (
+        delivery_date is not None
+        and numa_product_analytics is not None
+        and daily_horoscopes is not None
+    ):
+        try:
+            preference = await daily_horoscopes.current(user.id)
+            await NumaDailyAnalytics(numa_product_analytics).action(
+                user.id,
+                delivery_date,
+                preference.timezone,
+                "personal_forecast_cta",
+            )
+        except Exception:
+            # Conversion must keep working even when telemetry or preference lookup fails.
+            logger.warning("daily_horoscope_analytics_failed event=daily_action")
+
     if oracle_analytics is not None:
         await oracle_analytics.track(
             user.id,
@@ -117,3 +141,17 @@ async def open_personal_daily(
         await callback.message.answer(
             "Не удалось восстановить персональный прогноз. Попробуйте ещё раз."
         )
+
+
+def _delivery_date(callback_data: str | None) -> date | None:
+    """Extract only the server-generated scheduled-digest date; legacy callbacks stay valid."""
+
+    if callback_data is None or callback_data == DAILY_PERSONAL_CALLBACK:
+        return None
+    prefix = f"{DAILY_PERSONAL_CALLBACK}:"
+    if not callback_data.startswith(prefix):
+        return None
+    try:
+        return date.fromisoformat(callback_data.removeprefix(prefix))
+    except ValueError:
+        return None
