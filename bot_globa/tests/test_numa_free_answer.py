@@ -182,6 +182,13 @@ class FakeReadingHistory:
         self.ready_checks.append((user_id, reading_id))
         return self.owns
 
+    async def ready_metadata(
+        self,
+        user_id: UUID,
+        reading_ids: tuple[UUID, ...],
+    ) -> tuple[SimpleNamespace, ...]:
+        return (SimpleNamespace(status="preview_ready"),)
+
 
 class FakeOracleAnalytics:
     def __init__(self) -> None:
@@ -207,7 +214,11 @@ async def test_preview_feedback_uses_ready_authorization_and_tracks_hit() -> Non
 
     assert history.ready_checks == [(user_id, reading_id)]
     assert len(analytics.events) == 1
-    assert analytics.events[0][2] == {"reaction_code": "hit"}
+    assert analytics.events[0][2] == {
+        "reaction_code": "hit",
+        "reading_id": str(reading_id),
+        "stage_code": "preview",
+    }
 
 
 @pytest.mark.asyncio
