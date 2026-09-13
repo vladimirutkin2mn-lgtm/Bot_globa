@@ -1,6 +1,7 @@
 """Idempotent PostgreSQL implementation of the analytics boundary."""
 
 from collections.abc import Mapping
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -11,7 +12,9 @@ from app.observability.context import correlation_id_for_event
 from app.observability.settings import ObservabilitySettings
 from app.providers.analytics import (
     AnalyticsClient,
+    AnalyticsContractError,
     NoOpAnalyticsClient,
+    OracleProductEvent,
     ResilientAnalyticsClient,
     event_identity,
     validate_event_properties,
@@ -26,6 +29,8 @@ from app.providers.numa_product_analytics import (
     validate_numa_product_event,
 )
 from app.providers.numa_reading_projection import project_personal_reading_event
+
+_FEEDBACK_STAGES = frozenset({"preview", "full", "unknown"})
 
 
 class PostgresAnalyticsClient:
@@ -46,6 +51,11 @@ class PostgresAnalyticsClient:
             safe_properties = validate_numa_product_event(event, properties)
             subject_id, idempotency_key = numa_product_event_identity(
                 user_id, event, safe_properties
+            )
+        elif event == OracleProductEvent.READING_FEEDBACK_SUBMITTED.value:
+            safe_properties, subject_id, idempotency_key = _reading_feedback_event(
+                user_id,
+                properties,
             )
         else:
             safe_properties = validate_event_properties(event, properties)
@@ -162,6 +172,40 @@ class PostgresAnalyticsClient:
             if entry.properties.get("flow") == ProductFlow.PERSONAL.value:
                 return entry.properties
         return None
+
+
+def _reading_feedback_event(
+    user_id: str | None,
+    properties: Mapping[str, str] | None,
+) -> tuple[dict[str, str], str, str]:
+    """Validate attributed feedback and make the first reaction per reading stage durable."""
+
+    supplied = dict(properties or {})
+    reading_id = supplied.pop("reading_id", None)
+    stage_code = supplied.pop("stage_code", None)
+    safe = validate_event_properties(
+        OracleProductEvent.READING_FEEDBACK_SUBMITTED.value,
+        supplied,
+    )
+    if reading_id is None or stage_code not in _FEEDBACK_STAGES or user_id is None:
+        raise AnalyticsContractError
+    try:
+        normalized_reading_id = str(UUID(reading_id))
+        subject_id = str(UUID(user_id))
+    except (TypeError, ValueError):
+        raise AnalyticsContractError from None
+    safe.update(
+        {
+            "reading_id": normalized_reading_id,
+            "stage_code": stage_code,
+        }
+    )
+    return (
+        safe,
+        subject_id,
+        f"{OracleProductEvent.READING_FEEDBACK_SUBMITTED.value}:"
+        f"{normalized_reading_id}:{stage_code}",
+    )
 
 
 def create_analytics_client(
