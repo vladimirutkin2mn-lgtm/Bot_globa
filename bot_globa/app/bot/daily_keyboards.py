@@ -23,21 +23,10 @@ def daily_horoscope_with_sign_keyboard(
     selected_sign: ZodiacSign | None,
     delivery_date: date | None = None,
 ) -> InlineKeyboardMarkup:
-    """Keep the existing daily actions while making the optional sign preference visible."""
+    """Keep only the two product actions visible on the forecast itself."""
 
-    sign_rows: list[list[InlineKeyboardButton]]
-    if selected_sign is None:
-        sign_rows = [[InlineKeyboardButton(text="Выбрать свой знак", callback_data="daily:sign")]]
-    else:
-        sign_rows = [
-            [
-                InlineKeyboardButton(text="Все знаки", callback_data="daily:all"),
-                InlineKeyboardButton(text="Сменить знак", callback_data="daily:sign"),
-            ]
-        ]
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            *sign_rows,
             [
                 InlineKeyboardButton(
                     text="✨ Что сегодня важно именно для меня?",
@@ -46,18 +35,36 @@ def daily_horoscope_with_sign_keyboard(
             ],
             [
                 InlineKeyboardButton(
-                    text="🔮 Задать вопрос о сегодняшнем дне",
-                    callback_data="tarot:topic:general_forecast",
-                )
-            ],
-            [
-                InlineKeyboardButton(
                     text="📤 Поделиться темой дня",
                     callback_data=DAILY_SHARE_CALLBACK,
                 )
             ],
+            [
+                InlineKeyboardButton(text="Ещё", callback_data="daily:more"),
+                InlineKeyboardButton(text="← В меню", callback_data="menu:home"),
+            ],
+        ]
+    )
+
+
+def daily_more_keyboard(selected_sign: ZodiacSign | None) -> InlineKeyboardMarkup:
+    """Move secondary daily controls off the forecast without removing them."""
+
+    sign_text = "Выбрать свой знак" if selected_sign is None else "Сменить знак"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=sign_text, callback_data="daily:sign"),
+                InlineKeyboardButton(text="Все знаки", callback_data="daily:all"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔮 Задать вопрос о сегодняшнем дне",
+                    callback_data="tarot:topic:general_forecast",
+                )
+            ],
             [InlineKeyboardButton(text="Настройки", callback_data="daily:settings")],
-            [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
+            [InlineKeyboardButton(text="← К прогнозу", callback_data="menu:daily")],
         ]
     )
 
