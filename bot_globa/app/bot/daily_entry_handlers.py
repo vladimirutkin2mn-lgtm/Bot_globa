@@ -60,7 +60,8 @@ async def daily_horoscope_entry(
         return
 
     preference = await daily_horoscopes.current(user.id)
-    if needs_daily_sign(preference):
+    zodiac_sign = preference.zodiac_sign
+    if zodiac_sign is None:
         await show_screen(
             callback.message,
             Scene.DAILY_ZODIAC,
@@ -74,7 +75,7 @@ async def daily_horoscope_entry(
     await send_artifact(
         callback.message,
         Scene.DAILY_HOROSCOPE,
-        render_compact_daily_horoscope(today, preference.zodiac_sign),
-        reply_markup=daily_horoscope_with_sign_keyboard(preference.zodiac_sign),
+        render_compact_daily_horoscope(today, zodiac_sign),
+        reply_markup=daily_horoscope_with_sign_keyboard(zodiac_sign),
         state=state,
     )
