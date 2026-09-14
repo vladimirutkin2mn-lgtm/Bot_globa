@@ -1,5 +1,6 @@
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from aiogram.types import InlineKeyboardMarkup
 
 from app.bot.public_share_handlers import (
@@ -23,10 +24,10 @@ def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
     ]
 
 
-def test_negative_feedback_recovery_has_concrete_next_steps() -> None:
+def test_negative_feedback_recovery_has_concrete_registered_next_steps() -> None:
     callbacks = _callbacks(feedback_recovery_keyboard())
 
-    assert callbacks == ["menu:tarot", "menu:psychologist", "menu:astrologer"]
+    assert callbacks == ["menu:tarot", "menu:psy", "menu:astro"]
     assert all(len(value.encode("utf-8")) <= 64 for value in callbacks)
 
 
@@ -42,6 +43,13 @@ def test_daily_share_preview_round_trips_the_exact_public_text() -> None:
     assert extract_confirmed_daily_share(preview) == public_text
     assert "личный текст" not in public_text
     assert public_text in preview
+
+
+def test_unwrapped_daily_text_cannot_be_confirmed() -> None:
+    with pytest.raises(ValueError, match="known preview"):
+        extract_confirmed_daily_share(
+            "Гороскоп на сегодня · 14 сентября\n🌙 Тема дня: держать фокус\n\n— Numa"
+        )
 
 
 def test_daily_share_requires_explicit_confirmation_before_chat_picker() -> None:
