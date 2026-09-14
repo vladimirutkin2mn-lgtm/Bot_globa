@@ -13,7 +13,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.daily_horoscope import render_compact_daily_horoscope
-from app.bot.daily_keyboards import daily_horoscope_with_sign_keyboard, daily_sign_keyboard
+from app.bot.daily_keyboards import (
+    daily_horoscope_with_sign_keyboard,
+    daily_more_keyboard,
+    daily_sign_keyboard,
+)
 from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen
 from app.bot.states import DailyHoroscopeStates
@@ -77,5 +81,32 @@ async def daily_horoscope_entry(
         Scene.DAILY_HOROSCOPE,
         render_compact_daily_horoscope(today, zodiac_sign),
         reply_markup=daily_horoscope_with_sign_keyboard(zodiac_sign),
+        state=state,
+    )
+
+
+@router.callback_query(F.data == "daily:more")
+async def daily_horoscope_more(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    daily_horoscopes: DailyHoroscopePreferenceService,
+) -> None:
+    """Keep sign, settings and extra practices on a secondary daily screen."""
+
+    await callback.answer()
+    if not isinstance(callback.message, Message):
+        return
+
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None:
+        await callback.message.answer("Сначала отправьте /start.")
+        return
+    preference = await daily_horoscopes.current(user.id)
+    await show_screen(
+        callback.message,
+        Scene.DAILY_SETTINGS,
+        "Ещё на сегодня",
+        reply_markup=daily_more_keyboard(preference.zodiac_sign),
         state=state,
     )
