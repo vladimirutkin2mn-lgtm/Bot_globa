@@ -9,7 +9,8 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot import group_compatibility_handlers as compatibility
-from app.bot import group_social_handlers, group_viral_upgrade as viral_upgrade
+from app.bot import group_social_handlers
+from app.bot import group_viral_upgrade as viral_upgrade
 from app.domain.natal_chart import NatalChartResult
 from app.services.birth_profile import BirthProfileService
 from app.services.onboarding import OnboardingService
