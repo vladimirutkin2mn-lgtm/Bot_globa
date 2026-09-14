@@ -11,6 +11,7 @@ from aiogram.filters import BaseFilter, Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot import group_handlers
+from app.bot.reading_story_checkout_handlers import router as reading_story_checkout_router
 
 router = Router(name="chat_scope")
 _GROUP_CHAT = F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP})
@@ -152,3 +153,8 @@ async def personal_callback_in_group(callback: CallbackQuery, bot: Bot) -> None:
         "Этот сценарий личный. Продолжить его можно один на один с Numa.",
         reply_markup=await _private_keyboard(bot, private_payload_for_callback(callback.data)),
     )
+
+
+# This child router must stay behind the group redirect but ahead of persona routers:
+# story-aware unlock callbacks share the normal persona prefixes by design.
+router.include_router(reading_story_checkout_router)

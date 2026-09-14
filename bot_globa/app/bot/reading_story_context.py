@@ -6,6 +6,11 @@ from uuid import UUID
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from app.domain.reading_checkout_resume import (
+    ReadingCheckoutTarget,
+    parse_reading_resume_callback,
+)
+
 STORY_CONTINUATION_ID_KEY = "reading_story_continuation_id"
 DIRECT_STORY_LINK_PREFIX = "stories:here:"
 _GENERIC_STORY_LINK_PREFIX = "stories:link:"
@@ -47,7 +52,7 @@ def target_story_keyboard(
     story_id: UUID | None,
     reading_id: UUID,
 ) -> InlineKeyboardMarkup:
-    """Replace the generic story picker with one explicit confirmation for this story."""
+    """Target story-save and checkout-resume actions at the selected story."""
 
     if story_id is None:
         return markup
@@ -57,10 +62,29 @@ def target_story_keyboard(
     for row in markup.inline_keyboard:
         replaced: list[InlineKeyboardButton] = []
         for button in row:
-            if button.callback_data == generic:
+            callback_data = button.callback_data
+            if callback_data == generic:
                 replaced.append(InlineKeyboardButton(text=_TARGET_BUTTON, callback_data=targeted))
-            else:
-                replaced.append(button)
+                continue
+            checkout_target = parse_reading_resume_callback(callback_data)
+            if (
+                checkout_target is not None
+                and checkout_target.reading_id == reading_id
+                and checkout_target.story_id is None
+            ):
+                replaced.append(
+                    button.model_copy(
+                        update={
+                            "callback_data": ReadingCheckoutTarget(
+                                reading_id=reading_id,
+                                persona_code=checkout_target.persona_code,
+                                story_id=story_id,
+                            ).callback_data
+                        }
+                    )
+                )
+                continue
+            replaced.append(button)
         rows.append(replaced)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
