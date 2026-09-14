@@ -6,9 +6,10 @@ intake. The code is consumed once the original horoscope screen is restored.
 """
 
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot import horoscope_flow as flow
 from app.bot.scene_media import Scene
@@ -20,9 +21,16 @@ DAY_FORECAST_INTENT = "day_forecast"
 
 PERSONAL_DAILY_PROMPT = (
     "✨ Сегодня для вас\n\n"
-    "Общий гороскоп — только фон. Теперь можно посмотреть, где сегодняшний день касается именно "
-    "вашей истории. Что важнее: отношения, работа, деньги или общее направление? Можно задать "
-    "свой вопрос — не нужно формулировать его «правильно»."
+    "Выберите, на что посмотреть в первую очередь. Можно взять готовую тему или задать свой "
+    "вопрос — не нужно формулировать его «правильно»."
+)
+PERSONAL_DAILY_FOCUS_QUESTIONS = MappingProxyType(
+    {
+        "love": "Что сегодня особенно важно учитывать в отношениях?",
+        "work": "Что сегодня особенно важно учитывать в работе?",
+        "money": "Что сегодня особенно важно учитывать в деньгах и финансовых решениях?",
+        "general": "Что сегодня особенно важно учитывать в течение дня?",
+    }
 )
 
 
@@ -38,6 +46,37 @@ _INTENTS = {
         prompt=PERSONAL_DAILY_PROMPT,
     )
 }
+
+
+def personal_daily_keyboard() -> InlineKeyboardMarkup:
+    """Offer useful one-tap day focuses while keeping free-form input available."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="❤️ Отношения", callback_data=flow.callback("day", "focus", "love")
+                ),
+                InlineKeyboardButton(
+                    text="💼 Работа", callback_data=flow.callback("day", "focus", "work")
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💰 Деньги", callback_data=flow.callback("day", "focus", "money")
+                ),
+                InlineKeyboardButton(
+                    text="🧭 Общее", callback_data=flow.callback("day", "focus", "general")
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✍️ Свой вопрос", callback_data=flow.callback("day", "custom")
+                )
+            ],
+            [InlineKeyboardButton(text="← В главное меню", callback_data=flow.callback("menu"))],
+        ]
+    )
 
 
 def pending_horoscope_intent(data: dict[str, object]) -> HoroscopeIntent | None:
@@ -70,7 +109,11 @@ async def resume_horoscope_intent(message: Message, state: FSMContext) -> bool:
         message,
         Scene.QUESTION,
         intent.prompt,
-        reply_markup=flow.HOROSCOPE_FLOW.question_keyboard(),
+        reply_markup=(
+            personal_daily_keyboard()
+            if intent.topic == DAY_FORECAST_INTENT
+            else flow.HOROSCOPE_FLOW.question_keyboard()
+        ),
         state=state,
     )
     return True

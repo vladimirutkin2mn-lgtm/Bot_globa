@@ -18,7 +18,8 @@ def test_daily_digest_leads_with_a_concrete_personal_forecast_cta() -> None:
 def test_direct_daily_conversion_handler_is_registered_as_its_own_router() -> None:
     assert router.name == "daily_conversion"
     assert "Сегодня для вас" in PERSONAL_DAILY_PROMPT
-    assert "отношения, работа, деньги" in PERSONAL_DAILY_PROMPT
+    assert "готовую тему" in PERSONAL_DAILY_PROMPT
+    assert "свой вопрос" in PERSONAL_DAILY_PROMPT
 
 
 def test_astrologer_makes_today_forecast_the_first_follow_up_choice() -> None:

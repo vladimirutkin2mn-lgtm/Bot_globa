@@ -12,6 +12,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.bot import group_handlers
 from app.bot.daily_entry_handlers import router as daily_entry_router
+from app.bot.daily_personal_topic_handlers import router as daily_personal_topic_router
 from app.bot.reading_story_checkout_handlers import router as reading_story_checkout_router
 
 router = Router(name="chat_scope")
@@ -160,4 +161,5 @@ async def personal_callback_in_group(callback: CallbackQuery, bot: Bot) -> None:
 # This keeps private callbacks private while allowing narrow entry points to override
 # historical handlers without duplicating the dispatcher wiring.
 router.include_router(daily_entry_router)
+router.include_router(daily_personal_topic_router)
 router.include_router(reading_story_checkout_router)
