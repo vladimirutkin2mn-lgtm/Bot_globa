@@ -36,6 +36,7 @@ from app.bot.reading_renderer import (
     render_preview,
     render_reveal,
 )
+from app.bot.reading_story_context import continuation_story_id, target_story_keyboard
 from app.bot.scene_media import Scene, answer_scene
 from app.bot.screen import forget_screen, show_screen, show_thinking
 from app.bot.tarot_art import card_art
@@ -627,6 +628,7 @@ class PersonaReadingHandlers:
         data = await state.get_data()
         topic = data.get("topic")
         question = data.get("question")
+        story_id = continuation_story_id(data)
         if user is None or not isinstance(topic, str) or not isinstance(question, str):
             await state.clear()
             await self._answer_unavailable(message, state)
@@ -657,7 +659,14 @@ class PersonaReadingHandlers:
             await state.clear()
             await self._answer_unavailable(message, state)
             return
-        await self._deliver(message, state, outcome, bundle, user.id)
+        await self._deliver(
+            message,
+            state,
+            outcome,
+            bundle,
+            user.id,
+            continuation_story_id=story_id,
+        )
 
     async def _generated(
         self,
@@ -759,18 +768,31 @@ class PersonaReadingHandlers:
         outcome: PersonaPreviewOutcome,
         bundle: PersonaReadingBundle,
         user_id: UUID,
+        *,
+        continuation_story_id: UUID | None = None,
     ) -> None:
         await state.clear()
         if _is_complete(outcome):
             if outcome.visibility is ReadingPreviewVisibility.FULL:
-                await self._send_full(message, state, outcome, bundle, user_id)
+                await self._send_full(
+                    message,
+                    state,
+                    outcome,
+                    bundle,
+                    user_id,
+                    continuation_story_id=continuation_story_id,
+                )
                 return
             if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
                 await _send_chunks(
                     message,
                     state,
                     render_preview(outcome, self._flow.copy),
-                    self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
+                    target_story_keyboard(
+                        self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
+                        continuation_story_id,
+                        outcome.reading_id,
+                    ),
                     Scene.PREVIEW,
                 )
                 return
@@ -778,7 +800,11 @@ class PersonaReadingHandlers:
                 message,
                 state,
                 render_micro_preview(outcome, self._flow.copy),
-                self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
+                target_story_keyboard(
+                    self._flow.result_keyboard(outcome.reading_id, bundle.full_price_label),
+                    continuation_story_id,
+                    outcome.reading_id,
+                ),
                 Scene.PREVIEW_ALREADY_USED,
             )
             return
@@ -817,6 +843,8 @@ class PersonaReadingHandlers:
         outcome: PersonaPreviewOutcome,
         bundle: PersonaReadingBundle,
         user_id: UUID,
+        *,
+        continuation_story_id: UUID | None = None,
     ) -> None:
         try:
             offer_memory = await bundle.memory.should_offer_consent(user_id)
@@ -827,7 +855,11 @@ class PersonaReadingHandlers:
             message,
             state,
             render_full(outcome, self._flow.copy),
-            self._flow.full_result_keyboard(outcome.reading_id),
+            target_story_keyboard(
+                self._flow.full_result_keyboard(outcome.reading_id),
+                continuation_story_id,
+                outcome.reading_id,
+            ),
             Scene.FULL_READING,
         )
         if offer_memory:
