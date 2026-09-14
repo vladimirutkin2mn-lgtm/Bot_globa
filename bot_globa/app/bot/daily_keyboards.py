@@ -76,9 +76,6 @@ def daily_sign_keyboard(selected_sign: ZodiacSign | None) -> InlineKeyboardMarku
             )
         )
     rows = [buttons[index : index + 2] for index in range(0, len(buttons), 2)]
-    if selected_sign is not None:
-        rows.append(
-            [InlineKeyboardButton(text="Показывать все знаки", callback_data="daily:sign:clear")]
-        )
+    rows.append([InlineKeyboardButton(text="Все знаки", callback_data="daily:all")])
     rows.append([InlineKeyboardButton(text="← Назад к гороскопу", callback_data="menu:daily")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
