@@ -35,7 +35,7 @@ def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
     ]
 
 
-def _reading(*, created_at: datetime, topic: str = "choice") -> ReadingHistoryChoice:
+def _reading(*, created_at: datetime, topic: str = "decision") -> ReadingHistoryChoice:
     return ReadingHistoryChoice(
         reading_id=uuid4(),
         persona_code=TAROT_FLOW.persona_code,
