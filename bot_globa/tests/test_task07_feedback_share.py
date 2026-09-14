@@ -53,9 +53,12 @@ def test_unwrapped_daily_text_cannot_be_confirmed() -> None:
 
 
 def test_daily_share_requires_explicit_confirmation_before_chat_picker() -> None:
-    callbacks = _callbacks(daily_share_preview_keyboard())
+    keyboard = daily_share_preview_keyboard()
+    callbacks = _callbacks(keyboard)
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
 
     assert callbacks == [DAILY_SHARE_CONFIRM_CALLBACK, "menu:daily"]
+    assert all(button.url is None for button in buttons)
     assert all(len(value.encode("utf-8")) <= 64 for value in callbacks)
 
 
