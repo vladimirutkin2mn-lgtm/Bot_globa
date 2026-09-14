@@ -6,15 +6,16 @@ Compatibility keeps its selected context even when natal profiles are missing an
 straight into self-confirmed sun-sign selection instead of an intermediate upsell screen.
 """
 
+# ruff: noqa: PLW0603
+
 from collections.abc import Awaitable, Callable
 from html import escape
 
 from aiogram import Bot, F
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot import chat_scope_handlers
+from app.bot import chat_scope_handlers, group_handlers, group_p1_08
 from app.bot import group_compatibility_handlers as compatibility
-from app.bot import group_handlers, group_p1_08
 from app.bot import group_viral_handlers as viral
 from app.bot import group_viral_upgrade as viral_upgrade
 from app.bot.scene_media import send_art
