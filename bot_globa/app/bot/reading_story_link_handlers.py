@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.reading_story_context import DIRECT_STORY_LINK_PREFIX, parse_direct_story_link
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.domain.reading_story import ReadingStoryView
@@ -66,6 +67,46 @@ def linked_keyboard(story_id: UUID) -> InlineKeyboardMarkup:
             ],
             [InlineKeyboardButton(text="← К моим историям", callback_data="menu:readings")],
         ]
+    )
+
+
+@router.callback_query(F.data.startswith(DIRECT_STORY_LINK_PREFIX))
+async def link_directly_to_story(
+    callback: CallbackQuery,
+    state: FSMContext,
+    onboarding: OnboardingService,
+    reading_stories: ReadingStoryService,
+) -> None:
+    if not isinstance(callback.message, Message):
+        await callback.answer()
+        return
+    target = parse_direct_story_link(callback.data)
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is None or target is None:
+        await callback.answer(
+            _NOT_ONBOARDED if user is None else _STALE_READING,
+            show_alert=True,
+        )
+        return
+    story_id, reading_id = target
+    try:
+        await reading_stories.link_reading(user.id, story_id, reading_id)
+        story = await reading_stories.get(user.id, story_id)
+    except ReadingStoryNotFoundError:
+        await callback.answer("Эта история уже недоступна.", show_alert=True)
+        return
+    except ReadingStoryReadingError:
+        await callback.answer(_STALE_READING, show_alert=True)
+        return
+
+    await callback.answer("Разбор добавлен")
+    await state.clear()
+    await show_screen(
+        callback.message,
+        Scene.HISTORY,
+        f"Разбор добавлен в «{escape(story.title)}».",
+        reply_markup=linked_keyboard(story.id),
+        state=state,
     )
 
 
