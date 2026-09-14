@@ -1,7 +1,8 @@
 """Contracts for the first on-demand daily horoscope entry."""
 
 from app.bot import chat_scope_handlers
-from app.bot.daily_entry_handlers import needs_daily_sign, router as daily_entry_router
+from app.bot.daily_entry_handlers import needs_daily_sign
+from app.bot.daily_entry_handlers import router as daily_entry_router
 from app.domain.daily_horoscope import DailyHoroscopeMode, DailyHoroscopePreferenceView
 from app.domain.natal_chart import ZodiacSign
 
