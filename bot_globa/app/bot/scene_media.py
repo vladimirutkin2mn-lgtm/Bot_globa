@@ -130,7 +130,9 @@ _telegram_file_ids: dict[str, str] = {}
 
 # CJM v2 uses full-width art as punctuation, not chrome. Utility, payment, privacy,
 # settings, errors and safety hand-offs stay fast plain-text messages even though their
-# legacy scene assets remain available for design reference.
+# legacy scene assets remain available for design reference. The daily forecast itself is
+# also plain text so manual viewing and the scheduled worker share one delivery surface;
+# only the first-time zodiac picker keeps its illustration.
 MEDIA_SCENES = frozenset(
     {
         Scene.ONBOARDING_START,
@@ -146,7 +148,6 @@ MEDIA_SCENES = frozenset(
         Scene.FULL_READING,
         Scene.FOLLOW_UP_RESULT,
         Scene.DAILY_ZODIAC,
-        Scene.DAILY_HOROSCOPE,
     }
 )
 
