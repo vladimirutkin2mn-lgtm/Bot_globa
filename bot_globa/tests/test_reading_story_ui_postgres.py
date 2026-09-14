@@ -100,7 +100,7 @@ async def test_cross_persona_story_choices_use_only_owned_ready_metadata(
     ]
 
     ordered = await history.ready_metadata(owner_id, (older_id, newest_id))
-    assert [item.reading_id for item in ordered] == [older_id, newest_id]
+    assert [item.reading_id for item in ordered] == [newest_id, older_id]
 
 
 async def test_unlink_owned_reading_cannot_remove_another_users_story_link(

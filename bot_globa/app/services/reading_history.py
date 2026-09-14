@@ -118,10 +118,10 @@ class ReadingHistoryService:
         user_id: UUID,
         reading_ids: Sequence[UUID],
     ) -> tuple[ReadingHistoryChoice, ...]:
-        """Resolve story members using safe metadata while preserving story order."""
+        """Resolve story members using safe metadata, newest reading first."""
 
-        ordered = tuple(reading_ids)
-        if not ordered:
+        requested = tuple(reading_ids)
+        if not requested:
             return ()
         async with self._sessions() as session:
             rows = (
@@ -136,14 +136,14 @@ class ReadingHistoryService:
                     .join(Persona, Persona.id == Reading.persona_id)
                     .where(
                         Reading.user_id == user_id,
-                        Reading.id.in_(ordered),
+                        Reading.id.in_(requested),
                         Reading.status.in_(_READY_STATUSES),
                         Reading.deleted_at.is_(None),
                     )
                 )
             ).all()
-        by_id = {row.id: self._choice(row) for row in rows}
-        return tuple(by_id[reading_id] for reading_id in ordered if reading_id in by_id)
+        choices = tuple(self._choice(row) for row in rows)
+        return self._newest_first(choices)
 
     async def owns_ready(self, user_id: UUID, reading_id: UUID) -> bool:
         """Authorize feedback on either a free preview or an unlocked full reading."""
@@ -178,6 +178,18 @@ class ReadingHistoryService:
                     )
                 )
             )
+
+    @staticmethod
+    def _newest_first(
+        choices: Sequence[ReadingHistoryChoice],
+    ) -> tuple[ReadingHistoryChoice, ...]:
+        return tuple(
+            sorted(
+                choices,
+                key=lambda item: (item.created_at, item.reading_id.int),
+                reverse=True,
+            )
+        )
 
     @staticmethod
     def _validate_page(page: int, page_size: int) -> None:
