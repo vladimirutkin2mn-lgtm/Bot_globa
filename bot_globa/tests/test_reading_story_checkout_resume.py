@@ -120,16 +120,19 @@ def test_story_checkout_parser_rejects_malformed_or_mixed_targets() -> None:
     assert parse_reading_resume_callback("tarot:unlock:broken") is None
     assert parse_reading_resume_callback("tarot:unlock:broken:broken") is None
     assert parse_reading_resume_callback(f"unknown:unlock:{_READING_ID}") is None
-    assert reading_target_from_snapshot(
-        {
-            "resume_target": {
-                "kind": "reading",
-                "reading_id": str(_READING_ID),
-                "persona_code": "tarot_reader",
-                "story_id": "broken",
+    assert (
+        reading_target_from_snapshot(
+            {
+                "resume_target": {
+                    "kind": "reading",
+                    "reading_id": str(_READING_ID),
+                    "persona_code": "tarot_reader",
+                    "story_id": "broken",
+                }
             }
-        }
-    ) is None
+        )
+        is None
+    )
 
 
 def test_story_checkout_router_is_nested_before_persona_routers() -> None:
