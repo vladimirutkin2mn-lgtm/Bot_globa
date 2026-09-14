@@ -22,6 +22,11 @@ def test_group_runtime_installs_upgrades_in_dependency_order(
     )
     monkeypatch.setattr(
         group_runtime,
+        "install_group_compatibility_ux",
+        lambda: calls.append("compatibility_ux"),
+    )
+    monkeypatch.setattr(
+        group_runtime,
         "install_group_viral_mechanics",
         lambda: calls.append("viral"),
     )
@@ -35,10 +40,23 @@ def test_group_runtime_installs_upgrades_in_dependency_order(
         "install_group_p1_08",
         lambda: calls.append("p1_08"),
     )
+    monkeypatch.setattr(
+        group_runtime,
+        "install_group_cjm_v3",
+        lambda: calls.append("cjm_v3"),
+    )
 
     group_runtime.install_group_runtime()
 
-    assert calls == ["social", "compatibility", "viral", "viral_upgrade", "p1_08"]
+    assert calls == [
+        "social",
+        "compatibility",
+        "compatibility_ux",
+        "viral",
+        "viral_upgrade",
+        "p1_08",
+        "cjm_v3",
+    ]
 
 
 def test_dispatcher_installs_group_runtime_before_registering_group_router() -> None:
