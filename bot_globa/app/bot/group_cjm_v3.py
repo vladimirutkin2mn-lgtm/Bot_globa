@@ -399,7 +399,9 @@ def install_group_cjm_v3() -> None:
 
     router = group_handlers.router
     router.message.handlers[:] = [
-        handler for handler in router.message.handlers if handler.callback is not group_p1_08.group_added
+        handler
+        for handler in router.message.handlers
+        if handler.callback is not group_p1_08.group_added
     ]
     router.message(F.new_chat_members)(group_added_cjm)
     router.callback_query(F.data.startswith("g3:"))(group_cjm_action)
