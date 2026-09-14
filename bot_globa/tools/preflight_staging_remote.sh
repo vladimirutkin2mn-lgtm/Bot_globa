@@ -124,11 +124,17 @@ if [[ "${stripe_key}" != sk_test_* && "${stripe_key}" != rk_test_* ]]; then
 fi
 
 require_public_flag BILLING_ENABLED true
+require_public_flag BILLING_KILL_SWITCH false
 require_public_flag STRIPE_ENABLED true
 require_public_flag YOOKASSA_ENABLED true
 require_public_flag SUBSCRIPTIONS_ENABLED true
 require_public_flag REFUNDS_ENABLED true
+require_public_flag YOOKASSA_RECURRING_ENABLED true
+require_public_flag YOOKASSA_RECEIPTS_REQUIRED true
+require_public_flag TELEGRAM_STARS_ENABLED false
+require_public_flag ADMIN_METRICS_ENABLED true
 require_public_flag ORACLE_ENABLED true
+require_public_flag ORACLE_ROLLOUT_PERCENTAGE 100
 
 # Keep output intentionally free of values: this script may run inside GitHub Actions logs.
 echo "Staging preflight passed: environment, isolation, HTTPS and sandbox credential shape are valid."
