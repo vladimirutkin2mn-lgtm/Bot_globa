@@ -8,9 +8,9 @@ from aiogram.types import InlineKeyboardMarkup
 from app.bot.horoscope_flow import HOROSCOPE_FLOW
 from app.bot.persona_flows import LOVE_ORACLE_FLOW, MYSTICAL_PSYCHOLOGIST_FLOW, TAROT_FLOW
 from app.bot.reading_story_continuation_handlers import (
-    STORY_CONTINUATION_ID_KEY,
     _CONTINUATION_FLOWS,
     _NEW_SESSION_PROMPT,
+    STORY_CONTINUATION_ID_KEY,
     _continuation_context,
     _has_included_followup,
     _latest_anchor,
