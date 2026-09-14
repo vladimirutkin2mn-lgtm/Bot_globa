@@ -63,7 +63,7 @@ def test_story_checkout_target_round_trips_through_callback_snapshot_and_payment
 
 
 def test_legacy_snapshot_still_decodes_without_story_context() -> None:
-    snapshot = {
+    snapshot: dict[str, object] = {
         "resume_target": {
             "kind": "reading",
             "reading_id": str(_READING_ID),
