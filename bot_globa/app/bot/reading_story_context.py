@@ -21,9 +21,7 @@ def continuation_story_id(data: dict[str, object]) -> UUID | None:
 
 
 def direct_story_link_callback(story_id: UUID, reading_id: UUID) -> str:
-    callback = (
-        f"{DIRECT_STORY_LINK_PREFIX}{_compact_uuid(story_id)}:{_compact_uuid(reading_id)}"
-    )
+    callback = f"{DIRECT_STORY_LINK_PREFIX}{_compact_uuid(story_id)}:{_compact_uuid(reading_id)}"
     if len(callback.encode("utf-8")) > 64:
         raise ValueError("story callback exceeds Telegram callback-data limit")
     return callback
