@@ -532,10 +532,23 @@ async def _recent_reading_buttons(
                 reading_id=button.reading_id,
                 label=button.label,
                 open_callback=button.open_callback,
-                active_followup=followup.status is ReadingFollowUpStatus.READY,
+                active_followup=_has_active_followup(
+                    followup.status,
+                    followup.remaining_questions,
+                ),
             )
         )
     return tuple(buttons)
+
+
+def _has_active_followup(status: ReadingFollowUpStatus, remaining_questions: int) -> bool:
+    if remaining_questions <= 0:
+        return False
+    return status in {
+        ReadingFollowUpStatus.READY,
+        ReadingFollowUpStatus.COMPLETED,
+        ReadingFollowUpStatus.CORRUPTED_HISTORY,
+    }
 
 
 async def _show_story(
@@ -548,7 +561,7 @@ async def _show_story(
     reading_history: ReadingHistoryService,
 ) -> None:
     story = await reading_stories.get(user_id, story_id)
-    metadata = await reading_history.ready_metadata(user_id, tuple(reversed(story.reading_ids)))
+    metadata = await reading_history.ready_metadata(user_id, story.reading_ids)
     max_page = max((len(metadata) - 1) // _PAGE_SIZE, 0)
     visible_page = min(max(page, 0), max_page)
     start = visible_page * _PAGE_SIZE
