@@ -1,6 +1,8 @@
+import pytest
 from aiogram.types import InlineKeyboardMarkup
 
 from app.bot import group_compatibility_handlers as compatibility
+from app.bot import group_private_cjm
 from app.bot.group_cjm_v3 import (
     _context_sign_keyboard,
     _precision_keyboard,
@@ -30,6 +32,7 @@ def test_primary_group_menu_contains_only_two_core_games() -> None:
         ("💞 Совместимость", "gcu:open"),
         ("⚔️ Астро-дуэль", "v:o:d"),
     ]
+    assert all(len(value.encode("utf-8")) <= 64 for value in _callbacks(keyboard))
 
 
 def test_context_survives_sign_callbacks_within_telegram_limit() -> None:
@@ -57,6 +60,32 @@ def test_precision_retry_keeps_selected_context() -> None:
     callbacks = _callbacks(keyboard)
     assert "g3:r:t:2t.5m" in callbacks
     assert all(len(value.encode("utf-8")) <= 64 for value in callbacks)
+
+
+def test_compatibility_private_cta_preserves_originating_scenario(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(group_private_cjm, "_PREVIOUS_PRECISION_KEYBOARD", _precision_keyboard)
+
+    love = group_private_cjm._precision_keyboard_with_private(
+        "numa_bot",
+        context=CompatibilityContext.LOVE,
+        first_id=101,
+        second_id=202,
+        first_name="Аня",
+        second_name="Миша",
+    )
+    work = group_private_cjm._precision_keyboard_with_private(
+        "numa_bot",
+        context=CompatibilityContext.WORK,
+        first_id=101,
+        second_id=202,
+        first_name="Аня",
+        second_name="Миша",
+    )
+
+    assert _callbacks(love)[0] == "p108:private:compatibility:love"
+    assert _callbacks(work)[0] == "p108:private:compatibility:astro"
 
 
 def test_duel_without_profiles_starts_with_first_missing_sign() -> None:
