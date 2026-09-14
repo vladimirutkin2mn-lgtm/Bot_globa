@@ -84,8 +84,13 @@ def test_compatibility_private_cta_preserves_originating_scenario(
         second_name="Миша",
     )
 
-    assert _callbacks(love)[0] == "p108:private:compatibility:love"
-    assert _callbacks(work)[0] == "p108:private:compatibility:astro"
+    love_callbacks = _callbacks(love)
+    work_callbacks = _callbacks(work)
+    assert love_callbacks[0] == "p108:private:compatibility:love"
+    assert work_callbacks[0] == "p108:private:compatibility:astro"
+    assert all(
+        len(value.encode("utf-8")) <= 64 for value in love_callbacks + work_callbacks
+    )
 
 
 def test_duel_without_profiles_starts_with_first_missing_sign() -> None:
@@ -103,6 +108,7 @@ def test_duel_result_private_cta_opens_astro_not_tarot() -> None:
         ("🪐 Разобрать дуэль лично", "p108:private:duel:astro", None),
         ("← К играм", "group:party:menu", None),
     ]
+    assert all(len(value.encode("utf-8")) <= 64 for value in _callbacks(keyboard))
 
 
 def test_quick_result_uses_selected_context_instead_of_romantic_shipping_copy() -> None:
