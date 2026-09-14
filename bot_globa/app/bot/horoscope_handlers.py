@@ -31,6 +31,7 @@ from app.bot.persona_flow import (
     QUESTION_PROMPT,
     UNLOCKING,
 )
+from app.bot.reading_story_context import continuation_story_id, target_story_keyboard
 from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen
 from app.bot.states import HoroscopeStates
@@ -132,8 +133,6 @@ def create_horoscope_router() -> Router:
 class HoroscopeHandlers:
     """Every astrologer handler; the birth intake runs before the reading intake."""
 
-    # ------------------------------------------------------------------ entry ---
-
     async def start_from_command(
         self,
         message: Message,
@@ -231,7 +230,6 @@ class HoroscopeHandlers:
         )
 
     async def cancel(self, callback: CallbackQuery, state: FSMContext) -> None:
-        """Abandon the intake outright; consent stays granted so a retry is one step."""
         await self.to_main_menu(callback, state)
 
     async def to_main_menu(self, callback: CallbackQuery, state: FSMContext) -> None:
@@ -245,8 +243,6 @@ class HoroscopeHandlers:
                 reply_markup=main_menu_keyboard(),
                 state=state,
             )
-
-    # ---------------------------------------------------------------- consent ---
 
     async def grant_consent(
         self,
@@ -287,8 +283,6 @@ class HoroscopeHandlers:
                 reply_markup=main_menu_keyboard(),
                 state=state,
             )
-
-    # ------------------------------------------------------------ birth intake ---
 
     async def receive_birth_date(
         self,
@@ -578,8 +572,6 @@ class HoroscopeHandlers:
             utc_offset_minutes=offset,
         )
 
-    # ---------------------------------------------------------------- profile ---
-
     async def show_profile(
         self,
         callback: CallbackQuery,
@@ -669,7 +661,6 @@ class HoroscopeHandlers:
             await state.clear()
             await callback.message.answer(NOT_ONBOARDED)
             return
-        # Revoking consent also purges the stored ciphertext, so one action removes both.
         await birth_profile_service.revoke_consent(user.id)
         await state.clear()
         await show_screen(
@@ -679,8 +670,6 @@ class HoroscopeHandlers:
             reply_markup=main_menu_keyboard(),
             state=state,
         )
-
-    # ---------------------------------------------------------- reading intake ---
 
     async def select_topic(
         self,
@@ -884,8 +873,6 @@ class HoroscopeHandlers:
             state=state,
         )
 
-    # ---------------------------------------------------------------- history ---
-
     async def show_history(
         self,
         callback: CallbackQuery,
@@ -946,8 +933,6 @@ class HoroscopeHandlers:
             notice=HOROSCOPE_FLOW.texts.opening,
             notice_scene=Scene.HISTORY_OPEN,
         )
-
-    # ----------------------------------------------------------------- result ---
 
     async def retry(
         self,
@@ -1033,8 +1018,6 @@ class HoroscopeHandlers:
             reply_markup=HOROSCOPE_FLOW.result_keyboard(),
             state=state,
         )
-
-    # ---------------------------------------------------------------- internal ---
 
     async def _start(
         self,
@@ -1169,7 +1152,6 @@ class HoroscopeHandlers:
         birth_time: time | None,
         offsets: tuple[int, ...],
     ) -> None:
-        """The clocks went back: one hour of guessing would move the ascendant."""
         clock = birth_time.strftime(TIME_FORMAT) if birth_time is not None else "это время"
         await state.update_data(
             birth_time=None if birth_time is None else birth_time.isoformat(),
@@ -1234,6 +1216,7 @@ class HoroscopeHandlers:
         data = await state.get_data()
         topic = data.get("topic")
         question = data.get("question")
+        story_id = continuation_story_id(data)
         if user is None or not isinstance(topic, str) or not isinstance(question, str):
             await state.clear()
             await self._answer_unavailable(message, state)
@@ -1261,6 +1244,7 @@ class HoroscopeHandlers:
             price_label,
             user_id=user.id,
             oracle_memory=oracle_memory,
+            continuation_story_id=story_id,
         )
 
     async def _regenerate(
@@ -1311,6 +1295,7 @@ class HoroscopeHandlers:
         *,
         user_id: UUID,
         oracle_memory: OracleMemoryService | None,
+        continuation_story_id: UUID | None = None,
     ) -> None:
         await state.clear()
         if _renderable(outcome):
@@ -1323,6 +1308,7 @@ class HoroscopeHandlers:
                     full=True,
                     user_id=user_id,
                     oracle_memory=oracle_memory,
+                    continuation_story_id=continuation_story_id,
                 )
                 return
             if outcome.visibility is ReadingPreviewVisibility.PREVIEW:
@@ -1332,7 +1318,11 @@ class HoroscopeHandlers:
                     outcome,
                     renderer,
                     full=False,
-                    markup=HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price_label),
+                    markup=target_story_keyboard(
+                        HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price_label),
+                        continuation_story_id,
+                        outcome.reading_id,
+                    ),
                 )
                 return
             await self._send(
@@ -1342,7 +1332,11 @@ class HoroscopeHandlers:
                 renderer,
                 full=False,
                 micro=True,
-                markup=HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price_label),
+                markup=target_story_keyboard(
+                    HOROSCOPE_FLOW.result_keyboard(outcome.reading_id, price_label),
+                    continuation_story_id,
+                    outcome.reading_id,
+                ),
             )
             return
 
@@ -1384,6 +1378,7 @@ class HoroscopeHandlers:
         markup: InlineKeyboardMarkup | None = None,
         user_id: UUID | None = None,
         oracle_memory: OracleMemoryService | None = None,
+        continuation_story_id: UUID | None = None,
     ) -> None:
         result = outcome.generation.result
         facts = outcome.generation.facts
@@ -1403,7 +1398,11 @@ class HoroscopeHandlers:
                 offer_memory = await oracle_memory.should_offer_consent(user_id)
             except Exception:
                 logger.warning("memory_offer_check_failed", exc_info=True)
-        final = markup or HOROSCOPE_FLOW.full_result_keyboard(outcome.reading_id)
+        final = target_story_keyboard(
+            markup or HOROSCOPE_FLOW.full_result_keyboard(outcome.reading_id),
+            continuation_story_id,
+            outcome.reading_id,
+        )
         for index, chunk in enumerate(chunks):
             reply_markup = final if index == len(chunks) - 1 else None
             if index == 0:
@@ -1450,7 +1449,6 @@ def _renderable(outcome: HoroscopePreviewOutcome) -> bool:
 
 
 def _history_label(topic: str) -> str:
-    """A stored horoscope topic carries a scope and may carry a reference date."""
     scope = topic.split(":", 1)[0]
     return flow.HOROSCOPE_TOPIC_LABELS.get(scope, HOROSCOPE_FLOW.texts.history_fallback)
 
@@ -1521,7 +1519,6 @@ def _stored_date(value: object) -> date | None:
 
 
 def _parse_date(value: str | None) -> date | None:
-    """Reject a future date here, before the place query reaches the geocoder."""
     if value is None:
         return None
     try:
