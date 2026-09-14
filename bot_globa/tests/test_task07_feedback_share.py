@@ -1,5 +1,7 @@
 from urllib.parse import parse_qs, urlparse
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot.public_share_handlers import (
     DAILY_SHARE_CONFIRM_CALLBACK,
     build_daily_telegram_share_url_from_public_text,
@@ -12,7 +14,7 @@ from app.bot.public_share_handlers import (
 from app.bot.reading_feedback_handlers import feedback_recovery_keyboard
 
 
-def _callbacks(keyboard) -> list[str]:
+def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [
         button.callback_data
         for row in keyboard.inline_keyboard
