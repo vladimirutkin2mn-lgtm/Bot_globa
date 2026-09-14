@@ -181,7 +181,7 @@ def _markup_labels(session: RecordingSession) -> list[str]:
     return [button.text for row in markup.inline_keyboard for button in row]
 
 
-async def test_the_digest_screen_opens_its_settings(
+async def test_the_digest_screen_keeps_secondary_controls_under_more(
     bot: tuple[Bot, RecordingSession],
 ) -> None:
     instance, session = bot
@@ -194,8 +194,10 @@ async def test_the_digest_screen_opens_its_settings(
     )
 
     assert "Гороскоп на сегодня" in _copy(session)[-1]
-    assert "Настройки" in _markup_labels(session)
-    assert "Выбрать свой знак" in _markup_labels(session)
+    labels = _markup_labels(session)
+    assert "Ещё" in labels
+    assert "Настройки" not in labels
+    assert "Выбрать свой знак" not in labels
 
 
 async def test_selected_sign_opens_as_a_compact_daily_view(
@@ -213,8 +215,10 @@ async def test_selected_sign_opens_as_a_compact_daily_view(
     rendered = _copy(session)[-1]
     assert "♈ Овен" in rendered
     assert "♉ Телец" not in rendered
-    assert "Все знаки" in _markup_labels(session)
-    assert "Сменить знак" in _markup_labels(session)
+    labels = _markup_labels(session)
+    assert "Ещё" in labels
+    assert "Все знаки" not in labels
+    assert "Сменить знак" not in labels
 
 
 async def test_all_signs_expands_without_forgetting_the_saved_sign(
