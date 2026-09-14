@@ -23,6 +23,13 @@ class FreePreviewVariant(StrEnum):
     COMPLETE = "complete"
 
 
+# Release-level stop control for free_preview_v1. This is intentionally explicit rather than
+# hidden in billing or entry-source configuration: ending the experiment must freeze one answer
+# contract for everyone. Changing this flag/default requires a normal reviewed release; it is not
+# a runtime hot toggle.
+FREE_PREVIEW_EXPERIMENT_ENABLED = True
+FREE_PREVIEW_DEFAULT_VARIANT = FreePreviewVariant.COMPLETE
+
 _VARIANTS = tuple(ConversionHookVariant)
 _FREE_PREVIEW_VARIANTS = tuple(FreePreviewVariant)
 
@@ -41,11 +48,16 @@ def conversion_hook_variant(user_id: UUID) -> ConversionHookVariant:
 
 
 def free_preview_variant(user_id: UUID) -> FreePreviewVariant:
-    """Assign a stable 50/50 preview arm independently from entry source and hook cohort.
+    """Return the active preview contract for this user.
 
-    A keyed-by-name digest keeps this experiment independent from the legacy A/B/C hook
-    byte split without storing a new assignment row or exposing any external identifier.
+    While the experiment is enabled, assignment is a stable 50/50 split independent from
+    entry source and the legacy hook cohort. Once the release-level stop control is disabled,
+    every user receives ``FREE_PREVIEW_DEFAULT_VARIANT`` so the experiment can end without
+    introducing a second assignment system or rewriting stored user data.
     """
+
+    if not FREE_PREVIEW_EXPERIMENT_ENABLED:
+        return FREE_PREVIEW_DEFAULT_VARIANT
 
     digest = blake2s(
         FREE_PREVIEW_EXPERIMENT.encode() + user_id.bytes,
