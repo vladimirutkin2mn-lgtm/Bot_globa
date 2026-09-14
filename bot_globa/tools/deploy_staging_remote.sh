@@ -55,6 +55,9 @@ run_remote "test -f ${DEPLOY_PATH}/.env.staging"
 echo "==> Recording exact staging release identity"
 run_remote "cd ${DEPLOY_PATH} && umask 077 && printf '%s\n' 'RELEASE_CODE_SHA=${RELEASE_CODE_SHA}' 'RELEASE_CHECKLIST_VERSION=${RELEASE_CHECKLIST_VERSION}' > .env.staging.release.tmp && mv .env.staging.release.tmp .env.staging.release"
 
+echo "==> Preflighting staging configuration"
+run_remote "cd ${DEPLOY_PATH} && STAGING_ENV_FILE=.env.staging STAGING_PUBLIC_ENV_FILE=staging.public.env bash tools/preflight_staging_remote.sh"
+
 echo "==> Verifying the proxy-owned network already exists"
 if ! run_remote "docker network inspect web >/dev/null 2>&1"; then
   echo "Refusing staging deployment: external Docker network 'web' is missing."
