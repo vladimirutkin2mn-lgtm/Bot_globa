@@ -24,6 +24,7 @@ PAYMENT_PUBLIC_BASE_URL=https://staging.example.test
 PAYMENT_WEBHOOK_SECRET=payment-webhook-secret
 YOOKASSA_SHOP_ID=test-shop-id
 YOOKASSA_SECRET_KEY=test-yookassa-secret
+YOOKASSA_WEBHOOK_IP_ALLOWLIST=192.0.2.0/24
 STRIPE_SECRET_KEY=sk_test_staging
 STRIPE_WEBHOOK_SECRET=whsec_staging
 ADMIN_API_TOKEN=staging-admin-token
@@ -87,6 +88,18 @@ def test_staging_preflight_rejects_production_database(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "POSTGRES_DB" in result.stderr
+
+
+def test_staging_preflight_requires_yookassa_webhook_allowlist(tmp_path: Path) -> None:
+    content = _valid_env().replace(
+        "YOOKASSA_WEBHOOK_IP_ALLOWLIST=192.0.2.0/24",
+        "YOOKASSA_WEBHOOK_IP_ALLOWLIST=",
+    )
+
+    result = _run_preflight(tmp_path, content)
+
+    assert result.returncode != 0
+    assert "YOOKASSA_WEBHOOK_IP_ALLOWLIST" in result.stderr
 
 
 def test_staging_preflight_rejects_live_stripe_without_leaking_key(tmp_path: Path) -> None:
