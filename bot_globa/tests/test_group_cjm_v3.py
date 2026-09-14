@@ -88,9 +88,7 @@ def test_compatibility_private_cta_preserves_originating_scenario(
     work_callbacks = _callbacks(work)
     assert love_callbacks[0] == "p108:private:compatibility:love"
     assert work_callbacks[0] == "p108:private:compatibility:astro"
-    assert all(
-        len(value.encode("utf-8")) <= 64 for value in love_callbacks + work_callbacks
-    )
+    assert all(len(value.encode("utf-8")) <= 64 for value in love_callbacks + work_callbacks)
 
 
 def test_duel_without_profiles_starts_with_first_missing_sign() -> None:
