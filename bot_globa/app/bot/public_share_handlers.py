@@ -80,9 +80,7 @@ def extract_confirmed_daily_share(preview_text: str) -> str:
         DAILY_SHARE_PREVIEW_SUFFIX
     ):
         raise ValueError("daily share confirmation is not a known preview")
-    public_text = preview_text[
-        len(DAILY_SHARE_PREVIEW_PREFIX) : -len(DAILY_SHARE_PREVIEW_SUFFIX)
-    ]
+    public_text = preview_text[len(DAILY_SHARE_PREVIEW_PREFIX) : -len(DAILY_SHARE_PREVIEW_SUFFIX)]
     if not public_text.strip():
         raise ValueError("daily share confirmation is empty")
     return public_text
