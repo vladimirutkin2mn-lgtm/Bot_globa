@@ -22,6 +22,19 @@ def test_renderer_adds_exact_fact_labels_without_model_authored_positions() -> N
     assert "1991-04-17" not in rendered.text
 
 
+def test_full_result_promises_current_story_and_followup_rights() -> None:
+    bundle = sample_fact_bundle()
+    result = AstrologyReadingResult.model_validate_json(json.dumps(valid_horoscope_payload(bundle)))
+
+    rendered = HoroscopeRenderer().render(result, bundle)
+
+    assert "Моих историях" in rendered.text
+    assert "до 3 уточняющих вопросов" in rendered.text
+    assert "24 часов" in rendered.text
+    assert "Моих разборах" not in rendered.text
+    assert "уточнить один момент" not in rendered.text
+
+
 def test_renderer_refuses_result_bound_to_another_fact_bundle() -> None:
     first = sample_fact_bundle()
     second = sample_fact_bundle(exact_time=False)
