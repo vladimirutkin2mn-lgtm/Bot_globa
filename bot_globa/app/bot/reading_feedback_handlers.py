@@ -50,8 +50,8 @@ def feedback_recovery_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🔄 Новый расклад", callback_data="menu:tarot")],
-            [InlineKeyboardButton(text="🧠 Разобрать ситуацию", callback_data="menu:psychologist")],
-            [InlineKeyboardButton(text="🪐 Спросить астролога", callback_data="menu:astrologer")],
+            [InlineKeyboardButton(text="🧠 Разобрать ситуацию", callback_data="menu:psy")],
+            [InlineKeyboardButton(text="🪐 Спросить астролога", callback_data="menu:astro")],
         ]
     )
 
