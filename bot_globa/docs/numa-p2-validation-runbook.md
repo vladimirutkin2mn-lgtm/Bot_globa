@@ -144,10 +144,16 @@ explicit stop decision. The owner decision must name:
 - exact code/config mechanism used to stop assignment;
 - decision date.
 
-**Current gap:** assignment is deterministic in code, but `main` has no runtime kill-switch for
-`free_preview_v1`. Therefore a new concurrent experiment is blocked until this is either
-implemented or the current experiment is ended by an explicit release that freezes one arm.
-Do not describe the test as operationally switchable before that change exists.
+A release-level stop control is now defined in `app/domain/conversion_experiment.py`:
+
+- `FREE_PREVIEW_EXPERIMENT_ENABLED = True` keeps the stable 50/50 assignment active;
+- `FREE_PREVIEW_DEFAULT_VARIANT = complete` is the declared default after the test ends;
+- a reviewed release that sets `FREE_PREVIEW_EXPERIMENT_ENABLED = False` sends every user to
+  the default arm without creating a second assignment system or rewriting user data.
+
+This is deliberately a **release-level switch**, not a runtime hot toggle. Ending the experiment
+therefore requires a normal code review/deploy and a dated owner decision. Do not describe it as
+an instant operational toggle.
 
 ## 5. Old-vs-new answer review
 
@@ -218,7 +224,7 @@ Documentation/scaffolding is complete when:
 - factual `cjm-v2.md` matches effective registered routes/installers;
 - observation template covers the current source/state matrix;
 - this mobile runbook is version-controlled;
-- experiment arm/source semantics are explicit;
+- experiment arm/source semantics and release-level stop rule are explicit;
 - no paid research is auto-triggered.
 
 Empirical completion requires **all** of the following:
