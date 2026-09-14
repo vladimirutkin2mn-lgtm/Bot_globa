@@ -64,6 +64,19 @@ def test_staging_preflight_rejects_placeholder_public_url(tmp_path: Path) -> Non
     assert "PAYMENT_PUBLIC_BASE_URL" in result.stderr
 
 
+def test_staging_preflight_rejects_embedded_database_placeholder(tmp_path: Path) -> None:
+    content = _valid_env().replace(
+        "staging-db-secret@db:5432/bot_globa_staging",
+        "CHANGE_ME@db:5432/bot_globa_staging",
+    )
+
+    result = _run_preflight(tmp_path, content)
+
+    assert result.returncode != 0
+    assert "DATABASE_URL" in result.stderr
+    assert "CHANGE_ME" not in result.stdout + result.stderr
+
+
 def test_staging_preflight_rejects_production_database(tmp_path: Path) -> None:
     content = _valid_env().replace(
         "POSTGRES_DB=bot_globa_staging",
