@@ -1,6 +1,6 @@
 """Declarative description of one persona's Telegram reading flow.
 
-A flow owns everything that differs between personas — callback namespace, FSM states,
+A flow owns everything that differs between personas — callback namespace, states,
 copy and keyboards — so `app.bot.persona_handlers` can stay persona-neutral.
 """
 
@@ -25,8 +25,10 @@ BACK_TO_READINGS_BUTTON = "← К моим разборам"
 SKIP_CONTEXT_BUTTON = "Без контекста"
 RETRY_BUTTON = "Попробовать ещё раз"
 FOLLOWUP_BUTTON = "💬 Продолжить — Numa помнит этот сеанс"
+ADD_TO_STORY_BUTTON = "＋ Добавить в историю"
 FOLLOWUP_NAMESPACE = "rfu"
 FEEDBACK_NAMESPACE = "rfb"
+STORY_LINK_NAMESPACE = "stories:link"
 
 NOT_ONBOARDED = "Сначала отправьте /start и примите условия использования."
 INVALID_TEXT = "Нужно обычное текстовое сообщение допустимой длины."
@@ -52,6 +54,13 @@ def feedback_buttons(reading_id: UUID) -> list[InlineKeyboardButton]:
             callback_data=f"{FEEDBACK_NAMESPACE}:miss:{reading_id}",
         ),
     ]
+
+
+def add_to_story_button(reading_id: UUID) -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        text=ADD_TO_STORY_BUTTON,
+        callback_data=f"{STORY_LINK_NAMESPACE}:{reading_id}",
+    )
 
 
 def feedback_reason_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
@@ -202,6 +211,7 @@ class ReadingFlow:
                     callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
                 )
             ],
+            [add_to_story_button(reading_id)],
             feedback_buttons(reading_id),
             [InlineKeyboardButton(text=BACK_TO_READINGS_BUTTON, callback_data="menu:readings")],
             [InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)],
@@ -224,6 +234,7 @@ class ReadingFlow:
                     )
                 ]
             )
+            rows.append([add_to_story_button(reading_id)])
             rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
         else:
             rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=self._menu)])
