@@ -1,5 +1,6 @@
 """Fast contracts for continuing a manual reading story."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from aiogram.types import InlineKeyboardMarkup
@@ -9,7 +10,10 @@ from app.bot.persona_flows import LOVE_ORACLE_FLOW, MYSTICAL_PSYCHOLOGIST_FLOW, 
 from app.bot.reading_story_continuation_handlers import (
     _CONTINUATION_FLOWS,
     _NEW_SESSION_PROMPT,
+    STORY_CONTINUATION_ID_KEY,
+    _continuation_context,
     _has_included_followup,
+    _latest_anchor,
     _parse_uuid,
 )
 from app.bot.reading_story_keyboards import (
@@ -18,6 +22,7 @@ from app.bot.reading_story_keyboards import (
     story_continuation_cancel_keyboard,
     story_detail_keyboard,
 )
+from app.domain.reading_history import ReadingHistoryChoice
 from app.services.reading_followup import ReadingFollowUpStatus
 
 
@@ -28,6 +33,16 @@ def _callbacks(keyboard: InlineKeyboardMarkup) -> list[str]:
         for button in row
         if (callback := button.callback_data) is not None
     ]
+
+
+def _reading(*, created_at: datetime, topic: str = "decision") -> ReadingHistoryChoice:
+    return ReadingHistoryChoice(
+        reading_id=uuid4(),
+        persona_code=TAROT_FLOW.persona_code,
+        topic=topic,
+        status="preview_ready",
+        created_at=created_at,
+    )
 
 
 def test_included_followup_requires_live_remaining_question() -> None:
@@ -59,11 +74,34 @@ def test_current_personas_continue_through_their_existing_question_states() -> N
     assert {code: flow.question_state for code, flow in _CONTINUATION_FLOWS.items()} == expected
 
 
+def test_continuation_anchor_is_newest_by_date_not_story_insertion_order() -> None:
+    now = datetime(2026, 9, 14, 8, 0, tzinfo=UTC)
+    older = _reading(created_at=now - timedelta(days=7))
+    newest = _reading(created_at=now)
+
+    assert _latest_anchor((newest, older)) == newest
+    assert _latest_anchor((older, newest)) == newest
+    assert _latest_anchor(()) is None
+
+
+def test_selected_story_context_names_story_and_anchor_without_old_answer_text() -> None:
+    anchor = _reading(created_at=datetime(2026, 9, 14, 8, 0, tzinfo=UTC))
+
+    context = _continuation_context("Работа <осень>", anchor)
+
+    assert "Работа &lt;осень&gt;" in context
+    assert "14.09.2026" in context
+    assert TAROT_FLOW.topic_labels[anchor.topic] in context
+    assert STORY_CONTINUATION_ID_KEY == "reading_story_continuation_id"
+
+
 def test_new_story_session_copy_is_explicit_about_separate_access_and_memory() -> None:
+    assert "{context}" in _NEW_SESSION_PROMPT
     assert "новый отдельный разбор" in _NEW_SESSION_PROMPT
     assert "расходуется отдельно" in _NEW_SESSION_PROMPT
     assert "Старые тексты из истории" in _NEW_SESSION_PROMPT
     assert "память используется только если вы уже включили" in _NEW_SESSION_PROMPT
+    assert "После результата" in _NEW_SESSION_PROMPT
     assert "prompt" not in _NEW_SESSION_PROMPT.casefold()
 
 
