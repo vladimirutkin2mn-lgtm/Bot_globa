@@ -1,5 +1,7 @@
 """Contracts for the first on-demand daily horoscope entry."""
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot import chat_scope_handlers
 from app.bot.daily_entry_handlers import needs_daily_sign
 from app.bot.daily_entry_handlers import router as daily_entry_router
@@ -17,11 +19,10 @@ def _preference(sign: ZodiacSign | None) -> DailyHoroscopePreferenceView:
     )
 
 
-def _callbacks(markup: object) -> set[str]:
-    keyboard = getattr(markup, "inline_keyboard")
+def _callbacks(markup: InlineKeyboardMarkup) -> set[str]:
     return {
         button.callback_data
-        for row in keyboard
+        for row in markup.inline_keyboard
         for button in row
         if button.callback_data is not None
     }
