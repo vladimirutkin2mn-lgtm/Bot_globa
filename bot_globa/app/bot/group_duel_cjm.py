@@ -1,5 +1,7 @@
 """Task 06 bridge: skip the missing-profile interstitial in Astro Duel."""
 
+# ruff: noqa: PLW0603
+
 from collections.abc import Awaitable, Callable
 from html import escape
 
