@@ -77,5 +77,5 @@ def _expand_uuid(value: str) -> UUID | None:
     try:
         raw = urlsafe_b64decode(f"{value}==".encode("ascii"))
         return UUID(bytes=raw) if len(raw) == 16 else None
-    except (Base64Error, ValueError):
+    except (Base64Error, UnicodeEncodeError, ValueError):
         return None
