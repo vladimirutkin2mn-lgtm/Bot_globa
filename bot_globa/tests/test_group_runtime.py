@@ -50,6 +50,11 @@ def test_group_runtime_installs_upgrades_in_dependency_order(
         "install_group_cjm_v3",
         lambda: calls.append("cjm_v3"),
     )
+    monkeypatch.setattr(
+        group_runtime,
+        "install_group_private_cjm",
+        lambda: calls.append("private_cjm"),
+    )
 
     group_runtime.install_group_runtime()
 
@@ -62,6 +67,7 @@ def test_group_runtime_installs_upgrades_in_dependency_order(
         "p1_08",
         "duel_cjm",
         "cjm_v3",
+        "private_cjm",
     ]
 
 
