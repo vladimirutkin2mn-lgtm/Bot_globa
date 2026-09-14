@@ -14,6 +14,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.bot.keyboards import main_menu_keyboard
 from app.bot.persona_flow import FOLLOWUP_NAMESPACE, MENU_BUTTON, NOT_ONBOARDED
+from app.bot.reading_story_context import STORY_CONTINUATION_ID_KEY, continuation_story_id
 from app.bot.safety_intake import SafetyIntake, state_name
 from app.bot.scene_media import Scene
 from app.bot.screen import send_artifact, show_screen, show_thinking
@@ -188,17 +189,18 @@ class ReadingFollowUpHandlers:
     ) -> None:
         if message.from_user is None:
             return
+        data = await state.get_data()
+        story_id = continuation_story_id(data)
         question = _bounded_text(message)
         if question is None:
             await show_screen(
                 message,
                 Scene.FOLLOW_UP_QUESTION,
                 INVALID,
-                reply_markup=_cancel_keyboard(),
+                reply_markup=_cancel_keyboard(story_id),
                 state=state,
             )
             return
-        data = await state.get_data()
         reading_id = _stored_reading_id(data.get("reading_id"))
         user = await onboarding.current_user(message.from_user.id)
         if reading_id is None or user is None:
@@ -215,6 +217,7 @@ class ReadingFollowUpHandlers:
                 state,
                 outcome,
                 subscriptions_enabled=billing_settings.subscriptions_enabled,
+                story_id=story_id,
             )
             return
         if outcome.status is ReadingFollowUpStatus.EXPIRED:
@@ -222,18 +225,21 @@ class ReadingFollowUpHandlers:
                 message,
                 Scene.FOLLOW_UP_ALREADY_USED,
                 SESSION_EXPIRED,
-                reply_markup=main_menu_keyboard(),
+                reply_markup=_return_keyboard(story_id),
                 state=state,
             )
             return
         if outcome.status is ReadingFollowUpStatus.INVALID_QUESTION:
             await state.set_state(ReadingFollowUpStates.waiting_for_question)
-            await state.update_data(reading_id=str(reading_id))
+            restored: dict[str, str] = {"reading_id": str(reading_id)}
+            if story_id is not None:
+                restored[STORY_CONTINUATION_ID_KEY] = str(story_id)
+            await state.update_data(restored)
             await show_screen(
                 message,
                 Scene.FOLLOW_UP_QUESTION,
                 INVALID,
-                reply_markup=_cancel_keyboard(),
+                reply_markup=_cancel_keyboard(story_id),
                 state=state,
             )
             return
@@ -242,7 +248,7 @@ class ReadingFollowUpHandlers:
                 message,
                 Scene.FOLLOW_UP_GENERATING,
                 PROCESSING,
-                reply_markup=main_menu_keyboard(),
+                reply_markup=_return_keyboard(story_id),
                 state=state,
             )
             return
@@ -251,7 +257,7 @@ class ReadingFollowUpHandlers:
                 message,
                 Scene.FOLLOW_UP_ALREADY_USED,
                 NOT_ELIGIBLE,
-                reply_markup=main_menu_keyboard(),
+                reply_markup=_return_keyboard(story_id),
                 state=state,
             )
             return
@@ -259,7 +265,7 @@ class ReadingFollowUpHandlers:
             message,
             Scene.FOLLOW_UP_FAILED,
             FAILED,
-            reply_markup=_retry_keyboard(reading_id),
+            reply_markup=_retry_keyboard(reading_id, story_id),
             state=state,
         )
         logger.info(
@@ -276,10 +282,11 @@ async def _send(
     outcome: ReadingFollowUpResultView,
     *,
     subscriptions_enabled: bool,
+    story_id: UUID | None = None,
 ) -> None:
     view = outcome.view
     if view is None:
-        await message.answer(CORRUPTED, reply_markup=main_menu_keyboard())
+        await message.answer(CORRUPTED, reply_markup=_return_keyboard(story_id))
         return
     sections = [f"<b>{ANSWER_TITLE}:</b> {quote(view.question)}", quote(view.answer)]
     if view.limitations:
@@ -300,6 +307,7 @@ async def _send(
             view.reading_id,
             outcome.remaining_questions,
             subscriptions_enabled=subscriptions_enabled,
+            story_id=story_id,
         ),
         state=state,
     )
@@ -311,7 +319,18 @@ def _handoff_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _cancel_keyboard() -> InlineKeyboardMarkup:
+def _cancel_keyboard(story_id: UUID | None = None) -> InlineKeyboardMarkup:
+    if story_id is not None:
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="← Назад к истории",
+                        callback_data=f"stories:open:{story_id}:0",
+                    )
+                ]
+            ]
+        )
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -329,14 +348,29 @@ def _followup_result_keyboard(
     remaining: int,
     *,
     subscriptions_enabled: bool,
+    story_id: UUID | None = None,
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if remaining > 0:
+        callback = (
+            f"stories:continue:{story_id}"
+            if story_id is not None
+            else f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}"
+        )
         rows.append(
             [
                 InlineKeyboardButton(
                     text=f"Ещё вопрос · осталось {remaining}",
-                    callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
+                    callback_data=callback,
+                )
+            ]
+        )
+    if story_id is not None:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="← Назад к истории",
+                    callback_data=f"stories:open:{story_id}:0",
                 )
             ]
         )
@@ -353,15 +387,31 @@ def _followup_result_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _retry_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
+def _return_keyboard(story_id: UUID | None) -> InlineKeyboardMarkup:
+    if story_id is None:
+        return main_menu_keyboard()
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=RETRY_BUTTON,
-                    callback_data=f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}",
+                    text="← Назад к истории",
+                    callback_data=f"stories:open:{story_id}:0",
                 )
             ],
+            [InlineKeyboardButton(text=MENU_BUTTON, callback_data="report:menu")],
+        ]
+    )
+
+
+def _retry_keyboard(reading_id: UUID, story_id: UUID | None = None) -> InlineKeyboardMarkup:
+    callback = (
+        f"stories:continue:{story_id}"
+        if story_id is not None
+        else f"{FOLLOWUP_NAMESPACE}:ask:{reading_id}"
+    )
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=RETRY_BUTTON, callback_data=callback)],
             [InlineKeyboardButton(text=MENU_BUTTON, callback_data="report:menu")],
         ]
     )
