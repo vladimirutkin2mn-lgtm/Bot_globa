@@ -17,7 +17,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.daily_keyboards import DAILY_SHARE_CALLBACK
-from app.bot.keyboards import main_menu_keyboard
 from app.bot.reading_share_handlers import (
     SHARE_ENTRY_PAYLOAD,
     SHARE_RENDERER_VERSION,
@@ -38,15 +37,20 @@ DAILY_SHARE_FORMAT = "daily_public_card_v1"
 DAILY_SHARE_SCENARIO = "daily_public_share_v1"
 DAILY_SHARE_CAMPAIGN = "daily_public_card_v1"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
+DAILY_SHARE_CONFIRM_CALLBACK = "pubshare:daily:confirm"
 
-DAILY_SHARE_READY = "Тема дня готова. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
+DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте точный текст:\n\n"
+DAILY_SHARE_PREVIEW_SUFFIX = (
+    "\n\nЭто весь публичный текст. Личный профиль, история и ваши вопросы не добавятся."
+)
+DAILY_SHARE_READY = "Текст подтверждён. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
 DAILY_SHARE_UNAVAILABLE = (
     "Не получилось подготовить тему дня. Откройте гороскоп и попробуйте ещё раз."
 )
 DAILY_SHARE_LANDING = (
     "🌙 <b>Вам прислали тему дня из Numa</b>\n\n"
-    "В Numa есть общий гороскоп на день, личные разборы и групповые сценарии. "
-    "Можно начать с сегодняшнего прогноза или задать свой вопрос."
+    "Это общая тема сегодняшнего гороскопа. Откройте свой прогноз — если знак ещё не выбран, "
+    "Numa сначала предложит выбрать его."
 )
 
 
@@ -61,29 +65,75 @@ def render_daily_public_share(source_text: str) -> str:
     return f"{title}\n{theme}\n\n— Numa"
 
 
-def build_daily_telegram_share_url(bot_username: str, source_text: str) -> str:
-    """Build an aggregate daily referral with no user or reading identifier."""
+def render_daily_share_preview(public_text: str) -> str:
+    """Show exactly what can become public before the user confirms it."""
+
+    if not public_text.strip():
+        raise ValueError("daily public share text is empty")
+    return f"{DAILY_SHARE_PREVIEW_PREFIX}{public_text}{DAILY_SHARE_PREVIEW_SUFFIX}"
+
+
+def extract_confirmed_daily_share(preview_text: str) -> str:
+    """Recover only text that was explicitly shown by the confirmation screen."""
+
+    if not preview_text.startswith(DAILY_SHARE_PREVIEW_PREFIX) or not preview_text.endswith(
+        DAILY_SHARE_PREVIEW_SUFFIX
+    ):
+        raise ValueError("daily share confirmation is not a known preview")
+    public_text = preview_text[len(DAILY_SHARE_PREVIEW_PREFIX) : -len(DAILY_SHARE_PREVIEW_SUFFIX)]
+    if not public_text.strip():
+        raise ValueError("daily share confirmation is empty")
+    return public_text
+
+
+def build_daily_telegram_share_url_from_public_text(bot_username: str, public_text: str) -> str:
+    """Build a share URL only after the exact public text has been confirmed."""
 
     username = bot_username.removeprefix("@").strip()
     if not username:
         raise ValueError("bot username is required for sharing")
+    if not public_text.strip():
+        raise ValueError("public text is required for sharing")
     referral = f"https://t.me/{username}?start={DAILY_SHARE_ENTRY_PAYLOAD}"
-    return "https://t.me/share/url?" + urlencode(
-        {
-            "url": referral,
-            "text": render_daily_public_share(source_text),
-        }
+    return "https://t.me/share/url?" + urlencode({"url": referral, "text": public_text})
+
+
+def build_daily_telegram_share_url(bot_username: str, source_text: str) -> str:
+    """Build an aggregate daily referral with no user or reading identifier."""
+
+    return build_daily_telegram_share_url_from_public_text(
+        bot_username,
+        render_daily_public_share(source_text),
+    )
+
+
+def daily_share_preview_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Подтвердить текст",
+                    callback_data=DAILY_SHARE_CONFIRM_CALLBACK,
+                )
+            ],
+            [InlineKeyboardButton(text="← К гороскопу", callback_data="menu:daily")],
+        ]
+    )
+
+
+def daily_share_landing_keyboard() -> InlineKeyboardMarkup:
+    """Take a recipient into the scenario they were actually shown."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="☀️ Мой прогноз на сегодня", callback_data="menu:daily")]
+        ]
     )
 
 
 @router.callback_query(F.data == DAILY_SHARE_CALLBACK)
-async def share_daily_public_card(
-    callback: CallbackQuery,
-    bot: Bot,
-    onboarding: OnboardingService,
-    numa_product_analytics: NumaProductAnalytics,
-) -> None:
-    """Hand off the common day card to Telegram's native share picker."""
+async def share_daily_public_card(callback: CallbackQuery) -> None:
+    """Preview the exact public card; sharing is impossible until explicit confirmation."""
 
     await callback.answer()
     if not isinstance(callback.message, Message):
@@ -91,14 +141,41 @@ async def share_daily_public_card(
     source_text = callback.message.text or callback.message.caption or ""
     try:
         public_text = render_daily_public_share(source_text)
-        bot_user = await bot.get_me()
-        if not bot_user.username:
-            raise ValueError("bot username is unavailable")
-        share_url = build_daily_telegram_share_url(bot_user.username, source_text)
-    except (TelegramAPIError, ValueError):
+        preview_text = render_daily_share_preview(public_text)
+    except ValueError:
         await callback.message.answer(DAILY_SHARE_UNAVAILABLE)
         return
 
+    await callback.message.answer(
+        preview_text,
+        reply_markup=daily_share_preview_keyboard(),
+        parse_mode=None,
+    )
+
+
+@router.callback_query(F.data == DAILY_SHARE_CONFIRM_CALLBACK)
+async def confirm_daily_public_card(
+    callback: CallbackQuery,
+    bot: Bot,
+    onboarding: OnboardingService,
+    numa_product_analytics: NumaProductAnalytics,
+) -> None:
+    """Only an explicitly confirmed preview receives a native Telegram share button."""
+
+    if not isinstance(callback.message, Message):
+        await callback.answer()
+        return
+    try:
+        public_text = extract_confirmed_daily_share(callback.message.text or "")
+        bot_user = await bot.get_me()
+        if not bot_user.username:
+            raise ValueError("bot username is unavailable")
+        share_url = build_daily_telegram_share_url_from_public_text(bot_user.username, public_text)
+    except (TelegramAPIError, ValueError):
+        await callback.answer("Не получилось подтвердить этот текст.", show_alert=True)
+        return
+
+    await callback.answer("Текст подтверждён")
     user = await onboarding.current_user(callback.from_user.id)
     if user is not None:
         await _track_share_intent(numa_product_analytics, user.id, public_text)
@@ -139,7 +216,7 @@ async def open_daily_share_referral(
         message,
         Scene.MAIN_MENU,
         DAILY_SHARE_LANDING,
-        reply_markup=main_menu_keyboard(),
+        reply_markup=daily_share_landing_keyboard(),
         state=state,
     )
 
