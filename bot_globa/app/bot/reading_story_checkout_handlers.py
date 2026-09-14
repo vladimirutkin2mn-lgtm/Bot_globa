@@ -1,6 +1,7 @@
 """Resume a story-started reading through checkout without losing its target story."""
 
 from collections.abc import Mapping
+from uuid import UUID
 
 from aiogram import Router
 from aiogram.filters import BaseFilter
@@ -136,7 +137,7 @@ async def _resume_astrology(
     message: Message,
     state: FSMContext,
     target: ReadingCheckoutTarget,
-    user_id: object,
+    user_id: UUID,
     use_case: HoroscopeReadingUseCase,
     monetized: MonetizedReadingService,
     renderer: HoroscopeRenderer,
