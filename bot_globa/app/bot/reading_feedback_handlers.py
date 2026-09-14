@@ -4,7 +4,7 @@ import logging
 from uuid import UUID
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.persona_flow import FEEDBACK_NAMESPACE, feedback_reason_keyboard
 from app.bot.public_share_handlers import router as public_share_router
@@ -38,6 +38,22 @@ _FINAL_REACTIONS = {
     "miss_off_question": "miss_off_question",
     "miss_unclear": "miss_unclear",
 }
+
+FEEDBACK_RECOVERY_TEXT = (
+    "Понял. Не обязательно оставаться с неудачным ответом — можно сразу попробовать другой формат."
+)
+
+
+def feedback_recovery_keyboard() -> InlineKeyboardMarkup:
+    """Offer a concrete next step after a miss instead of ending the journey."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Новый расклад", callback_data="menu:tarot")],
+            [InlineKeyboardButton(text="🧠 Разобрать ситуацию", callback_data="menu:psychologist")],
+            [InlineKeyboardButton(text="🪐 Спросить астролога", callback_data="menu:astrologer")],
+        ]
+    )
 
 
 @router.callback_query(F.data.startswith(f"{FEEDBACK_NAMESPACE}:"))
@@ -79,14 +95,20 @@ async def submit_reading_feedback(
     )
     await callback.answer("Спасибо, это поможет улучшить разбор.")
 
-    if (
-        action == "hit"
-        and isinstance(callback.message, Message)
-        and await reading_history.owns_full(user.id, reading_id)
-    ):
+    if not isinstance(callback.message, Message):
+        return
+
+    if action == "hit" and await reading_history.owns_full(user.id, reading_id):
         await callback.message.answer(
             SHARE_PROMPT,
             reply_markup=share_offer_keyboard(reading_id),
+        )
+        return
+
+    if action != "hit":
+        await callback.message.answer(
+            FEEDBACK_RECOVERY_TEXT,
+            reply_markup=feedback_recovery_keyboard(),
         )
 
 
