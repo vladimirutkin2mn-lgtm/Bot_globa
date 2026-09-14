@@ -1,6 +1,8 @@
 """Continue a manual story without turning model interpretations into user facts."""
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from html import escape
 from uuid import UUID
 
 from aiogram import F, Router
@@ -17,6 +19,7 @@ from app.bot.reading_story_keyboards import (
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.bot.states import ReadingFollowUpStates
+from app.domain.reading_history import ReadingHistoryChoice
 from app.services.birth_profile import BirthProfileConsentRequiredError, BirthProfileService
 from app.services.onboarding import OnboardingService
 from app.services.reading_followup import ReadingFollowUpService, ReadingFollowUpStatus
@@ -25,21 +28,24 @@ from app.services.reading_story import ReadingStoryNotFoundError, ReadingStorySe
 
 router = Router(name="reading-story-continuation")
 
+STORY_CONTINUATION_ID_KEY = "reading_story_continuation_id"
 _NOT_ONBOARDED = "Сначала отправьте /start."
 _STALE = "Эта история уже недоступна. Откройте «Мои истории» заново."
 _EMPTY = "Сначала добавьте в историю хотя бы один готовый разбор."
 _PROCESSING = "По последнему разбору уже готовится уточнение. Откройте историю чуть позже."
 _INCLUDED_PROMPT = (
+    "{context}\n\n"
     "Что изменилось с прошлого разбора?\n\n"
     "Это уточнение входит в уже оплаченный 24-часовой сеанс: дополнительных списаний нет. "
     "Осталось вопросов в сеансе: {remaining}."
 )
 _NEW_SESSION_PROMPT = (
+    "{context}\n\n"
     "Что изменилось с прошлого разбора? Напишите одним сообщением.\n\n"
     "Это будет новый отдельный разбор: прошлый 24-часовой сеанс не переносится, а полный "
     "доступ, если понадобится, расходуется отдельно. Старые тексты из истории сами в новый "
     "разбор не подмешиваются; сохранённая память используется только если вы уже включили её. "
-    "Когда новый разбор будет готов, его можно вручную добавить в эту историю."
+    "После результата его можно добавить обратно в эту историю кнопкой «＋ Добавить в историю»."
 )
 _ASTRO_PROFILE_REQUIRED = (
     "Чтобы продолжить эту историю новым астрологическим разбором, снова нужны сохранённые "
@@ -51,25 +57,25 @@ _UNSUPPORTED = "Этот старый тип разбора пока нельз�
 @dataclass(frozen=True, slots=True)
 class _ContinuationFlow:
     question_state: State
-    topics: frozenset[str]
+    topic_labels: Mapping[str, str]
 
 
 _CONTINUATION_FLOWS = {
     TAROT_FLOW.persona_code: _ContinuationFlow(
         TAROT_FLOW.states.waiting_for_question,
-        frozenset(TAROT_FLOW.topic_labels),
+        TAROT_FLOW.topic_labels,
     ),
     LOVE_ORACLE_FLOW.persona_code: _ContinuationFlow(
         LOVE_ORACLE_FLOW.states.waiting_for_question,
-        frozenset(LOVE_ORACLE_FLOW.topic_labels),
+        LOVE_ORACLE_FLOW.topic_labels,
     ),
     MYSTICAL_PSYCHOLOGIST_FLOW.persona_code: _ContinuationFlow(
         MYSTICAL_PSYCHOLOGIST_FLOW.states.waiting_for_question,
-        frozenset(MYSTICAL_PSYCHOLOGIST_FLOW.topic_labels),
+        MYSTICAL_PSYCHOLOGIST_FLOW.topic_labels,
     ),
     HOROSCOPE_FLOW.persona_code: _ContinuationFlow(
         HOROSCOPE_FLOW.states.waiting_for_question,
-        frozenset(HOROSCOPE_FLOW.topic_labels),
+        HOROSCOPE_FLOW.topic_labels,
     ),
 }
 
@@ -97,11 +103,12 @@ async def continue_story(
     except ReadingStoryNotFoundError:
         await callback.message.answer(_STALE)
         return
-    metadata = await reading_history.ready_metadata(user.id, tuple(reversed(story.reading_ids)))
-    if not metadata:
+    metadata = await reading_history.ready_metadata(user.id, story.reading_ids)
+    anchor = _latest_anchor(metadata)
+    if anchor is None:
         await callback.message.answer(_EMPTY)
         return
-    anchor = metadata[0]
+    context = _continuation_context(story.title, anchor)
     followup = await reading_followups.inspect(anchor.reading_id, user.id)
     if followup.status is ReadingFollowUpStatus.PROCESSING:
         await state.clear()
@@ -115,19 +122,27 @@ async def continue_story(
         return
     if _has_included_followup(followup.status, followup.remaining_questions):
         await state.clear()
-        await state.update_data(reading_id=str(anchor.reading_id))
+        await state.update_data(
+            {
+                "reading_id": str(anchor.reading_id),
+                STORY_CONTINUATION_ID_KEY: str(story.id),
+            }
+        )
         await state.set_state(ReadingFollowUpStates.waiting_for_question)
         await show_screen(
             callback.message,
             Scene.FOLLOW_UP_QUESTION,
-            _INCLUDED_PROMPT.format(remaining=followup.remaining_questions),
+            _INCLUDED_PROMPT.format(
+                context=context,
+                remaining=followup.remaining_questions,
+            ),
             reply_markup=story_continuation_cancel_keyboard(story.id),
             state=state,
         )
         return
 
     flow = _CONTINUATION_FLOWS.get(anchor.persona_code)
-    if flow is None or anchor.topic not in flow.topics:
+    if flow is None or anchor.topic not in flow.topic_labels:
         await callback.message.answer(_UNSUPPORTED)
         return
     if anchor.persona_code == HOROSCOPE_FLOW.persona_code:
@@ -147,14 +162,37 @@ async def continue_story(
             return
 
     await state.clear()
-    await state.update_data(topic=anchor.topic)
+    await state.update_data(
+        {
+            "topic": anchor.topic,
+            STORY_CONTINUATION_ID_KEY: str(story.id),
+        }
+    )
     await state.set_state(flow.question_state)
     await show_screen(
         callback.message,
         Scene.QUESTION,
-        _NEW_SESSION_PROMPT,
+        _NEW_SESSION_PROMPT.format(context=context),
         reply_markup=story_continuation_cancel_keyboard(story.id),
         state=state,
+    )
+
+
+def _latest_anchor(metadata: Sequence[ReadingHistoryChoice]) -> ReadingHistoryChoice | None:
+    """Use chronology, not story insertion order, as the continuation anchor."""
+
+    if not metadata:
+        return None
+    return max(metadata, key=lambda item: (item.created_at, item.reading_id.int))
+
+
+def _continuation_context(story_title: str, anchor: ReadingHistoryChoice) -> str:
+    flow = _CONTINUATION_FLOWS.get(anchor.persona_code)
+    topic_label = flow.topic_labels.get(anchor.topic) if flow is not None else None
+    label = topic_label or "Разбор"
+    return (
+        f"Продолжаем историю «{escape(story_title)}».\n"
+        f"Опорный разбор: {escape(label)} · {anchor.created_at:%d.%m.%Y}."
     )
 
 
