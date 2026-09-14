@@ -36,6 +36,7 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="astro", description="🪐 Астролог"),
     BotCommand(command="pay", description="💳 Оплата"),
     BotCommand(command="paysupport", description="💬 Помощь с оплатой"),
+    BotCommand(command="terms", description="📄 Условия оплаты"),
 )
 
 GROUP_COMMANDS: tuple[BotCommand, ...] = (
