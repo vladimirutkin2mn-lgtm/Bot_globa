@@ -10,6 +10,7 @@ from app.bot.group_compatibility_handlers import install_group_compatibility_mec
 from app.bot.group_compatibility_ux import install_group_compatibility_ux
 from app.bot.group_duel_cjm import install_group_duel_cjm
 from app.bot.group_p1_08 import install_group_p1_08
+from app.bot.group_private_cjm import install_group_private_cjm
 from app.bot.group_social_handlers import install_group_social_mechanics
 from app.bot.group_viral_handlers import install_group_viral_mechanics
 from app.bot.group_viral_upgrade import install_group_viral_upgrade
@@ -26,3 +27,4 @@ def install_group_runtime() -> None:
     install_group_p1_08()
     install_group_duel_cjm()
     install_group_cjm_v3()
+    install_group_private_cjm()
