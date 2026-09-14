@@ -1,61 +1,158 @@
-# Numa P2 product-validation runbook
+# Numa product-validation runbook
 
-Status: execution checklist for task 11 of `numa-product-plan-2026-09-08.md`.
+Status: execution protocol for empirical Task 08 / issue #191.
 
-This document does not claim that any live observation has happened. It defines what must be inspected and what evidence may be recorded without storing private user content.
+This document does **not** claim that live observations have happened. CI, synthetic users and
+unit tests are prerequisites for live validation, not substitutes for it.
 
-## 1. First-use observation sample
+## 1. First-use sample
 
-Target: 10–15 real first-use sessions before drawing product conclusions.
+Target: **10–15 real first-use sessions** before drawing product conclusions.
 
-Use `numa-first-use-observation-template.md` for the observation rows. Keep the sample mixed across:
+Use `numa-first-use-observation-template.md`. The first pass must cover the actual source/state
+matrix rather than repeating one happy path:
 
-- personal question;
-- common daily horoscope;
-- group compatibility / duel;
-- payment / unlock.
+- ordinary personal entry via `Рассказать Numa`;
+- explicit Tarot/Love/Psy;
+- daily with no saved sign and with saved sign;
+- personal day with/without birth profile;
+- group compatibility and Astro Duel;
+- group → private transition;
+- share sender → recipient entry;
+- first free preview and later micro-preview;
+- full result with active follow-up session and expired/exhausted session;
+- stories return path;
+- payment → exact reading/story resume;
+- memory off and, where voluntarily enabled by the participant, memory on.
 
-Do not store the user's question, generated answer, name, Telegram ID, reading ID, birth data or screenshots containing those values in the observation sheet.
+Do not force every participant through every state. Across the whole 10–15-session sample each
+important coordinate must appear at least once.
 
-For each session record only the allowed structured fields from the template and note whether the user reached a useful outcome, hesitated, abandoned, returned or paid where observable.
+### Observation method
 
-Do not treat 10–15 sessions as statistical proof. The sample is for finding obvious UX failures, confusing copy and broken transitions before a larger experiment.
+The observer records behavior, not private content. Let the participant act without coaching
+until they are blocked. Ask neutral questions such as:
 
-## 2. Mobile visual QA matrix
+- «Что бы вы нажали дальше?»
+- «Что, по-вашему, сейчас произойдёт?»
+- «Что вы получили бесплатно, а за что здесь предлагают платить?»
+- «Если захотите вернуться к этой ситуации завтра, где будете искать?»
 
-Inspect on an actual Telegram mobile client at normal phone width. Check both short and long content where applicable.
+Do not explain the intended answer before the participant acts.
+
+### What counts as useful value
+
+A session reaches first useful value only when the user receives a substantive personal or
+shared result relevant to the chosen scenario. These events alone do **not** count as value:
+
+- opening `/start`;
+- receiving a scheduled daily notification;
+- viewing a paywall;
+- opening a story without an action/result;
+- seeing a loading/generating screen.
+
+## 2. Privacy boundary
+
+Never store in the observation notes:
+
+- question or generated private answer;
+- name/username/Telegram ID;
+- internal user UUID, reading ID or story title;
+- birth date/place/time;
+- payment credentials/provider raw payload;
+- screenshots containing any of the above.
+
+Allowed evidence: date, app/client context, anonymous slot, source code, experiment arm,
+structured pass/fail fields, generic non-identifying friction note and issue/PR reference.
+
+## 3. Mobile visual QA matrix
+
+Execute on an actual Telegram mobile client at normal phone width. Mark a row complete only
+after the screen was really viewed; CI does not satisfy this table.
 
 | Surface | Required cases | Inspect |
 | --- | --- | --- |
-| First screen | `/start`, returning user | useful choices visible without an extra `Начать`; no internal terms; hierarchy fits one screen reasonably |
-| Personal free answer | baseline and complete experiment arms | first useful statement is visible; no broken HTML; buttons are understandable; feedback appears before payment |
-| Personal full answer | short and long reading | sections are scannable; no Telegram truncation; purchased result remains reopenable; follow-up entitlement wording is accurate |
-| Daily horoscope | selected sign and all-sign digest | compact delivery does not feel like a large decorative card; sign switch/all-sign controls are obvious |
-| Payment | single reading, pack, subscription where enabled | product, amount, period/count and auto-renewal are explicit; back navigation works; current configured price is shown |
-| Payment completion | hosted payment return / supported provider route | exact saved result can be reopened; delivery failure is not described as payment failure |
-| Error / recovery | stale callback, generation failure, payment status uncertainty | no technical vocabulary or invented certainty; there is a clear safe next action |
-| Group result | compatibility and duel | pair/context is understandable; result does not imply factual mind-reading; one relevant private CTA is visible |
-| Add-to-group | private `Играть с друзьями` entry | permissions request is minimal; first-game instructions are short |
-| Share flow | share preview and Telegram picker | only purpose-built safe share content is visible; original question/full reading/birth data are absent |
-| Personal stories | empty, one reading, multiple readings | create/add/move/unlink/delete consequences are understandable; `Продолжить историю` boundary between included follow-up and new session is clear |
-| Astrology profile gate | profile present / absent / consent unavailable | missing data is described concretely; deleted profile is not silently reconstructed |
+| First screen | new `/start`, returning `/start` | `Рассказать Numa` is obvious; direct practices/daily/stories remain understandable; no obsolete four-persona explanation |
+| Consent | first personal action, already-consented return | just-in-time placement; back returns predictably; privacy copy does not block browsing |
+| Personal free answer | `baseline`, `complete`, later micro-preview | first useful statement visible; experiment arm not confused with one-time entitlement; feedback understandable |
+| Personal full answer | short/long result | readable chunks; `до 3 уточнений / 24 часа` is visible and accurate; result can be reopened |
+| Feedback recovery | negative feedback + reason | user has a concrete working next action; no dead callbacks |
+| Daily first entry | no sign saved | compact sign picker; `Все знаки` alternative; no natal questionnaire |
+| Daily normal | saved sign, all-sign | text-only forecast; one primary personal CTA; share and secondary actions do not dominate |
+| Personal day | profile absent/present | focus buttons work; saved profile skips intake; absent profile returns to original intent after intake |
+| Daily settings | enabled/disabled, timezone | saved local time/state visible; disable and re-enable work |
+| Daily share | preview → confirm → picker | exact outbound text shown before picker; no sign-specific/private data; recipient enters Daily directly |
+| Paid insight share | sender + recipient | explicit confirmation; private question/full answer absent from payload |
+| Stories hub | empty, latest readings, folders | newest items follow real chronology; active 24h sessions are distinguishable |
+| Continue story | active session, expired/exhausted session | included question vs new reading is unmistakable; no accidental charge promise |
+| Story + payment | checkout/resume | target story survives payment; exact reading resumes |
+| Astrology profile | absent/present/deleted | intake only when needed; deleted profile is not silently restored |
+| Group entry | bot added/menu | only Compatibility + Astro Duel compete on primary screen |
+| Compatibility | profile present/missing | selected context survives; each participant confirms own sign when needed; precision CTA is relevant |
+| Astro Duel | profile present/missing | sign fallback works; private CTA keeps Astro context |
+| Group → private | both core games | promised private scenario/source survives transition without chat text in deep link |
+| Payment | configured supported routes | product, amount, period/count clear; test prices unchanged for validation |
+| Payment completion | hosted/provider return | authoritative success only; exact saved result reopens; uncertain delivery not mislabeled as failed payment |
+| Error/recovery | stale callback, generation failure, checkout unavailable | plain language; safe next action; purchased result not lost |
+| Memory | off/on if participant enables it | off does not imply remembered private context; on has visible control/delete path |
 
 ### Visual pass criteria
 
-For every case answer yes/no:
+For every observed surface answer yes/no:
 
-1. Can the main purpose be understood without scrolling through decorative content first?
-2. Is the primary action visually distinguishable from secondary actions?
-3. Is the copy concise enough for Telegram while preserving the restrained mystical tone?
-4. Are there duplicate images, repeated headings or repeated sales promises that can be removed?
-5. Does any screen imply guaranteed events, factual mind-reading or fear-based certainty?
-6. Are price, entitlement and follow-up boundaries stated accurately?
-7. Does back/cancel return to a predictable place without losing an already purchased result?
-8. Does long content stay readable and inside Telegram limits?
+1. Is the purpose understandable before decorative content or long copy?
+2. Is one primary action visually distinguishable from secondary actions?
+3. Is the copy concise enough for Telegram without losing product boundaries?
+4. Are repeated headings/images/sales promises avoidable?
+5. Does anything imply guaranteed events, factual mind-reading or fear-based certainty?
+6. Are price, preview and follow-up boundaries accurate?
+7. Does back/cancel return predictably without losing a purchased result or intended story?
+8. Does long content remain readable inside Telegram limits?
+9. If the screen came from group/daily/share, does the promised source scenario survive?
+10. Are callbacks actually live, not only visually present?
 
-## 3. Old-vs-new free-preview review
+## 4. Current free-preview experiment contract
 
-Use the offline review packet from `build_oracle_product_review_packet.py` and score baseline vs candidate independently on the six fixed criteria:
+Current experiment: `free_preview_v1`.
+
+Population: Tarot/Love/Psy structured readings. Astrology is explicitly excluded.
+
+Assignment: stable 50/50 from internal user UUID; `entry_source` is a separate analytical
+coordinate and must not be used as the assignment key.
+
+Arms:
+
+- `baseline` — legacy short answer;
+- `complete` — concrete opening + first symbol where applicable + small practical step.
+
+Primary validation metric for the first small sample: **first useful answer understood**
+(observed yes/no), not checkout conversion alone. Supporting aggregate metrics: delivered
+first answer, feedback participation/reason, meaningful repeat action, confirmed purchase,
+refund and known variable cost.
+
+One-time free-preview entitlement is not the experiment. A user can be in `complete` and still
+receive a later micro-preview after the free entitlement has already been consumed.
+
+### Stop/default rule
+
+Do not launch another independent preview/content experiment until `free_preview_v1` has an
+explicit stop decision. The owner decision must name:
+
+- experiment key/version;
+- primary metric;
+- default arm after stop;
+- exact code/config mechanism used to stop assignment;
+- decision date.
+
+**Current gap:** assignment is deterministic in code, but `main` has no runtime kill-switch for
+`free_preview_v1`. Therefore a new concurrent experiment is blocked until this is either
+implemented or the current experiment is ended by an explicit release that freezes one arm.
+Do not describe the test as operationally switchable before that change exists.
+
+## 5. Old-vs-new answer review
+
+Use the offline review packet from `build_oracle_product_review_packet.py` and score baseline
+vs complete independently on the fixed 1–5 criteria:
 
 - specificity;
 - situation fit;
@@ -64,58 +161,73 @@ Use the offline review packet from `build_oracle_product_review_packet.py` and s
 - useful step;
 - desire to continue.
 
-Use the 1–5 rubric only. Do not add hidden weights after seeing results.
+Do not add hidden weights after seeing results. Keep source separate from arm. Explicit test
+traffic must not be mixed into product conclusions.
 
-For the live experiment, keep `entry_source` separate from the preview arm. Compare the same arm by source before combining traffic. Exclude explicit test traffic from product conclusions.
+## 6. Commercial-price boundary
 
-Do not run a new independent text, price or message-frequency experiment at the same time on a small audience.
+Commercial-price experiment remains disabled until the owner supplies candidate prices in a
+separate launch decision. Task 08 does not authorize changing current test prices.
 
-## 4. Commercial-price experiment boundary
+Before any price experiment verify:
 
-The price experiment remains disabled until the owner supplies candidate prices in a separate launch task.
+- owner-approved candidates and currencies;
+- one authoritative billing catalog;
+- no concurrent independent small-traffic experiment that makes interpretation impossible;
+- exposure → checkout → confirmed purchase → refund reporting;
+- known provider fees and known variable generation costs;
+- unknown costs remain unknown rather than zero;
+- existing balances, entitlements, refunds and reconciliation are unaffected by assignment.
 
-Before activation verify:
+## 7. Evidence and decision rules
 
-- current test prices remain the authoritative baseline;
-- candidate prices are explicitly owner-approved;
-- each market/currency coordinate is defined;
-- no concurrent independent free-preview text or message-frequency experiment contaminates the sample;
-- reporting includes exposure, checkout start, confirmed purchase, refunds, known provider fees and known variable generation costs;
-- unknown costs stay unknown rather than being converted to zero;
-- existing purchases, balances, entitlements, refunds and reconciliation are unaffected by assignment.
+A validation note may contain:
 
-The research scaffold must never become a second billing catalog.
+- observation date;
+- Telegram client/platform category;
+- anonymous slot/path code;
+- entry source;
+- preview arm where applicable;
+- state coordinates such as profile yes/no, memory off/on, session active/expired;
+- pass/fail of mobile criteria;
+- structured first-use fields;
+- linked issue/PR for a defect.
 
-## 5. Evidence and decision rule
+Classification:
 
-A validation note may include:
+- **defect** — reproducible behavior contradicts product contract, privacy, payment or safety;
+- **friction** — user cannot understand/complete intended flow without help;
+- **product hypothesis** — proposed improvement not yet supported by repeated observation.
 
-- date and app/client context;
-- anonymous surface/case code;
-- pass/fail for the visual criteria above;
-- structured first-use observation fields;
-- aggregate experiment metrics;
-- an issue/PR reference for a discovered defect.
+Correctness/privacy/payment/safety defects are fixed immediately; they are never averaged away
+inside an overall score.
 
-It must not include private questions, generated private answers, names, Telegram identifiers, reading identifiers, birth data, payment credentials or raw provider payloads.
+Product decisions combine:
 
-Product decisions should combine four kinds of evidence rather than optimize one proxy:
+1. observed understanding/feedback;
+2. voluntary meaningful return (new question, follow-up, continuation — not mere delivery);
+3. confirmed purchase/refund behavior;
+4. economics with known provider and variable LLM costs.
 
-1. observed user understanding and feedback;
-2. voluntary return / meaningful repeat activity;
-3. purchase behavior and refund behavior;
-4. economics including known provider and variable generation costs.
+Autoresearch is a quality/cost/constraint guard, not evidence that users value Numa.
 
-Autoresearch remains a guard for format, repetition, cost and constraints. It is not evidence by itself that users value the product.
+## 8. Completion definition for Task 08 / #191
 
-## 6. Completion definition for P2-11
+Documentation/scaffolding is complete when:
 
-The implementation/scaffolding portion is complete when:
+- factual `cjm-v2.md` matches effective registered routes/installers;
+- observation template covers the current source/state matrix;
+- this mobile runbook is version-controlled;
+- experiment arm/source semantics are explicit;
+- no paid research is auto-triggered.
 
-- human old-vs-new review tooling exists;
-- stable free-preview assignment is implemented with entry source separate;
-- commercial-price test scaffolding exists without changing current prices;
-- this mobile/first-use validation procedure is version-controlled;
-- paid research is not auto-triggered.
+Empirical completion requires **all** of the following:
 
-The empirical portion is complete only after 10–15 real first-use sessions are observed and the mobile matrix is actually executed. Do not mark those two items complete from CI or synthetic data.
+- at least 10 and at most 15 first-pass real observations;
+- actual mobile matrix execution;
+- each observation has date + anonymous path/source/state fields;
+- discovered defects have issues/PRs;
+- no private content was copied into research notes;
+- issue #191 is updated with aggregate findings.
+
+Until then #191 stays open. Synthetic/CI data must never be marked as the missing live evidence.
