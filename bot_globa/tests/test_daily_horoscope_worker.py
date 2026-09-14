@@ -101,12 +101,13 @@ async def test_a_throttled_text_send_is_retried_against_the_same_claim() -> None
     assert session.attempts == 3
     sent = [method for method in session.methods if isinstance(method, SendMessage)][-1]
     assert "Гороскоп на сегодня · 13.08.2026" in sent.text
-    assert "Все знаки" in _labels(sent)
-    assert "Сменить знак" in _labels(sent)
+    assert "Ещё" in _labels(sent)
+    assert "Все знаки" not in _labels(sent)
+    assert "Сменить знак" not in _labels(sent)
     assert not any(isinstance(method, SendPhoto) for method in session.methods)
 
 
-async def test_an_unselected_sign_keeps_the_all_signs_entry_point() -> None:
+async def test_an_unselected_sign_keeps_secondary_controls_under_more() -> None:
     session = RecordingSession()
     bot = _bot(session)
     try:
@@ -122,7 +123,8 @@ async def test_an_unselected_sign_keeps_the_all_signs_entry_point() -> None:
         await bot.session.close()
 
     sent = [method for method in session.methods if isinstance(method, SendMessage)][-1]
-    assert "Выбрать свой знак" in _labels(sent)
+    assert "Ещё" in _labels(sent)
+    assert "Выбрать свой знак" not in _labels(sent)
 
 
 async def test_throttling_past_the_retry_budget_surfaces_to_the_caller() -> None:
