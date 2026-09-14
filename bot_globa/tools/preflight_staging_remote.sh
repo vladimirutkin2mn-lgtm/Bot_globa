@@ -42,9 +42,9 @@ read_value() {
 is_placeholder() {
   local value="${1,,}"
   [[ -z "${value}" \
-    || "${value}" == "change_me" \
-    || "${value}" == "change-me" \
-    || "${value}" == "changeme" \
+    || "${value}" == *"change_me"* \
+    || "${value}" == *"change-me"* \
+    || "${value}" == *"changeme"* \
     || "${value}" == *"example.invalid"* ]]
 }
 
