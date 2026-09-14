@@ -2,6 +2,8 @@
 
 from uuid import UUID
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot.persona_flow import FOLLOWUP_NAMESPACE
 from app.bot.reading_followup_handlers import (
     _cancel_keyboard,
@@ -14,11 +16,10 @@ _READING_ID = UUID("11111111-2222-3333-4444-555555555555")
 _STORY_ID = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
-def _callbacks(markup: object) -> list[str]:
-    keyboard = markup.inline_keyboard  # type: ignore[attr-defined]
+def _callbacks(markup: InlineKeyboardMarkup) -> list[str]:
     return [
         callback
-        for row in keyboard
+        for row in markup.inline_keyboard
         for button in row
         if (callback := button.callback_data) is not None
     ]
