@@ -7,6 +7,7 @@ from app.bot.group_cjm_v3 import (
     compact_group_menu,
     quick_context_text,
 )
+from app.bot.group_duel_cjm import duel_sign_state
 from app.bot.group_viral_upgrade import QuickCompatibility
 from app.domain.natal_chart import ZodiacSign
 from app.domain.synastry import CompatibilityContext
@@ -38,7 +39,8 @@ def test_context_survives_sign_callbacks_within_telegram_limit() -> None:
         keyboard = _context_sign_keyboard(context, *pair, ("x", "x"), 0)
         callbacks = _callbacks(keyboard)
         assert callbacks
-        assert all(value.startswith(f"g3:z:{compatibility._CONTEXT_CODES[context]}:") for value in callbacks)
+        prefix = f"g3:z:{compatibility._CONTEXT_CODES[context]}:"
+        assert all(value.startswith(prefix) for value in callbacks)
         assert all(len(value.encode("utf-8")) <= 64 for value in callbacks)
 
 
@@ -55,6 +57,13 @@ def test_precision_retry_keeps_selected_context() -> None:
     callbacks = _callbacks(keyboard)
     assert "g3:r:t:2t.5m" in callbacks
     assert all(len(value.encode("utf-8")) <= 64 for value in callbacks)
+
+
+def test_duel_without_profiles_starts_with_first_missing_sign() -> None:
+    signs, slot = duel_sign_state(None, None)
+
+    assert signs == ("x", "x")
+    assert slot == 0
 
 
 def test_quick_result_uses_selected_context_instead_of_romantic_shipping_copy() -> None:
