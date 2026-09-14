@@ -27,9 +27,7 @@ class ReadingCheckoutTarget:
             raise ValueError("unsupported reading persona")
         if self.story_id is None:
             return f"{route}:unlock:{self.reading_id}"
-        callback = (
-            f"{route}:unlock:{_compact_uuid(self.reading_id)}:{_compact_uuid(self.story_id)}"
-        )
+        callback = f"{route}:unlock:{_compact_uuid(self.reading_id)}:{_compact_uuid(self.story_id)}"
         if len(callback.encode("utf-8")) > 64:
             raise ValueError("reading resume callback exceeds Telegram callback-data limit")
         return callback
