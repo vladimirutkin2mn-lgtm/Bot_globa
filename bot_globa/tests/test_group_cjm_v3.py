@@ -7,7 +7,7 @@ from app.bot.group_cjm_v3 import (
     compact_group_menu,
     quick_context_text,
 )
-from app.bot.group_duel_cjm import duel_sign_state
+from app.bot.group_duel_cjm import _party_back_cjm, duel_sign_state
 from app.bot.group_viral_upgrade import QuickCompatibility
 from app.domain.natal_chart import ZodiacSign
 from app.domain.synastry import CompatibilityContext
@@ -64,6 +64,16 @@ def test_duel_without_profiles_starts_with_first_missing_sign() -> None:
 
     assert signs == ("x", "x")
     assert slot == 0
+
+
+def test_duel_result_private_cta_opens_astro_not_tarot() -> None:
+    keyboard = _party_back_cjm("numa_bot", "💞 Проверить совместимость")
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
+
+    assert [(button.text, button.callback_data, button.url) for button in buttons] == [
+        ("🪐 Разобрать дуэль лично", "p108:private:duel:astro", None),
+        ("← К играм", "group:party:menu", None),
+    ]
 
 
 def test_quick_result_uses_selected_context_instead_of_romantic_shipping_copy() -> None:
