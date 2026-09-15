@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import base64, gzip, re
+import re
 from pathlib import Path
 import enrich
 
 ROOT = Path(__file__).resolve().parent
-raw = gzip.decompress(base64.b64decode((ROOT / 'inns_1000.b64').read_text().strip())).decode('utf-8')
+parts = [ROOT / f'inns_1000.part{i}' for i in range(1, 5)]
+raw = ''.join(p.read_text(encoding='utf-8') for p in parts)
 INNS = [x.strip() for x in raw.splitlines() if re.fullmatch(r'\d{10}', x.strip())]
 assert len(INNS) == 1000, len(INNS)
 assert len(set(INNS)) == 1000
