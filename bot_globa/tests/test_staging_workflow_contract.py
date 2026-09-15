@@ -3,9 +3,9 @@ from pathlib import Path
 
 def _staging_workflow_text() -> str:
     repository_root = Path(__file__).resolve().parents[2]
-    return (
-        repository_root / ".github" / "workflows" / "bot-globa-deploy-staging.yml"
-    ).read_text(encoding="utf-8")
+    return (repository_root / ".github" / "workflows" / "bot-globa-deploy-staging.yml").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_staging_workflow_has_non_mutating_preflight_mode() -> None:
