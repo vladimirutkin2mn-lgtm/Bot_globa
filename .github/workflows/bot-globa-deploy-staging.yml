@@ -17,7 +17,7 @@ on:
         type: boolean
         default: false
       public_staging_url:
-        description: Optional public HTTPS base URL to verify through DNS/TLS/Caddy
+        description: Public HTTPS base URL required for smoke/deploy; optional only for preflight_only
         type: string
         required: false
         default: ""
@@ -46,6 +46,27 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Validate public staging URL for smoke/deploy
+        env:
+          PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
+          PUBLIC_STAGING_URL: ${{ inputs.public_staging_url }}
+        run: |
+          if [[ "${PREFLIGHT_ONLY}" == "true" ]]; then
+            exit 0
+          fi
+          if [[ -z "${PUBLIC_STAGING_URL}" ]]; then
+            echo 'public_staging_url is required for staging smoke/deploy.'
+            exit 1
+          fi
+          if [[ "${PUBLIC_STAGING_URL}" != https://* || "${PUBLIC_STAGING_URL}" == *example.invalid* ]]; then
+            echo 'public_staging_url must be a real HTTPS staging URL.'
+            exit 1
+          fi
+          if [[ "${PUBLIC_STAGING_URL}" == *\?* || "${PUBLIC_STAGING_URL}" == *\#* ]]; then
+            echo 'public_staging_url must be a clean base URL without query or fragment.'
+            exit 1
+          fi
 
       - name: Require dedicated staging SSH configuration
         env:

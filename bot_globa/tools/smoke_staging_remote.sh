@@ -8,6 +8,20 @@ DEPLOY_SSH_OPTS="${DEPLOY_SSH_OPTS:-}"
 PUBLIC_STAGING_URL="${PUBLIC_STAGING_URL:-}"
 COMPOSE="docker compose -p bot_globa_staging -f docker-compose.staging.yml --env-file .env.staging --env-file .env.staging.release"
 
+if [[ -z "${PUBLIC_STAGING_URL}" ]]; then
+  echo "Refusing staging smoke: PUBLIC_STAGING_URL is required"
+  exit 1
+fi
+PUBLIC_STAGING_URL="${PUBLIC_STAGING_URL%/}"
+if [[ "${PUBLIC_STAGING_URL}" != https://* || "${PUBLIC_STAGING_URL}" == *example.invalid* ]]; then
+  echo "Refusing public staging smoke: PUBLIC_STAGING_URL must be a real https URL"
+  exit 1
+fi
+if [[ "${PUBLIC_STAGING_URL}" == *\?* || "${PUBLIC_STAGING_URL}" == *\#* ]]; then
+  echo "Refusing public staging smoke: URL must be a clean base URL without query or fragment"
+  exit 1
+fi
+
 SSH_ARGS=()
 if [[ -n "${DEPLOY_SSH_OPTS}" ]]; then
   # shellcheck disable=SC2206
@@ -63,28 +77,16 @@ print(
 )
 \""
 
-if [[ -n "${PUBLIC_STAGING_URL}" ]]; then
-  PUBLIC_STAGING_URL="${PUBLIC_STAGING_URL%/}"
-  if [[ "${PUBLIC_STAGING_URL}" != https://* ]]; then
-    echo "Refusing public staging smoke: PUBLIC_STAGING_URL must use https://"
+echo "==> Public staging HTTPS liveness and readiness"
+for path in /health/live /health/ready; do
+  status="$(
+    curl --silent --show-error --max-time 15 \
+      --output /dev/null --write-out '%{http_code}' \
+      "${PUBLIC_STAGING_URL}${path}"
+  )"
+  if [[ "${status}" != "200" ]]; then
+    echo "Public staging smoke failed: ${PUBLIC_STAGING_URL}${path} returned HTTP ${status}; direct HTTP 200 required"
     exit 1
   fi
-  if [[ "${PUBLIC_STAGING_URL}" == *\?* || "${PUBLIC_STAGING_URL}" == *\#* ]]; then
-    echo "Refusing public staging smoke: URL must be a clean base URL without query or fragment"
-    exit 1
-  fi
-
-  echo "==> Public staging HTTPS liveness and readiness"
-  for path in /health/live /health/ready; do
-    status="$(
-      curl --silent --show-error --max-time 15 \
-        --output /dev/null --write-out '%{http_code}' \
-        "${PUBLIC_STAGING_URL}${path}"
-    )"
-    if [[ "${status}" != "200" ]]; then
-      echo "Public staging smoke failed: ${PUBLIC_STAGING_URL}${path} returned HTTP ${status}; direct HTTP 200 required"
-      exit 1
-    fi
-    echo "${PUBLIC_STAGING_URL}${path} 200"
-  done
-fi
+  echo "${PUBLIC_STAGING_URL}${path} 200"
+done
