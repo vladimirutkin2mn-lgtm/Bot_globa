@@ -73,9 +73,13 @@ has already settled.
 
 Use a dedicated Stripe test account in staging only. Automated CI does not call Stripe.
 
-1. Configure one monthly EUR test Price and its exact expected amount.
+1. Configure the staging monthly amount through
+   `STRIPE_AMOUNT_SUBSCRIPTION_MONTHLY_EUR_MINOR` (and USD when that market is exercised). Do not
+   create a dashboard Price/Product for this flow: Checkout must receive the recurring amount
+   through the same inline `price_data` path used by the runtime.
 2. Register the staging webhook endpoint and all five event types listed above.
-3. Start a subscription from Telegram and verify Checkout displays the expected monthly amount.
+3. Start a subscription from Telegram and verify Checkout displays the configured monthly amount
+   and monthly recurring interval.
 4. Complete payment with a Stripe test card.
 5. Confirm one active subscription, one paid period, one completed order and one purchase ledger
    row.
