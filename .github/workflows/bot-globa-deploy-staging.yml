@@ -12,6 +12,10 @@ on:
         description: Verify the deployed staging release without syncing or rebuilding
         type: boolean
         default: false
+      preflight_only:
+        description: Validate the existing staging host/config without syncing, writing release identity, building or restarting
+        type: boolean
+        default: false
       public_staging_url:
         description: Optional public HTTPS base URL to verify through DNS/TLS/Caddy
         type: string
@@ -53,6 +57,12 @@ jobs:
           test -n "${DEPLOY_SSH_KEY}" || { echo 'Missing staging DEPLOY_SSH_KEY'; exit 1; }
           test -n "${DEPLOY_SSH_KNOWN_HOSTS}" || { echo 'Missing staging DEPLOY_SSH_KNOWN_HOSTS'; exit 1; }
 
+      - name: Reject conflicting staging modes
+        if: ${{ inputs.preflight_only && inputs.smoke_only }}
+        run: |
+          echo 'Choose either preflight_only or smoke_only, not both.'
+          exit 1
+
       - name: Load the staging deploy key
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -72,8 +82,22 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: ssh -o BatchMode=yes "${DEPLOY_HOST}" 'echo staging-remote-ok'
 
+      - name: Preflight the existing staging host without changing it
+        if: inputs.preflight_only
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa_staging' }}
+        run: |
+          ssh -o BatchMode=yes "${DEPLOY_HOST}" \
+            "cd '${DEPLOY_PATH}' && \
+             test -f .env.staging && \
+             test -f staging.public.env && \
+             test -f tools/preflight_staging_remote.sh && \
+             STAGING_ENV_FILE=.env.staging STAGING_PUBLIC_ENV_FILE=staging.public.env bash tools/preflight_staging_remote.sh && \
+             docker network inspect web >/dev/null 2>&1"
+
       - name: Smoke the deployed staging release
-        if: inputs.smoke_only
+        if: ${{ inputs.smoke_only && !inputs.preflight_only }}
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa_staging' }}
@@ -81,7 +105,7 @@ jobs:
         run: bash tools/smoke_staging_remote.sh
 
       - name: Deploy, migrate and smoke staging
-        if: ${{ !inputs.smoke_only }}
+        if: ${{ !inputs.smoke_only && !inputs.preflight_only }}
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa_staging' }}
