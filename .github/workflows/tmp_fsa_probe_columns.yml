@@ -1,0 +1,38 @@
+name: TMP FSA column probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tmp/business-activity-enrichment
+    paths:
+      - tmp_business_activity/fsa.py
+      - tmp_business_activity/fsa_probe_columns.py
+      - .github/workflows/tmp_fsa_probe_columns.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FSA_PROXY_URL: ${{ secrets.FSA_PROXY_URL }}
+      FSA_TOKEN: ${{ secrets.FSA_TOKEN }}
+      FSA_COOKIE: ${{ secrets.FSA_COOKIE }}
+      FSA_TIMEOUT: "12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check requests
+      - run: python -m py_compile tmp_business_activity/fsa.py tmp_business_activity/fsa_probe_columns.py
+      - run: python tmp_business_activity/fsa_probe_columns.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fsa-column-probe
+          path: tmp_business_activity/output_fsa_probe/
+          retention-days: 1
