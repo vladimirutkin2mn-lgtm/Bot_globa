@@ -1,0 +1,47 @@
+name: TMP business activity enrichment
+
+on:
+  push:
+    branches:
+      - tmp/business-activity-enrichment
+    paths:
+      - 'tmp_business_activity/**'
+      - '.github/workflows/tmp_business_activity_enrichment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Checkout temporary branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip requests
+
+      - name: Run enrichment
+        run: python tmp_business_activity/enrich.py
+
+      - name: Show summary
+        if: always()
+        run: |
+          ls -lah tmp_business_activity/output || true
+          cat tmp_business_activity/output/summary.json || true
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: business-activity-results
+          path: tmp_business_activity/output/
+          if-no-files-found: warn
+          retention-days: 1
