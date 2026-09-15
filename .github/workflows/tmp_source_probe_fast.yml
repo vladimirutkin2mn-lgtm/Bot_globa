@@ -1,0 +1,26 @@
+name: TMP source probe fast
+on:
+  push:
+    branches: ['tmp/business-activity-enrichment']
+    paths:
+      - 'tmp_business_activity/source_probe_fast.py'
+      - '.github/workflows/tmp_source_probe_fast.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests beautifulsoup4
+      - run: python tmp_business_activity/source_probe_fast.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-probe-fast
+          path: source_probe_fast.json
+          retention-days: 1
