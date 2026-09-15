@@ -45,10 +45,58 @@ Create a GitHub Environment named `staging` and configure only deployment access
 Provider/API credentials stay in the host-side `.env.staging`, not in workflow inputs or
 repository files.
 
-## Bootstrap without a public route
+## Preflight before the public route
 
-Run the manual workflow **Bot Globa deploy staging** on the exact candidate ref. Leave
-`public_staging_url` empty on the first bootstrap.
+After sources have been synced at least once, validate the existing host configuration
+without changing the deployed release. Start **Bot Globa deploy staging** with
+`preflight_only=true`, `smoke_only=false`, and leave `public_staging_url` empty. This is
+the only workflow mode that may omit the public staging URL.
+
+The preflight-only mode verifies SSH, reads the existing `.env.staging` and
+`staging.public.env`, runs the secret-safe preflight, and checks that the proxy-owned
+`web` network exists. It does not sync sources, write `.env.staging.release`, build
+images, migrate, restart services or run release smoke. `preflight_only=true` and
+`smoke_only=true` are intentionally rejected as conflicting modes.
+
+The preflight validates the staging environment name and isolated database, rejects the
+example hostnames and non-HTTPS public callbacks, requires the credentials needed by the
+live gates, and rejects Stripe live credentials. It reports variable names and invariant
+failures only; secret values are never written to the log. It deliberately does not mark
+provider gates as passed and does not replace the live evidence required by issue #41.
+
+An operator may also run the same non-mutating configuration check directly on the host:
+
+```bash
+cd /opt/bot_globa_staging
+bash tools/preflight_staging_remote.sh
+```
+
+## Add the public staging route before deploying
+
+Configure a dedicated DNS/Caddy route in the proxy owner's configuration before the first
+real staging deploy. Example only — use the staging hostname you actually control:
+
+```caddy
+<staging-host> {
+    encode zstd gzip
+    reverse_proxy bot-globa-staging-api:8000
+}
+```
+
+The upstream may be unavailable until the staging API starts; that is expected during
+bootstrap. What matters is that DNS/TLS/Caddy are configured for the final hostname before
+the deploy workflow is allowed to mutate staging.
+
+Run **Bot Globa deploy staging** on the exact candidate ref with:
+
+- `preflight_only=false`;
+- `smoke_only=false`;
+- `public_staging_url=https://<staging-host>`.
+
+For smoke-only verification of an already deployed release, set `smoke_only=true` and
+supply the same `public_staging_url`. Smoke/deploy modes fail before SSH or deployment work
+when the public URL is missing, is not HTTPS, contains the example hostname, or includes a
+query/fragment.
 
 The deploy will:
 
@@ -63,50 +111,13 @@ The deploy will:
 7. run `app.cli.release` under the migration advisory lock;
 8. start the staging API and workers;
 9. verify `bot-globa-staging-api` is actually attached to `web`;
-10. run internal health, deployment verification and `/admin/release-readiness` checks.
-
-The preflight validates the staging environment name and isolated database, rejects the
-example hostnames and non-HTTPS public callbacks, requires the credentials needed by the
-live gates, and rejects Stripe live credentials. It reports variable names and invariant
-failures only; secret values are never written to the log. It deliberately does not mark
-provider gates as passed and does not replace the live evidence required by issue #41.
-
-After sources have been synced at least once, the same configuration/network check can be
-run from GitHub Actions without changing the deployed release. Start **Bot Globa deploy
-staging** with `preflight_only=true` and `smoke_only=false`. This mode only verifies SSH,
-reads the existing `.env.staging` and `staging.public.env`, runs the secret-safe preflight,
-and checks that the proxy-owned `web` network exists. It does not sync sources, write
-`.env.staging.release`, build images, migrate, restart services or run release smoke.
-`preflight_only=true` and `smoke_only=true` are intentionally rejected as conflicting
-modes.
-
-An operator may also run the same non-mutating configuration check directly on the host:
-
-```bash
-cd /opt/bot_globa_staging
-bash tools/preflight_staging_remote.sh
-```
+10. run internal health, deployment verification and `/admin/release-readiness` checks;
+11. require direct HTTP 200 from public `/health/live` and `/health/ready` through DNS,
+    TLS, Caddy and the staging upstream.
 
 The smoke refuses a release identity unless the readiness response reports
-`app_env=staging`, a code SHA, a schema revision and a checklist version.
-
-## Add the public staging route
-
-After the first internal deploy is healthy, add a dedicated DNS/Caddy route in the proxy
-owner's configuration. Example only — use the staging hostname you actually control:
-
-```caddy
-<staging-host> {
-    encode zstd gzip
-    reverse_proxy bot-globa-staging-api:8000
-}
-```
-
-Then re-run **Bot Globa deploy staging** with `smoke_only=true` and
-`public_staging_url=https://<staging-host>`.
-
-The public smoke does not follow redirects. `/health/live` and `/health/ready` must each
-return a direct HTTP 200 through DNS, TLS, Caddy and the staging upstream.
+`app_env=staging`, a code SHA, a schema revision and a checklist version. The public smoke
+does not follow redirects.
 
 ## Inspect release readiness
 
