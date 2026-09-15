@@ -7,7 +7,7 @@ recorded in the same typed Numa funnel without duplicating its UI behavior.
 """
 
 import logging
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from uuid import UUID, uuid5
 
 from aiogram import Bot, F, Router
@@ -95,7 +95,10 @@ def build_daily_telegram_share_url_from_public_text(bot_username: str, public_te
     if not public_text.strip():
         raise ValueError("public text is required for sharing")
     referral = f"https://t.me/{username}?start={DAILY_SHARE_ENTRY_PAYLOAD}"
-    return "https://t.me/share/url?" + urlencode({"url": referral, "text": public_text})
+    return "https://t.me/share/url?" + urlencode(
+        {"url": referral, "text": public_text},
+        quote_via=quote,
+    )
 
 
 def build_daily_telegram_share_url(bot_username: str, source_text: str) -> str:
