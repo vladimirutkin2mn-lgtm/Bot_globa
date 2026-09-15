@@ -55,13 +55,29 @@ The deploy will:
 1. sync source without overwriting `.env.staging`;
 2. write a non-secret `.env.staging.release` containing the exact `github.sha` and
    checklist version;
-3. refuse to create or replace the proxy-owned `web` network;
-4. build the staging images;
-5. start only the isolated staging database;
-6. run `app.cli.release` under the migration advisory lock;
-7. start the staging API and workers;
-8. verify `bot-globa-staging-api` is actually attached to `web`;
-9. run internal health, deployment verification and `/admin/release-readiness` checks.
+3. run the secret-safe staging preflight before any image build, database start or
+   migration;
+4. refuse to create or replace the proxy-owned `web` network;
+5. build the staging images;
+6. start only the isolated staging database;
+7. run `app.cli.release` under the migration advisory lock;
+8. start the staging API and workers;
+9. verify `bot-globa-staging-api` is actually attached to `web`;
+10. run internal health, deployment verification and `/admin/release-readiness` checks.
+
+The preflight validates the staging environment name and isolated database, rejects the
+example hostnames and non-HTTPS public callbacks, requires the credentials needed by the
+live gates, and rejects Stripe live credentials. It reports variable names and invariant
+failures only; secret values are never written to the log. It deliberately does not mark
+provider gates as passed and does not replace the live evidence required by issue #41.
+
+After sources have been synced at least once, an operator may run the same non-mutating
+check directly on the host before re-running the workflow:
+
+```bash
+cd /opt/bot_globa_staging
+bash tools/preflight_staging_remote.sh
+```
 
 The smoke refuses a release identity unless the readiness response reports
 `app_env=staging`, a code SHA, a schema revision and a checklist version.
