@@ -71,8 +71,16 @@ live gates, and rejects Stripe live credentials. It reports variable names and i
 failures only; secret values are never written to the log. It deliberately does not mark
 provider gates as passed and does not replace the live evidence required by issue #41.
 
-After sources have been synced at least once, an operator may run the same non-mutating
-check directly on the host before re-running the workflow:
+After sources have been synced at least once, the same configuration/network check can be
+run from GitHub Actions without changing the deployed release. Start **Bot Globa deploy
+staging** with `preflight_only=true` and `smoke_only=false`. This mode only verifies SSH,
+reads the existing `.env.staging` and `staging.public.env`, runs the secret-safe preflight,
+and checks that the proxy-owned `web` network exists. It does not sync sources, write
+`.env.staging.release`, build images, migrate, restart services or run release smoke.
+`preflight_only=true` and `smoke_only=true` are intentionally rejected as conflicting
+modes.
+
+An operator may also run the same non-mutating configuration check directly on the host:
 
 ```bash
 cd /opt/bot_globa_staging
