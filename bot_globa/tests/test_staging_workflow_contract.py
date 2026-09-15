@@ -9,9 +9,9 @@ def _repository_root() -> Path:
 
 
 def _staging_workflow_text() -> str:
-    return (_repository_root() / ".github" / "workflows" / "bot-globa-deploy-staging.yml").read_text(
-        encoding="utf-8"
-    )
+    return (
+        _repository_root() / ".github" / "workflows" / "bot-globa-deploy-staging.yml"
+    ).read_text(encoding="utf-8")
 
 
 def test_staging_workflow_has_non_mutating_preflight_mode() -> None:
