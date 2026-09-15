@@ -8,15 +8,20 @@ tests into live acceptance evidence.
 
 A limited-production snapshot requires the latest result for all five gates to be `passed`:
 
-- `stripe_subscription_sandbox`
-- `yookassa_subscription_sandbox`
-- `stripe_refund_sandbox`
-- `yookassa_refund_sandbox`
-- `openai_followup_staging`
+- `stripe_subscription_sandbox` — follow the
+  [Stripe subscription sandbox checklist](stripe-subscriptions.md#sandbox-acceptance-checklist);
+- `yookassa_subscription_sandbox` — follow the
+  [YooKassa recurring sandbox checklist](yookassa-recurring-subscriptions.md#sandbox-acceptance-checklist);
+- `stripe_refund_sandbox` — follow the
+  [Stripe refund staging checklist](provider-refunds.md#stripe-staging-checklist);
+- `yookassa_refund_sandbox` — follow the
+  [YooKassa refund staging checklist](provider-refunds.md#yookassa-staging-checklist);
+- `openai_followup_staging` — follow the
+  [OpenAI follow-up staging checklist](paid-followups.md#openai-staging-acceptance-checklist).
 
-Each pass must represent the actual staging procedure documented in the corresponding provider
-runbook. Record `failed` when a live scenario exposes a problem; a later append-only result can
-supersede it after the problem is fixed and the procedure is repeated.
+Each pass must represent the actual staging procedure linked above. Record `failed` when a live
+scenario exposes a problem; a later append-only result can supersede it after the problem is fixed
+and the procedure is repeated.
 
 ## Release identity
 
@@ -93,11 +98,11 @@ migration refuses downgrade while audit history exists.
 
 ## Live acceptance boundary
 
-A gate may be marked passed only after the real staging scenario is complete:
+A gate may be marked passed only after the real staging scenario in its linked runbook is complete:
 
-- Stripe and YooKassa subscription flows follow their provider-specific sandbox checklists;
+- Stripe and YooKassa subscription flows exercise their provider-specific sandbox checklists;
 - refund gates cover full/partial, pending, failure, replay and reconciliation scenarios;
 - the OpenAI gate exercises the paid follow-up flow using the configured staging model and checks
-  structured-report-only prompting, safety and retry behavior.
+  exactly-once entitlement use, structured-report-only context, repair, safety and retry behavior.
 
 Automated tests, mock providers and local development evidence are insufficient for these gates.
