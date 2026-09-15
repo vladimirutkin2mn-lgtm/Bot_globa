@@ -1,0 +1,27 @@
+name: TMP CHZ first 1000
+on:
+  push:
+    branches: ['tmp/business-activity-enrichment']
+    paths:
+      - 'tmp_business_activity/enrich_chz_1000.py'
+      - '.github/workflows/tmp_chz_1000.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - run: python tmp_business_activity/enrich_chz_1000.py
+      - run: cat tmp_business_activity/output_chz_1000/summary.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chz-first-1000
+          path: tmp_business_activity/output_chz_1000/
+          retention-days: 1
