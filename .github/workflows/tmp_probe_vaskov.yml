@@ -1,0 +1,26 @@
+name: TMP probe vaskov
+on:
+  push:
+    branches: ['tmp/business-activity-enrichment']
+    paths:
+      - 'tmp_business_activity/probe_vaskov.py'
+      - '.github/workflows/tmp_probe_vaskov.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests beautifulsoup4
+      - run: python tmp_business_activity/probe_vaskov.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-vaskov
+          path: probe_vaskov.json
+          retention-days: 1
