@@ -48,9 +48,10 @@ def test_dynamic_daily_share_card_changes_with_date() -> None:
 def test_dynamic_card_uses_exact_daily_horoscope_theme() -> None:
     forecast_date = date(2026, 9, 15)
 
-    assert daily_share_card_theme(forecast_date) == build_editorial_daily_horoscope(
-        forecast_date
-    ).theme
+    assert (
+        daily_share_card_theme(forecast_date)
+        == build_editorial_daily_horoscope(forecast_date).theme
+    )
 
 
 def test_dynamic_daily_share_endpoint_is_immutable_and_public() -> None:
