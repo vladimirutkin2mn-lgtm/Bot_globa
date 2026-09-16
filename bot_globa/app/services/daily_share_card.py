@@ -161,9 +161,9 @@ def _text_width(
     font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
 ) -> int:
     bbox = draw.textbbox((0, 0), text, font=font)
-    return bbox[2] - bbox[0]
+    return int(round(bbox[2] - bbox[0]))
 
 
 def _line_height(font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> int:
     bbox = font.getbbox("Аг")
-    return max(58, bbox[3] - bbox[1] + 18)
+    return max(58, int(round(bbox[3] - bbox[1] + 18)))
