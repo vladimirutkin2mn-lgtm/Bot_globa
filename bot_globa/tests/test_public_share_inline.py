@@ -67,9 +67,7 @@ def test_daily_inline_result_sends_actual_photo_with_numa_deeplink() -> None:
     assert result.reply_markup is not None
     open_button = result.reply_markup.inline_keyboard[0][0]
     assert open_button.text == "✨ Открыть свой прогноз"
-    assert open_button.url == (
-        f"https://t.me/Numa_oracle_bot?start={DAILY_SHARE_ENTRY_PAYLOAD}"
-    )
+    assert open_button.url == (f"https://t.me/Numa_oracle_bot?start={DAILY_SHARE_ENTRY_PAYLOAD}")
 
 
 def test_public_share_inline_handler_is_reachable_from_runtime_router_tree() -> None:
