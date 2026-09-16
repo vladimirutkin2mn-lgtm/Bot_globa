@@ -9,11 +9,7 @@ router = APIRouter()
 
 DAILY_SHARE_CARD_ROUTE = "/public/share/numa-daily-v1.jpg"
 DAILY_SHARE_CARD_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "bot"
-    / "assets"
-    / "share"
-    / "numa_daily_share_v1.jpg"
+    Path(__file__).resolve().parents[1] / "bot" / "assets" / "share" / "numa_daily_share_v1.jpg"
 )
 
 
