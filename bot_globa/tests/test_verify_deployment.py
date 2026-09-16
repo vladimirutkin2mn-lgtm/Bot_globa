@@ -46,6 +46,7 @@ def mock_transport(
     ready_payload: object | None = None,
     webhook_status: int = 401,
     telegram_result: dict[str, object] | None = None,
+    inline_mode_enabled: bool = True,
     telegram_error: bool = False,
 ) -> httpx.MockTransport:
     readiness = ready_payload or {
@@ -55,7 +56,7 @@ def mock_transport(
     }
     telegram = telegram_result or {
         "url": _WEBHOOK,
-        "allowed_updates": ["message", "callback_query"],
+        "allowed_updates": ["message", "callback_query", "inline_query"],
         "pending_update_count": 0,
     }
 
@@ -73,6 +74,14 @@ def mock_transport(
         if request.url.host == "api.telegram.org":
             if telegram_error:
                 raise httpx.ConnectError("offline", request=request)
+            if request.url.path == f"/bot{_TOKEN}/getMe":
+                return httpx.Response(
+                    200,
+                    json={
+                        "ok": True,
+                        "result": {"supports_inline_queries": inline_mode_enabled},
+                    },
+                )
             assert request.url.path == f"/bot{_TOKEN}/getWebhookInfo"
             return httpx.Response(200, json={"ok": True, "result": telegram})
         raise AssertionError(f"unexpected request host: {request.url.host}")
@@ -85,7 +94,7 @@ async def test_verifier_passes_complete_release_contract() -> None:
     async with httpx.AsyncClient(transport=mock_transport()) as client:
         checks = await DeploymentVerifier(production_settings(), client, now=_NOW).verify()
 
-    assert len(checks) == 8
+    assert len(checks) == 9
     assert all(check.passed for check in checks)
     assert {check.name for check in checks} == {
         "telegram_stars_configuration",
@@ -93,6 +102,7 @@ async def test_verifier_passes_complete_release_contract() -> None:
         "api_liveness",
         "api_readiness",
         "telegram_webhook_authentication",
+        "telegram_inline_mode",
         "telegram_webhook_configuration",
         "telegram_update_backlog",
         "telegram_delivery_errors",
@@ -101,6 +111,35 @@ async def test_verifier_passes_complete_release_contract() -> None:
     assert "single=40, pack_5=200, monthly=280" in stars.detail
     routes = next(check for check in checks if check.name == "telegram_payment_routes")
     assert routes.detail == "Stars, RUB, and two visible Stripe routes are enabled"
+
+
+@pytest.mark.asyncio
+async def test_verifier_fails_when_telegram_inline_mode_is_disabled() -> None:
+    async with httpx.AsyncClient(transport=mock_transport(inline_mode_enabled=False)) as client:
+        checks = await DeploymentVerifier(production_settings(), client, now=_NOW).verify()
+
+    by_name = {check.name: check for check in checks}
+    assert not by_name["telegram_inline_mode"].passed
+    assert "BotFather" in by_name["telegram_inline_mode"].detail
+    assert by_name["telegram_webhook_configuration"].passed
+
+
+@pytest.mark.asyncio
+async def test_verifier_requires_inline_query_in_webhook_allowed_updates() -> None:
+    async with httpx.AsyncClient(
+        transport=mock_transport(
+            telegram_result={
+                "url": _WEBHOOK,
+                "allowed_updates": ["message", "callback_query"],
+                "pending_update_count": 0,
+            }
+        )
+    ) as client:
+        checks = await DeploymentVerifier(production_settings(), client, now=_NOW).verify()
+
+    by_name = {check.name: check for check in checks}
+    assert by_name["telegram_inline_mode"].passed
+    assert not by_name["telegram_webhook_configuration"].passed
 
 
 @pytest.mark.asyncio
