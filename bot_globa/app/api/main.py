@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.api.admin import router as admin_router
 from app.api.health import router as health_router
 from app.api.payments import router as payments_router
+from app.api.share_assets import router as share_assets_router
 from app.api.telegram import router as telegram_router
 from app.api.webhooks import router as webhooks_router
 from app.bot.main import configure_webhook
@@ -175,6 +176,7 @@ def create_app(
     application.include_router(admin_router)
     application.include_router(payments_router)
     application.include_router(webhooks_router)
+    application.include_router(share_assets_router)
     if resolved_bot is not None and telegram_inbox is not None:
         application.state.telegram_bot = resolved_bot
         application.state.telegram_update_inbox = telegram_inbox

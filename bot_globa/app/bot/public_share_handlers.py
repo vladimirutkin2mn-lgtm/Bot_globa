@@ -1,6 +1,6 @@
 """Public, privacy-safe share paths for Numa's free audience.
 
-The daily card contains only the common date/theme already shown to every user. Referral
+The daily share contains only the common date/theme already shown to every user. Referral
 links carry a campaign code only: no sender, recipient, Telegram, reading or birth data.
 This router also wraps the existing paid-insight landing so recipient acquisition is
 recorded in the same typed Numa funnel without duplicating its UI behavior.
@@ -24,6 +24,7 @@ from app.bot.reading_share_handlers import (
 )
 from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
+from app.config import get_settings
 from app.providers.numa_product_analytics import ProductFlow, ProductFunnelEvent, ProductSource
 from app.services.numa_product_analytics import NumaProductAnalytics, ProductAttribution
 from app.services.onboarding import OnboardingService, TelegramIdentity
@@ -33,17 +34,19 @@ logger = logging.getLogger(__name__)
 router = Router(name="public-share")
 
 DAILY_SHARE_ENTRY_PAYLOAD = "share_day"
-DAILY_SHARE_FORMAT = "daily_public_card_v1"
-DAILY_SHARE_SCENARIO = "daily_public_share_v1"
-DAILY_SHARE_CAMPAIGN = "daily_public_card_v1"
+DAILY_SHARE_FORMAT = "daily_public_card_v2"
+DAILY_SHARE_SCENARIO = "daily_public_share_v2"
+DAILY_SHARE_CAMPAIGN = "daily_public_card_v2"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
 DAILY_SHARE_CONFIRM_CALLBACK = "pubshare:daily:confirm"
+DAILY_SHARE_MEDIA_PATH = "/public/share/numa-daily-v1.jpg"
 
-DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте точный текст:\n\n"
+DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте текст:\n\n"
 DAILY_SHARE_PREVIEW_SUFFIX = (
-    "\n\nЭто весь публичный текст. Личный профиль, история и ваши вопросы не добавятся."
+    "\n\nNuma добавит к нему визуальную карточку и ссылку на бота. "
+    "Личный профиль, история и ваши вопросы не добавятся."
 )
-DAILY_SHARE_READY = "Текст подтверждён. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
+DAILY_SHARE_READY = "Карточка готова. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
 DAILY_SHARE_UNAVAILABLE = (
     "Не получилось подготовить тему дня. Откройте гороскоп и попробуйте ещё раз."
 )
@@ -66,7 +69,7 @@ def render_daily_public_share(source_text: str) -> str:
 
 
 def render_daily_share_preview(public_text: str) -> str:
-    """Show exactly what can become public before the user confirms it."""
+    """Show the exact public horoscope excerpt before the user confirms it."""
 
     if not public_text.strip():
         raise ValueError("daily public share text is empty")
@@ -86,8 +89,27 @@ def extract_confirmed_daily_share(preview_text: str) -> str:
     return public_text
 
 
-def build_daily_telegram_share_url_from_public_text(bot_username: str, public_text: str) -> str:
-    """Build a share URL only after the exact public text has been confirmed."""
+def render_daily_share_message(public_text: str, referral: str) -> str:
+    """Add the stable Numa CTA and aggregate referral to the confirmed public excerpt."""
+
+    return f"{public_text}\n\nОстальное — в Numa ✨\n{referral}"
+
+
+def build_daily_share_media_url(public_base_url: str) -> str:
+    """Build the public image URL Telegram can use for a rich link preview."""
+
+    base_url = public_base_url.strip().rstrip("/")
+    if not base_url.startswith(("http://", "https://")):
+        raise ValueError("public base URL must be HTTP(S)")
+    return f"{base_url}{DAILY_SHARE_MEDIA_PATH}"
+
+
+def build_daily_telegram_share_url_from_public_text(
+    bot_username: str,
+    public_text: str,
+    public_base_url: str | None = None,
+) -> str:
+    """Build a native Telegram share URL from an explicitly confirmed public excerpt."""
 
     username = bot_username.removeprefix("@").strip()
     if not username:
@@ -95,8 +117,14 @@ def build_daily_telegram_share_url_from_public_text(bot_username: str, public_te
     if not public_text.strip():
         raise ValueError("public text is required for sharing")
     referral = f"https://t.me/{username}?start={DAILY_SHARE_ENTRY_PAYLOAD}"
+    if public_base_url is None:
+        url = referral
+        text = public_text
+    else:
+        url = build_daily_share_media_url(public_base_url)
+        text = render_daily_share_message(public_text, referral)
     return "https://t.me/share/url?" + urlencode(
-        {"url": referral, "text": public_text},
+        {"url": url, "text": text},
         quote_via=quote,
     )
 
@@ -136,7 +164,7 @@ def daily_share_landing_keyboard() -> InlineKeyboardMarkup:
 
 @router.callback_query(F.data == DAILY_SHARE_CALLBACK)
 async def share_daily_public_card(callback: CallbackQuery) -> None:
-    """Preview the exact public card; sharing is impossible until explicit confirmation."""
+    """Preview the public excerpt; sharing is impossible until explicit confirmation."""
 
     await callback.answer()
     if not isinstance(callback.message, Message):
@@ -163,7 +191,7 @@ async def confirm_daily_public_card(
     onboarding: OnboardingService,
     numa_product_analytics: NumaProductAnalytics,
 ) -> None:
-    """Only an explicitly confirmed preview receives a native Telegram share button."""
+    """Record share intent and hand off the visual card to Telegram's native picker."""
 
     if not isinstance(callback.message, Message):
         await callback.answer()
@@ -173,7 +201,11 @@ async def confirm_daily_public_card(
         bot_user = await bot.get_me()
         if not bot_user.username:
             raise ValueError("bot username is unavailable")
-        share_url = build_daily_telegram_share_url_from_public_text(bot_user.username, public_text)
+        share_url = build_daily_telegram_share_url_from_public_text(
+            bot_user.username,
+            public_text,
+            public_base_url=get_settings().payment_public_base_url,
+        )
     except (TelegramAPIError, ValueError):
         await callback.answer("Не получилось подтвердить этот текст.", show_alert=True)
         return
