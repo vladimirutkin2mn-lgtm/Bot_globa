@@ -15,7 +15,15 @@ from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InlineQuery,
+    InlineQueryResultPhoto,
+    Message,
+    SwitchInlineQueryChosenChat,
+)
 
 from app.bot.daily_keyboards import DAILY_SHARE_CALLBACK
 from app.bot.reading_share_handlers import (
@@ -27,6 +35,7 @@ from app.bot.scene_media import Scene
 from app.bot.screen import show_screen
 from app.config import get_settings
 from app.providers.numa_product_analytics import ProductFlow, ProductFunnelEvent, ProductSource
+from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 from app.services.numa_product_analytics import NumaProductAnalytics, ProductAttribution
 from app.services.onboarding import OnboardingService, TelegramIdentity
 
@@ -35,22 +44,27 @@ logger = logging.getLogger(__name__)
 router = Router(name="public-share")
 
 DAILY_SHARE_ENTRY_PAYLOAD = "share_day"
-DAILY_SHARE_FORMAT = "daily_public_card_v3"
-DAILY_SHARE_SCENARIO = "daily_public_share_v3"
-DAILY_SHARE_CAMPAIGN = "daily_public_card_v3"
+DAILY_SHARE_FORMAT = "daily_public_inline_card_v4"
+DAILY_SHARE_SCENARIO = "daily_public_share_v4"
+DAILY_SHARE_CAMPAIGN = "daily_public_inline_card_v4"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
 DAILY_SHARE_CONFIRM_CALLBACK = "pubshare:daily:confirm"
 DAILY_SHARE_MEDIA_PATH_TEMPLATE = "/public/share/numa-daily-v3/{forecast_date}.jpg"
 DAILY_SHARE_TITLE_PREFIX = "Гороскоп на сегодня · "
+DAILY_SHARE_INLINE_PREFIX = "daily:"
+DAILY_SHARE_INLINE_CAPTION = "Тема дня из Numa ✨"
 
 DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте текст:\n\n"
 DAILY_SHARE_PREVIEW_SUFFIX = (
-    "\n\nNuma добавит к нему визуальную карточку и ссылку на бота. "
+    "\n\nПосле подтверждения Numa откроет выбор чата и отправит туда только общую карточку дня. "
     "Личный профиль, история и ваши вопросы не добавятся."
 )
-DAILY_SHARE_READY = "Карточка готова. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
+DAILY_SHARE_READY = "Карточка готова. Нажмите «Выбрать чат», выберите получателя и отправьте фото."
 DAILY_SHARE_UNAVAILABLE = (
     "Не получилось подготовить тему дня. Откройте гороскоп и попробуйте ещё раз."
+)
+DAILY_SHARE_INLINE_DISABLED = (
+    "Чтобы отправлять карточку как фото, для Numa нужно включить inline mode в BotFather."
 )
 DAILY_SHARE_LANDING = (
     "🌙 <b>Вам прислали тему дня из Numa</b>\n\n"
@@ -122,12 +136,87 @@ def build_daily_share_media_url(public_base_url: str, forecast_date: date) -> st
     return f"{base_url}{media_path}"
 
 
+def build_daily_share_inline_query(public_text: str) -> str:
+    """Encode only the public forecast date into the inline query."""
+
+    return f"{DAILY_SHARE_INLINE_PREFIX}{extract_daily_share_date(public_text).isoformat()}"
+
+
+def parse_daily_share_inline_query(query: str) -> date | None:
+    """Parse the privacy-safe daily inline query without accepting arbitrary input."""
+
+    if not query.startswith(DAILY_SHARE_INLINE_PREFIX):
+        return None
+    raw_date = query.removeprefix(DAILY_SHARE_INLINE_PREFIX).strip()
+    try:
+        return date.fromisoformat(raw_date)
+    except ValueError:
+        return None
+
+
+def build_daily_inline_result(
+    bot_username: str,
+    public_base_url: str,
+    forecast_date: date,
+) -> InlineQueryResultPhoto:
+    """Build the actual photo result Telegram inserts into the chosen chat."""
+
+    username = bot_username.removeprefix("@").strip()
+    if not username:
+        raise ValueError("bot username is required for sharing")
+    media_url = build_daily_share_media_url(public_base_url, forecast_date)
+    referral = f"https://t.me/{username}?start={DAILY_SHARE_ENTRY_PAYLOAD}"
+    snapshot = build_editorial_daily_horoscope(forecast_date)
+    return InlineQueryResultPhoto(
+        id=f"daily-{forecast_date.isoformat()}",
+        photo_url=media_url,
+        thumbnail_url=media_url,
+        photo_width=1200,
+        photo_height=1500,
+        title=f"Гороскоп на сегодня · {forecast_date.strftime('%d.%m.%Y')}",
+        description=snapshot.theme,
+        caption=DAILY_SHARE_INLINE_CAPTION,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✨ Открыть свой прогноз",
+                        url=referral,
+                    )
+                ]
+            ]
+        ),
+    )
+
+
+def daily_share_ready_keyboard(public_text: str) -> InlineKeyboardMarkup:
+    """Open Telegram's chosen-chat inline picker for the confirmed day card."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📤 Выбрать чат",
+                    switch_inline_query_chosen_chat=SwitchInlineQueryChosenChat(
+                        query=build_daily_share_inline_query(public_text),
+                        allow_user_chats=True,
+                        allow_bot_chats=False,
+                        allow_group_chats=True,
+                        allow_channel_chats=True,
+                    ),
+                )
+            ],
+            [InlineKeyboardButton(text="← К гороскопу", callback_data="menu:daily")],
+        ]
+    )
+
+
 def build_daily_telegram_share_url_from_public_text(
     bot_username: str,
     public_text: str,
     public_base_url: str | None = None,
 ) -> str:
-    """Build a native Telegram share URL from an explicitly confirmed public excerpt."""
+    """Build the legacy URL/text share flow retained for backwards-compatible tests."""
 
     username = bot_username.removeprefix("@").strip()
     if not username:
@@ -149,7 +238,7 @@ def build_daily_telegram_share_url_from_public_text(
 
 
 def build_daily_telegram_share_url(bot_username: str, source_text: str) -> str:
-    """Build an aggregate daily referral with no user or reading identifier."""
+    """Build the legacy aggregate daily referral with no user or reading identifier."""
 
     return build_daily_telegram_share_url_from_public_text(
         bot_username,
@@ -210,7 +299,7 @@ async def confirm_daily_public_card(
     onboarding: OnboardingService,
     numa_product_analytics: NumaProductAnalytics,
 ) -> None:
-    """Record share intent and hand off the visual card to Telegram's native picker."""
+    """Record share intent and open Telegram's chosen-chat inline picker."""
 
     if not isinstance(callback.message, Message):
         await callback.answer()
@@ -220,11 +309,10 @@ async def confirm_daily_public_card(
         bot_user = await bot.get_me()
         if not bot_user.username:
             raise ValueError("bot username is unavailable")
-        share_url = build_daily_telegram_share_url_from_public_text(
-            bot_user.username,
-            public_text,
-            public_base_url=get_settings().payment_public_base_url,
-        )
+        if not bot_user.supports_inline_queries:
+            await callback.answer(DAILY_SHARE_INLINE_DISABLED, show_alert=True)
+            return
+        ready_keyboard = daily_share_ready_keyboard(public_text)
     except (TelegramAPIError, ValueError):
         await callback.answer("Не получилось подтвердить этот текст.", show_alert=True)
         return
@@ -236,13 +324,33 @@ async def confirm_daily_public_card(
 
     await callback.message.answer(
         DAILY_SHARE_READY,
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="📤 Выбрать чат", url=share_url)],
-                [InlineKeyboardButton(text="← К гороскопу", callback_data="menu:daily")],
-            ]
-        ),
+        reply_markup=ready_keyboard,
     )
+
+
+@router.inline_query(F.query.startswith(DAILY_SHARE_INLINE_PREFIX))
+async def answer_daily_share_inline(query: InlineQuery, bot: Bot) -> None:
+    """Return one public daily card as an actual Telegram photo result."""
+
+    forecast_date = parse_daily_share_inline_query(query.query)
+    if forecast_date is None:
+        await query.answer([], cache_time=0, is_personal=True)
+        return
+    try:
+        bot_user = await bot.get_me()
+        if not bot_user.username:
+            raise ValueError("bot username is unavailable")
+        result = build_daily_inline_result(
+            bot_user.username,
+            get_settings().payment_public_base_url,
+            forecast_date,
+        )
+    except (TelegramAPIError, ValueError):
+        logger.warning("numa_daily_share_inline_failed", exc_info=True)
+        await query.answer([], cache_time=0, is_personal=True)
+        return
+
+    await query.answer([result], cache_time=86400, is_personal=False)
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args == DAILY_SHARE_ENTRY_PAYLOAD))
