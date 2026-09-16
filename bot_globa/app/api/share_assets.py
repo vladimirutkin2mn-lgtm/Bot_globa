@@ -8,9 +8,10 @@ from fastapi.responses import FileResponse
 router = APIRouter()
 
 DAILY_SHARE_CARD_ROUTE = "/public/share/numa-daily-v1.jpg"
-DAILY_SHARE_CARD_PATH = (
-    Path(__file__).resolve().parents[1] / "bot" / "assets" / "share" / "numa_daily_share_v1.jpg"
-)
+# Reuse the full-size daily horoscope artwork that already ships with Numa. Keeping the
+# public share endpoint stable lets Telegram cache the preview while avoiding a second,
+# easy-to-drift copy of the same visual in the package.
+DAILY_SHARE_CARD_PATH = Path(__file__).resolve().parents[1] / "bot" / "assets" / "scenes" / "E-02.jpg"
 
 
 @router.get(
