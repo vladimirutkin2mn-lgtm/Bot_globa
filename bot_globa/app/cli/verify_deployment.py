@@ -86,6 +86,7 @@ class DeploymentVerifier:
             await self._check_liveness(),
             await self._check_readiness(),
             await self._check_webhook_authentication(),
+            await self._check_telegram_inline_mode(),
         ]
         checks.extend(await self._check_telegram_webhook())
         return tuple(checks)
@@ -206,6 +207,31 @@ class DeploymentVerifier:
             "wrong webhook secret is rejected" if passed else "webhook authentication check failed",
         )
 
+    async def _check_telegram_inline_mode(self) -> VerificationCheck:
+        """Require BotFather inline mode for the daily visual share flow."""
+        token = self._settings.telegram_bot_token.get_secret_value()
+        response = await self._request(
+            "GET",
+            f"https://api.telegram.org/bot{token}/getMe",
+        )
+        payload = None if response is None else _json_object(response)
+        result_object = None if payload is None else payload.get("result")
+        passed = bool(
+            response is not None
+            and response.status_code == 200
+            and payload is not None
+            and payload.get("ok") is True
+            and isinstance(result_object, dict)
+            and result_object.get("supports_inline_queries") is True
+        )
+        return VerificationCheck(
+            "telegram_inline_mode",
+            passed,
+            "Telegram inline mode is enabled"
+            if passed
+            else "Telegram inline mode is disabled; enable it for the bot in BotFather",
+        )
+
     async def _check_telegram_webhook(self) -> tuple[VerificationCheck, ...]:
         token = self._settings.telegram_bot_token.get_secret_value()
         response = await self._request(
@@ -240,7 +266,9 @@ class DeploymentVerifier:
         if allowed is None:
             allowed_valid = True
         elif isinstance(allowed, list) and all(isinstance(item, str) for item in allowed):
-            allowed_valid = {"message", "callback_query"}.issubset(cast("list[str]", allowed))
+            allowed_valid = {"message", "callback_query", "inline_query"}.issubset(
+                cast("list[str]", allowed)
+            )
         else:
             allowed_valid = False
         configuration_passed = (
