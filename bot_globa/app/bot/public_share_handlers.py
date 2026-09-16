@@ -7,6 +7,7 @@ recorded in the same typed Numa funnel without duplicating its UI behavior.
 """
 
 import logging
+from datetime import date
 from urllib.parse import quote, urlencode
 from uuid import UUID, uuid5
 
@@ -34,12 +35,13 @@ logger = logging.getLogger(__name__)
 router = Router(name="public-share")
 
 DAILY_SHARE_ENTRY_PAYLOAD = "share_day"
-DAILY_SHARE_FORMAT = "daily_public_card_v2"
-DAILY_SHARE_SCENARIO = "daily_public_share_v2"
-DAILY_SHARE_CAMPAIGN = "daily_public_card_v2"
+DAILY_SHARE_FORMAT = "daily_public_card_v3"
+DAILY_SHARE_SCENARIO = "daily_public_share_v3"
+DAILY_SHARE_CAMPAIGN = "daily_public_card_v3"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
 DAILY_SHARE_CONFIRM_CALLBACK = "pubshare:daily:confirm"
-DAILY_SHARE_MEDIA_PATH = "/public/share/numa-daily-v1.jpg"
+DAILY_SHARE_MEDIA_PATH_TEMPLATE = "/public/share/numa-daily-v3/{forecast_date}.jpg"
+DAILY_SHARE_TITLE_PREFIX = "Гороскоп на сегодня · "
 
 DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте текст:\n\n"
 DAILY_SHARE_PREVIEW_SUFFIX = (
@@ -61,7 +63,7 @@ def render_daily_public_share(source_text: str) -> str:
     """Keep only the public date and common theme, even from a sign-specific message."""
 
     lines = [line.strip() for line in source_text.splitlines() if line.strip()]
-    title = next((line for line in lines if line.startswith("Гороскоп на сегодня · ")), None)
+    title = next((line for line in lines if line.startswith(DAILY_SHARE_TITLE_PREFIX)), None)
     theme = next((line for line in lines if line.startswith("🌙 Тема дня: ")), None)
     if title is None or theme is None:
         raise ValueError("daily public share source is not a rendered daily horoscope")
@@ -89,19 +91,35 @@ def extract_confirmed_daily_share(preview_text: str) -> str:
     return public_text
 
 
+def extract_daily_share_date(public_text: str) -> date:
+    """Recover the forecast date that was visible on the confirmed public excerpt."""
+
+    lines = [line.strip() for line in public_text.splitlines() if line.strip()]
+    title = next((line for line in lines if line.startswith(DAILY_SHARE_TITLE_PREFIX)), None)
+    if title is None:
+        raise ValueError("daily public share is missing forecast date")
+    raw_date = title.removeprefix(DAILY_SHARE_TITLE_PREFIX).strip()
+    try:
+        day_text, month_text, year_text = raw_date.split(".")
+        return date(int(year_text), int(month_text), int(day_text))
+    except ValueError as exc:
+        raise ValueError("daily public share contains invalid forecast date") from exc
+
+
 def render_daily_share_message(public_text: str, referral: str) -> str:
     """Add the stable Numa CTA and aggregate referral to the confirmed public excerpt."""
 
     return f"{public_text}\n\nОстальное — в Numa ✨\n{referral}"
 
 
-def build_daily_share_media_url(public_base_url: str) -> str:
-    """Build the public image URL Telegram can use for a rich link preview."""
+def build_daily_share_media_url(public_base_url: str, forecast_date: date) -> str:
+    """Build the immutable public image URL for one forecast date."""
 
     base_url = public_base_url.strip().rstrip("/")
     if not base_url.startswith(("http://", "https://")):
         raise ValueError("public base URL must be HTTP(S)")
-    return f"{base_url}{DAILY_SHARE_MEDIA_PATH}"
+    media_path = DAILY_SHARE_MEDIA_PATH_TEMPLATE.format(forecast_date=forecast_date.isoformat())
+    return f"{base_url}{media_path}"
 
 
 def build_daily_telegram_share_url_from_public_text(
@@ -121,7 +139,8 @@ def build_daily_telegram_share_url_from_public_text(
         url = referral
         text = public_text
     else:
-        url = build_daily_share_media_url(public_base_url)
+        forecast_date = extract_daily_share_date(public_text)
+        url = build_daily_share_media_url(public_base_url, forecast_date)
         text = render_daily_share_message(public_text, referral)
     return "https://t.me/share/url?" + urlencode(
         {"url": url, "text": text},

@@ -1,16 +1,18 @@
 """Public, cacheable visual assets used by Numa share flows."""
 
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+
+from app.services.daily_share_card import render_daily_share_card
 
 router = APIRouter()
 
 DAILY_SHARE_CARD_ROUTE = "/public/share/numa-daily-v1.jpg"
-# Reuse the full-size daily horoscope artwork that already ships with Numa. Keeping the
-# public share endpoint stable lets Telegram cache the preview while avoiding a second,
-# easy-to-drift copy of the same visual in the package.
+DAILY_SHARE_DYNAMIC_ROUTE = "/public/share/numa-daily-v3/{forecast_date}.jpg"
+# Keep the legacy endpoint for old Telegram previews and already shared messages.
 DAILY_SHARE_CARD_PATH = (
     Path(__file__).resolve().parents[1] / "bot" / "assets" / "scenes" / "E-02.jpg"
 )
@@ -23,10 +25,26 @@ DAILY_SHARE_CARD_PATH = (
     response_class=FileResponse,
 )
 async def numa_daily_share_card() -> FileResponse:
-    """Return the stable Numa share visual for Telegram link previews."""
+    """Return the stable legacy Numa share visual."""
 
     return FileResponse(
         DAILY_SHARE_CARD_PATH,
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=604800, immutable"},
+    )
+
+
+@router.get(
+    DAILY_SHARE_DYNAMIC_ROUTE,
+    include_in_schema=False,
+    name="numa_daily_share_card_v3",
+    response_class=Response,
+)
+def numa_daily_share_card_v3(forecast_date: date) -> Response:
+    """Return a rendered card whose immutable URL is keyed by forecast date."""
+
+    return Response(
+        content=render_daily_share_card(forecast_date),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
