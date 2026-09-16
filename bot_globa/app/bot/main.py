@@ -339,7 +339,13 @@ async def configure_webhook(bot: Bot, settings: Settings) -> None:
     await bot.set_webhook(
         url=settings.telegram_webhook_url,
         secret_token=settings.telegram_webhook_secret.get_secret_value(),
-        allowed_updates=["message", "callback_query", "pre_checkout_query", "subscription"],
+        allowed_updates=[
+            "message",
+            "callback_query",
+            "inline_query",
+            "pre_checkout_query",
+            "subscription",
+        ],
     )
 
 
