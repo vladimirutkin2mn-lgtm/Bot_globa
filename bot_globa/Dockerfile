@@ -32,8 +32,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/build/.venv/bin:${PATH}"
 
 WORKDIR /app
-RUN useradd --create-home --uid 10001 appuser
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 appuser
 COPY --from=builder /build/.venv /build/.venv
+# Build-time guard: the production image must be able to render a real Cyrillic share card.
+RUN python -c "from datetime import date; from app.services.daily_share_card import render_daily_share_card; assert len(render_daily_share_card(date(2026, 9, 16))) > 50000"
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY docs ./docs
