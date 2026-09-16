@@ -13,6 +13,8 @@ CARD_SIZE = (1200, 1500)
 DAILY_SHARE_BASE_PATH = (
     Path(__file__).resolve().parents[1] / "bot" / "assets" / "scenes" / "E-02.jpg"
 )
+DAILY_SHARE_FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+DAILY_SHARE_BOLD_FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
 _BACKGROUND_PANEL = (72, 96, 1128, 870)
 _PANEL_FILL = (7, 13, 30, 205)
@@ -26,6 +28,15 @@ def daily_share_card_theme(forecast_date: date) -> str:
     """Return the exact theme used by the daily horoscope for this date."""
 
     return build_editorial_daily_horoscope(forecast_date).theme
+
+
+def load_daily_share_font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont:
+    """Load the packaged Cyrillic-capable font used by public share cards."""
+
+    font_path = DAILY_SHARE_BOLD_FONT_PATH if bold else DAILY_SHARE_FONT_PATH
+    if not font_path.is_file():
+        raise RuntimeError(f"Daily share font is missing: {font_path}")
+    return ImageFont.truetype(str(font_path), size=size)
 
 
 @lru_cache(maxsize=64)
@@ -53,10 +64,10 @@ def render_daily_share_card(forecast_date: date) -> bytes:
     card = Image.alpha_composite(card, overlay)
     draw = ImageDraw.Draw(card)
 
-    brand_font = ImageFont.load_default(size=72)
-    date_font = ImageFont.load_default(size=38)
-    label_font = ImageFont.load_default(size=30)
-    footer_font = ImageFont.load_default(size=34)
+    brand_font = load_daily_share_font(72, bold=True)
+    date_font = load_daily_share_font(38)
+    label_font = load_daily_share_font(30, bold=True)
+    footer_font = load_daily_share_font(34, bold=True)
 
     draw.text((112, 132), "NUMA", font=brand_font, fill=_PRIMARY_TEXT)
     draw.text(
@@ -102,14 +113,14 @@ def _fit_wrapped_text(
     *,
     max_width: int,
     max_lines: int,
-) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, list[str]]:
+) -> tuple[ImageFont.FreeTypeFont, list[str]]:
     for size in range(66, 39, -2):
-        font = ImageFont.load_default(size=size)
+        font = load_daily_share_font(size)
         lines = _wrap_text(draw, text, font, max_width=max_width)
         if len(lines) <= max_lines:
             return font, lines
 
-    font = ImageFont.load_default(size=40)
+    font = load_daily_share_font(40)
     lines = _wrap_text(draw, text, font, max_width=max_width)
     if len(lines) > max_lines:
         lines = lines[:max_lines]
@@ -120,7 +131,7 @@ def _fit_wrapped_text(
 def _wrap_text(
     draw: ImageDraw.ImageDraw,
     text: str,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: ImageFont.FreeTypeFont,
     *,
     max_width: int,
 ) -> list[str]:
@@ -144,7 +155,7 @@ def _wrap_text(
 def _ellipsize(
     draw: ImageDraw.ImageDraw,
     text: str,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: ImageFont.FreeTypeFont,
     *,
     max_width: int,
 ) -> str:
@@ -158,12 +169,12 @@ def _ellipsize(
 def _text_width(
     draw: ImageDraw.ImageDraw,
     text: str,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: ImageFont.FreeTypeFont,
 ) -> int:
     bbox = draw.textbbox((0, 0), text, font=font)
     return round(bbox[2] - bbox[0])
 
 
-def _line_height(font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> int:
+def _line_height(font: ImageFont.FreeTypeFont) -> int:
     bbox = font.getbbox("Аг")
     return max(58, round(bbox[3] - bbox[1] + 18))

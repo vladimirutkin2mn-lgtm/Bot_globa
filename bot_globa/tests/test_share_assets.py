@@ -10,7 +10,12 @@ from app.api.share_assets import (
     numa_daily_share_card_v3,
 )
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
-from app.services.daily_share_card import CARD_SIZE, daily_share_card_theme, render_daily_share_card
+from app.services.daily_share_card import (
+    CARD_SIZE,
+    daily_share_card_theme,
+    load_daily_share_font,
+    render_daily_share_card,
+)
 
 
 def test_daily_share_card_asset_is_packaged() -> None:
@@ -23,6 +28,17 @@ def test_daily_share_card_asset_is_packaged() -> None:
 
 def test_dynamic_daily_share_route_is_date_specific() -> None:
     assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v3/{forecast_date}.jpg"
+
+
+def test_daily_share_font_has_real_cyrillic_glyphs() -> None:
+    font = load_daily_share_font(40)
+
+    family, _style = font.getname()
+    assert family == "DejaVu Sans"
+    # Missing glyphs collapse to the same replacement box. Real Cyrillic glyphs have
+    # distinct advances, which protects us from shipping square placeholders again.
+    assert font.getlength("Т") != font.getlength("Ш")
+    assert font.getlength("я") != font.getlength("\U0010ffff")
 
 
 def test_dynamic_daily_share_card_is_a_deterministic_full_size_jpeg() -> None:
