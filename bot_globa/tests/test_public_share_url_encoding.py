@@ -49,7 +49,7 @@ def test_daily_share_url_uses_date_specific_visual_and_keeps_referral_in_text() 
     query = parse_qs(query_string)
 
     assert "+" not in query_string
-    assert query["url"] == ["https://numa.example/public/share/numa-daily-v3/2026-09-15.jpg"]
+    assert query["url"] == ["https://numa.example/public/share/numa-daily-v5/2026-09-15.jpg"]
     assert public_text in query["text"][0]
     assert "Остальное — в Numa ✨" in query["text"][0]
     assert deep_link in query["text"][0]
@@ -59,8 +59,8 @@ def test_daily_share_media_url_changes_with_forecast_date() -> None:
     first = build_daily_share_media_url("https://numa.example", date(2026, 9, 15))
     second = build_daily_share_media_url("https://numa.example", date(2026, 9, 16))
 
-    assert first == "https://numa.example/public/share/numa-daily-v3/2026-09-15.jpg"
-    assert second == "https://numa.example/public/share/numa-daily-v3/2026-09-16.jpg"
+    assert first == "https://numa.example/public/share/numa-daily-v5/2026-09-15.jpg"
+    assert second == "https://numa.example/public/share/numa-daily-v5/2026-09-16.jpg"
     assert first != second
 
 
