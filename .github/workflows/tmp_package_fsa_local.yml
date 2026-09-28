@@ -6,6 +6,8 @@ on:
       - tmp/business-activity-enrichment
     paths:
       - .github/workflows/tmp_package_fsa_local.yml
+      - tmp_business_activity/fsa.py
+      - tmp_business_activity/test_fsa.py
 
 permissions:
   contents: read
@@ -32,6 +34,7 @@ jobs:
           cp tmp_business_activity/README_FSA_LOCAL.md fsa_scraper_local/README.md
           chmod +x fsa_scraper_local/run_fsa_mac_linux.sh
           python -m py_compile fsa_scraper_local/fsa.py fsa_scraper_local/enrich_fsa_1000.py fsa_scraper_local/test_fsa.py
+          (cd fsa_scraper_local && python -m unittest -v test_fsa.py)
           python - <<'PY'
           from pathlib import Path
           inns = []
