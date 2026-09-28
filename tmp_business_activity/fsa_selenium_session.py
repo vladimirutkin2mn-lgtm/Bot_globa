@@ -48,7 +48,7 @@ def _candidate_auth_from_storage(storage: dict[str, Any]) -> str:
                     if isinstance(decoded, dict):
                         values.extend(str(x) for x in decoded.values() if isinstance(x, (str, int, float)))
 
-    jwt_re = re.compile(r"([A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})")
+    jwt_re = re.compile(r"([A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,})")
     for raw in values:
         s = str(raw).strip()
         if s.lower().startswith("bearer ") and len(s) > 20:
