@@ -1,0 +1,49 @@
+name: TMP package local FSA scraper
+
+on:
+  push:
+    branches:
+      - tmp/business-activity-enrichment
+    paths:
+      - .github/workflows/tmp_package_fsa_local.yml
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build local package
+        run: |
+          mkdir -p fsa_scraper_local
+          cp tmp_business_activity/fsa.py fsa_scraper_local/
+          cp tmp_business_activity/enrich_fsa_1000.py fsa_scraper_local/
+          cp tmp_business_activity/inns_1000.part1 fsa_scraper_local/
+          cp tmp_business_activity/inns_1000.part2 fsa_scraper_local/
+          cp tmp_business_activity/inns_1000.part3 fsa_scraper_local/
+          cp tmp_business_activity/inns_1000.part4 fsa_scraper_local/
+          cp tmp_business_activity/test_fsa.py fsa_scraper_local/
+          cp tmp_business_activity/requirements_fsa.txt fsa_scraper_local/
+          cp tmp_business_activity/run_fsa_windows.bat fsa_scraper_local/
+          cp tmp_business_activity/run_fsa_mac_linux.sh fsa_scraper_local/
+          cp tmp_business_activity/README_FSA_LOCAL.md fsa_scraper_local/README.md
+          chmod +x fsa_scraper_local/run_fsa_mac_linux.sh
+          python -m py_compile fsa_scraper_local/fsa.py fsa_scraper_local/enrich_fsa_1000.py fsa_scraper_local/test_fsa.py
+          python - <<'PY'
+          from pathlib import Path
+          inns = []
+          for i in range(1,5):
+              inns += [x.strip() for x in Path(f"fsa_scraper_local/inns_1000.part{i}").read_text().splitlines() if x.strip()]
+          assert len(inns) == 1000
+          assert len(set(inns)) == 1000
+          print("Package validated: 1000 unique INNs")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fsa-scraper-local-first1000
+          path: fsa_scraper_local/
+          retention-days: 7
