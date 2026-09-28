@@ -231,31 +231,69 @@ class FSAClient:
         self._bootstrapped = False
 
     def bootstrap(self) -> None:
-        """Try the same empty-login bootstrap used by the public frontend."""
+        """Establish the anonymous public-session used by the FSA frontend.
+
+        The site currently expects a cookie to exist *before* POST /login.
+        Older public clients do a preliminary GET/HEAD, then POST the empty
+        login payload and reuse the Authorization response header.
+        """
         if self._bootstrapped:
             return
         self._bootstrapped = True
+
+        # 1) Warm up the browser session and collect Set-Cookie.
+        # Try the actual public page first, then /login as a fallback.
+        for url in (f"{BASE}/rss/certificate", f"{BASE}/login"):
+            try:
+                r0 = self.session.get(
+                    url,
+                    timeout=self.timeout,
+                    allow_redirects=True,
+                    headers={"Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8"},
+                )
+                # A 401/403 here is not fatal: a Set-Cookie may still have been issued.
+                if self.session.cookies:
+                    break
+            except requests.RequestException:
+                continue
+
+        # 2) Anonymous login. Keep Bearer null explicitly because this mirrors
+        # the public frontend / legacy public clients.
         try:
             r = self.session.post(
                 f"{BASE}/login",
                 json={"username": "", "password": ""},
                 timeout=self.timeout,
+                headers={"Authorization": "Bearer null"},
             )
-            auth = r.headers.get("Authorization", "").strip()
+
+            # requests' headers mapping is case-insensitive.
+            auth = (r.headers.get("Authorization") or r.headers.get("authorization") or "").strip()
             if auth:
                 self.session.headers["Authorization"] = auth
-            else:
-                try:
-                    payload = r.json()
-                except Exception:
-                    payload = {}
-                token = None
-                if isinstance(payload, dict):
-                    token = payload.get("token") or payload.get("access_token") or payload.get("accessToken")
-                if token:
-                    self.session.headers["Authorization"] = f"Bearer {token}"
+                return
+
+            try:
+                payload = r.json()
+            except Exception:
+                payload = {}
+
+            token = None
+            if isinstance(payload, dict):
+                token = (
+                    payload.get("token")
+                    or payload.get("access_token")
+                    or payload.get("accessToken")
+                    or payload.get("jwt")
+                )
+            if token:
+                token = str(token).strip()
+                self.session.headers["Authorization"] = (
+                    token if token.lower().startswith("bearer ") else f"Bearer {token}"
+                )
         except requests.RequestException:
-            # The list endpoint can still be reachable with Bearer null / cookies.
+            # The list endpoint can still be reachable with existing cookies
+            # or a token supplied through FSA_TOKEN/FSA_COOKIE.
             pass
 
     def _post(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
