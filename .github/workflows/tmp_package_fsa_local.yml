@@ -8,6 +8,10 @@ on:
       - .github/workflows/tmp_package_fsa_local.yml
       - tmp_business_activity/fsa.py
       - tmp_business_activity/test_fsa.py
+      - tmp_business_activity/fsa_selenium_session.py
+      - tmp_business_activity/enrich_fsa_1000_selenium.py
+      - tmp_business_activity/test_fsa_selenium_session.py
+      - tmp_business_activity/requirements_fsa.txt
 
 permissions:
   contents: read
@@ -23,18 +27,22 @@ jobs:
           mkdir -p fsa_scraper_local
           cp tmp_business_activity/fsa.py fsa_scraper_local/
           cp tmp_business_activity/enrich_fsa_1000.py fsa_scraper_local/
+          cp tmp_business_activity/fsa_selenium_session.py fsa_scraper_local/
+          cp tmp_business_activity/enrich_fsa_1000_selenium.py fsa_scraper_local/
           cp tmp_business_activity/inns_1000.part1 fsa_scraper_local/
           cp tmp_business_activity/inns_1000.part2 fsa_scraper_local/
           cp tmp_business_activity/inns_1000.part3 fsa_scraper_local/
           cp tmp_business_activity/inns_1000.part4 fsa_scraper_local/
           cp tmp_business_activity/test_fsa.py fsa_scraper_local/
+          cp tmp_business_activity/test_fsa_selenium_session.py fsa_scraper_local/
           cp tmp_business_activity/requirements_fsa.txt fsa_scraper_local/
           cp tmp_business_activity/run_fsa_windows.bat fsa_scraper_local/
           cp tmp_business_activity/run_fsa_mac_linux.sh fsa_scraper_local/
           cp tmp_business_activity/README_FSA_LOCAL.md fsa_scraper_local/README.md
           chmod +x fsa_scraper_local/run_fsa_mac_linux.sh
-          python -m py_compile fsa_scraper_local/fsa.py fsa_scraper_local/enrich_fsa_1000.py fsa_scraper_local/test_fsa.py
-          (cd fsa_scraper_local && python -m unittest -v test_fsa.py)
+          python -m pip install -r fsa_scraper_local/requirements_fsa.txt
+          python -m py_compile fsa_scraper_local/fsa.py fsa_scraper_local/enrich_fsa_1000.py fsa_scraper_local/fsa_selenium_session.py fsa_scraper_local/enrich_fsa_1000_selenium.py fsa_scraper_local/test_fsa.py fsa_scraper_local/test_fsa_selenium_session.py
+          (cd fsa_scraper_local && python -m unittest -v test_fsa.py test_fsa_selenium_session.py)
           python - <<'PY'
           from pathlib import Path
           inns = []
@@ -47,6 +55,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: fsa-scraper-local-first1000
+          name: fsa-scraper-local-first1000-selenium
           path: fsa_scraper_local/
           retention-days: 7
