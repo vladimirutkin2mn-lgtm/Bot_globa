@@ -76,7 +76,12 @@ def _safe_headers(headers: dict[str, Any]) -> dict[str, str]:
     return out
 
 
-def capture_browser_session(wait_seconds: int = 30) -> BrowserSession:
+def open_browser_session(wait_seconds: int = 30):
+    """Open FSA in a real browser and return (driver, captured session).
+
+    Unlike capture_browser_session(), the caller owns the driver and must close
+    it. This is used by the browser-native API transport.
+    """
     # Lazy Selenium import keeps unit/compile checks lightweight.
     from selenium import webdriver
     from selenium.common.exceptions import WebDriverException
@@ -90,7 +95,6 @@ def capture_browser_session(wait_seconds: int = 30) -> BrowserSession:
     try:
         driver = webdriver.Chrome(options=options)
     except Exception as chrome_exc:
-        # Edge is preinstalled on practically every supported Windows machine.
         browser_name = "Edge"
         try:
             edge_options = webdriver.EdgeOptions()
@@ -176,8 +180,6 @@ def capture_browser_session(wait_seconds: int = 30) -> BrowserSession:
                         if auth and auth.lower() != "bearer null":
                             best_auth = auth
 
-            # The app normally issues an API request shortly after loading.
-            # Once we have both cookies and a useful auth header, no need to wait.
             try:
                 cookies_now = driver.get_cookies()
             except Exception:
@@ -213,7 +215,6 @@ def capture_browser_session(wait_seconds: int = 30) -> BrowserSession:
         result.cookies = cookies
         result.headers = dict(api_headers)
         if best_auth:
-            # Normalize key casing while preserving the exact value.
             result.headers["Authorization"] = best_auth
         result.api_urls_seen = sorted(api_urls)
         result.debug = {
@@ -227,13 +228,25 @@ def capture_browser_session(wait_seconds: int = 30) -> BrowserSession:
             "local_storage_keys": sorted((storage.get("local") or {}).keys()) if isinstance(storage, dict) else [],
             "session_storage_keys": sorted((storage.get("session") or {}).keys()) if isinstance(storage, dict) else [],
         }
+        return driver, result
+    except Exception:
+        try:
+            driver.quit()
+        except Exception:
+            pass
+        raise
+
+
+def capture_browser_session(wait_seconds: int = 30) -> BrowserSession:
+    """Compatibility wrapper: capture session and close the browser."""
+    driver, result = open_browser_session(wait_seconds=wait_seconds)
+    try:
         return result
     finally:
         try:
             driver.quit()
         except Exception:
             pass
-
 
 def apply_browser_session(client: Any, browser: BrowserSession) -> None:
     """Inject browser session into an existing FSAClient."""
