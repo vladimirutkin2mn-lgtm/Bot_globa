@@ -213,6 +213,8 @@ class FSAClient:
         self.page_size = int(os.getenv("FSA_PAGE_SIZE", "100"))
         self.max_details = int(os.getenv("FSA_MAX_DETAILS", "50"))
         self.session = requests.Session()
+        self.allow_insecure_ssl_fallback = os.getenv("FSA_ALLOW_INSECURE_SSL", "0").strip().lower() in ("1", "true", "yes", "y")
+        self._ssl_fallback_active = False
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
@@ -300,6 +302,22 @@ class FSAClient:
         self.bootstrap()
         try:
             r = self.session.post(url, json=payload, timeout=self.timeout)
+        except requests.exceptions.SSLError as e:
+            if not self.allow_insecure_ssl_fallback:
+                raise SourceUnavailable(f"SSLError: {e}") from e
+            if not self._ssl_fallback_active:
+                self._ssl_fallback_active = True
+                self.session.verify = False
+                try:
+                    requests.packages.urllib3.disable_warnings(
+                        requests.packages.urllib3.exceptions.InsecureRequestWarning
+                    )
+                except Exception:
+                    pass
+            try:
+                r = self.session.post(url, json=payload, timeout=self.timeout, verify=False)
+            except (requests.Timeout, requests.ConnectionError, requests.exceptions.SSLError) as e2:
+                raise SourceUnavailable(f"{type(e2).__name__}: {e2}") from e2
         except (requests.Timeout, requests.ConnectionError) as e:
             raise SourceUnavailable(f"{type(e).__name__}: {e}") from e
         if r.status_code in (401, 403, 429, 451, 502, 503, 504):
@@ -314,6 +332,22 @@ class FSAClient:
         self.bootstrap()
         try:
             r = self.session.get(url, timeout=self.timeout)
+        except requests.exceptions.SSLError as e:
+            if not self.allow_insecure_ssl_fallback:
+                raise SourceUnavailable(f"SSLError: {e}") from e
+            if not self._ssl_fallback_active:
+                self._ssl_fallback_active = True
+                self.session.verify = False
+                try:
+                    requests.packages.urllib3.disable_warnings(
+                        requests.packages.urllib3.exceptions.InsecureRequestWarning
+                    )
+                except Exception:
+                    pass
+            try:
+                r = self.session.get(url, timeout=self.timeout, verify=False)
+            except (requests.Timeout, requests.ConnectionError, requests.exceptions.SSLError) as e2:
+                raise SourceUnavailable(f"{type(e2).__name__}: {e2}") from e2
         except (requests.Timeout, requests.ConnectionError) as e:
             raise SourceUnavailable(f"{type(e).__name__}: {e}") from e
         if r.status_code in (401, 403, 429, 451, 502, 503, 504):
