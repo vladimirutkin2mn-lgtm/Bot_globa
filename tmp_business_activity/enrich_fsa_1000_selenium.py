@@ -43,6 +43,10 @@ def main() -> int:
         flush=True,
     )
 
+    # On some corporate/VPN Windows setups Python sees a self-signed TLS
+    # certificate even though Chrome trusts the chain. Allow a one-host
+    # insecure fallback only for this local FSA research run.
+    os.environ.setdefault("FSA_ALLOW_INSECURE_SSL", "1")
     client = FSAClient()
     apply_browser_session(client, browser)
 
