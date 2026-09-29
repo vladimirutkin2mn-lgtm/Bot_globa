@@ -1,5 +1,5 @@
 name: TMP package local FSA scraper
-# package revision: browser-v5
+# package revision: ui-capture-v7
 
 on:
   push:
@@ -15,6 +15,10 @@ on:
       - tmp_business_activity/fsa_browser_client.py
       - tmp_business_activity/enrich_fsa_1000_browser.py
       - tmp_business_activity/test_fsa_browser_client.py
+      - tmp_business_activity/fsa_ui_capture.py
+      - tmp_business_activity/fsa_ui_client.py
+      - tmp_business_activity/enrich_fsa_1000_ui_capture.py
+      - tmp_business_activity/test_fsa_ui_capture.py
       - tmp_business_activity/requirements_fsa.txt
 
 permissions:
@@ -42,14 +46,18 @@ jobs:
           cp tmp_business_activity/test_fsa.py fsa_scraper_local/
           cp tmp_business_activity/test_fsa_selenium_session.py fsa_scraper_local/
           cp tmp_business_activity/test_fsa_browser_client.py fsa_scraper_local/
+          cp tmp_business_activity/fsa_ui_capture.py fsa_scraper_local/
+          cp tmp_business_activity/fsa_ui_client.py fsa_scraper_local/
+          cp tmp_business_activity/enrich_fsa_1000_ui_capture.py fsa_scraper_local/
+          cp tmp_business_activity/test_fsa_ui_capture.py fsa_scraper_local/
           cp tmp_business_activity/requirements_fsa.txt fsa_scraper_local/
           cp tmp_business_activity/run_fsa_windows.bat fsa_scraper_local/
           cp tmp_business_activity/run_fsa_mac_linux.sh fsa_scraper_local/
           cp tmp_business_activity/README_FSA_LOCAL.md fsa_scraper_local/README.md
           chmod +x fsa_scraper_local/run_fsa_mac_linux.sh
           python -m pip install -r fsa_scraper_local/requirements_fsa.txt
-          python -m py_compile fsa_scraper_local/fsa.py fsa_scraper_local/enrich_fsa_1000.py fsa_scraper_local/fsa_selenium_session.py fsa_scraper_local/enrich_fsa_1000_selenium.py fsa_scraper_local/fsa_browser_client.py fsa_scraper_local/enrich_fsa_1000_browser.py fsa_scraper_local/test_fsa.py fsa_scraper_local/test_fsa_selenium_session.py fsa_scraper_local/test_fsa_browser_client.py
-          (cd fsa_scraper_local && python -m unittest -v test_fsa.py test_fsa_selenium_session.py test_fsa_browser_client.py)
+          python -m py_compile fsa_scraper_local/fsa.py fsa_scraper_local/enrich_fsa_1000.py fsa_scraper_local/fsa_selenium_session.py fsa_scraper_local/enrich_fsa_1000_selenium.py fsa_scraper_local/fsa_browser_client.py fsa_scraper_local/enrich_fsa_1000_browser.py fsa_scraper_local/test_fsa.py fsa_scraper_local/test_fsa_selenium_session.py fsa_scraper_local/test_fsa_browser_client.py fsa_scraper_local/fsa_ui_capture.py fsa_scraper_local/fsa_ui_client.py fsa_scraper_local/enrich_fsa_1000_ui_capture.py fsa_scraper_local/test_fsa_ui_capture.py
+          (cd fsa_scraper_local && python -m unittest -v test_fsa.py test_fsa_selenium_session.py test_fsa_browser_client.py test_fsa_ui_capture.py)
           python - <<'PY'
           from pathlib import Path
           inns = []
@@ -62,6 +70,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: fsa-scraper-local-first1000-browser-v5
+          name: fsa-scraper-local-first1000-ui-v7
           path: fsa_scraper_local/
           retention-days: 7
