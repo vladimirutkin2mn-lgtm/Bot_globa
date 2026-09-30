@@ -8,6 +8,8 @@ on:
       - .github/workflows/tmp_package_multisource_cert_pilot.yml
       - tmp_business_activity/multisource_cert_pilot.py
       - tmp_business_activity/test_multisource_cert_pilot.py
+      - tmp_business_activity/secondary_gap_41.py
+      - tmp_business_activity/missing_s34_41.txt
       - tmp_business_activity/requirements_fsa.txt
       - tmp_business_activity/inns_1000.part1
       - tmp_business_activity/inns_1000.part2
@@ -28,6 +30,8 @@ jobs:
           mkdir -p multisource_pilot
           cp tmp_business_activity/multisource_cert_pilot.py multisource_pilot/
           cp tmp_business_activity/test_multisource_cert_pilot.py multisource_pilot/
+          cp tmp_business_activity/secondary_gap_41.py multisource_pilot/
+          cp tmp_business_activity/missing_s34_41.txt multisource_pilot/
           cp tmp_business_activity/requirements_fsa.txt multisource_pilot/requirements.txt
           cp tmp_business_activity/inns_1000.part1 multisource_pilot/
           cp tmp_business_activity/inns_1000.part2 multisource_pilot/
@@ -42,7 +46,28 @@ jobs:
           py -3.12 multisource_cert_pilot.py
           pause
           BAT
+          cat > multisource_pilot/run_secondary_gap_windows.bat <<'BAT'
+          @echo off
+          setlocal
+          cd /d %~dp0
+          py -m pip install -r requirements.txt
+          if errorlevel 1 exit /b 1
+          py -3.12 secondary_gap_41.py
+          pause
+          BAT
           cat > multisource_pilot/README.txt <<'TXT'
+          Pilot package.
+
+          Main 100-company run:
+            py -3.12 multisource_cert_pilot.py
+
+          Secondary-gap run for the 41 INNs missed by S34 in the latest 100-company pilot:
+            py -3.12 secondary_gap_41.py
+
+          The secondary-gap script tests SOOTVETSTVIE first with strict target-INN
+          verification and then List-Org. It does not bypass CAPTCHA.
+
+          Original notes:
           Pilot: first 20 INNs across SOOTVETSTVIE.RUS, S-34 and List-Org.
 
           Windows:
@@ -66,7 +91,7 @@ jobs:
             py -3.12 multisource_cert_pilot.py
           TXT
           python -m pip install -r multisource_pilot/requirements.txt
-          python -m py_compile multisource_pilot/multisource_cert_pilot.py multisource_pilot/test_multisource_cert_pilot.py
+          python -m py_compile multisource_pilot/multisource_cert_pilot.py multisource_pilot/test_multisource_cert_pilot.py multisource_pilot/secondary_gap_41.py
           (cd multisource_pilot && python -m unittest -v test_multisource_cert_pilot.py)
 
       - uses: actions/upload-artifact@v4
