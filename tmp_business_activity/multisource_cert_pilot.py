@@ -146,59 +146,151 @@ def product_excerpt(text: str) -> str:
     return ""
 
 
+def find_soot_search_input(driver):
+    selectors = [
+        "input[placeholder*='ИНН/ОГРН']",
+        "input[placeholder*='ИНН']",
+        "input[placeholder*='Номер']",
+    ]
+    for sel in selectors:
+        for el in driver.find_elements(By.CSS_SELECTOR, sel):
+            try:
+                if el.is_displayed():
+                    return el
+            except Exception:
+                pass
+    raise RuntimeError("SOOTVETSTVIE search input not found")
+
+
+def soot_detail_evidence(text: str, inn: str) -> dict[str, Any]:
+    """Only accept a detail page if the target INN is literally present."""
+    if inn not in text:
+        return {"valid": False, "roles": [], "active": False, "product": ""}
+
+    roles: set[str] = set()
+    low = text.lower()
+    pos = text.find(inn)
+    around_before = low[max(0, pos - 1800):pos]
+    if around_before.rfind("заявител") >= 0:
+        roles.add("APPLICANT")
+    if around_before.rfind("изготовител") > around_before.rfind("заявител"):
+        roles.add("MANUFACTURER")
+
+    # The site explicitly tells us when applicant and manufacturer are the
+    # same legal entity. This is much stronger than guessing from names.
+    if "совпадает с заявителем: да" in low and "APPLICANT" in roles:
+        roles.add("MANUFACTURER")
+
+    active = (
+        "ДЕЙСТВУЕТ" in text
+        and not any(x in text for x in ("АРХИВНЫЙ", "ПРЕКРАЩЕН", "ПРЕКРАЩЁН", "АННУЛИРОВАН"))
+    )
+
+    product = ""
+    marker = "НАИМЕНОВАНИЕ ПРОДУКЦИИ"
+    i = text.find(marker)
+    if i >= 0:
+        chunk = re.sub(r"\s+", " ", text[i + len(marker):i + len(marker) + 1200]).strip()
+        # Stop at the next common section if possible.
+        cut = len(chunk)
+        for stop in ("Маркировка продукции", "КОД ТН ВЭД", "Коды ТН ВЭД", "Технические регламенты", "Документы"):
+            j = chunk.find(stop)
+            if j >= 0:
+                cut = min(cut, j)
+        product = chunk[:cut].strip()[:1000]
+    if not product:
+        product = product_excerpt(text)
+
+    return {
+        "valid": True,
+        "roles": sorted(roles),
+        "active": active,
+        "product": product,
+    }
+
+
 def scrape_sootvetstvie(driver, inn: str) -> dict[str, Any]:
     source = "SOOTVETSTVIE"
-    cached = load_cache(source, inn)
+    cached = load_cache(source + "_V2", inn)
     if cached:
         return cached
 
     row = {
         "inn": inn, "source": source, "status": "NOT_FOUND",
-        "documents": 0, "certificates": 0, "declarations": 0,
-        "roles": [], "active_docs": 0, "products": [], "urls": [],
+        "documents": 0, "candidate_documents": 0,
+        "certificates": 0, "declarations": 0,
+        "roles": [], "active_docs": 0, "same_as_applicant_docs": 0,
+        "other_manufacturer_docs": 0,
+        "products": [], "urls": [],
         "company_url": "", "error": "",
     }
     try:
-        driver.get(f"{SOOTV_BASE}/documents?q={inn}")
-        time.sleep(3)
+        # Always start from a clean documents page and use the site's own
+        # search box. Direct ?q= navigation can leave stale SPA state.
+        driver.get(f"{SOOTV_BASE}/documents")
+        time.sleep(2.5)
+        inp = find_soot_search_input(driver)
+        inp.click()
+        inp.clear()
+        inp.send_keys(inn)
+        inp.send_keys(Keys.ENTER)
+        time.sleep(4)
+
         anchors = driver.find_elements(By.CSS_SELECTOR, "a[href]")
-        urls = []
+        candidates: list[str] = []
         for a in anchors:
-            href = a.get_attribute("href") or ""
+            href = (a.get_attribute("href") or "").split("#", 1)[0]
             if "/declarations/" in href or "/certificates/" in href:
-                href = href.split("#", 1)[0]
-                if href not in urls:
-                    urls.append(href)
+                if href not in candidates:
+                    candidates.append(href)
 
-        row["urls"] = urls
-        row["documents"] = len(urls)
-        row["declarations"] = sum("/declarations/" in u for u in urls)
-        row["certificates"] = sum("/certificates/" in u for u in urls)
-        if urls:
-            row["status"] = "FOUND"
+        row["candidate_documents"] = len(candidates)
 
-        roles, products = set(), []
+        valid_urls: list[str] = []
+        roles: set[str] = set()
+        products: list[str] = []
         active = 0
-        for url in urls[:MAX_DETAILS]:
+        same = 0
+        other = 0
+
+        for url in candidates[:MAX_DETAILS]:
             pause()
             driver.get(url)
-            time.sleep(1.5)
+            time.sleep(1.3)
             txt = body_text(driver)
-            roles |= exact_inn_role_from_text(txt, inn)
-            if "Действует" in txt or "действует" in txt:
-                active += 1
-            p = product_excerpt(txt)
-            if p and p not in products:
-                products.append(p)
+            ev = soot_detail_evidence(txt, inn)
+            if not ev["valid"]:
+                continue
 
+            valid_urls.append(url)
+            roles |= set(ev["roles"])
+            if ev["active"]:
+                active += 1
+            if ev["product"] and ev["product"] not in products:
+                products.append(ev["product"])
+
+            low = txt.lower()
+            if "совпадает с заявителем: да" in low:
+                same += 1
+            elif "совпадает с заявителем: нет" in low:
+                other += 1
+
+        row["urls"] = valid_urls
+        row["documents"] = len(valid_urls)
+        row["declarations"] = sum("/declarations/" in u for u in valid_urls)
+        row["certificates"] = sum("/certificates/" in u for u in valid_urls)
         row["roles"] = sorted(roles)
         row["active_docs"] = active
-        row["products"] = products[:5]
+        row["same_as_applicant_docs"] = same
+        row["other_manufacturer_docs"] = other
+        row["products"] = products[:8]
+        row["status"] = "FOUND" if valid_urls else "NOT_FOUND_VERIFIED"
+
     except Exception as e:
         row["status"] = "ERROR"
         row["error"] = f"{type(e).__name__}: {e}"
 
-    save_cache(source, inn, row)
+    save_cache(source + "_V2", inn, row)
     return row
 
 
@@ -310,7 +402,8 @@ def scrape_s34(driver, inn: str) -> dict[str, Any]:
     row = {
         "inn": inn, "source": source, "status": "NOT_FOUND",
         "documents": 0, "certificates": 0, "declarations": 0,
-        "roles": [], "active_docs": "", "products": [], "urls": [],
+        "roles": [], "active_docs": "", "same_as_applicant_docs": 0,
+        "other_manufacturer_docs": 0, "products": [], "urls": [],
         "company_url": "", "error": "",
     }
     try:
@@ -327,10 +420,26 @@ def scrape_s34(driver, inn: str) -> dict[str, Any]:
             row["roles"] = ["APPLICANT"]
 
         products, urls = [], []
+        same, other = 0, 0
+
+        def norm_company(x: str) -> str:
+            x = (x or "").upper()
+            x = re.sub(r"[«»\"'.,()]", " ", x)
+            x = re.sub(r"\\b(ООО|АО|ПАО|ЗАО|ОАО|ИП)\\b", " ", x)
+            return re.sub(r"\\s+", " ", x).strip()
+
         for r in cert_rows + decl_rows:
             cells = r.get("cells") or []
             # table layout: number, applicant, manufacturer, product...
             if len(cells) >= 4:
+                applicant = cells[1]
+                manufacturer = cells[2]
+                a_norm, m_norm = norm_company(applicant), norm_company(manufacturer)
+                if a_norm and m_norm:
+                    if a_norm == m_norm:
+                        same += 1
+                    else:
+                        other += 1
                 p = cells[3]
                 if p and p not in products:
                     products.append(p[:1000])
@@ -341,8 +450,13 @@ def scrape_s34(driver, inn: str) -> dict[str, Any]:
             for u in r.get("links") or []:
                 if u and u not in urls:
                     urls.append(u)
-        row["products"] = products[:5]
-        row["urls"] = urls[:20]
+
+        row["same_as_applicant_docs"] = same
+        row["other_manufacturer_docs"] = other
+        if same > 0:
+            row["roles"] = ["APPLICANT", "MANUFACTURER"]
+        row["products"] = products[:8]
+        row["urls"] = urls[:30]
     except Exception as e:
         row["status"] = "ERROR"
         row["error"] = f"{type(e).__name__}: {e}"
@@ -360,7 +474,8 @@ def scrape_listorg(driver, inn: str) -> dict[str, Any]:
     row = {
         "inn": inn, "source": source, "status": "NOT_FOUND",
         "documents": "", "certificates": "", "declarations": "",
-        "roles": [], "active_docs": "", "products": [], "urls": [],
+        "roles": [], "active_docs": "", "same_as_applicant_docs": 0,
+        "other_manufacturer_docs": 0, "products": [], "urls": [],
         "company_url": "", "error": "",
     }
     try:
@@ -460,6 +575,9 @@ def flatten(row: dict[str, Any]) -> dict[str, Any]:
         "Деклараций": row.get("declarations", ""),
         "Роли": ",".join(row.get("roles") or []),
         "Действующих": row.get("active_docs", ""),
+        "Заявитель=изготовитель": row.get("same_as_applicant_docs", ""),
+        "Заявитель≠изготовитель": row.get("other_manufacturer_docs", ""),
+        "Кандидатов до верификации": row.get("candidate_documents", ""),
         "Продукция": " || ".join(row.get("products") or [])[:6000],
         "URLs": " || ".join(row.get("urls") or [])[:6000],
         "Карточка компании": row.get("company_url", ""),
