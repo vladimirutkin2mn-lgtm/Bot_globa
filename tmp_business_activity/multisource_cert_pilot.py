@@ -231,12 +231,24 @@ def scrape_sootvetstvie(driver, inn: str) -> dict[str, Any]:
         # search box. Direct ?q= navigation can leave stale SPA state.
         driver.get(f"{SOOTV_BASE}/documents")
         time.sleep(2.5)
-        inp = find_soot_search_input(driver)
-        inp.click()
-        inp.clear()
-        inp.send_keys(inn)
-        inp.send_keys(Keys.ENTER)
-        time.sleep(4)
+        try:
+            inp = find_soot_search_input(driver)
+            inp.click()
+            inp.clear()
+            inp.send_keys(inn)
+            inp.send_keys(Keys.ENTER)
+            time.sleep(4)
+        except Exception:
+            # Some sessions render a compact/alternate layout without the
+            # visible search input. Fall back to the site's public q= route,
+            # but keep strict INN verification on every detail page below.
+            # about:blank + cache-buster prevents stale SPA state carrying
+            # results from the previous company into the next one.
+            driver.get("about:blank")
+            time.sleep(0.3)
+            cb = int(time.time() * 1000)
+            driver.get(f"{SOOTV_BASE}/documents?q={inn}&cb={cb}")
+            time.sleep(4)
 
         anchors = driver.find_elements(By.CSS_SELECTOR, "a[href]")
         candidates: list[str] = []
