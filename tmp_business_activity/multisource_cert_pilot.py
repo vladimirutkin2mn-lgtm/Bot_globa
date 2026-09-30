@@ -43,8 +43,10 @@ SOOTV_BASE = "https://xn--b1aaibo6aawehcb.xn--p1acf"
 S34_BASE = "https://s-34.ru"
 LISTORG_BASE = "https://www.list-org.com"
 
-MAX_INNS = int(os.getenv("PILOT_INNS", "20"))
+MAX_INNS = int(os.getenv("PILOT_INNS", "100"))
 MAX_DETAILS = int(os.getenv("PILOT_MAX_DETAILS", "8"))
+S34_ROLE_CHECK_LIMIT = int(os.getenv("S34_ROLE_CHECK_LIMIT", "5"))
+RUN_LISTORG = os.getenv("RUN_LISTORG", "0") == "1"
 MIN_DELAY = float(os.getenv("PILOT_MIN_DELAY", "2.0"))
 MAX_DELAY = float(os.getenv("PILOT_MAX_DELAY", "4.0"))
 
@@ -363,24 +365,52 @@ def scrape_s34_mode(driver, inn: str, mode: str) -> dict[str, Any]:
                     links.append(h)
             rows.append({"cells": cells, "links": links})
 
-    # Grid fallback: look for anchors that resemble certificate/declaration numbers.
+    # Grid fallback: S-34 sometimes renders rows as a JS grid rather than
+    # a classic HTML table. Preserve cell boundaries whenever possible.
     if not rows:
         for a in driver.find_elements(By.CSS_SELECTOR, "a[href]"):
             t = re.sub(r"\s+", " ", a.text).strip()
+            href = a.get_attribute("href") or ""
             if not t:
                 continue
             if ("ЕАЭС" in t or "RU " in t or "РОСС" in t) and len(t) > 10:
-                parent_text = ""
-                try:
-                    parent_text = a.find_element(By.XPATH, "./ancestor::*[self::tr or @role='row'][1]").text
-                except Exception:
+                row_el = None
+                for xp in (
+                    "./ancestor::*[@role='row'][1]",
+                    "./ancestor::*[contains(@class,'row')][1]",
+                    "./ancestor::tr[1]",
+                    "./parent::*",
+                ):
                     try:
-                        parent_text = a.find_element(By.XPATH, "./parent::*").text
+                        cand = a.find_element(By.XPATH, xp)
+                        if cand is not None and cand.is_displayed():
+                            row_el = cand
+                            break
                     except Exception:
                         pass
+
+                cells = []
+                if row_el is not None:
+                    for sel in ("[role='cell']", "td", "[class*='cell']", ":scope > *"):
+                        try:
+                            vals = [
+                                re.sub(r"\s+", " ", x.text).strip()
+                                for x in row_el.find_elements(By.CSS_SELECTOR, sel)
+                                if x.is_displayed() and re.sub(r"\s+", " ", x.text).strip()
+                            ]
+                        except Exception:
+                            vals = []
+                        if len(vals) >= 4:
+                            cells = vals
+                            break
+                    if not cells:
+                        txt = re.sub(r"\s+", " ", row_el.text).strip()
+                        if txt:
+                            cells = [txt]
+
                 rows.append({
-                    "cells": [re.sub(r"\s+", " ", parent_text).strip()],
-                    "links": [a.get_attribute("href") or ""],
+                    "cells": cells,
+                    "links": [href] if href else [],
                 })
 
     # Deduplicate.
@@ -391,6 +421,25 @@ def scrape_s34_mode(driver, inn: str, mode: str) -> dict[str, Any]:
             seen.add(key)
             out.append(r)
     return {"rows": out, "error": ""}
+
+
+def s34_check_manufacturer_relation(driver, url: str, inn: str) -> str:
+    """Return SAME / OTHER / UNKNOWN from the visible Manufacturer section."""
+    if not url:
+        return "UNKNOWN"
+    try:
+        driver.get(url)
+        time.sleep(1.2)
+        clicked = click_text_button(driver, ("Изготовитель", "Manufacturer"))
+        if clicked:
+            time.sleep(0.7)
+        txt = body_text(driver)
+        low = txt.lower()
+        if "изготовител" not in low and "manufacturer" not in low:
+            return "UNKNOWN"
+        return "SAME" if inn in txt else "OTHER"
+    except Exception:
+        return "UNKNOWN"
 
 
 def scrape_s34(driver, inn: str) -> dict[str, Any]:
@@ -451,8 +500,24 @@ def scrape_s34(driver, inn: str) -> dict[str, Any]:
                 if u and u not in urls:
                     urls.append(u)
 
+        role_checked = 0
+        role_unknown = 0
+        if row["documents"] and same == 0 and other == 0:
+            for u in urls[:S34_ROLE_CHECK_LIMIT]:
+                pause()
+                rel = s34_check_manufacturer_relation(driver, u, inn)
+                role_checked += 1
+                if rel == "SAME":
+                    same += 1
+                elif rel == "OTHER":
+                    other += 1
+                else:
+                    role_unknown += 1
+
         row["same_as_applicant_docs"] = same
         row["other_manufacturer_docs"] = other
+        row["role_docs_checked"] = role_checked
+        row["role_docs_unknown"] = role_unknown
         if same > 0:
             row["roles"] = ["APPLICANT", "MANUFACTURER"]
         row["products"] = products[:8]
@@ -578,6 +643,8 @@ def flatten(row: dict[str, Any]) -> dict[str, Any]:
         "Заявитель=изготовитель": row.get("same_as_applicant_docs", ""),
         "Заявитель≠изготовитель": row.get("other_manufacturer_docs", ""),
         "Кандидатов до верификации": row.get("candidate_documents", ""),
+        "S34 role docs checked": row.get("role_docs_checked", ""),
+        "S34 role docs unknown": row.get("role_docs_unknown", ""),
         "Продукция": " || ".join(row.get("products") or [])[:6000],
         "URLs": " || ".join(row.get("urls") or [])[:6000],
         "Карточка компании": row.get("company_url", ""),
@@ -605,6 +672,12 @@ def write_results(rows: list[dict[str, Any]]) -> None:
                 for x in rs
                 if str(x.get("documents") or "").isdigit()
             ),
+            "companies_with_same_manufacturer": sum(
+                int(x.get("same_as_applicant_docs") or 0) > 0 for x in rs
+            ),
+            "companies_with_other_manufacturer": sum(
+                int(x.get("other_manufacturer_docs") or 0) > 0 for x in rs
+            ),
         }
 
     (OUT / "summary.json").write_text(
@@ -618,8 +691,9 @@ def write_results(rows: list[dict[str, Any]]) -> None:
 def main() -> int:
     inns = load_inns()
     print(f"Pilot INNs: {len(inns)}")
-    print("Sources: SOOTVETSTVIE, S34, LIST_ORG")
-    print("CAPTCHA is never bypassed; List-Org will be marked BLOCKED_CAPTCHA.")
+    print("Primary source: S34. SOOTVETSTVIE runs only when S34 is NOT_FOUND.")
+    print("List-Org is disabled by default after 0/20 coverage; set RUN_LISTORG=1 to re-test.")
+    print("CAPTCHA is never bypassed.")
 
     driver = start_driver()
     rows: list[dict[str, Any]] = []
@@ -629,32 +703,64 @@ def main() -> int:
         for n, inn in enumerate(inns, 1):
             print(f"\n[{n}/{len(inns)}] INN {inn}", flush=True)
 
-            for fn, source in (
-                (scrape_sootvetstvie, "SOOTVETSTVIE"),
-                (scrape_s34, "S34"),
-            ):
-                r = fn(driver, inn)
-                rows.append(r)
-                print(f"  {source}: {r['status']} docs={r.get('documents')}", flush=True)
-                pause()
+            s34 = scrape_s34(driver, inn)
+            rows.append(s34)
+            print(
+                f"  S34: {s34['status']} docs={s34.get('documents')} "
+                f"same={s34.get('same_as_applicant_docs', 0)} "
+                f"other={s34.get('other_manufacturer_docs', 0)}",
+                flush=True,
+            )
+            pause()
 
-            if listorg_blocked:
-                r = {
-                    "inn": inn, "source": "LIST_ORG", "status": "SKIPPED_AFTER_CAPTCHA",
+            if s34["status"] == "FOUND":
+                soot = {
+                    "inn": inn, "source": "SOOTVETSTVIE",
+                    "status": "SKIPPED_S34_FOUND",
                     "documents": "", "certificates": "", "declarations": "",
-                    "roles": [], "active_docs": "", "products": [], "urls": [],
-                    "company_url": "", "error": "",
+                    "roles": [], "active_docs": "",
+                    "same_as_applicant_docs": 0, "other_manufacturer_docs": 0,
+                    "products": [], "urls": [], "company_url": "", "error": "",
                 }
             else:
-                r = scrape_listorg(driver, inn)
-                if r["status"] == "BLOCKED_CAPTCHA":
-                    listorg_blocked = True
-            rows.append(r)
-            print(f"  LIST_ORG: {r['status']} docs={r.get('documents')}", flush=True)
-            pause()
+                soot = scrape_sootvetstvie(driver, inn)
+                pause()
+            rows.append(soot)
+            print(f"  SOOTVETSTVIE: {soot['status']} docs={soot.get('documents')}", flush=True)
+
+            if RUN_LISTORG:
+                if listorg_blocked:
+                    lo = {
+                        "inn": inn, "source": "LIST_ORG",
+                        "status": "SKIPPED_AFTER_CAPTCHA",
+                        "documents": "", "certificates": "", "declarations": "",
+                        "roles": [], "active_docs": "",
+                        "same_as_applicant_docs": 0, "other_manufacturer_docs": 0,
+                        "products": [], "urls": [], "company_url": "", "error": "",
+                    }
+                else:
+                    lo = scrape_listorg(driver, inn)
+                    if lo["status"] == "BLOCKED_CAPTCHA":
+                        listorg_blocked = True
+                rows.append(lo)
+                print(f"  LIST_ORG: {lo['status']} docs={lo.get('documents')}", flush=True)
 
             write_results(rows)
 
+        by_inn = defaultdict(list)
+        for r in rows:
+            by_inn[r["inn"]].append(r)
+        covered = sum(any(x.get("status") == "FOUND" for x in rs) for rs in by_inn.values())
+        combined = {
+            "input_inns": len(inns),
+            "covered_any_source": covered,
+            "coverage_pct": round(100 * covered / len(inns), 1) if inns else 0,
+        }
+        (OUT / "combined_summary.json").write_text(
+            json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print("\n=== COMBINED ===")
+        print(json.dumps(combined, ensure_ascii=False, indent=2))
         return 0
     finally:
         try:
