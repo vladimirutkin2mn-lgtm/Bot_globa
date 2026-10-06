@@ -1,0 +1,120 @@
+name: TMP package business activity production
+
+on:
+  push:
+    branches:
+      - tmp/business-activity-enrichment
+    paths:
+      - .github/workflows/tmp_package_business_activity_prod.yml
+      - tmp_business_activity/business_activity_prod.py
+      - tmp_business_activity/test_business_activity_prod.py
+      - tmp_business_activity/multisource_cert_pilot.py
+      - tmp_business_activity/requirements_fsa.txt
+      - tmp_business_activity/README_PROD_5000.txt
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production package
+        run: |
+          set -euxo pipefail
+          mkdir -p business_activity_prod_5000
+          cp tmp_business_activity/business_activity_prod.py business_activity_prod_5000/
+          cp tmp_business_activity/multisource_cert_pilot.py business_activity_prod_5000/
+          cp tmp_business_activity/test_business_activity_prod.py business_activity_prod_5000/
+          cp tmp_business_activity/requirements_fsa.txt business_activity_prod_5000/requirements.txt
+          cp tmp_business_activity/README_PROD_5000.txt business_activity_prod_5000/README.txt
+
+          cat > business_activity_prod_5000/run_business_activity_5000.bat <<'BAT'
+          @echo off
+          setlocal EnableExtensions EnableDelayedExpansion
+          cd /d %~dp0
+
+          set "INPUT=%~1"
+          if not "%INPUT%"=="" goto have_input
+
+          for %%F in (*.xlsx) do (
+            if not defined INPUT set "INPUT=%%F"
+          )
+          if not defined INPUT (
+            for %%F in (*.csv) do (
+              if not defined INPUT set "INPUT=%%F"
+            )
+          )
+          if not defined INPUT (
+            echo.
+            echo Input file not found.
+            echo Put your XLSX/CSV in this folder or drag it onto this BAT file.
+            echo.
+            pause
+            exit /b 2
+          )
+
+          :have_input
+          echo Input: %INPUT%
+          py -m pip install -r requirements.txt
+          if errorlevel 1 (
+            echo Failed to install requirements.
+            pause
+            exit /b 1
+          )
+
+          py -3.12 business_activity_prod.py --input "%INPUT%" --limit 5000
+          set RC=%ERRORLEVEL%
+          echo.
+          if "%RC%"=="0" (
+            echo Finished successfully.
+          ) else if "%RC%"=="130" (
+            echo Interrupted by user. Progress is saved; run again to resume.
+          ) else (
+            echo Finished with error code %RC%. Progress/checkpoint was saved when possible.
+          )
+          pause
+          exit /b %RC%
+          BAT
+
+          cat > business_activity_prod_5000/check_input_only.bat <<'BAT'
+          @echo off
+          setlocal EnableExtensions
+          cd /d %~dp0
+          set "INPUT=%~1"
+          if "%INPUT%"=="" (
+            for %%F in (*.xlsx) do if not defined INPUT set "INPUT=%%F"
+          )
+          if "%INPUT%"=="" (
+            echo Drag your XLSX onto this BAT file.
+            pause
+            exit /b 2
+          )
+          py -m pip install -r requirements.txt
+          if errorlevel 1 exit /b 1
+          py -3.12 business_activity_prod.py --input "%INPUT%" --limit 5000 --dry-run
+          pause
+          BAT
+
+          cat > business_activity_prod_5000/input_example.txt <<'TXT'
+          5445265650
+          6950086938
+          7701276779
+          2727006048
+          6660014681
+          TXT
+
+          python -m pip install -r business_activity_prod_5000/requirements.txt
+          python -m py_compile \
+            business_activity_prod_5000/business_activity_prod.py \
+            business_activity_prod_5000/multisource_cert_pilot.py \
+            business_activity_prod_5000/test_business_activity_prod.py
+          (cd business_activity_prod_5000 && python -m unittest -v test_business_activity_prod.py)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: business-activity-prod-5000
+          path: business_activity_prod_5000/
+          retention-days: 7
