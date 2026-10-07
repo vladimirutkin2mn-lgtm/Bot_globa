@@ -92,10 +92,7 @@ def test_dynamic_daily_share_card_bottom_is_artwork_not_flat_gray() -> None:
         bottom = image.convert("RGB").crop((0, CARD_SIZE[1] - 220, CARD_SIZE[0], CARD_SIZE[1]))
         stats = ImageStat.Stat(bottom)
 
-    looks_like_flat_gray = (
-        max(stats.mean) - min(stats.mean) < 6
-        and max(stats.stddev) < 14
-    )
+    looks_like_flat_gray = max(stats.mean) - min(stats.mean) < 6 and max(stats.stddev) < 14
     assert not looks_like_flat_gray
 
 
