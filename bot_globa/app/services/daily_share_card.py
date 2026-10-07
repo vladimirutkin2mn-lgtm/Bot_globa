@@ -24,6 +24,7 @@ _TEXT_SHADOW = (4, 7, 17, 150)
 _LEFT_MARGIN = 112
 _HEADLINE_MAX_WIDTH = 936
 _BOTTOM_SAFE_AREA = 170
+_ARTWORK_BOTTOM_CROP_RATIO = 0.16
 
 
 def daily_share_card_theme(forecast_date: date) -> str:
@@ -57,8 +58,9 @@ def render_daily_share_card(forecast_date: date) -> bytes:
 
     snapshot = build_editorial_daily_horoscope(forecast_date)
     with Image.open(DAILY_SHARE_BASE_PATH) as source:
+        artwork = _crop_artwork_footer(source.convert("RGB"))
         fitted = ImageOps.fit(
-            source.convert("RGB"),
+            artwork,
             CARD_SIZE,
             method=Image.Resampling.LANCZOS,
         )
@@ -128,6 +130,16 @@ def render_daily_share_card(forecast_date: date) -> bytes:
     output = BytesIO()
     card.convert("RGB").save(output, format="JPEG", quality=90, optimize=True)
     return output.getvalue()
+
+
+def _crop_artwork_footer(source: Image.Image) -> Image.Image:
+    """Remove the neutral placeholder band baked into the bottom of E-02 artwork."""
+
+    width, height = source.size
+    cropped_height = round(height * (1 - _ARTWORK_BOTTOM_CROP_RATIO))
+    if cropped_height <= 0:
+        raise ValueError("daily share artwork crop removed the entire source image")
+    return source.crop((0, 0, width, cropped_height))
 
 
 def _build_readability_overlay() -> Image.Image:
