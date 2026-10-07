@@ -1,17 +1,20 @@
 from datetime import date
 from io import BytesIO
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from app.api.share_assets import (
     DAILY_SHARE_CARD_PATH,
     DAILY_SHARE_CARD_ROUTE,
+    DAILY_SHARE_DYNAMIC_LEGACY_ROUTE,
     DAILY_SHARE_DYNAMIC_ROUTE,
-    numa_daily_share_card_v3,
+    numa_daily_share_card_v5,
 )
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 from app.services.daily_share_card import (
     CARD_SIZE,
+    _display_theme,
+    _fit_wrapped_text,
     daily_share_card_theme,
     load_daily_share_font,
     render_daily_share_card,
@@ -26,19 +29,45 @@ def test_daily_share_card_asset_is_packaged() -> None:
     assert DAILY_SHARE_CARD_PATH.stat().st_size > 100_000
 
 
-def test_dynamic_daily_share_route_is_date_specific() -> None:
-    assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v3/{forecast_date}.jpg"
+def test_dynamic_daily_share_route_is_cache_versioned() -> None:
+    assert DAILY_SHARE_DYNAMIC_LEGACY_ROUTE == "/public/share/numa-daily-v3/{forecast_date}.jpg"
+    assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v5/{forecast_date}.jpg"
 
 
-def test_daily_share_font_has_real_cyrillic_glyphs() -> None:
-    font = load_daily_share_font(40)
+def test_daily_share_fonts_have_real_cyrillic_glyphs() -> None:
+    sans = load_daily_share_font(40)
+    serif = load_daily_share_font(40, serif=True)
 
-    family, _style = font.getname()
-    assert family == "DejaVu Sans"
+    sans_family, _sans_style = sans.getname()
+    serif_family, _serif_style = serif.getname()
+    assert sans_family == "DejaVu Sans"
+    assert serif_family == "DejaVu Serif"
     # Missing glyphs collapse to the same replacement box. Real Cyrillic glyphs have
     # distinct advances, which protects us from shipping square placeholders again.
-    assert font.getlength("Т") != font.getlength("Ш")
-    assert font.getlength("я") != font.getlength("\U0010ffff")
+    assert serif.getlength("Т") != serif.getlength("Ш")
+    assert serif.getlength("я") != serif.getlength("\U0010ffff")
+
+
+def test_daily_share_theme_presentation_capitalizes_without_rewriting_source() -> None:
+    assert _display_theme("лучше убрать препятствие") == "Лучше убрать препятствие"
+    assert _display_theme("  Уже готово  ") == "Уже готово"
+
+
+def test_long_daily_share_theme_fits_within_four_lines() -> None:
+    image = Image.new("RGB", CARD_SIZE)
+    draw = ImageDraw.Draw(image)
+    _font, lines = _fit_wrapped_text(
+        draw,
+        (
+            "Лучше выбрать одно действительно важное препятствие и спокойно разобраться "
+            "с ним, чем пытаться одновременно изменить всё вокруг себя"
+        ),
+        max_width=936,
+        max_lines=4,
+    )
+
+    assert len(lines) <= 4
+    assert len(lines[-1].split()) > 1
 
 
 def test_dynamic_daily_share_card_is_a_deterministic_full_size_jpeg() -> None:
@@ -71,7 +100,7 @@ def test_dynamic_card_uses_exact_daily_horoscope_theme() -> None:
 
 
 def test_dynamic_daily_share_endpoint_is_immutable_and_public() -> None:
-    response = numa_daily_share_card_v3(date(2026, 9, 15))
+    response = numa_daily_share_card_v5(date(2026, 9, 15))
 
     assert response.media_type == "image/jpeg"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"

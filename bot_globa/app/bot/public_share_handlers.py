@@ -49,9 +49,10 @@ DAILY_SHARE_SCENARIO = "daily_public_share_v4"
 DAILY_SHARE_CAMPAIGN = "daily_public_inline_card_v4"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
 DAILY_SHARE_CONFIRM_CALLBACK = "pubshare:daily:confirm"
-DAILY_SHARE_MEDIA_PATH_TEMPLATE = "/public/share/numa-daily-v3/{forecast_date}.jpg"
+DAILY_SHARE_MEDIA_PATH_TEMPLATE = "/public/share/numa-daily-v5/{forecast_date}.jpg"
 DAILY_SHARE_TITLE_PREFIX = "Гороскоп на сегодня · "
-DAILY_SHARE_INLINE_PREFIX = "daily:"
+DAILY_SHARE_INLINE_PREFIX = "daily-v5:"
+DAILY_SHARE_LEGACY_INLINE_PREFIX = "daily:"
 DAILY_SHARE_INLINE_CAPTION = "Тема дня из Numa ✨"
 
 DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте текст:\n\n"
@@ -137,17 +138,20 @@ def build_daily_share_media_url(public_base_url: str, forecast_date: date) -> st
 
 
 def build_daily_share_inline_query(public_text: str) -> str:
-    """Encode only the public forecast date into the inline query."""
+    """Encode only the public forecast date into the versioned inline query."""
 
     return f"{DAILY_SHARE_INLINE_PREFIX}{extract_daily_share_date(public_text).isoformat()}"
 
 
 def parse_daily_share_inline_query(query: str) -> date | None:
-    """Parse the privacy-safe daily inline query without accepting arbitrary input."""
+    """Parse current and legacy privacy-safe daily inline queries."""
 
-    if not query.startswith(DAILY_SHARE_INLINE_PREFIX):
+    if query.startswith(DAILY_SHARE_INLINE_PREFIX):
+        raw_date = query.removeprefix(DAILY_SHARE_INLINE_PREFIX).strip()
+    elif query.startswith(DAILY_SHARE_LEGACY_INLINE_PREFIX):
+        raw_date = query.removeprefix(DAILY_SHARE_LEGACY_INLINE_PREFIX).strip()
+    else:
         return None
-    raw_date = query.removeprefix(DAILY_SHARE_INLINE_PREFIX).strip()
     try:
         return date.fromisoformat(raw_date)
     except ValueError:
@@ -168,7 +172,7 @@ def build_daily_inline_result(
     referral = f"https://t.me/{username}?start={DAILY_SHARE_ENTRY_PAYLOAD}"
     snapshot = build_editorial_daily_horoscope(forecast_date)
     return InlineQueryResultPhoto(
-        id=f"daily-{forecast_date.isoformat()}",
+        id=f"daily-v5-{forecast_date.isoformat()}",
         photo_url=media_url,
         thumbnail_url=media_url,
         photo_width=1200,
@@ -328,7 +332,7 @@ async def confirm_daily_public_card(
     )
 
 
-@router.inline_query(F.query.startswith(DAILY_SHARE_INLINE_PREFIX))
+@router.inline_query(F.query.startswith("daily"))
 async def answer_daily_share_inline(query: InlineQuery, bot: Bot) -> None:
     """Return one public daily card as an actual Telegram photo result."""
 
