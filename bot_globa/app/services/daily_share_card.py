@@ -5,11 +5,11 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageStat
 
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 
-CARD_SIZE = (1200, 1500)
+CARD_SIZE = (1200, 1200)
 DAILY_SHARE_BASE_PATH = (
     Path(__file__).resolve().parents[1] / "bot" / "assets" / "scenes" / "E-02.jpg"
 )
@@ -23,8 +23,9 @@ _ACCENT_TEXT = (229, 190, 116, 255)
 _TEXT_SHADOW = (4, 7, 17, 150)
 _LEFT_MARGIN = 112
 _HEADLINE_MAX_WIDTH = 936
-_BOTTOM_SAFE_AREA = 170
-_ARTWORK_BOTTOM_CROP_RATIO = 0.16
+_BOTTOM_SAFE_AREA = 120
+_GRAY_SCAN_STEP = 8
+_MIN_GRAY_FOOTER_RATIO = 0.08
 
 
 def daily_share_card_theme(forecast_date: date) -> str:
@@ -63,32 +64,33 @@ def render_daily_share_card(forecast_date: date) -> bytes:
             artwork,
             CARD_SIZE,
             method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.5),
         )
 
     card = fitted.convert("RGBA")
     card = Image.alpha_composite(card, _build_readability_overlay())
     draw = ImageDraw.Draw(card)
 
-    brand_font = load_daily_share_font(62, bold=True)
-    date_font = load_daily_share_font(32)
-    label_font = load_daily_share_font(27, bold=True)
+    brand_font = load_daily_share_font(58, bold=True)
+    date_font = load_daily_share_font(30)
+    label_font = load_daily_share_font(25, bold=True)
 
     _draw_tracked_text(
         draw,
-        (_LEFT_MARGIN, 112),
+        (_LEFT_MARGIN, 88),
         "NUMA",
         brand_font,
         fill=_PRIMARY_TEXT,
         tracking=3,
     )
     draw.text(
-        (_LEFT_MARGIN, 211),
+        (_LEFT_MARGIN, 176),
         forecast_date.strftime("%d.%m.%Y"),
         font=date_font,
         fill=_MUTED_TEXT,
     )
 
-    label_y = 310
+    label_y = 260
     label_width = _draw_tracked_text(
         draw,
         (_LEFT_MARGIN, label_y),
@@ -99,7 +101,7 @@ def render_daily_share_card(forecast_date: date) -> bytes:
     )
     rule_start = _LEFT_MARGIN + label_width + 36
     draw.line(
-        (rule_start, label_y + 18, min(rule_start + 245, 790), label_y + 18),
+        (rule_start, label_y + 17, min(rule_start + 245, 790), label_y + 17),
         fill=(229, 190, 116, 155),
         width=2,
     )
@@ -111,7 +113,7 @@ def render_daily_share_card(forecast_date: date) -> bytes:
         max_lines=4,
     )
     line_height = _line_height(theme_font)
-    y = 382
+    y = 326
     for line in theme_lines:
         draw.text(
             (_LEFT_MARGIN, y),
@@ -123,8 +125,8 @@ def render_daily_share_card(forecast_date: date) -> bytes:
         )
         y += line_height
 
-    # Keep the lower part intentionally free of text. Telegram may crop or overlay the
-    # image there, and the background artwork is stronger without a duplicated footer.
+    # Keep the lower part intentionally free of text. The artwork now fills the whole
+    # square card, so Telegram does not need to display any synthetic padding.
     assert y < CARD_SIZE[1] - _BOTTOM_SAFE_AREA
 
     output = BytesIO()
@@ -133,13 +135,41 @@ def render_daily_share_card(forecast_date: date) -> bytes:
 
 
 def _crop_artwork_footer(source: Image.Image) -> Image.Image:
-    """Remove the neutral placeholder band baked into the bottom of E-02 artwork."""
+    """Detect and remove the flat neutral placeholder band baked into E-02."""
 
     width, height = source.size
-    cropped_height = round(height * (1 - _ARTWORK_BOTTOM_CROP_RATIO))
-    if cropped_height <= 0:
-        raise ValueError("daily share artwork crop removed the entire source image")
-    return source.crop((0, 0, width, cropped_height))
+    x_margin = round(width * 0.08)
+    minimum_footer = round(height * _MIN_GRAY_FOOTER_RATIO)
+    band_start: int | None = None
+    band_height = 0
+
+    for bottom in range(height, height // 2, -_GRAY_SCAN_STEP):
+        top = max(height // 2, bottom - _GRAY_SCAN_STEP)
+        strip = source.crop((x_margin, top, width - x_margin, bottom))
+        if _looks_like_flat_neutral_gray(strip):
+            band_start = top
+            band_height += bottom - top
+            continue
+        if band_start is not None:
+            if band_height >= minimum_footer:
+                break
+            band_start = None
+            band_height = 0
+
+    if band_start is None or height - band_start < minimum_footer:
+        return source
+    return source.crop((0, 0, width, band_start))
+
+
+def _looks_like_flat_neutral_gray(strip: Image.Image) -> bool:
+    stats = ImageStat.Stat(strip.convert("RGB"))
+    means = stats.mean[:3]
+    average = sum(means) / 3
+    return (
+        80 <= average <= 180
+        and max(means) - min(means) <= 8
+        and max(stats.stddev[:3]) <= 14
+    )
 
 
 def _build_readability_overlay() -> Image.Image:
@@ -147,7 +177,7 @@ def _build_readability_overlay() -> Image.Image:
 
     overlay = Image.new("RGBA", CARD_SIZE, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
-    fade_height = 900
+    fade_height = 760
     for y in range(fade_height):
         progress = y / (fade_height - 1)
         alpha = round(188 * (1 - progress) ** 1.55)
