@@ -165,11 +165,7 @@ def _looks_like_flat_neutral_gray(strip: Image.Image) -> bool:
     stats = ImageStat.Stat(strip.convert("RGB"))
     means = stats.mean[:3]
     average = sum(means) / 3
-    return (
-        80 <= average <= 180
-        and max(means) - min(means) <= 8
-        and max(stats.stddev[:3]) <= 14
-    )
+    return 80 <= average <= 180 and max(means) - min(means) <= 8 and max(stats.stddev[:3]) <= 14
 
 
 def _build_readability_overlay() -> Image.Image:
