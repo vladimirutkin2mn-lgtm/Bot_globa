@@ -5,7 +5,7 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageStat
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 
@@ -24,8 +24,6 @@ _TEXT_SHADOW = (4, 7, 17, 150)
 _LEFT_MARGIN = 112
 _HEADLINE_MAX_WIDTH = 936
 _BOTTOM_SAFE_AREA = 120
-_GRAY_SCAN_STEP = 8
-_MIN_GRAY_FOOTER_RATIO = 0.08
 
 
 def daily_share_card_theme(forecast_date: date) -> str:
@@ -59,9 +57,8 @@ def render_daily_share_card(forecast_date: date) -> bytes:
 
     snapshot = build_editorial_daily_horoscope(forecast_date)
     with Image.open(DAILY_SHARE_BASE_PATH) as source:
-        artwork = _crop_artwork_footer(source.convert("RGB"))
         fitted = ImageOps.fit(
-            artwork,
+            source.convert("RGB"),
             CARD_SIZE,
             method=Image.Resampling.LANCZOS,
             centering=(0.5, 0.5),
@@ -125,47 +122,13 @@ def render_daily_share_card(forecast_date: date) -> bytes:
         )
         y += line_height
 
-    # Keep the lower part intentionally free of text. The artwork now fills the whole
-    # square card, so Telegram does not need to display any synthetic padding.
+    # Keep the lower part intentionally free of text. The artwork fills the square
+    # card edge-to-edge; Telegram receives the same 1:1 geometry in photo metadata.
     assert y < CARD_SIZE[1] - _BOTTOM_SAFE_AREA
 
     output = BytesIO()
     card.convert("RGB").save(output, format="JPEG", quality=90, optimize=True)
     return output.getvalue()
-
-
-def _crop_artwork_footer(source: Image.Image) -> Image.Image:
-    """Detect and remove the flat neutral placeholder band baked into E-02."""
-
-    width, height = source.size
-    x_margin = round(width * 0.08)
-    minimum_footer = round(height * _MIN_GRAY_FOOTER_RATIO)
-    band_start: int | None = None
-    band_height = 0
-
-    for bottom in range(height, height // 2, -_GRAY_SCAN_STEP):
-        top = max(height // 2, bottom - _GRAY_SCAN_STEP)
-        strip = source.crop((x_margin, top, width - x_margin, bottom))
-        if _looks_like_flat_neutral_gray(strip):
-            band_start = top
-            band_height += bottom - top
-            continue
-        if band_start is not None:
-            if band_height >= minimum_footer:
-                break
-            band_start = None
-            band_height = 0
-
-    if band_start is None or height - band_start < minimum_footer:
-        return source
-    return source.crop((0, 0, width, band_start))
-
-
-def _looks_like_flat_neutral_gray(strip: Image.Image) -> bool:
-    stats = ImageStat.Stat(strip.convert("RGB"))
-    means = stats.mean[:3]
-    average = sum(means) / 3
-    return 80 <= average <= 180 and max(means) - min(means) <= 8 and max(stats.stddev[:3]) <= 14
 
 
 def _build_readability_overlay() -> Image.Image:
