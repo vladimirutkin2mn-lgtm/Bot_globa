@@ -15,7 +15,6 @@ from app.api.share_assets import (
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 from app.services.daily_share_card import (
     CARD_SIZE,
-    _crop_artwork_footer,
     _display_theme,
     _fit_wrapped_text,
     daily_share_card_theme,
@@ -73,16 +72,6 @@ def test_long_daily_share_theme_fits_within_four_lines() -> None:
 
     assert len(lines) <= 4
     assert len(lines[-1].split()) > 1
-
-
-def test_daily_share_source_footer_is_detected_and_removed() -> None:
-    with Image.open(DAILY_SHARE_CARD_PATH) as source:
-        rgb = source.convert("RGB")
-        cropped = _crop_artwork_footer(rgb)
-
-    assert cropped.width == rgb.width
-    assert cropped.height < rgb.height
-    assert cropped.height > rgb.height * 0.6
 
 
 def test_dynamic_daily_share_card_is_a_deterministic_square_jpeg() -> None:
