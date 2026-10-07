@@ -1,14 +1,15 @@
 from datetime import date
 from io import BytesIO
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageStat
 
 from app.api.share_assets import (
     DAILY_SHARE_CARD_PATH,
     DAILY_SHARE_CARD_ROUTE,
     DAILY_SHARE_DYNAMIC_LEGACY_ROUTE,
+    DAILY_SHARE_DYNAMIC_PREVIOUS_ROUTE,
     DAILY_SHARE_DYNAMIC_ROUTE,
-    numa_daily_share_card_v5,
+    numa_daily_share_card_v6,
 )
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 from app.services.daily_share_card import (
@@ -31,7 +32,8 @@ def test_daily_share_card_asset_is_packaged() -> None:
 
 def test_dynamic_daily_share_route_is_cache_versioned() -> None:
     assert DAILY_SHARE_DYNAMIC_LEGACY_ROUTE == "/public/share/numa-daily-v3/{forecast_date}.jpg"
-    assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v5/{forecast_date}.jpg"
+    assert DAILY_SHARE_DYNAMIC_PREVIOUS_ROUTE == "/public/share/numa-daily-v5/{forecast_date}.jpg"
+    assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v6/{forecast_date}.jpg"
 
 
 def test_daily_share_fonts_have_real_cyrillic_glyphs() -> None:
@@ -83,6 +85,17 @@ def test_dynamic_daily_share_card_is_a_deterministic_full_size_jpeg() -> None:
         assert image.size == CARD_SIZE
 
 
+def test_dynamic_daily_share_card_bottom_is_artwork_not_flat_gray() -> None:
+    rendered = render_daily_share_card(date(2026, 9, 15))
+
+    with Image.open(BytesIO(rendered)) as image:
+        bottom = image.convert("RGB").crop((0, CARD_SIZE[1] - 220, CARD_SIZE[0], CARD_SIZE[1]))
+        stats = ImageStat.Stat(bottom)
+
+    looks_like_flat_gray = max(stats.mean) - min(stats.mean) < 6 and max(stats.stddev) < 14
+    assert not looks_like_flat_gray
+
+
 def test_dynamic_daily_share_card_changes_with_date() -> None:
     first = render_daily_share_card(date(2026, 9, 15))
     second = render_daily_share_card(date(2026, 9, 16))
@@ -100,7 +113,7 @@ def test_dynamic_card_uses_exact_daily_horoscope_theme() -> None:
 
 
 def test_dynamic_daily_share_endpoint_is_immutable_and_public() -> None:
-    response = numa_daily_share_card_v5(date(2026, 9, 15))
+    response = numa_daily_share_card_v6(date(2026, 9, 15))
 
     assert response.media_type == "image/jpeg"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
