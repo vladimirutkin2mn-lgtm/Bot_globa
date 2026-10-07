@@ -49,9 +49,10 @@ DAILY_SHARE_SCENARIO = "daily_public_share_v4"
 DAILY_SHARE_CAMPAIGN = "daily_public_inline_card_v4"
 PERSONAL_SHARE_CAMPAIGN = "personal_insight_card_v1"
 DAILY_SHARE_CONFIRM_CALLBACK = "pubshare:daily:confirm"
-DAILY_SHARE_MEDIA_PATH_TEMPLATE = "/public/share/numa-daily-v5/{forecast_date}.jpg"
+DAILY_SHARE_MEDIA_PATH_TEMPLATE = "/public/share/numa-daily-v6/{forecast_date}.jpg"
 DAILY_SHARE_TITLE_PREFIX = "Гороскоп на сегодня · "
-DAILY_SHARE_INLINE_PREFIX = "daily-v5:"
+DAILY_SHARE_INLINE_PREFIX = "daily-v6:"
+DAILY_SHARE_PREVIOUS_INLINE_PREFIX = "daily-v5:"
 DAILY_SHARE_LEGACY_INLINE_PREFIX = "daily:"
 DAILY_SHARE_INLINE_CAPTION = "Тема дня из Numa ✨"
 
@@ -148,6 +149,8 @@ def parse_daily_share_inline_query(query: str) -> date | None:
 
     if query.startswith(DAILY_SHARE_INLINE_PREFIX):
         raw_date = query.removeprefix(DAILY_SHARE_INLINE_PREFIX).strip()
+    elif query.startswith(DAILY_SHARE_PREVIOUS_INLINE_PREFIX):
+        raw_date = query.removeprefix(DAILY_SHARE_PREVIOUS_INLINE_PREFIX).strip()
     elif query.startswith(DAILY_SHARE_LEGACY_INLINE_PREFIX):
         raw_date = query.removeprefix(DAILY_SHARE_LEGACY_INLINE_PREFIX).strip()
     else:
@@ -172,7 +175,7 @@ def build_daily_inline_result(
     referral = f"https://t.me/{username}?start={DAILY_SHARE_ENTRY_PAYLOAD}"
     snapshot = build_editorial_daily_horoscope(forecast_date)
     return InlineQueryResultPhoto(
-        id=f"daily-v5-{forecast_date.isoformat()}",
+        id=f"daily-v6-{forecast_date.isoformat()}",
         photo_url=media_url,
         thumbnail_url=media_url,
         photo_width=1200,
