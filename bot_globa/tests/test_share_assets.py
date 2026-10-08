@@ -145,20 +145,22 @@ def test_dynamic_card_uses_exact_daily_horoscope_theme() -> None:
 
 def test_dynamic_daily_share_endpoint_is_immutable_complete_and_length_delimited() -> None:
     response = numa_daily_share_card_v8(date(2026, 9, 15))
+    body = bytes(response.body)
 
     assert response.media_type == "image/jpeg"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
-    assert response.headers["content-length"] == str(len(response.body))
+    assert response.headers["content-length"] == str(len(body))
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert response.body.endswith(b"\xff\xd9")
-    assert len(response.body) > 50_000
+    assert body.endswith(b"\xff\xd9")
+    assert len(body) > 50_000
 
 
 def test_dynamic_daily_share_thumbnail_endpoint_is_small_and_length_delimited() -> None:
     response = numa_daily_share_thumbnail_v8(date(2026, 9, 15))
+    body = bytes(response.body)
 
     assert response.media_type == "image/jpeg"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
-    assert response.headers["content-length"] == str(len(response.body))
-    assert response.body.endswith(b"\xff\xd9")
-    assert len(response.body) < 200_000
+    assert response.headers["content-length"] == str(len(body))
+    assert body.endswith(b"\xff\xd9")
+    assert len(body) < 200_000
