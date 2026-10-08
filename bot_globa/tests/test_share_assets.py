@@ -10,16 +10,21 @@ from app.api.share_assets import (
     DAILY_SHARE_DYNAMIC_PREVIOUS_ROUTE,
     DAILY_SHARE_DYNAMIC_ROUTE,
     DAILY_SHARE_DYNAMIC_V5_ROUTE,
-    numa_daily_share_card_v7,
+    DAILY_SHARE_DYNAMIC_V6_ROUTE,
+    DAILY_SHARE_THUMBNAIL_ROUTE,
+    numa_daily_share_card_v8,
+    numa_daily_share_thumbnail_v8,
 )
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 from app.services.daily_share_card import (
     CARD_SIZE,
+    THUMBNAIL_SIZE,
     _display_theme,
     _fit_wrapped_text,
     daily_share_card_theme,
     load_daily_share_font,
     render_daily_share_card,
+    render_daily_share_thumbnail,
 )
 
 
@@ -34,8 +39,10 @@ def test_daily_share_card_asset_is_packaged() -> None:
 def test_dynamic_daily_share_route_is_cache_versioned() -> None:
     assert DAILY_SHARE_DYNAMIC_LEGACY_ROUTE == "/public/share/numa-daily-v3/{forecast_date}.jpg"
     assert DAILY_SHARE_DYNAMIC_V5_ROUTE == "/public/share/numa-daily-v5/{forecast_date}.jpg"
-    assert DAILY_SHARE_DYNAMIC_PREVIOUS_ROUTE == "/public/share/numa-daily-v6/{forecast_date}.jpg"
-    assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v7/{forecast_date}.jpg"
+    assert DAILY_SHARE_DYNAMIC_V6_ROUTE == "/public/share/numa-daily-v6/{forecast_date}.jpg"
+    assert DAILY_SHARE_DYNAMIC_PREVIOUS_ROUTE == "/public/share/numa-daily-v7/{forecast_date}.jpg"
+    assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v8/{forecast_date}.jpg"
+    assert DAILY_SHARE_THUMBNAIL_ROUTE == ("/public/share/numa-daily-v8/{forecast_date}-thumb.jpg")
 
 
 def test_daily_share_fonts_have_real_cyrillic_glyphs() -> None:
@@ -74,7 +81,7 @@ def test_long_daily_share_theme_fits_within_four_lines() -> None:
     assert len(lines[-1].split()) > 1
 
 
-def test_dynamic_daily_share_card_is_a_deterministic_square_jpeg() -> None:
+def test_dynamic_daily_share_card_is_a_complete_deterministic_baseline_jpeg() -> None:
     forecast_date = date(2026, 9, 15)
 
     first = render_daily_share_card(forecast_date)
@@ -82,6 +89,12 @@ def test_dynamic_daily_share_card_is_a_deterministic_square_jpeg() -> None:
 
     assert first == second
     assert len(first) > 50_000
+    assert first.startswith(b"\xff\xd8")
+    assert first.endswith(b"\xff\xd9")
+    assert b"\xff\xc0" in first
+    assert b"\xff\xc2" not in first
+    with Image.open(BytesIO(first)) as image:
+        image.verify()
     with Image.open(BytesIO(first)) as image:
         assert image.format == "JPEG"
         assert image.size == (1200, 1200)
@@ -97,6 +110,21 @@ def test_dynamic_daily_share_card_bottom_is_artwork_not_flat_gray() -> None:
 
     looks_like_flat_gray = max(stats.mean) - min(stats.mean) < 6 and max(stats.stddev) < 14
     assert not looks_like_flat_gray
+
+
+def test_daily_share_thumbnail_is_small_complete_baseline_jpeg() -> None:
+    payload = render_daily_share_thumbnail(date(2026, 9, 15))
+
+    assert len(payload) < 200_000
+    assert payload.startswith(b"\xff\xd8")
+    assert payload.endswith(b"\xff\xd9")
+    assert b"\xff\xc0" in payload
+    assert b"\xff\xc2" not in payload
+    with Image.open(BytesIO(payload)) as image:
+        image.verify()
+    with Image.open(BytesIO(payload)) as image:
+        assert image.format == "JPEG"
+        assert image.size == THUMBNAIL_SIZE == (320, 320)
 
 
 def test_dynamic_daily_share_card_changes_with_date() -> None:
@@ -115,9 +143,24 @@ def test_dynamic_card_uses_exact_daily_horoscope_theme() -> None:
     )
 
 
-def test_dynamic_daily_share_endpoint_is_immutable_and_public() -> None:
-    response = numa_daily_share_card_v7(date(2026, 9, 15))
+def test_dynamic_daily_share_endpoint_is_immutable_complete_and_length_delimited() -> None:
+    response = numa_daily_share_card_v8(date(2026, 9, 15))
+    body = bytes(response.body)
 
     assert response.media_type == "image/jpeg"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
-    assert len(response.body) > 50_000
+    assert response.headers["content-length"] == str(len(body))
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert body.endswith(b"\xff\xd9")
+    assert len(body) > 50_000
+
+
+def test_dynamic_daily_share_thumbnail_endpoint_is_small_and_length_delimited() -> None:
+    response = numa_daily_share_thumbnail_v8(date(2026, 9, 15))
+    body = bytes(response.body)
+
+    assert response.media_type == "image/jpeg"
+    assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert response.headers["content-length"] == str(len(body))
+    assert body.endswith(b"\xff\xd9")
+    assert len(body) < 200_000
