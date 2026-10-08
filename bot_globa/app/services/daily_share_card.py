@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
 
 CARD_SIZE = (1200, 1200)
+THUMBNAIL_SIZE = (320, 320)
 DAILY_SHARE_BASE_PATH = (
     Path(__file__).resolve().parents[1] / "bot" / "assets" / "scenes" / "E-02.jpg"
 )
@@ -53,7 +54,7 @@ def load_daily_share_font(
 
 @lru_cache(maxsize=64)
 def render_daily_share_card(forecast_date: date) -> bytes:
-    """Render one immutable premium-editorial JPEG for a forecast date."""
+    """Render one immutable premium-editorial baseline JPEG for a forecast date."""
 
     snapshot = build_editorial_daily_horoscope(forecast_date)
     with Image.open(DAILY_SHARE_BASE_PATH) as source:
@@ -126,9 +127,39 @@ def render_daily_share_card(forecast_date: date) -> bytes:
     # card edge-to-edge; Telegram receives the same 1:1 geometry in photo metadata.
     assert y < CARD_SIZE[1] - _BOTTOM_SAFE_AREA
 
+    return _encode_baseline_jpeg(card.convert("RGB"), quality=85)
+
+
+@lru_cache(maxsize=64)
+def render_daily_share_thumbnail(forecast_date: date) -> bytes:
+    """Render a small dedicated JPEG thumbnail for Telegram inline results."""
+
+    with Image.open(BytesIO(render_daily_share_card(forecast_date))) as source:
+        thumbnail = ImageOps.fit(
+            source.convert("RGB"),
+            THUMBNAIL_SIZE,
+            method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.5),
+        )
+    return _encode_baseline_jpeg(thumbnail, quality=72)
+
+
+def _encode_baseline_jpeg(image: Image.Image, *, quality: int) -> bytes:
+    """Encode a conservative baseline JPEG for Telegram's media proxy."""
+
     output = BytesIO()
-    card.convert("RGB").save(output, format="JPEG", quality=90, optimize=True)
-    return output.getvalue()
+    image.save(
+        output,
+        format="JPEG",
+        quality=quality,
+        optimize=False,
+        progressive=False,
+        subsampling=2,
+    )
+    payload = output.getvalue()
+    if not payload.endswith(b"\xff\xd9"):
+        raise RuntimeError("daily share JPEG is missing the EOI marker")
+    return payload
 
 
 def _build_readability_overlay() -> Image.Image:
