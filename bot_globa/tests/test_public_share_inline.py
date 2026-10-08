@@ -63,9 +63,7 @@ def test_daily_inline_result_sends_square_photo_with_separate_thumbnail_and_numa
         forecast_date,
     )
     expected_media = "https://numa.example/public/share/numa-daily-v8/2026-09-15.jpg"
-    expected_thumbnail = (
-        "https://numa.example/public/share/numa-daily-v8/2026-09-15-thumb.jpg"
-    )
+    expected_thumbnail = "https://numa.example/public/share/numa-daily-v8/2026-09-15-thumb.jpg"
 
     assert result.id == "daily-v8-2026-09-15"
     assert result.photo_url == expected_media
