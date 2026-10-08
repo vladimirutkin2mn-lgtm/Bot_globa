@@ -42,9 +42,7 @@ def test_dynamic_daily_share_route_is_cache_versioned() -> None:
     assert DAILY_SHARE_DYNAMIC_V6_ROUTE == "/public/share/numa-daily-v6/{forecast_date}.jpg"
     assert DAILY_SHARE_DYNAMIC_PREVIOUS_ROUTE == "/public/share/numa-daily-v7/{forecast_date}.jpg"
     assert DAILY_SHARE_DYNAMIC_ROUTE == "/public/share/numa-daily-v8/{forecast_date}.jpg"
-    assert DAILY_SHARE_THUMBNAIL_ROUTE == (
-        "/public/share/numa-daily-v8/{forecast_date}-thumb.jpg"
-    )
+    assert DAILY_SHARE_THUMBNAIL_ROUTE == ("/public/share/numa-daily-v8/{forecast_date}-thumb.jpg")
 
 
 def test_daily_share_fonts_have_real_cyrillic_glyphs() -> None:
