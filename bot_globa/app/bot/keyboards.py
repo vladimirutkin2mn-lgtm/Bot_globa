@@ -53,9 +53,12 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🔮 Таро", callback_data="oracle:tarot"),
                 InlineKeyboardButton(text="💞 Любовный оракул", callback_data="oracle:love"),
             ],
-            [InlineKeyboardButton(text="🪐 Астрология", callback_data="oracle:astro")],
             [
-                InlineKeyboardButton(text="☀️ Сегодня для меня", callback_data="menu:daily"),
+                InlineKeyboardButton(text="🌙 Внутренний разбор", callback_data="menu:psy"),
+                InlineKeyboardButton(text="🪐 Астрология", callback_data="oracle:astro"),
+            ],
+            [
+                InlineKeyboardButton(text="☀️ Гороскоп на сегодня", callback_data="menu:daily"),
                 InlineKeyboardButton(text="📚 Мои истории", callback_data="menu:readings"),
             ],
             [InlineKeyboardButton(text="⋯ Ещё", callback_data="menu:more")],
@@ -81,7 +84,7 @@ def readings_menu_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="🔮 Таролог", callback_data="tarot:history")],
             [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="love:history")],
-            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="psy:history")],
+            [InlineKeyboardButton(text="🌙 Внутренний разбор", callback_data="psy:history")],
             [InlineKeyboardButton(text="🪐 Астролог", callback_data="astro:history")],
             [InlineKeyboardButton(text="← Назад в меню", callback_data="menu:home")],
         ]
