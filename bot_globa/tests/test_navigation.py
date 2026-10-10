@@ -28,14 +28,14 @@ def test_main_menu_contains_required_sections() -> None:
     assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
         ["✨ Рассказать Numa"],
         ["🔮 Таро", "💞 Любовный оракул"],
-        ["🪐 Астрология"],
-        ["☀️ Сегодня для меня", "📚 Мои истории"],
+        ["🌙 Внутренний разбор", "🪐 Астрология"],
+        ["☀️ Гороскоп на сегодня", "📚 Мои истории"],
         ["⋯ Ещё"],
     ]
     assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
         ["oracle:auto"],
         ["oracle:tarot", "oracle:love"],
-        ["oracle:astro"],
+        ["menu:psy", "oracle:astro"],
         ["menu:daily", "menu:readings"],
         ["menu:more"],
     ]
@@ -52,16 +52,14 @@ def test_entry_copy_starts_from_numa_and_keeps_explicit_practices_reachable() ->
     assert main_labels["✨ Рассказать Numa"] == "oracle:auto"
     assert main_labels["💞 Любовный оракул"] == "oracle:love"
     assert main_labels["🔮 Таро"] == "oracle:tarot"
+    assert main_labels["🌙 Внутренний разбор"] == "menu:psy"
     assert main_labels["🪐 Астрология"] == "oracle:astro"
-    assert "🌙 Мистический психолог" not in main_labels
 
-    # Commands remain valid compatibility entry points even though the menu is no longer a
-    # persona storefront.
     commands = {command.command: command.description for command in BOT_COMMANDS}
     assert {name: commands[name] for name in ("love", "tarot", "psy", "astro")} == {
         "love": "💞 Любовный оракул",
         "tarot": "🔮 Таролог",
-        "psy": "🌙 Мистический психолог",
+        "psy": "🌙 Внутренний разбор",
         "astro": "🪐 Астролог",
     }
 
@@ -87,7 +85,7 @@ def test_secondary_navigation_keeps_history_settings_and_privacy_without_persona
     ] == [
         ["🔮 Таролог"],
         ["💞 Любовный оракул"],
-        ["🌙 Мистический психолог"],
+        ["🌙 Внутренний разбор"],
         ["🪐 Астролог"],
         ["← Назад в меню"],
     ]
@@ -105,7 +103,6 @@ def test_daily_horoscope_has_an_explicit_back_path_at_every_nested_step() -> Non
 
 
 def test_consent_returns_to_the_selected_persona() -> None:
-    # Legacy persona entry points remain valid for stale messages and direct commands.
     assert _buttons(consent_keyboard("tarot"))["← Назад"] == "menu:tarot"
 
 
