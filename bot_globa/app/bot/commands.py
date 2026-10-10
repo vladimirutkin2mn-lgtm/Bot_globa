@@ -32,7 +32,7 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="start", description="🔮 Начать заново"),
     BotCommand(command="love", description="💞 Любовный оракул"),
     BotCommand(command="tarot", description="🔮 Таролог"),
-    BotCommand(command="psy", description="🌙 Мистический психолог"),
+    BotCommand(command="psy", description="🌙 Внутренний разбор"),
     BotCommand(command="astro", description="🪐 Астролог"),
     BotCommand(command="pay", description="💳 Оплата"),
     BotCommand(command="paysupport", description="💬 Помощь с оплатой"),
