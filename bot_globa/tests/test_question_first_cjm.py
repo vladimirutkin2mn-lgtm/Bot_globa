@@ -32,16 +32,18 @@ def test_main_menu_is_one_oracle_plus_explicit_practices() -> None:
     labels = _labels(keyboard)
     legacy_topic_prefixes = ("love:topic:", "tarot:topic:", "psy:topic:")
 
-    assert callbacks[:4] == [
+    assert callbacks[:5] == [
         "oracle:auto",
         "oracle:tarot",
         "oracle:love",
+        "menu:psy",
         "oracle:astro",
     ]
-    assert labels[:4] == [
+    assert labels[:5] == [
         "✨ Рассказать Numa",
         "🔮 Таро",
         "💞 Любовный оракул",
+        "🌙 Внутренний разбор",
         "🪐 Астрология",
     ]
     assert not any(callback.startswith(legacy_topic_prefixes) for callback in callbacks)
@@ -56,10 +58,11 @@ def test_more_menu_is_not_a_second_persona_storefront() -> None:
 
 def test_onboarding_starts_with_numa_not_a_topic_catalogue() -> None:
     labels = _labels(onboarding_intro_keyboard())
-    assert labels[:4] == [
+    assert labels[:5] == [
         "✨ Рассказать Numa",
         "🔮 Таро",
         "💞 Любовный оракул",
+        "🌙 Внутренний разбор",
         "🪐 Астрология",
     ]
     assert "Начать" not in labels
