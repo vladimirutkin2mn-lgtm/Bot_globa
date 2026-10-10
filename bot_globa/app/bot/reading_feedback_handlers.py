@@ -63,7 +63,7 @@ async def submit_reading_feedback(
     onboarding: OnboardingService,
     reading_history: ReadingHistoryService,
     oracle_analytics: OracleProductAnalytics,
-    preview_entitlement: PreviewEntitlementService,
+    previews: PreviewEntitlementService,
 ) -> None:
     parsed = _parse(callback.data)
     user = await onboarding.current_user(callback.from_user.id)
@@ -98,11 +98,9 @@ async def submit_reading_feedback(
     rescue_granted = False
     if action == "miss_off_question":
         try:
-            rescue_granted = (
-                await preview_entitlement.restore_reading_preview_after_off_question_once(
-                    user.id,
-                    reading_id,
-                )
+            rescue_granted = await previews.restore_reading_preview_after_off_question_once(
+                user.id,
+                reading_id,
             )
         except Exception:
             logger.warning("free_preview_rescue_failed", exc_info=True)
