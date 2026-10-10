@@ -43,13 +43,12 @@ _ASTROLOGY_MENU_TOPICS = (
     "month_forecast",
 )
 
-# The second paragraph describes the offline provider, which is the default and what
-# production runs. Configuring `opencage` sends the city name to a third party again and
-# would make this copy untrue — restore the outbound-transfer disclosure if that happens.
 CONSENT = (
-    "Для персональной карты нужны дата и место рождения; время — если знаете. Место "
-    "используется для расчёта координат и часового пояса. Данные хранятся в зашифрованном "
-    "виде и их можно удалить в любой момент.\n\n"
+    "Чтобы прогнозы стали именно вашими, Numa один раз рассчитает натальную карту. После этого "
+    "прогнозы на день, неделю и месяц будут открываться без повторного ввода данных рождения.\n\n"
+    "Для карты нужны дата и место рождения; время — если знаете. Место используется для расчёта "
+    "координат и часового пояса. Данные хранятся в зашифрованном виде и их можно удалить в любой "
+    "момент.\n\n"
     "Место ищется по справочнику внутри сервиса — данные о рождении никуда не передаются."
 )
 CONSENT_DECLINED = (
@@ -57,16 +56,10 @@ CONSENT_DECLINED = (
     "из главного меню."
 )
 
-# The birth intake is the longest form in the product — four answers before the reading
-# starts. Each screen says where it is in that sequence, because a form of unknown length
-# is the one people abandon. The marker counts answered steps, so it never runs ahead of
-# what actually happened.
 INTAKE_STEPS = 4
 
 
 def step_marker(answered: int) -> str:
-    """Render the intake position as filled and remaining steps."""
-
     if not 0 <= answered < INTAKE_STEPS:
         raise ValueError("intake step is outside the birth profile sequence")
     return "✅" * answered + "⬜" + "▫️" * (INTAKE_STEPS - answered - 1)
@@ -77,7 +70,9 @@ def _step(answered: int, copy: str) -> str:
 
 
 BIRTH_DATE_PROMPT = _step(
-    0, "Введите дату рождения в формате <code>ДД.ММ.ГГГГ</code>, например 12.07.1990."
+    0,
+    "Создадим карту один раз — дальше повторно вводить данные не понадобится. "
+    "Введите дату рождения в формате <code>ДД.ММ.ГГГГ</code>, например 12.07.1990.",
 )
 BIRTH_DATE_INVALID = _step(
     0, "Не удалось разобрать дату. Нужен формат <code>ДД.ММ.ГГГГ</code> и дата не в будущем."
@@ -163,44 +158,24 @@ def callback(*parts: str) -> str:
 def consent_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=CONSENT_ACCEPT_BUTTON,
-                    callback_data=callback("consent", "grant"),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=CONSENT_DECLINE_BUTTON,
-                    callback_data=callback("consent", "decline"),
-                )
-            ],
+            [InlineKeyboardButton(text=CONSENT_ACCEPT_BUTTON, callback_data=callback("consent", "grant"))],
+            [InlineKeyboardButton(text=CONSENT_DECLINE_BUTTON, callback_data=callback("consent", "decline"))],
         ]
     )
 
 
 def cancel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))],
-        ]
+        inline_keyboard=[[InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))]]
     )
 
 
 def place_choice_keyboard(labels: Sequence[str]) -> InlineKeyboardMarkup:
-    """Reference a candidate by index: a place label would not fit in 64 callback bytes."""
     rows = [
         [InlineKeyboardButton(text=label, callback_data=callback("place", "pick", str(index)))]
         for index, label in enumerate(labels)
     ]
-    rows.append(
-        [
-            InlineKeyboardButton(
-                text="← Назад к вводу города",
-                callback_data=callback("place", "retry"),
-            )
-        ]
-    )
+    rows.append([InlineKeyboardButton(text="← Назад к вводу города", callback_data=callback("place", "retry"))])
     rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -208,59 +183,28 @@ def place_choice_keyboard(labels: Sequence[str]) -> InlineKeyboardMarkup:
 def birth_time_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=TIME_UNKNOWN_BUTTON,
-                    callback_data=callback("time", "unknown"),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="← Назад к городу",
-                    callback_data=callback("place", "retry"),
-                )
-            ],
+            [InlineKeyboardButton(text=TIME_UNKNOWN_BUTTON, callback_data=callback("time", "unknown"))],
+            [InlineKeyboardButton(text="← Назад к городу", callback_data=callback("place", "retry"))],
             [InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))],
         ]
     )
 
 
 def format_offset(minutes: int) -> str:
-    """Render a UTC offset the way a user reads it, not as a signed integer."""
     sign = "+" if minutes >= 0 else "−"
     hours, rest = divmod(abs(minutes), 60)
     return f"UTC{sign}{hours}" if rest == 0 else f"UTC{sign}{hours}:{rest:02d}"
 
 
 def time_choice_keyboard(offsets: Sequence[int], clock: str) -> InlineKeyboardMarkup:
-    """One button per repeated hour; the larger offset is the summer one."""
     ordered = sorted(offsets, reverse=True)
     templates = [TIME_SUMMER_BUTTON, TIME_WINTER_BUTTON]
     rows = [
-        [
-            InlineKeyboardButton(
-                text=template.format(clock=clock, offset=format_offset(minutes)),
-                callback_data=callback("offset", "pick", str(minutes)),
-            )
-        ]
+        [InlineKeyboardButton(text=template.format(clock=clock, offset=format_offset(minutes)), callback_data=callback("offset", "pick", str(minutes)))]
         for template, minutes in zip(templates, ordered, strict=False)
     ]
-    rows.append(
-        [
-            InlineKeyboardButton(
-                text=TIME_UNKNOWN_BUTTON,
-                callback_data=callback("time", "unknown"),
-            )
-        ]
-    )
-    rows.append(
-        [
-            InlineKeyboardButton(
-                text="← Назад к городу",
-                callback_data=callback("place", "retry"),
-            )
-        ]
-    )
+    rows.append([InlineKeyboardButton(text=TIME_UNKNOWN_BUTTON, callback_data=callback("time", "unknown"))])
+    rows.append([InlineKeyboardButton(text="← Назад к городу", callback_data=callback("place", "retry"))])
     rows.append([InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("cancel"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -268,33 +212,16 @@ def time_choice_keyboard(offsets: Sequence[int], clock: str) -> InlineKeyboardMa
 def profile_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=PROFILE_EDIT_BUTTON,
-                    callback_data=callback("profile", "edit"),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=PROFILE_DELETE_BUTTON,
-                    callback_data=callback("profile", "delete"),
-                )
-            ],
+            [InlineKeyboardButton(text=PROFILE_EDIT_BUTTON, callback_data=callback("profile", "edit"))],
+            [InlineKeyboardButton(text=PROFILE_DELETE_BUTTON, callback_data=callback("profile", "delete"))],
             [InlineKeyboardButton(text=MENU_BUTTON, callback_data=callback("menu"))],
         ]
     )
 
 
 def topics_keyboard() -> InlineKeyboardMarkup:
-    """Expose astrology-native scopes while keeping legacy topic callbacks valid."""
-
     rows = [
-        [
-            InlineKeyboardButton(
-                text=HOROSCOPE_TOPIC_LABELS[topic],
-                callback_data=callback("topic", topic),
-            )
-        ]
+        [InlineKeyboardButton(text=HOROSCOPE_TOPIC_LABELS[topic], callback_data=callback("topic", topic))]
         for topic in _ASTROLOGY_MENU_TOPICS
     ]
     rows.append([InlineKeyboardButton(text=PROFILE_BUTTON, callback_data=callback("profile"))])
