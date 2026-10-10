@@ -195,7 +195,7 @@ def test_callbacks_carry_only_codes_or_reading_id_within_the_telegram_limit(
     assert flow.callback("history", "page", "2") in callbacks
 
 
-def test_every_flow_keeps_a_unique_namespace_while_cjm_v3_exposes_selected_mechanics() -> None:
+def test_every_flow_keeps_a_unique_namespace_while_cjm_exposes_core_practices() -> None:
     callbacks = {
         button.callback_data
         for keyboard in (main_menu_keyboard(), more_menu_keyboard())
@@ -205,9 +205,7 @@ def test_every_flow_keeps_a_unique_namespace_while_cjm_v3_exposes_selected_mecha
     namespaces = [flow.namespace for flow in MVP_READING_FLOWS]
 
     assert len(set(namespaces)) == len(namespaces)
-    assert {"oracle:tarot", "oracle:love"} <= callbacks
-    assert "menu:psy" not in callbacks
-    # The hidden reflection flow still exists as an internal routing target.
+    assert {"oracle:tarot", "oracle:love", "menu:psy"} <= callbacks
     assert MYSTICAL_PSYCHOLOGIST_FLOW in MVP_READING_FLOWS
 
 
