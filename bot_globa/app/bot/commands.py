@@ -40,20 +40,9 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
 )
 
 GROUP_COMMANDS: tuple[BotCommand, ...] = (
-    BotCommand(command="card", description="🔮 Карта дня для всего чата"),
-    BotCommand(
-        command="compatibility",
-        description="💞 Совместимость участников",
-        is_ephemeral=True,
-    ),
-    BotCommand(command="couple", description="💘 Кармическая пара дня"),
-    BotCommand(command="duel", description="⚔️ Битва знаков"),
-    BotCommand(command="seance", description="🕯 Спиритический сеанс"),
-    BotCommand(command="taro", description="🎱 Таро Да/Нет"),
-    BotCommand(command="advice", description="🪐 Космическая погода"),
-    BotCommand(command="party", description="🎉 Игры для компании"),
-    BotCommand(command="event", description="🃏 Расклад на событие"),
-    BotCommand(command="grouphelp", description="✨ Игры Numa для группы"),
+    BotCommand(command="compatibility", description="💞 Совместимость", is_ephemeral=True),
+    BotCommand(command="duel", description="⚔️ Астро-дуэль"),
+    BotCommand(command="grouphelp", description="✨ Другие игры"),
 )
 
 install_payment_status_handlers()
@@ -71,23 +60,10 @@ install_group_daily_cleanup()
 
 
 async def configure_commands(bot: Bot) -> None:
-    """Publish private defaults plus group-only interactive entry points.
-
-    Group commands override the default command list only inside group chats, so payment,
-    support and personal-reading commands do not become noisy group affordances. Startup
-    must not depend on Telegram being reachable: a cosmetic call may never cause outage.
-
-    Compatibility remains ephemeral. The other group commands deliberately create public
-    lobbies or public ritual results, while person selection happens only through explicit
-    callbacks so Group Privacy Mode never requires ordinary chat access.
-    """
-
+    """Publish private defaults plus a compact group discovery surface."""
     try:
         await bot.set_my_commands(list(BOT_COMMANDS))
-        await bot.set_my_commands(
-            list(GROUP_COMMANDS),
-            scope=BotCommandScopeAllGroupChats(),
-        )
+        await bot.set_my_commands(list(GROUP_COMMANDS), scope=BotCommandScopeAllGroupChats())
         await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
     except TelegramAPIError:
         logger.warning("bot_commands_not_published")
