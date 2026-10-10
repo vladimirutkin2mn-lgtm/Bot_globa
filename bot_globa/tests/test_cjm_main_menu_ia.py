@@ -7,9 +7,7 @@ from app.bot.persona_flows import MYSTICAL_PSYCHOLOGIST_FLOW
 
 def _buttons(keyboard: InlineKeyboardMarkup) -> list[tuple[str, str | None]]:
     return [
-        (button.text, button.callback_data)
-        for row in keyboard.inline_keyboard
-        for button in row
+        (button.text, button.callback_data) for row in keyboard.inline_keyboard for button in row
     ]
 
 
