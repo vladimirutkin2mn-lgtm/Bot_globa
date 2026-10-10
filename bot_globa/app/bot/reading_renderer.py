@@ -176,7 +176,7 @@ def render_full(outcome: PersonaPreviewOutcome, copy: ReadingCopy) -> tuple[str,
         [
             f"<b>{copy.practical_step_title}:</b>\n{quote(result.practical_step)}",
             (
-                "Разбор сохранён в «Моих историях». В течение 24 часов после открытия полного "
+                "Разбор сохранён в «Моих разборах». В течение 24 часов после открытия полного "
                 "разбора можно задать до 3 уточняющих вопросов — Numa продолжит с уже известным "
                 "контекстом."
             ),
