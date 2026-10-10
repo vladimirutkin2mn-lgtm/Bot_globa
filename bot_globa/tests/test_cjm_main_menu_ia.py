@@ -1,9 +1,11 @@
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot.commands import BOT_COMMANDS
 from app.bot.keyboards import main_menu_keyboard, readings_menu_keyboard
 from app.bot.persona_flows import MYSTICAL_PSYCHOLOGIST_FLOW
 
 
-def _buttons(keyboard):
+def _buttons(keyboard: InlineKeyboardMarkup) -> list[tuple[str, str | None]]:
     return [
         (button.text, button.callback_data)
         for row in keyboard.inline_keyboard
