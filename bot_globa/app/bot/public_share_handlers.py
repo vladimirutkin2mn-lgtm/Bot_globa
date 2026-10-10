@@ -59,6 +59,8 @@ DAILY_SHARE_V5_INLINE_PREFIX = "daily-v5:"
 DAILY_SHARE_LEGACY_INLINE_PREFIX = "daily:"
 DAILY_SHARE_INLINE_CAPTION = "Тема дня из Numa ✨"
 
+# Preview/confirmation parsing stays for already-rendered old messages. New share taps use
+# the privacy-safe fast path below and open the chat chooser directly.
 DAILY_SHARE_PREVIEW_PREFIX = "📤 Перед отправкой проверьте текст:\n\n"
 DAILY_SHARE_PREVIEW_SUFFIX = (
     "\n\nПосле подтверждения Numa откроет выбор чата и отправит туда только общую карточку дня. "
@@ -90,7 +92,7 @@ def render_daily_public_share(source_text: str) -> str:
 
 
 def render_daily_share_preview(public_text: str) -> str:
-    """Show the exact public horoscope excerpt before the user confirms it."""
+    """Render a legacy confirmation screen for already-created preview messages."""
 
     if not public_text.strip():
         raise ValueError("daily public share text is empty")
@@ -98,7 +100,7 @@ def render_daily_share_preview(public_text: str) -> str:
 
 
 def extract_confirmed_daily_share(preview_text: str) -> str:
-    """Recover only text that was explicitly shown by the confirmation screen."""
+    """Recover only text that was explicitly shown by an old confirmation screen."""
 
     if not preview_text.startswith(DAILY_SHARE_PREVIEW_PREFIX) or not preview_text.endswith(
         DAILY_SHARE_PREVIEW_SUFFIX
@@ -217,7 +219,7 @@ def build_daily_inline_result(
 
 
 def daily_share_ready_keyboard(public_text: str) -> InlineKeyboardMarkup:
-    """Open Telegram's chosen-chat inline picker for the confirmed day card."""
+    """Open Telegram's chosen-chat inline picker for the public day card."""
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -236,6 +238,13 @@ def daily_share_ready_keyboard(public_text: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="← К гороскопу", callback_data="menu:daily")],
         ]
     )
+
+
+def prepare_daily_share(source_text: str) -> tuple[str, InlineKeyboardMarkup]:
+    """Strip the source to public fields and prepare the chooser in one user action."""
+
+    public_text = render_daily_public_share(source_text)
+    return public_text, daily_share_ready_keyboard(public_text)
 
 
 def build_daily_telegram_share_url_from_public_text(
@@ -274,6 +283,8 @@ def build_daily_telegram_share_url(bot_username: str, source_text: str) -> str:
 
 
 def daily_share_preview_keyboard() -> InlineKeyboardMarkup:
+    """Keep stale confirmation messages actionable after the fast-path rollout."""
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -298,25 +309,39 @@ def daily_share_landing_keyboard() -> InlineKeyboardMarkup:
 
 
 @router.callback_query(F.data == DAILY_SHARE_CALLBACK)
-async def share_daily_public_card(callback: CallbackQuery) -> None:
-    """Preview the public excerpt; sharing is impossible until explicit confirmation."""
+async def share_daily_public_card(
+    callback: CallbackQuery,
+    bot: Bot,
+    onboarding: OnboardingService,
+    numa_product_analytics: NumaProductAnalytics,
+) -> None:
+    """Open the chooser immediately because the day card contains only public date/theme."""
 
-    await callback.answer()
     if not isinstance(callback.message, Message):
+        await callback.answer()
         return
     source_text = callback.message.text or callback.message.caption or ""
     try:
-        public_text = render_daily_public_share(source_text)
-        preview_text = render_daily_share_preview(public_text)
+        public_text, ready_keyboard = prepare_daily_share(source_text)
+        bot_user = await bot.get_me()
+        if not bot_user.username:
+            raise ValueError("bot username is unavailable")
+        if not bot_user.supports_inline_queries:
+            await callback.answer(DAILY_SHARE_INLINE_DISABLED, show_alert=True)
+            return
+    except TelegramAPIError:
+        await callback.answer("Не получилось подготовить карточку.", show_alert=True)
+        return
     except ValueError:
+        await callback.answer()
         await callback.message.answer(DAILY_SHARE_UNAVAILABLE)
         return
 
-    await callback.message.answer(
-        preview_text,
-        reply_markup=daily_share_preview_keyboard(),
-        parse_mode=None,
-    )
+    await callback.answer("Карточка готова")
+    user = await onboarding.current_user(callback.from_user.id)
+    if user is not None:
+        await _track_share_intent(numa_product_analytics, user.id, public_text)
+    await callback.message.answer(DAILY_SHARE_READY, reply_markup=ready_keyboard)
 
 
 @router.callback_query(F.data == DAILY_SHARE_CONFIRM_CALLBACK)
@@ -326,7 +351,7 @@ async def confirm_daily_public_card(
     onboarding: OnboardingService,
     numa_product_analytics: NumaProductAnalytics,
 ) -> None:
-    """Record share intent and open Telegram's chosen-chat inline picker."""
+    """Keep old preview messages functional after new shares switch to the fast path."""
 
     if not isinstance(callback.message, Message):
         await callback.answer()
