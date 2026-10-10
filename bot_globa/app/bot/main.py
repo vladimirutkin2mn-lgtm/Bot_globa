@@ -343,6 +343,7 @@ async def configure_webhook(bot: Bot, settings: Settings) -> None:
             "message",
             "callback_query",
             "inline_query",
+            "chosen_inline_result",
             "pre_checkout_query",
             "subscription",
         ],

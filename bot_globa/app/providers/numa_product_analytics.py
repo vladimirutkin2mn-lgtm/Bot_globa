@@ -56,6 +56,7 @@ class ProductFunnelEvent(StrEnum):
     DAILY_ACTION = "numa_daily_action"
     SHARE_CARD_SHOWN = "numa_share_card_shown"
     SHARE_INTENT = "numa_share_intent"
+    SHARE_SELECTED = "numa_share_selected"
     RECIPIENT_ENTRY = "numa_recipient_entry"
 
 
@@ -101,6 +102,7 @@ _EVENT_PROPERTIES: dict[str, frozenset[str]] = {
     ProductFunnelEvent.DAILY_ACTION.value: _COMMON | {"local_date", "action_code"},
     ProductFunnelEvent.SHARE_CARD_SHOWN.value: _COMMON | {"share_format"},
     ProductFunnelEvent.SHARE_INTENT.value: _COMMON | {"share_format"},
+    ProductFunnelEvent.SHARE_SELECTED.value: _COMMON | {"share_format"},
     ProductFunnelEvent.RECIPIENT_ENTRY.value: _COMMON | {"campaign_code"},
 }
 _GROUP_EVENT_PROPERTIES: dict[str, frozenset[str]] = {
@@ -140,6 +142,7 @@ _REQUIRED.update(
         ProductFunnelEvent.DAILY_ACTION.value: _REQUIRED_COMMON | {"local_date", "action_code"},
         ProductFunnelEvent.SHARE_CARD_SHOWN.value: _REQUIRED_COMMON | {"share_format"},
         ProductFunnelEvent.SHARE_INTENT.value: _REQUIRED_COMMON | {"share_format"},
+        ProductFunnelEvent.SHARE_SELECTED.value: _REQUIRED_COMMON | {"share_format"},
         ProductFunnelEvent.RECIPIENT_ENTRY.value: _REQUIRED_COMMON | {"campaign_code"},
     }
 )
