@@ -168,6 +168,26 @@ def route_from_clarification(question: str, mode: str) -> RouteChoice | None:
     return None
 
 
+def route_feedback(choice: RouteChoice) -> str:
+    """Tell an auto-routed user what Numa understood without adding another decision."""
+
+    if choice.flow is LOVE_ORACLE_FLOW:
+        return "💞 Здесь главное — динамика между вами. Посмотрю через Любовный оракул…"
+    if choice.flow is MYSTICAL_PSYCHOLOGIST_FLOW:
+        return "🌙 Здесь важнее повторяющийся внутренний сценарий. Сделаю внутренний разбор…"
+    if choice.topic == "work":
+        return "🔮 Здесь вопрос про работу и решения. Посмотрю через Таро…"
+    if choice.topic == "decision":
+        return "🔮 Здесь вопрос про выбор и последствия. Собираю расклад…"
+    return "🔮 Здесь лучше посмотреть на ситуацию через Таро. Собираю расклад…"
+
+
+def should_announce_route(mode: str) -> bool:
+    """Only Numa's automatic choice needs explanation; explicit practices already are clear."""
+
+    return mode == "auto"
+
+
 def personal_oracle_safety_intake() -> SafetyIntake:
     """Protect the free-form Numa entry before its question is routed to a persona."""
 
@@ -402,6 +422,7 @@ async def receive_personal_question(
         onboarding,
         persona_readings,
         oracle_analytics,
+        announce_route=should_announce_route(mode),
     )
 
 
@@ -443,6 +464,7 @@ async def _continue_pending_question(
         onboarding,
         persona_readings,
         oracle_analytics,
+        announce_route=should_announce_route(mode),
     )
 
 
@@ -455,10 +477,14 @@ async def _generate_routed_question(
     onboarding: OnboardingService,
     persona_readings: PersonaReadings,
     oracle_analytics: OracleProductAnalytics | None,
+    *,
+    announce_route: bool = False,
 ) -> None:
     await state.clear()
     await state.update_data(topic=choice.topic, question=question)
     await state.set_state(choice.flow.states.waiting_for_question)
+    if announce_route:
+        await message.answer(route_feedback(choice))
     if oracle_analytics is not None:
         user = await onboarding.current_user(telegram_user_id)
         if user is not None:

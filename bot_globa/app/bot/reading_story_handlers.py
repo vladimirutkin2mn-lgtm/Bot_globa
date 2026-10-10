@@ -42,7 +42,7 @@ _TITLE_MODE_KEY = "reading_story_title_mode"
 _TITLE_STORY_KEY = "reading_story_title_id"
 _ADD_STORY_KEY = "reading_story_add_id"
 _NOT_ONBOARDED = "Сначала отправьте /start."
-_STALE = "Эта история уже недоступна. Откройте «Мои истории» заново."
+_STALE = "Эта история уже недоступна. Откройте «Мои разборы» заново."
 
 
 @dataclass(frozen=True, slots=True)
@@ -492,19 +492,16 @@ async def _show_hub(
         reading_history,
         reading_followups,
     )
-    text = "📚 Мои истории"
+    text = "📚 Мои разборы"
     if recent_readings:
         text += "\n\nПоследние разборы — сверху. 🟢 означает, что сеанс ещё можно продолжить."
     if stories:
-        text += "\n\nНиже — ваши истории со связанными разборами."
+        text += "\n\nНиже — истории: группы связанных разборов по одной теме."
     elif recent_readings:
-        text += "\n\nИсторий пока нет — при желании соберите связанные разборы в одну."
+        text += "\n\nИсторий пока нет — при желании объедините связанные разборы по одной теме."
     else:
         text += "\n\nГотовых разборов и историй пока нет."
-    text += (
-        "\n\nИстории создаёте только вы: Numa ничего не объединяет сама и не превращает "
-        "такие связи в факты о вас."
-    )
+    text += "\n\nИстории создаёте только вы: Numa ничего не объединяет сама."
     await show_screen(
         message,
         Scene.HISTORY if recent_readings or stories else Scene.HISTORY_EMPTY,

@@ -61,16 +61,16 @@ def story_all_readings_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="🔮 Таролог", callback_data="tarot:history")],
             [InlineKeyboardButton(text="💞 Любовный оракул", callback_data="love:history")],
-            [InlineKeyboardButton(text="🌙 Мистический психолог", callback_data="psy:history")],
+            [InlineKeyboardButton(text="🌙 Внутренний разбор", callback_data="psy:history")],
             [InlineKeyboardButton(text="🪐 Астролог", callback_data="astro:history")],
-            [InlineKeyboardButton(text="← К историям", callback_data="menu:readings")],
+            [InlineKeyboardButton(text="← К моим разборам", callback_data="menu:readings")],
         ]
     )
 
 
 def story_title_cancel_keyboard(story_id: UUID | None = None) -> InlineKeyboardMarkup:
     callback = "menu:readings" if story_id is None else f"stories:open:{story_id}:0"
-    label = "← К историям" if story_id is None else "← Назад к истории"
+    label = "← К моим разборам" if story_id is None else "← Назад к истории"
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=label, callback_data=callback)]]
     )
@@ -138,7 +138,7 @@ def story_detail_keyboard(
                     callback_data=f"stories:delete:{story_id}",
                 ),
             ],
-            [InlineKeyboardButton(text="← К историям", callback_data="menu:readings")],
+            [InlineKeyboardButton(text="← К моим разборам", callback_data="menu:readings")],
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
