@@ -76,7 +76,10 @@ async def test_off_question_feedback_restores_exactly_one_full_preview(
     user, readings, entitlements = await _setup(payment_db)
     reading = await _consume_first_preview(readings, entitlements, user.id)
 
-    assert await entitlements.restore_reading_preview_after_off_question_once(user.id, reading.id)
+    assert await entitlements.restore_reading_preview_after_off_question_once(
+        user.id,
+        reading.id,
+    )
 
     state = await entitlements.get_preview_state(user.id)
     assert state is not None
@@ -103,8 +106,14 @@ async def test_concurrent_rescue_clicks_can_only_restore_once(
     reading = await _consume_first_preview(readings, entitlements, user.id)
 
     outcomes = await asyncio.gather(
-        entitlements.restore_reading_preview_after_off_question_once(user.id, reading.id),
-        entitlements.restore_reading_preview_after_off_question_once(user.id, reading.id),
+        entitlements.restore_reading_preview_after_off_question_once(
+            user.id,
+            reading.id,
+        ),
+        entitlements.restore_reading_preview_after_off_question_once(
+            user.id,
+            reading.id,
+        ),
     )
 
     assert outcomes.count(True) == 1
