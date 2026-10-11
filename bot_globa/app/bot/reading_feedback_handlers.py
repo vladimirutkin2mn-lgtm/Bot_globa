@@ -6,6 +6,7 @@ from uuid import UUID
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.daily_share_selection_handlers import router as daily_share_selection_router
 from app.bot.persona_flow import FEEDBACK_NAMESPACE, feedback_reason_keyboard
 from app.bot.public_share_handlers import router as public_share_router
 from app.bot.reading_share_handlers import (
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 router = Router(name="reading-feedback")
 router.include_router(public_share_router)
+router.include_router(daily_share_selection_router)
 router.include_router(reading_share_router)
 
 _FINAL_REACTIONS = {

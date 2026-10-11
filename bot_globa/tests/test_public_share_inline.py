@@ -7,6 +7,7 @@ from app.bot.public_share_handlers import (
     build_daily_share_inline_query,
     daily_share_ready_keyboard,
     parse_daily_share_inline_query,
+    prepare_daily_share,
 )
 from app.bot.reading_feedback_handlers import router as reading_feedback_router
 from app.services.daily_horoscope_editorial import build_editorial_daily_horoscope
@@ -53,6 +54,18 @@ def test_daily_share_ready_keyboard_uses_chosen_chat_inline_picker() -> None:
     assert chooser.allow_bot_chats is False
     assert chooser.allow_group_chats is True
     assert chooser.allow_channel_chats is True
+
+
+def test_daily_share_fast_path_strips_private_content_and_prepares_picker_immediately() -> None:
+    source = _public_text() + "\n♈ Овен — личный текст, который нельзя отправлять."
+
+    public_text, keyboard = prepare_daily_share(source)
+
+    assert public_text == _public_text()
+    assert "Овен" not in public_text
+    chooser = keyboard.inline_keyboard[0][0].switch_inline_query_chosen_chat
+    assert chooser is not None
+    assert chooser.query == "daily-v8:2026-09-15"
 
 
 def test_daily_inline_result_sends_square_photo_with_separate_thumbnail_and_numa_deeplink() -> None:
