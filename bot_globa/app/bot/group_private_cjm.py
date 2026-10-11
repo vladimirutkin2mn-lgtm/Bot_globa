@@ -34,11 +34,7 @@ def _precision_keyboard_with_private(
         second_name=second_name,
     )
     target = "love" if context is CompatibilityContext.LOVE else "astro"
-    label = (
-        "💞 Разобрать отношения лично"
-        if target == "love"
-        else "🪐 Создать карту и вернуться"
-    )
+    label = "💞 Разобрать отношения лично" if target == "love" else "🪐 Создать карту и вернуться"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
