@@ -18,6 +18,7 @@ from app.db.analytics import AnalyticsEvent  # noqa: F401
 from app.db.birth_profile_models import BirthProfile  # noqa: F401
 from app.db.daily_horoscope_models import DailyHoroscopePreference  # noqa: F401
 from app.db.followups import FollowUpQuestion
+from app.db.free_preview_rescue_metadata import configure_free_preview_rescue_metadata
 from app.db.fsm_models import TelegramFSMState  # noqa: F401
 from app.db.memory_models import OracleMemoryItem  # noqa: F401
 from app.db.models import User  # noqa: F401
@@ -28,7 +29,6 @@ from app.db.refund_metadata import configure_refund_metadata
 from app.db.release_gates import ReleaseGateAttestation
 from app.db.subscription_models import SubscriptionPeriod  # noqa: F401
 from app.db.telegram_models import TelegramUpdateInbox  # noqa: F401
-from app.db.free_preview_rescue_metadata import configure_free_preview_rescue_metadata
 
 configure_refund_metadata()
 configure_free_preview_rescue_metadata()
