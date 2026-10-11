@@ -1,5 +1,7 @@
 import inspect
 
+from aiogram.types import InlineKeyboardMarkup
+
 from app.bot.keyboards import main_menu_keyboard
 from app.bot.persona_flow import ADD_TO_STORY_BUTTON
 from app.bot.reading_renderer import render_full
@@ -7,7 +9,7 @@ from app.bot.reading_story_continuation_handlers import _NEW_SESSION_PROMPT
 from app.bot.reading_story_keyboards import story_all_readings_keyboard
 
 
-def _labels(keyboard):
+def _labels(keyboard: InlineKeyboardMarkup) -> list[str]:
     return [button.text for row in keyboard.inline_keyboard for button in row]
 
 
