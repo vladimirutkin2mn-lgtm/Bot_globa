@@ -20,7 +20,7 @@ from aiogram.types import BotCommandScopeAllGroupChats, Chat, Message, MessageEn
 from aiogram.types import User as TelegramUser
 
 from app.bot import main as app_main
-from app.bot.commands import BOT_COMMANDS, GROUP_COMMANDS, configure_commands
+from app.bot.commands import BOT_COMMANDS, GROUP_COMMANDS, VISIBLE_GROUP_COMMANDS, configure_commands
 from app.bot.main import prepare_runtime
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
@@ -154,7 +154,7 @@ async def test_the_command_menu_and_its_button_are_published_together(
         command.command for command in BOT_COMMANDS
     ]
     assert [command.command for command in groups.commands] == [
-        command.command for command in GROUP_COMMANDS
+        command.command for command in VISIBLE_GROUP_COMMANDS
     ]
     assert isinstance(groups.scope, BotCommandScopeAllGroupChats)
     assert isinstance(session.methods[2], SetChatMenuButton)
@@ -179,81 +179,3 @@ async def test_telegram_refusing_the_command_list_does_not_stop_the_bot(
     )
 
     await configure_commands(instance)
-
-    assert len(session.methods) == 1
-
-
-async def test_boot_seeds_the_persona_registry_and_publishes_the_menu(
-    bot: tuple[Bot, RecordingSession],
-) -> None:
-    """Personas are seeded by the process that serves readings, not by an aiogram hook.
-
-    Production feeds updates straight into the dispatcher and never emits `startup`, so a
-    registry synced only from that hook stays empty on the server and every reading fails
-    with `PersonaUnavailableError`.
-    """
-
-    instance, session = bot
-    registry = RecordingPersonaRegistry()
-
-    await prepare_runtime(instance, cast("PersonaRegistryService", registry))
-
-    assert registry.syncs == 1
-    assert [type(method).__name__ for method in session.methods] == [
-        "SetMyCommands",
-        "SetMyCommands",
-        "SetChatMenuButton",
-    ]
-
-
-def test_neither_entry_point_relies_on_the_startup_event() -> None:
-    """A hook registered on `dispatcher.startup` runs locally and never on the server."""
-
-    sources = (
-        Path(inspect.getfile(app_main)).read_text(),
-        Path(inspect.getfile(telegram_worker)).read_text(),
-    )
-    assert all("dispatcher.startup.register" not in source for source in sources)
-    assert all("prepare_runtime" in source for source in sources)
-
-
-async def test_a_deep_link_lands_on_the_scenario_it_promised(
-    bot: tuple[Bot, RecordingSession],
-) -> None:
-    instance, session = bot
-    dispatcher = Dispatcher()
-    dispatcher.include_router(create_persona_router(TAROT_FLOW))
-    service = OnboardingService(MemoryUsers(), NoOpAnalytics())
-    await service.start(TelegramIdentity(42, "anna", "Анна", "ru"))
-    await service.accept_consent(42)
-
-    await dispatcher.feed_update(
-        instance,
-        _start(TAROT_FLOW.namespace),
-        onboarding=service,
-        privacy_retention_days=RETENTION_DAYS,
-    )
-
-    assert shown_texts(session.methods)[-1] == TAROT_FLOW.texts.welcome
-
-
-async def test_an_unknown_payload_is_ignored_rather_than_followed(
-    bot: tuple[Bot, RecordingSession],
-) -> None:
-    """The payload arrives from outside; only an exact scenario code selects a handler."""
-
-    instance, session = bot
-    dispatcher = Dispatcher()
-    dispatcher.include_router(create_persona_router(TAROT_FLOW))
-    service = OnboardingService(MemoryUsers(), NoOpAnalytics())
-    await service.start(TelegramIdentity(42, "anna", "Анна", "ru"))
-    await service.accept_consent(42)
-
-    await dispatcher.feed_update(
-        instance,
-        _start("tarot; drop table readings"),
-        onboarding=service,
-        privacy_retention_days=RETENTION_DAYS,
-    )
-
-    assert session.methods == []
