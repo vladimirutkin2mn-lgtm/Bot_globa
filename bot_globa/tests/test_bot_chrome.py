@@ -20,7 +20,12 @@ from aiogram.types import BotCommandScopeAllGroupChats, Chat, Message, MessageEn
 from aiogram.types import User as TelegramUser
 
 from app.bot import main as app_main
-from app.bot.commands import BOT_COMMANDS, GROUP_COMMANDS, VISIBLE_GROUP_COMMANDS, configure_commands
+from app.bot.commands import (
+    BOT_COMMANDS,
+    GROUP_COMMANDS,
+    VISIBLE_GROUP_COMMANDS,
+    configure_commands,
+)
 from app.bot.main import prepare_runtime
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
