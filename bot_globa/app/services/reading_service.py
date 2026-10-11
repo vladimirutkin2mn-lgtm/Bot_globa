@@ -38,12 +38,6 @@ class OracleReleaseUnavailableError(PersonaUnavailableError):
 class ReadingPreviewReleaseService(Protocol):
     async def release_reading_preview(self, user_id: UUID, reading_id: UUID) -> object: ...
 
-    async def restore_reading_preview_after_off_question_once(
-        self,
-        user_id: UUID,
-        reading_id: UUID,
-    ) -> bool: ...
-
 
 class ReadingService:
     """Expose Reading use cases without Telegram, billing or provider coupling."""
@@ -160,20 +154,6 @@ class ReadingService:
         if self._preview_entitlements is not None:
             await self._preview_entitlements.release_reading_preview(user_id, reading_id)
         return reading
-
-    async def restore_reading_preview_after_off_question_once(
-        self,
-        user_id: UUID,
-        reading_id: UUID,
-    ) -> bool:
-        """Return the one-time rescue through the already-composed preview entitlement."""
-
-        if self._preview_entitlements is None:
-            return False
-        return await self._preview_entitlements.restore_reading_preview_after_off_question_once(
-            user_id,
-            reading_id,
-        )
 
     async def load_source(self, reading_id: UUID, user_id: UUID) -> ReadingSource | None:
         async with self._sessions() as session:
