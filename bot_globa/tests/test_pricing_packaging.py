@@ -89,7 +89,7 @@ def test_customer_copy_does_not_expose_balance_or_credit_ledger_vocabulary() -> 
     assert "кредит" not in customer_copy
     assert "баланс" not in customer_copy
     assert texts.BALANCE == "💳 Покупки"
-    assert "глубокий разбор по этому вопросу" in texts.PAYWALL.casefold()
+    assert "продолжить этот разбор" in texts.PAYWALL.casefold()
 
 
 def test_subscription_cancellation_copy_keeps_value_in_seans_units() -> None:

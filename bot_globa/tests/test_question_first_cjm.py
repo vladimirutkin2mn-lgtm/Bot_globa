@@ -80,8 +80,9 @@ def test_preview_feedback_precedes_deep_reading_upgrade() -> None:
         "Мимо",
         "✨ Открыть глубокий разбор — 99 ₽",
     ]
-    assert "быстром взгляде" in paywall
-    assert "глубокий разбор" in paywall
+    assert "продолжить этот разбор" in paywall
+    assert "возможные сценарии" in paywall
+    assert "до 3 уточняющих вопросов" in paywall
 
 
 def test_paid_result_makes_session_continuity_visible() -> None:

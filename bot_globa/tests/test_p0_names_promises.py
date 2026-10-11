@@ -36,7 +36,7 @@ def test_paid_reading_copy_matches_the_real_followup_entitlement() -> None:
     assert "до 3 уточняющих вопросов" in paywall
     assert "24 часов" in paywall
     assert "без доплаты" in paywall
-    assert "«Моих историях»" in paywall
+    assert "Разбор останется сохранён" in paywall
 
 
 def test_followup_expiry_does_not_imply_the_purchased_result_disappears() -> None:
