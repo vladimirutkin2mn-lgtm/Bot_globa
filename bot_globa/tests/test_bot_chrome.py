@@ -20,7 +20,12 @@ from aiogram.types import BotCommandScopeAllGroupChats, Chat, Message, MessageEn
 from aiogram.types import User as TelegramUser
 
 from app.bot import main as app_main
-from app.bot.commands import BOT_COMMANDS, GROUP_COMMANDS, configure_commands
+from app.bot.commands import (
+    BOT_COMMANDS,
+    GROUP_COMMANDS,
+    VISIBLE_GROUP_COMMANDS,
+    configure_commands,
+)
 from app.bot.main import prepare_runtime
 from app.bot.persona_flows import TAROT_FLOW
 from app.bot.persona_handlers import create_persona_router
@@ -154,7 +159,7 @@ async def test_the_command_menu_and_its_button_are_published_together(
         command.command for command in BOT_COMMANDS
     ]
     assert [command.command for command in groups.commands] == [
-        command.command for command in GROUP_COMMANDS
+        command.command for command in VISIBLE_GROUP_COMMANDS
     ]
     assert isinstance(groups.scope, BotCommandScopeAllGroupChats)
     assert isinstance(session.methods[2], SetChatMenuButton)
