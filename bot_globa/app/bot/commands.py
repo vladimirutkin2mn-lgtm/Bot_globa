@@ -39,7 +39,27 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="terms", description="📄 Условия оплаты"),
 )
 
+# Complete supported command registry. Secondary games remain valid when typed explicitly
+# and stay aligned with /grouphelp even though Telegram's visible menu is intentionally smaller.
 GROUP_COMMANDS: tuple[BotCommand, ...] = (
+    BotCommand(command="card", description="🔮 Карта дня для всего чата"),
+    BotCommand(
+        command="compatibility",
+        description="💞 Совместимость участников",
+        is_ephemeral=True,
+    ),
+    BotCommand(command="couple", description="💘 Кармическая пара дня"),
+    BotCommand(command="duel", description="⚔️ Битва знаков"),
+    BotCommand(command="seance", description="🕯 Спиритический сеанс"),
+    BotCommand(command="taro", description="🎱 Таро Да/Нет"),
+    BotCommand(command="advice", description="🪐 Космическая погода"),
+    BotCommand(command="party", description="🎉 Игры для компании"),
+    BotCommand(command="event", description="🃏 Расклад на событие"),
+    BotCommand(command="grouphelp", description="✨ Игры Numa для группы"),
+)
+
+# Telegram discovery surface: two primary games plus one route to the rest of the catalogue.
+VISIBLE_GROUP_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand(command="compatibility", description="💞 Совместимость", is_ephemeral=True),
     BotCommand(command="duel", description="⚔️ Астро-дуэль"),
     BotCommand(command="grouphelp", description="✨ Другие игры"),
@@ -60,10 +80,13 @@ install_group_daily_cleanup()
 
 
 async def configure_commands(bot: Bot) -> None:
-    """Publish private defaults plus a compact group discovery surface."""
+    """Publish private defaults plus the compact group discovery surface."""
     try:
         await bot.set_my_commands(list(BOT_COMMANDS))
-        await bot.set_my_commands(list(GROUP_COMMANDS), scope=BotCommandScopeAllGroupChats())
+        await bot.set_my_commands(
+            list(VISIBLE_GROUP_COMMANDS),
+            scope=BotCommandScopeAllGroupChats(),
+        )
         await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
     except TelegramAPIError:
         logger.warning("bot_commands_not_published")
