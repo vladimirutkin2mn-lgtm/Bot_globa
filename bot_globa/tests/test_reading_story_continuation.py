@@ -95,13 +95,13 @@ def test_selected_story_context_names_story_and_anchor_without_old_answer_text()
     assert STORY_CONTINUATION_ID_KEY == "reading_story_continuation_id"
 
 
-def test_new_story_session_copy_is_explicit_about_separate_access_and_memory() -> None:
+def test_new_story_session_copy_explains_the_next_user_action_without_internal_details() -> None:
     assert "{context}" in _NEW_SESSION_PROMPT
     assert "новый отдельный разбор" in _NEW_SESSION_PROMPT
     assert "расходуется отдельно" in _NEW_SESSION_PROMPT
-    assert "Старые тексты из истории" in _NEW_SESSION_PROMPT
-    assert "память используется только если вы уже включили" in _NEW_SESSION_PROMPT
-    assert "После результата" in _NEW_SESSION_PROMPT
+    assert "добавить к этой истории" in _NEW_SESSION_PROMPT
+    assert "Старые тексты из истории" not in _NEW_SESSION_PROMPT
+    assert "память используется" not in _NEW_SESSION_PROMPT.casefold()
     assert "prompt" not in _NEW_SESSION_PROMPT.casefold()
 
 
