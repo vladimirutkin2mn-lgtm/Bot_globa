@@ -225,10 +225,7 @@ class PreviewEntitlementService:
             user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
             if user is None:
                 return False
-            if (
-                user.free_preview_status != "consumed"
-                or user.free_preview_reading_id != reading_id
-            ):
+            if user.free_preview_status != "consumed" or user.free_preview_reading_id != reading_id:
                 return False
             rescue_used_at = await session.scalar(
                 text("SELECT free_preview_rescue_used_at FROM users WHERE id = :user_id"),
