@@ -6,7 +6,9 @@ schema construction paths aligned with the deployable migration without making
 preview-rescue state part of the normal onboarding model API.
 """
 
-from sqlalchemy import Column, DateTime
+from typing import cast
+
+from sqlalchemy import Column, DateTime, Table
 
 from app.db.models import User
 
@@ -14,8 +16,9 @@ from app.db.models import User
 def configure_free_preview_rescue_metadata() -> None:
     """Append the rescue marker once so metadata-created schemas match Alembic."""
 
-    if "free_preview_rescue_used_at" in User.__table__.c:
+    table = cast(Table, User.__table__)
+    if "free_preview_rescue_used_at" in table.c:
         return
-    User.__table__.append_column(
+    table.append_column(
         Column("free_preview_rescue_used_at", DateTime(timezone=True), nullable=True)
     )
