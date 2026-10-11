@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Analysis, User
@@ -208,6 +208,52 @@ class PreviewEntitlementService:
                 self._make_available(user)
                 return ReadingPreviewVisibility.LOCKED
             return ReadingPreviewVisibility.PENDING
+
+    async def restore_reading_preview_after_off_question_once(
+        self,
+        user_id: UUID,
+        reading_id: UUID,
+    ) -> bool:
+        """Return one free-preview chance only when the consumed preview itself missed the question.
+
+        The rescue marker is intentionally durable and independent from the normal preview state.
+        The user row is locked before checking either value, so duplicate feedback callbacks cannot
+        manufacture multiple rescues. Paid/full readings never qualify.
+        """
+
+        async with self._sessions.begin() as session:
+            user = await session.scalar(select(User).where(User.id == user_id).with_for_update())
+            if user is None:
+                return False
+            if user.free_preview_status != "consumed" or user.free_preview_reading_id != reading_id:
+                return False
+            rescue_used_at = await session.scalar(
+                text("SELECT free_preview_rescue_used_at FROM users WHERE id = :user_id"),
+                {"user_id": user_id},
+            )
+            if rescue_used_at is not None:
+                return False
+            reading = await session.scalar(
+                select(Reading)
+                .where(Reading.id == reading_id, Reading.user_id == user_id)
+                .with_for_update()
+            )
+            if (
+                reading is None
+                or reading.status != ReadingStatus.PREVIEW_READY.value
+                or reading.access_level != ReadingAccess.PREVIEW.value
+            ):
+                return False
+            rescue_time = datetime.now(UTC)
+            self._make_available(user)
+            await session.execute(
+                text(
+                    "UPDATE users SET free_preview_rescue_used_at = :rescue_time "
+                    "WHERE id = :user_id"
+                ),
+                {"rescue_time": rescue_time, "user_id": user_id},
+            )
+            return True
 
     async def release_preview(self, user_id: UUID, analysis_id: UUID) -> PreviewOutcome:
         return await self._transition_analysis(user_id, analysis_id, consume=False)
