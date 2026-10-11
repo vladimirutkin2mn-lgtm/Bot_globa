@@ -1,4 +1,8 @@
-from app.bot.personal_oracle_handlers import choose_route, route_feedback, should_announce_route
+from app.bot.personal_oracle_handlers import (
+    choose_route,
+    route_feedback,
+    should_announce_route,
+)
 
 
 def test_auto_route_feedback_explains_the_selected_practice() -> None:
