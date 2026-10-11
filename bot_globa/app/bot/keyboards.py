@@ -59,7 +59,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(text="☀️ Гороскоп на сегодня", callback_data="menu:daily"),
-                InlineKeyboardButton(text="📚 Мои истории", callback_data="menu:readings"),
+                InlineKeyboardButton(text="📚 Мои разборы", callback_data="menu:readings"),
             ],
             [InlineKeyboardButton(text="⋯ Ещё", callback_data="menu:more")],
         ]
