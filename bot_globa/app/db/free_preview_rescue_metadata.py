@@ -16,7 +16,7 @@ from app.db.models import User
 def configure_free_preview_rescue_metadata() -> None:
     """Append the rescue marker once so metadata-created schemas match Alembic."""
 
-    table = cast(Table, User.__table__)
+    table = cast("Table", User.__table__)
     if "free_preview_rescue_used_at" in table.c:
         return
     table.append_column(
