@@ -1,11 +1,14 @@
+import pytest
 from aiogram.types import InlineKeyboardMarkup
 
 from app.bot import group_private_cjm
 from app.domain.synastry import CompatibilityContext
 
 
-def test_compatibility_private_astro_cta_says_to_create_map_and_return(monkeypatch) -> None:
-    def previous(*args, **kwargs):
+def test_compatibility_private_astro_cta_says_to_create_map_and_return(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def previous(*args: object, **kwargs: object) -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(inline_keyboard=[])
 
     monkeypatch.setattr(group_private_cjm, "_PREVIOUS_PRECISION_KEYBOARD", previous)
