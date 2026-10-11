@@ -28,7 +28,9 @@ from app.db.refund_metadata import configure_refund_metadata
 from app.db.release_gates import ReleaseGateAttestation
 from app.db.subscription_models import SubscriptionPeriod  # noqa: F401
 from app.db.telegram_models import TelegramUpdateInbox  # noqa: F401
+from app.db.free_preview_rescue_metadata import configure_free_preview_rescue_metadata
 
 configure_refund_metadata()
+configure_free_preview_rescue_metadata()
 
 __all__ = ["FollowUpQuestion", "ReleaseGateAttestation"]
