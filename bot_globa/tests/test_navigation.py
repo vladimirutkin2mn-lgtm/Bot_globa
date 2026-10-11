@@ -29,7 +29,7 @@ def test_main_menu_contains_required_sections() -> None:
         ["✨ Рассказать Numa"],
         ["🔮 Таро", "💞 Любовный оракул"],
         ["🌙 Внутренний разбор", "🪐 Астрология"],
-        ["☀️ Гороскоп на сегодня", "📚 Мои истории"],
+        ["☀️ Гороскоп на сегодня", "📚 Мои разборы"],
         ["⋯ Ещё"],
     ]
     assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
