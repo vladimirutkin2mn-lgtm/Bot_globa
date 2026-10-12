@@ -57,7 +57,7 @@ SHARE_PREVIEW_INTRO = (
     "не попадут.\n\n"
 )
 SHARE_READY = "Карточка готова. Нажмите «Выбрать чат» — Telegram откроет меню отправки."
-SHARE_UNAVAILABLE = "Эта карточка сейчас недоступна. Откройте полный разбор из «Моих историй»."
+SHARE_UNAVAILABLE = "Эта карточка сейчас недоступна. Откройте полный разбор из «Моих разборов»."
 
 
 def share_offer_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
@@ -189,7 +189,7 @@ async def confirm_reading_share(
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="📤 Выбрать чат", url=share_url)],
-                [InlineKeyboardButton(text="← К моим историям", callback_data="menu:readings")],
+                [InlineKeyboardButton(text="← К моим разборам", callback_data="menu:readings")],
             ]
         ),
     )
@@ -204,7 +204,7 @@ def share_preview_keyboard(reading_id: UUID) -> InlineKeyboardMarkup:
                     callback_data=f"{SHARE_CONFIRM_PREFIX}{reading_id}",
                 )
             ],
-            [InlineKeyboardButton(text="← К моим историям", callback_data="menu:readings")],
+            [InlineKeyboardButton(text="← К моим разборам", callback_data="menu:readings")],
         ]
     )
 
