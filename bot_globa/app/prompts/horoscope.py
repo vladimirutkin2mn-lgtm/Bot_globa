@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from app.prompts.editorial_quality import NUMA_EDITORIAL_QUALITY
+
 
 class HoroscopePromptNotFoundError(LookupError):
     """The frozen Horoscope prompt version is not deployed."""
@@ -50,8 +52,19 @@ _ASTROLOGER_V2 = HoroscopePromptSet(
     ),
 )
 
+_ASTROLOGER_V3 = HoroscopePromptSet(
+    system=_ASTROLOGER_V2.system + "\n\n" + NUMA_EDITORIAL_QUALITY,
+    request_instruction=(
+        _ASTROLOGER_V2.request_instruction
+        + "\n\nBefore returning JSON, silently check that the overview synthesizes the strongest "
+        "calculated facts instead of listing them, that interpretations do not repeat one another, "
+        "and that practical_step follows from the referenced fact pattern."
+    ),
+)
+
 _PROMPTS: dict[str, HoroscopePromptSet] = {
     "astrologer-v2": _ASTROLOGER_V2,
+    "astrologer-v3": _ASTROLOGER_V3,
 }
 
 
