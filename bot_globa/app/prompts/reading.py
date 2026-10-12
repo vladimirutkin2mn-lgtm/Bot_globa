@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from app.prompts.editorial_quality import NUMA_EDITORIAL_QUALITY
+
 
 class ReadingPromptNotFoundError(LookupError):
     """A requested reading prompt version is not deployed."""
@@ -58,8 +60,20 @@ _LOVE_ORACLE_V2 = ReadingPromptSet(
     accepts_memory_context=True,
 )
 
+_LOVE_ORACLE_V3 = ReadingPromptSet(
+    system=_LOVE_ORACLE_V2.system + "\n\n" + NUMA_EDITORIAL_QUALITY,
+    request_instruction=(
+        _LOVE_ORACLE_V2.request_instruction
+        + "\n\nBefore returning JSON, silently check that the answer contains one clear relationship "
+        "dynamic, that each scenario is genuinely different, and that practical_step is not a "
+        "generic instruction that could fit any relationship."
+    ),
+    accepts_memory_context=True,
+)
+
 _PROMPTS: dict[str, ReadingPromptSet] = {
     "love-oracle-v2": _LOVE_ORACLE_V2,
+    "love-oracle-v3": _LOVE_ORACLE_V3,
 }
 
 
