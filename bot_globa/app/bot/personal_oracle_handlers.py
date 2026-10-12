@@ -42,7 +42,9 @@ AUTO_PROMPT = (
     "Не нужно выбирать практику или формулировать вопрос особым образом — Numa сама поймёт, "
     "какой способ разбора здесь уместнее."
 )
-ROUTE_CLARIFICATION = "Здесь можно посмотреть на ситуацию по-разному. Что для вас сейчас главное?"
+ROUTE_CLARIFICATION = (
+    "Здесь не хочу выбирать практику наугад. Что для вас сейчас главное в этой ситуации?"
+)
 INVALID_QUESTION = "Расскажите ситуацию обычным текстовым сообщением до 8000 символов."
 
 
@@ -87,6 +89,11 @@ _REPEAT_RE = re.compile(
     r"(повторя|\bснова\b|\bопять\b|снова и снова|одно и то же|по кругу|паттерн)",
     re.IGNORECASE,
 )
+_GENERAL_TAROT_RE = re.compile(
+    r"(таро|карты|расклад|что меня жд[её]т|что будет дальше|будущее|прогноз|"
+    r"что показывает ситуация|какая тема сейчас)",
+    re.IGNORECASE,
+)
 
 
 class PlainTextBeforeConsentFilter(BaseFilter):
@@ -113,7 +120,7 @@ def choose_route(question: str) -> RouteChoice:
 
 
 def needs_route_clarification(question: str) -> bool:
-    """Ask once when relationship intent is broad or materially mixed with another context."""
+    """Ask once for materially mixed or genuinely low-confidence auto-routing."""
 
     value = _normalized(question)
     strong_love = bool(_STRONG_LOVE_RE.search(value))
@@ -121,15 +128,18 @@ def needs_route_clarification(question: str) -> bool:
     work = bool(_WORK_RE.search(value))
     reflection = bool(_REFLECTION_RE.search(value))
     decision = bool(_DECISION_RE.search(value))
+    explicit_tarot = bool(_GENERAL_TAROT_RE.search(value))
     if strong_love and work:
         return True
     if broad_relationship and work:
         return bool(_RELATIONSHIP_CHANGE_RE.search(value))
     if strong_love and reflection:
         return True
-    if not broad_relationship:
-        return False
-    return not any((strong_love, reflection, decision))
+    if broad_relationship and not any((strong_love, reflection, decision)):
+        return True
+    # Previously every low-signal message silently fell into Tarot/general. One explicit
+    # clarification is more honest than pretending the router understood the intent.
+    return not any((strong_love, work, reflection, decision, explicit_tarot))
 
 
 def route_within_practice(question: str, mode: str) -> RouteChoice | None:
@@ -165,6 +175,8 @@ def route_from_clarification(question: str, mode: str) -> RouteChoice | None:
     if mode == "work":
         topic = "decision" if _DECISION_RE.search(value) else "work"
         return RouteChoice(TAROT_FLOW, topic)
+    if mode == "tarot":
+        return RouteChoice(TAROT_FLOW, "general_forecast")
     return None
 
 
@@ -593,6 +605,12 @@ def _route_clarification_keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="🧭 Работа или выбор",
                     callback_data=f"{_ROUTE_PREFIX}work",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔮 Посмотреть через Таро",
+                    callback_data=f"{_ROUTE_PREFIX}tarot",
                 )
             ],
             [InlineKeyboardButton(text="← В главное меню", callback_data="menu:home")],
