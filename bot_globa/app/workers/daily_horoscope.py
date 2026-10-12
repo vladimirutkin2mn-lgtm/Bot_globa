@@ -26,9 +26,13 @@ from app.domain.daily_horoscope import (
 )
 from app.domain.natal_chart import ZodiacSign
 from app.logging import configure_logging
+from app.observability.langsmith import wrap_llm_with_langsmith
 from app.observability.settings import get_observability_settings
 from app.providers.analytics_postgres import create_analytics_client
+from app.providers.llm.base import close_llm_client
+from app.providers.llm.factory import create_llm_client
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
+from app.services.daily_horoscope_generation import DailyHoroscopeGenerationService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
 from app.services.numa_daily_analytics import NumaDailyAnalytics
 from app.services.numa_product_analytics import NumaProductAnalytics
@@ -121,7 +125,14 @@ async def run(
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
     preferences = DailyHoroscopePreferenceService(sessions)
-    snapshots = DailyHoroscopeSnapshotService(sessions)
+    llm = wrap_llm_with_langsmith(create_llm_client(resolved), get_observability_settings())
+    snapshots = DailyHoroscopeSnapshotService(
+        sessions,
+        DailyHoroscopeGenerationService(
+            llm,
+            max_repair_attempts=resolved.llm_max_repair_attempts,
+        ),
+    )
     daily_analytics = NumaDailyAnalytics(
         NumaProductAnalytics(create_analytics_client(sessions, get_observability_settings()))
     )
@@ -261,9 +272,12 @@ async def run(
                     )
     finally:
         try:
-            await bot.session.close()
+            await close_llm_client(llm)
         finally:
-            await engine.dispose()
+            try:
+                await bot.session.close()
+            finally:
+                await engine.dispose()
 
 
 def main() -> None:
