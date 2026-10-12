@@ -48,6 +48,7 @@ from app.observability.oracle_quality import (
     OracleQualityObserver,
 )
 from app.observability.settings import ObservabilitySettings, get_observability_settings
+from app.prompts.reading_followup import DEFAULT_READING_FOLLOWUP_PROMPT_VERSION
 from app.providers.analytics_postgres import create_analytics_client
 from app.providers.geocoding.base import close_geocoding_client
 from app.providers.geocoding.factory import create_geocoding_client
@@ -314,6 +315,7 @@ def create_dispatcher(
         analytics,
         settings.llm_provider,
         settings.llm_model,
+        prompt_version=DEFAULT_READING_FOLLOWUP_PROMPT_VERSION,
         max_repair_attempts=settings.llm_max_repair_attempts,
     )
     return dispatcher
