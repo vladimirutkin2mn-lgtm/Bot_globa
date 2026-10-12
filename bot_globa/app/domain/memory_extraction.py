@@ -14,7 +14,7 @@ from app.domain.oracle_memory import (
     VersionCode,
 )
 
-CURRENT_MEMORY_EXTRACTION_VERSION = "oracle-memory-extractor-v1"
+CURRENT_MEMORY_EXTRACTION_VERSION = "oracle-memory-extractor-v2"
 
 
 class MemoryExtractionCandidate(StrictMemoryModel):
