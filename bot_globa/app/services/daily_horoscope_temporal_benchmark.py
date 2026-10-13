@@ -54,7 +54,11 @@ def evaluate_temporal_daily(items: list[TemporalDailyItem]) -> TemporalDailyRepo
             near += 1
         if first.headline and second.headline and _similar(first.headline, second.headline) >= 0.86:
             headlines += 1
-        if first.central_idea and second.central_idea and _idea(first.central_idea, second.central_idea) >= 0.78:
+        if (
+            first.central_idea
+            and second.central_idea
+            and _idea(first.central_idea, second.central_idea) >= 0.78
+        ):
             ideas += 1
         if first.action and second.action and _idea(first.action, second.action) >= 0.78:
             actions += 1
