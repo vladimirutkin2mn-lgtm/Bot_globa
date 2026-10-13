@@ -5,7 +5,11 @@ on:
     branches:
       - tmp/business-activity-enrichment
     paths:
-      - 'tmp_business_activity/enrich_5000.py'
+      - 'tmp_business_activity/inns_5000.b64.*'
+      - 'tmp_business_activity/load_5000.py'
+      - 'tmp_business_activity/run_base_5000.py'
+      - 'tmp_business_activity/run_chz_5000.py'
+      - 'tmp_business_activity/run_licenses_5000.py'
       - 'tmp_business_activity/enrich_chz_5000.py'
       - 'tmp_business_activity/enrich_licenses_5000.py'
       - '.github/workflows/tmp_business_activity_5000.yml'
@@ -25,7 +29,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip requests
       - name: Run FNS/Rosstat first 5000
-        run: python tmp_business_activity/enrich_5000.py
+        run: python tmp_business_activity/run_base_5000.py
       - name: Show summary
         if: always()
         run: cat tmp_business_activity/output/summary.json || true
@@ -48,7 +52,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip requests
       - name: Run Chestny Znak first 5000
-        run: python tmp_business_activity/enrich_chz_5000.py
+        run: python tmp_business_activity/run_chz_5000.py
       - name: Show summary
         if: always()
         run: cat tmp_business_activity/output_chz_5000/summary.json || true
@@ -71,7 +75,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip requests beautifulsoup4
       - name: Run licenses first 5000
-        run: python tmp_business_activity/enrich_licenses_5000.py
+        run: python tmp_business_activity/run_licenses_5000.py
       - name: Show summary
         if: always()
         run: cat tmp_business_activity/output_licenses_5000/summary.json || true
