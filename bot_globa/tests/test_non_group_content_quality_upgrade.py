@@ -8,6 +8,7 @@ import pytest
 
 from app.domain.natal_chart import ZodiacSign
 from app.domain.persona import persona_definition
+from app.prompts.daily_horoscope import DAILY_HOROSCOPE_PROMPT_VERSION
 from app.prompts.horoscope import load_horoscope_prompts
 from app.prompts.memory_extraction import (
     MEMORY_EXTRACTION_PROMPT_VERSION,
@@ -18,7 +19,6 @@ from app.prompts.reading_followup import load_reading_followup_prompts
 from app.providers.llm.base import LLMCompletion, LLMRequest
 from app.services.daily_horoscope_ai import (
     DAILY_AI_METHOD_VERSION,
-    DAILY_HOROSCOPE_PROMPT_VERSION,
     DailyHoroscopeAIEditor,
     InvalidDailyHoroscopeAIResultError,
 )
