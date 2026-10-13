@@ -1,14 +1,11 @@
-"""Allow-listed package-resource loader for the reading follow-up prompt pack.
-
-Self-contained on purpose: the follow-up is the only prompt pack still loaded from files
-rather than declared in Python, and it must not depend on anything named after the
-retired analysis stack.
-"""
+"""Allow-listed package-resource loader for versioned reading follow-up prompt packs."""
 
 from dataclasses import dataclass
 from importlib.resources import files
 
-KNOWN_READING_FOLLOWUP_PROMPT_VERSIONS = frozenset({"reading_followup_v1"})
+KNOWN_READING_FOLLOWUP_PROMPT_VERSIONS = frozenset(
+    {"reading_followup_v1", "reading_followup_v2"}
+)
 
 
 class ReadingFollowUpPromptNotFoundError(ValueError):
