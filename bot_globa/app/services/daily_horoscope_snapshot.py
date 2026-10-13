@@ -19,7 +19,7 @@ from app.services.daily_horoscope_editorial import (
     DAILY_EDITORIAL_METHOD_VERSION,
     build_editorial_daily_horoscope,
 )
-from app.services.daily_sky import DAILY_SKY_VERSION, DailyHoroscopeSnapshot
+from app.services.daily_sky import DAILY_SKY_VERSION, DailyHoroscopeSnapshot, build_daily_horoscope
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +47,18 @@ class DailyHoroscopeSnapshotService:
         if self._editor is None:
             generated = build_editorial_daily_horoscope(forecast_date)
         else:
-            base = build_editorial_daily_horoscope(forecast_date)
+            # The model sees the calculation layer, not the old phrase-library editorial
+            # layer. That prevents the new system from becoming a paraphraser of templates.
+            facts_snapshot = build_daily_horoscope(forecast_date)
             history = await self._recent_history(forecast_date)
             try:
-                ai_result = await self._editor.generate(base, history)
+                ai_result = await self._editor.generate(facts_snapshot, history)
             except Exception:
                 # A mass daily must never disappear because a model/provider/editorial
                 # validation failed. Persist the fallback methodology for the date so the
                 # next recipient does not trigger another LLM call in the same broadcast.
                 logger.exception("daily_horoscope_ai_editor_failed fallback=deterministic")
-                generated = _fallback_snapshot(base)
+                generated = _fallback_snapshot(build_editorial_daily_horoscope(forecast_date))
             else:
                 generated = ai_result.snapshot
                 editorial_meta = ai_result.editorial_meta
