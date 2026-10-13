@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from app.bot.personal_oracle_handlers import choose_route, needs_route_clarification
 from app.bot.persona_flows import LOVE_ORACLE_FLOW, MYSTICAL_PSYCHOLOGIST_FLOW
+from app.bot.personal_oracle_handlers import choose_route, needs_route_clarification
 
 
 @dataclass(frozen=True, slots=True)
