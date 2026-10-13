@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 
-
 DAILY_HOROSCOPE_PROMPT_VERSION = "daily-horoscope-editor-v1"
 
 
