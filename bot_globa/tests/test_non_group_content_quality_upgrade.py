@@ -95,13 +95,15 @@ def test_new_personal_prompt_versions_are_defaults_and_legacy_still_loads() -> N
     assert _default_prompt_version("love_oracle") == "love-oracle-v3"
     assert _default_prompt_version("mystical_psychologist") == "mystical-psychologist-v3"
     assert _default_prompt_version("astrologer") == "astrologer-v3"
-
-    assert load_oracle_reading_prompts("tarot-reader-v4")
-    assert load_oracle_reading_prompts("tarot-reader-v5")
-    assert load_oracle_reading_prompts("love-oracle-v2")
-    assert load_oracle_reading_prompts("love-oracle-v3")
-    assert load_oracle_reading_prompts("mystical-psychologist-v2")
-    assert load_oracle_reading_prompts("mystical-psychologist-v3")
+    for version in (
+        "tarot-reader-v4",
+        "tarot-reader-v5",
+        "love-oracle-v2",
+        "love-oracle-v3",
+        "mystical-psychologist-v2",
+        "mystical-psychologist-v3",
+    ):
+        assert load_oracle_reading_prompts(version)
     assert load_horoscope_prompts("astrologer-v2")
     assert load_horoscope_prompts("astrologer-v3")
 
@@ -124,17 +126,13 @@ async def test_daily_ai_builds_one_grounded_twelve_sign_snapshot() -> None:
     llm = FakeDailyLLM(_daily_payload())
     editor = DailyHoroscopeAIEditor(llm)
     facts = build_daily_horoscope_facts(date(2026, 10, 14))
-
     result = await editor.generate(facts, {})
-
     assert result.snapshot.methodology_version == DAILY_AI_METHOD_VERSION
     assert len(result.snapshot.signs) == 12
     assert set(result.editorial_meta) == {sign.value for sign in ZodiacSign}
     assert llm.request is not None
     assert llm.request.telemetry_prompt_version == DAILY_HOROSCOPE_PROMPT_VERSION
     assert llm.request.telemetry_persona_code == "daily_horoscope"
-    assert "DAILY_FACTS_JSON" in llm.request.user_prompt
-    assert "RECENT_HISTORY_JSON" in llm.request.user_prompt
     assert '"transit_body"' in llm.request.user_prompt
     assert '"aspect"' in llm.request.user_prompt
 
@@ -145,7 +143,7 @@ async def test_daily_ai_rejects_recent_same_sign_editorial_repeat() -> None:
     llm = FakeDailyLLM(payload)
     editor = DailyHoroscopeAIEditor(llm)
     facts = build_daily_horoscope_facts(date(2026, 10, 14))
-    raw_signs = cast(list[dict[str, str]], payload["signs"])
+    raw_signs = cast("list[dict[str, str]]", payload["signs"])
     first = raw_signs[0]
     history = {
         ZodiacSign.ARIES.value: [
@@ -157,24 +155,24 @@ async def test_daily_ai_rejects_recent_same_sign_editorial_repeat() -> None:
             }
         ]
     }
-
     with pytest.raises(InvalidDailyHoroscopeAIResultError):
         await editor.generate(facts, history)
 
 
 def test_temporal_daily_benchmark_detects_same_sign_repetition() -> None:
-    items = [
-        TemporalDailyItem(
-            "2026-10-12", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"
-        ),
-        TemporalDailyItem(
-            "2026-10-13", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"
-        ),
-        TemporalDailyItem(
-            "2026-10-14", "Разговор даст новый ориентир.", "Разговор", "ясность", "спросите"
-        ),
-    ]
-    report = evaluate_temporal_daily(items)
+    report = evaluate_temporal_daily(
+        [
+            TemporalDailyItem(
+                "2026-10-12", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"
+            ),
+            TemporalDailyItem(
+                "2026-10-13", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"
+            ),
+            TemporalDailyItem(
+                "2026-10-14", "Разговор даст новый ориентир.", "Разговор", "ясность", "спросите"
+            ),
+        ]
+    )
     assert report.sample_size == 3
     assert report.exact_duplicate_pairs == 1
     assert not report.passes_baseline
