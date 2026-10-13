@@ -1,0 +1,33 @@
+name: TMP RMSP fast first 5000
+on:
+  push:
+    branches: [tmp/business-activity-enrichment]
+    paths:
+      - 'tmp_business_activity/enrich_rmsp_fast_5000.py'
+      - '.github/workflows/tmp_business_activity_rmsp_fast_5000.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip requests
+      - name: Run official RMSP JSON first 5000
+        run: python tmp_business_activity/enrich_rmsp_fast_5000.py
+      - name: Show summary
+        if: always()
+        run: cat tmp_business_activity/output_rmsp_fast_5000/summary.json || true
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: business-activity-rmsp-fast-first-5000
+          path: tmp_business_activity/output_rmsp_fast_5000/
+          if-no-files-found: warn
+          retention-days: 2
