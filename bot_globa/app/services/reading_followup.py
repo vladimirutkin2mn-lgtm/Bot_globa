@@ -130,7 +130,7 @@ class ReadingFollowUpService:
         provider: str,
         model: str,
         *,
-        prompt_version: str = "reading_followup_v1",
+        prompt_version: str = "reading_followup_v2",
         lease_seconds: int = 180,
         max_question_characters: int = 1000,
         max_repair_attempts: int = 1,

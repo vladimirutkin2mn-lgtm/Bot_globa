@@ -26,8 +26,13 @@ from app.domain.daily_horoscope import (
 )
 from app.domain.natal_chart import ZodiacSign
 from app.logging import configure_logging
+from app.observability.langsmith import wrap_llm_with_langsmith
+from app.observability.oracle_quality import LLMCostPolicy, ObservedLLMClient, OracleQualityObserver
 from app.observability.settings import get_observability_settings
+from app.providers.analytics import AnalyticsClient
 from app.providers.analytics_postgres import create_analytics_client
+from app.providers.llm.base import LLMClient, close_llm_client
+from app.providers.llm.factory import create_llm_client
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
 from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
 from app.services.numa_daily_analytics import NumaDailyAnalytics
@@ -108,6 +113,29 @@ async def _send_feedback_prompt(
                 raise
 
 
+def _create_daily_llm(settings: Settings, analytics: AnalyticsClient) -> LLMClient | None:
+    """Build the same observed provider boundary as personal readings, or fall back safely."""
+
+    try:
+        observability = get_observability_settings()
+        raw_llm = create_llm_client(settings)
+        traced_llm = wrap_llm_with_langsmith(raw_llm, observability)
+        quality = OracleQualityObserver(
+            analytics,
+            default_provider=settings.llm_provider,
+            default_model=settings.llm_model,
+            cost_policy=LLMCostPolicy(
+                settings.llm_model,
+                observability.llm_input_cost_usd_per_million_tokens,
+                observability.llm_output_cost_usd_per_million_tokens,
+            ),
+        )
+        return ObservedLLMClient(traced_llm, quality)
+    except Exception:
+        logger.exception("daily_horoscope_llm_initialization_failed fallback=deterministic")
+        return None
+
+
 async def run(
     settings: Settings | None = None,
     deployment: DeploymentSettings | None = None,
@@ -121,10 +149,11 @@ async def run(
     engine = create_engine(str(resolved.database_url))
     sessions = create_session_factory(engine)
     preferences = DailyHoroscopePreferenceService(sessions)
-    snapshots = DailyHoroscopeSnapshotService(sessions)
-    daily_analytics = NumaDailyAnalytics(
-        NumaProductAnalytics(create_analytics_client(sessions, get_observability_settings()))
-    )
+    observability = get_observability_settings()
+    analytics = create_analytics_client(sessions, observability)
+    llm = _create_daily_llm(resolved, analytics)
+    snapshots = DailyHoroscopeSnapshotService(sessions, llm)
+    daily_analytics = NumaDailyAnalytics(NumaProductAnalytics(analytics))
     bot = create_bot(resolved.telegram_bot_token.get_secret_value())
     stopped = stop or asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -261,6 +290,9 @@ async def run(
                     )
     finally:
         try:
+            if llm is not None:
+                with contextlib.suppress(Exception):
+                    await close_llm_client(llm)
             await bot.session.close()
         finally:
             await engine.dispose()

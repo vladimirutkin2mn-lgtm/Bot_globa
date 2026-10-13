@@ -74,7 +74,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         required_inputs=(PersonaInput.QUESTION,),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT,),
         engine_version="tarot-symbolic-v2",
-        prompt_version="tarot-reader-v4",
+        prompt_version="tarot-reader-v5",
         schema_version="reading-result-v1",
     ),
     PersonaDefinition(
@@ -86,7 +86,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         required_inputs=(PersonaInput.QUESTION,),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT,),
         engine_version="symbolic-v1",
-        prompt_version="love-oracle-v2",
+        prompt_version="love-oracle-v3",
         schema_version="reading-result-v1",
     ),
     PersonaDefinition(
@@ -98,7 +98,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         required_inputs=(PersonaInput.QUESTION,),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT,),
         engine_version="reflective-v1",
-        prompt_version="mystical-psychologist-v2",
+        prompt_version="mystical-psychologist-v3",
         schema_version="reading-result-v1",
     ),
     PersonaDefinition(
@@ -121,7 +121,7 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         ),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT, PersonaInput.BIRTH_TIME),
         engine_version="astrology-calculation-v1",
-        prompt_version="astrologer-v2",
+        prompt_version="astrologer-v3",
         schema_version="astrology-reading-result-v1",
         requires_calculation_engine=True,
         unknown_birth_time_policy=UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT,
