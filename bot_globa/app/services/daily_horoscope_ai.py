@@ -167,7 +167,9 @@ def _validate_and_build(
         if any(_similar(visible, other) >= 0.90 for other in day_texts):
             raise InvalidDailyHoroscopeAIResultError("daily AI repeated a forecast across signs")
         if any(_idea_similarity(action, other) >= 0.86 for other in day_actions):
-            raise InvalidDailyHoroscopeAIResultError("daily AI repeated the same action across signs")
+            raise InvalidDailyHoroscopeAIResultError(
+                "daily AI repeated the same action across signs"
+            )
         day_texts.append(visible)
         day_actions.append(action)
         forecasts.append(DailySignForecast(ZodiacSign(sign), visible))
@@ -215,7 +217,9 @@ def _validate_history(
             raise InvalidDailyHoroscopeAIResultError(f"daily AI repeated recent text for {sign}")
         previous_headline = entry.get("headline", "")
         if previous_headline and _similar(headline, previous_headline) >= 0.86:
-            raise InvalidDailyHoroscopeAIResultError(f"daily AI repeated recent headline for {sign}")
+            raise InvalidDailyHoroscopeAIResultError(
+                f"daily AI repeated recent headline for {sign}"
+            )
         previous_central = entry.get("central_idea", "")
         if previous_central and _idea_similarity(central, previous_central) >= 0.78:
             raise InvalidDailyHoroscopeAIResultError(f"daily AI repeated recent idea for {sign}")
