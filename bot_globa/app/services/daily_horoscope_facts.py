@@ -11,13 +11,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from app.domain.natal_chart import ZodiacSign
-from app.services.daily_sky import (
-    _HOUSE_FOCUS,
-    _driver_aspect,
-    _sign_driver,
-    _solar_house,
-    calculate_daily_sky,
-)
+from app.services import daily_sky
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,9 +70,9 @@ class DailyHoroscopeFactBundle:
 def build_daily_horoscope_facts(forecast_date: date) -> DailyHoroscopeFactBundle:
     """Return one text-free fact bundle using the existing deterministic driver selection."""
 
-    sky = calculate_daily_sky(forecast_date)
-    previous_sky = calculate_daily_sky(forecast_date - timedelta(days=1))
-    day_driver = _driver_aspect(sky)
+    sky = daily_sky.calculate_daily_sky(forecast_date)
+    previous_sky = daily_sky.calculate_daily_sky(forecast_date - timedelta(days=1))
+    day_driver = daily_sky._driver_aspect(sky)
     day_payload: dict[str, object] | None = None
     if day_driver is not None:
         day_payload = {
@@ -90,8 +84,8 @@ def build_daily_horoscope_facts(forecast_date: date) -> DailyHoroscopeFactBundle
 
     sign_facts: list[DailySignFact] = []
     for sign in ZodiacSign:
-        planet, aspect = _sign_driver(sky, sign, previous_sky=previous_sky)
-        house = _solar_house(sign, planet.sign)
+        planet, aspect = daily_sky._sign_driver(sky, sign, previous_sky=previous_sky)
+        house = daily_sky._solar_house(sign, planet.sign)
         aspect_fact: DailyAspectFact | None = None
         if aspect is not None:
             other_body = (
@@ -105,7 +99,7 @@ def build_daily_horoscope_facts(forecast_date: date) -> DailyHoroscopeFactBundle
         sign_facts.append(
             DailySignFact(
                 sign=sign,
-                topic=_HOUSE_FOCUS[house],
+                topic=daily_sky._HOUSE_FOCUS[house],
                 solar_house=house,
                 transit_body=planet.body.value,
                 transit_sign=planet.sign.value,
