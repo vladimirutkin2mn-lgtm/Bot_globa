@@ -8,9 +8,9 @@ one brittle stylistic heuristic.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Iterable
 
 _WORD_RE = re.compile(r"[а-яёa-z0-9]+", re.IGNORECASE)
 _GENERIC_PHRASES = (
