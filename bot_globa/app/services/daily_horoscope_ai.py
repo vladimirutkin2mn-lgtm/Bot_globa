@@ -14,7 +14,8 @@ from app.prompts.daily_horoscope import (
     load_daily_horoscope_prompts,
 )
 from app.providers.llm.base import LLMClient, LLMRequest
-from app.services.daily_sky import DailyHoroscopeSnapshot, DailySignForecast
+from app.services.daily_horoscope_facts import DailyHoroscopeFactBundle
+from app.services.daily_sky import DAILY_SKY_VERSION, DailyHoroscopeSnapshot, DailySignForecast
 
 
 DAILY_AI_METHOD_VERSION = "solar-sign-daily-ai-v1"
@@ -72,18 +73,17 @@ class DailyHoroscopeAIResult:
 
 
 class DailyHoroscopeAIEditor:
-    """Turn deterministic sign signals into human copy without changing their facts."""
+    """Turn deterministic facts into human copy without changing the calculation layer."""
 
     def __init__(self, llm: LLMClient) -> None:
         self._llm = llm
 
     async def generate(
         self,
-        base: DailyHoroscopeSnapshot,
+        facts: DailyHoroscopeFactBundle,
         recent_history: dict[str, list[dict[str, str]]],
     ) -> DailyHoroscopeAIResult:
         prompts = load_daily_horoscope_prompts(DAILY_HOROSCOPE_PROMPT_VERSION)
-        facts = _daily_facts(base)
         prompt_history = {
             sign: entries[:DAILY_PROMPT_HISTORY_DAYS] for sign, entries in recent_history.items()
         }
@@ -91,8 +91,10 @@ class DailyHoroscopeAIEditor:
             LLMRequest(
                 system_prompt=prompts.system,
                 user_prompt=prompts.request.format(
-                    forecast_date=base.forecast_date.isoformat(),
-                    daily_facts_json=json.dumps(facts, ensure_ascii=False, separators=(",", ":")),
+                    forecast_date=facts.forecast_date.isoformat(),
+                    daily_facts_json=json.dumps(
+                        facts.payload(), ensure_ascii=False, separators=(",", ":")
+                    ),
                     recent_history_json=json.dumps(
                         prompt_history, ensure_ascii=False, separators=(",", ":")
                     ),
@@ -108,31 +110,11 @@ class DailyHoroscopeAIEditor:
             payload = json.loads(completion.payload)
         except (TypeError, json.JSONDecodeError) as exc:
             raise InvalidDailyHoroscopeAIResultError("daily AI returned invalid JSON") from exc
-        return _validate_and_build(base, payload, recent_history)
-
-
-def _daily_facts(base: DailyHoroscopeSnapshot) -> dict[str, object]:
-    signs: list[dict[str, str]] = []
-    for item in base.signs:
-        topic, separator, signal = item.text.partition(": ")
-        signs.append(
-            {
-                "sign": item.sign.value,
-                "topic": topic if separator else "общий фокус",
-                "signal": signal if separator else item.text,
-            }
-        )
-    return {
-        "forecast_date": base.forecast_date.isoformat(),
-        "sky_digest": base.sky_digest,
-        "theme_seed": base.theme,
-        "canonical_order": [sign.value for sign in ZodiacSign],
-        "signs": signs,
-    }
+        return _validate_and_build(facts, payload, recent_history)
 
 
 def _validate_and_build(
-    base: DailyHoroscopeSnapshot,
+    facts: DailyHoroscopeFactBundle,
     payload: Any,
     recent_history: dict[str, list[dict[str, str]]],
 ) -> DailyHoroscopeAIResult:
@@ -186,11 +168,11 @@ def _validate_and_build(
         raise InvalidDailyHoroscopeAIResultError("daily AI theme contains unsupported claims")
 
     snapshot = DailyHoroscopeSnapshot(
-        forecast_date=base.forecast_date,
-        sky_digest=base.sky_digest,
+        forecast_date=facts.forecast_date,
+        sky_digest=facts.sky_digest,
         theme=theme.rstrip(". "),
         signs=tuple(forecasts),
-        sky_version=base.sky_version,
+        sky_version=DAILY_SKY_VERSION,
         methodology_version=DAILY_AI_METHOD_VERSION,
     )
     return DailyHoroscopeAIResult(snapshot=snapshot, editorial_meta=metadata)
