@@ -29,6 +29,7 @@ from app.logging import configure_logging
 from app.observability.langsmith import wrap_llm_with_langsmith
 from app.observability.oracle_quality import LLMCostPolicy, ObservedLLMClient, OracleQualityObserver
 from app.observability.settings import get_observability_settings
+from app.providers.analytics import AnalyticsClient
 from app.providers.analytics_postgres import create_analytics_client
 from app.providers.llm.base import LLMClient, close_llm_client
 from app.providers.llm.factory import create_llm_client
@@ -112,7 +113,7 @@ async def _send_feedback_prompt(
                 raise
 
 
-def _create_daily_llm(settings: Settings, analytics: object) -> LLMClient | None:
+def _create_daily_llm(settings: Settings, analytics: AnalyticsClient) -> LLMClient | None:
     """Build the same observed provider boundary as personal readings, or fall back safely."""
 
     try:
