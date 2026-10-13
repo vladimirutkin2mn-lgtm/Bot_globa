@@ -1,14 +1,14 @@
-import base64, gzip, re
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parent
 
 def load():
-    parts = sorted(ROOT.glob('inns_5000.b64.*'))
-    assert len(parts) == 3, [p.name for p in parts]
-    payload = ''.join(p.read_text(encoding='utf-8').strip() for p in parts)
-    raw = gzip.decompress(base64.b64decode(payload)).decode('utf-8')
-    inns = [x.strip() for x in raw.splitlines() if re.fullmatch(r'\d{10}', x.strip())]
+    inns = []
+    for pattern in ('inns_5000_txt.part*', 'inns_5000_repair.part*'):
+        for p in sorted(ROOT.glob(pattern)):
+            inns.extend(x.strip() for x in p.read_text(encoding='utf-8').splitlines() if x.strip())
     assert len(inns) == 5000, len(inns)
-    assert len(set(inns)) == 5000
+    assert len(set(inns)) == 5000, (len(inns), len(set(inns)))
+    assert all(re.fullmatch(r'\d{10}', x) for x in inns)
     return inns
