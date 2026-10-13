@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import csv, json, requests, time
 from pathlib import Path
-import enrich
+from inns_5000_loader import load_5000
 
 ROOT=Path(__file__).resolve().parent
 OUT=ROOT/'output_chz_5000'; OUT.mkdir(exist_ok=True)
-inns=enrich.load_inns()[:5000]
-assert len(inns)==5000 and len(set(inns))==5000
+inns=load_5000()
 
 S=requests.Session(); S.headers.update({'User-Agent':'Mozilla/5.0','Accept':'application/json'})
 base_urls=['https://markirovka.crpt.ru/api/v4/true-api','https://markirovka.crpt.ru/api/v3/true-api']
