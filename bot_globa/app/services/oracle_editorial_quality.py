@@ -78,11 +78,7 @@ def evaluate_editorial_quality(
         if len(token) >= 4
     }
     output_tokens = set(_WORD_RE.findall(joined))
-    if anchor_tokens:
-        specificity = len(anchor_tokens & output_tokens) / len(anchor_tokens)
-    else:
-        # No source anchors means this metric is intentionally neutral rather than a failure.
-        specificity = 1.0
+    specificity = len(anchor_tokens & output_tokens) / len(anchor_tokens) if anchor_tokens else 1.0
 
     return EditorialQualityReport(
         generic_phrase_hits=generic,
