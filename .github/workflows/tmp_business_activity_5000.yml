@@ -5,8 +5,9 @@ on:
     branches:
       - tmp/business-activity-enrichment
     paths:
-      - 'tmp_business_activity/inns_5000.b64.*'
+      - 'tmp_business_activity/inns.b64.*'
       - 'tmp_business_activity/load_5000.py'
+      - 'tmp_business_activity/inns_5000_loader.py'
       - 'tmp_business_activity/run_base_5000.py'
       - 'tmp_business_activity/run_chz_5000.py'
       - 'tmp_business_activity/run_licenses_5000.py'
