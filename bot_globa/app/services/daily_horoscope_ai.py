@@ -17,7 +17,6 @@ from app.providers.llm.base import LLMClient, LLMRequest
 from app.services.daily_horoscope_facts import DailyHoroscopeFactBundle
 from app.services.daily_sky import DAILY_SKY_VERSION, DailyHoroscopeSnapshot, DailySignForecast
 
-
 DAILY_AI_METHOD_VERSION = "solar-sign-daily-ai-v1"
 DAILY_AI_FALLBACK_METHOD_VERSION = "solar-sign-daily-ai-v1-fallback"
 DAILY_HISTORY_DAYS = 60
