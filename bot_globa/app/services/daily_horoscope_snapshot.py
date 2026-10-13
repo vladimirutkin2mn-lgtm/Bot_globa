@@ -93,13 +93,17 @@ class DailyHoroscopeSnapshotService:
 
         async with self._sessions() as session:
             rows = (
-                await session.execute(
-                    select(DailyHoroscopeSnapshotRow)
-                    .where(DailyHoroscopeSnapshotRow.forecast_date < forecast_date)
-                    .order_by(DailyHoroscopeSnapshotRow.forecast_date.desc())
-                    .limit(DAILY_HISTORY_DAYS)
+                (
+                    await session.execute(
+                        select(DailyHoroscopeSnapshotRow)
+                        .where(DailyHoroscopeSnapshotRow.forecast_date < forecast_date)
+                        .order_by(DailyHoroscopeSnapshotRow.forecast_date.desc())
+                        .limit(DAILY_HISTORY_DAYS)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
         history: dict[str, list[dict[str, str]]] = {}
         for row in rows:
             payload = row.payload if isinstance(row.payload, dict) else {}
