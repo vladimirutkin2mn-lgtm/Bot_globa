@@ -22,11 +22,11 @@ from app.services.daily_horoscope_ai import (
     DailyHoroscopeAIEditor,
     InvalidDailyHoroscopeAIResultError,
 )
+from app.services.daily_horoscope_facts import build_daily_horoscope_facts
 from app.services.daily_horoscope_temporal_benchmark import (
     TemporalDailyItem,
     evaluate_temporal_daily,
 )
-from app.services.daily_sky import build_daily_horoscope
 from app.services.oracle_editorial_quality import evaluate_editorial_quality
 from app.services.personal_oracle_routing_benchmark import evaluate_routing
 from app.services.reading_followup import ReadingFollowUpService
@@ -123,9 +123,9 @@ def test_memory_extraction_prompt_is_versioned() -> None:
 async def test_daily_ai_builds_one_grounded_twelve_sign_snapshot() -> None:
     llm = FakeDailyLLM(_daily_payload())
     editor = DailyHoroscopeAIEditor(llm)
-    base = build_daily_horoscope(date(2026, 10, 14))
+    facts = build_daily_horoscope_facts(date(2026, 10, 14))
 
-    result = await editor.generate(base, {})
+    result = await editor.generate(facts, {})
 
     assert result.snapshot.methodology_version == DAILY_AI_METHOD_VERSION
     assert len(result.snapshot.signs) == 12
@@ -135,6 +135,8 @@ async def test_daily_ai_builds_one_grounded_twelve_sign_snapshot() -> None:
     assert llm.request.telemetry_persona_code == "daily_horoscope"
     assert "DAILY_FACTS_JSON" in llm.request.user_prompt
     assert "RECENT_HISTORY_JSON" in llm.request.user_prompt
+    assert '"transit_body"' in llm.request.user_prompt
+    assert '"aspect"' in llm.request.user_prompt
 
 
 @pytest.mark.asyncio
@@ -142,7 +144,7 @@ async def test_daily_ai_rejects_recent_same_sign_editorial_repeat() -> None:
     payload = _daily_payload()
     llm = FakeDailyLLM(payload)
     editor = DailyHoroscopeAIEditor(llm)
-    base = build_daily_horoscope(date(2026, 10, 14))
+    facts = build_daily_horoscope_facts(date(2026, 10, 14))
     raw_signs = cast(list[dict[str, str]], payload["signs"])
     first = raw_signs[0]
     history = {
@@ -157,7 +159,7 @@ async def test_daily_ai_rejects_recent_same_sign_editorial_repeat() -> None:
     }
 
     with pytest.raises(InvalidDailyHoroscopeAIResultError):
-        await editor.generate(base, history)
+        await editor.generate(facts, history)
 
 
 def test_temporal_daily_benchmark_detects_same_sign_repetition() -> None:
