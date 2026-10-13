@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 
-
 MEMORY_EXTRACTION_PROMPT_VERSION = "oracle-memory-prompt-v1"
 
 
