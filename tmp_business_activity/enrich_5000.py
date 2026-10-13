@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 import enrich
+from inns_5000_loader import load_5000
 
-_full = enrich.load_inns()
-INNS = _full[:5000]
-assert len(INNS) == 5000
-assert len(set(INNS)) == 5000
+INNS = load_5000()
 
 def load_first_5000():
-    enrich.log(f'Loaded first production batch: {len(INNS):,} INNs')
+    enrich.log(f'Loaded first production batch: {len(INNS):,} INNs from plain-text parts')
     return INNS
 
 enrich.load_inns = load_first_5000
