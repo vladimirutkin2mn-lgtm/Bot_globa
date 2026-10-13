@@ -2,12 +2,12 @@
 import csv,json,re,requests,zipfile,io
 from pathlib import Path
 from bs4 import BeautifulSoup
-import enrich
+from inns_5000_loader import load_5000
 
 ROOT=Path(__file__).resolve().parent
 OUT=ROOT/'output_licenses_5000'; OUT.mkdir(exist_ok=True)
-inns=enrich.load_inns()[:5000]
-T=set(inns); assert len(inns)==5000 and len(T)==5000
+inns=load_5000()
+T=set(inns)
 S=requests.Session(); S.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36','Accept':'*/*'})
 res={i:{'ИНН':i,'Лицензия найдена':'NO','Лицензии количество':0,'Лицензии типы':'','Лицензии источники':'','Лицензии статус проверки':'PARTIAL_OK'} for i in inns}
 agg={i:{'types':set(),'sources':set(),'count':0} for i in inns}
@@ -55,7 +55,6 @@ for typ,urls in rz_sources.items():
         if download_and_scan_zip(u,typ): ok=True; source_success+=1; break
     if not ok: print('FAILED',typ,flush=True)
 
-# Ространснадзор remains best-effort. Failure is kept separate from a true negative.
 try:
     page='https://rostransnadzor.gov.ru/opendata'; r=S.get(page,timeout=40); soup=BeautifulSoup(r.text,'html.parser')
     candidates=[]
