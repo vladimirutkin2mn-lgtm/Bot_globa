@@ -2,6 +2,7 @@ import inspect
 import json
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -47,18 +48,30 @@ class FakeDailyLLM:
 
 def _daily_payload() -> dict[str, object]:
     texts = (
-        "В переговорах появится деталь, которую лучше уточнить до ответа. Задайте один прямой вопрос.",
-        "Денежная тема потребует аккуратности с условиями. Сверьте цифры до следующего шага.",
-        "Домашний вопрос выйдет на первый план без предупреждения. Оставьте место для спокойного разговора.",
-        "Рабочий темп может оказаться неровным. Закройте одну важную задачу прежде, чем брать новую.",
-        "В личном общении станет заметнее чужая инициатива. Смотрите прежде всего на поступки.",
-        "Новая информация способна поменять первоначальный план. Проверьте источник и только потом решайте.",
-        "В карьере проявится возможность показать результат. Выберите один вклад, который стоит сделать заметнее.",
-        "Разговор с другом поможет увидеть слабое место в плане. Возьмите из него одну практичную идею.",
-        "Пауза сегодня окажется полезнее лишней спешки. Освободите небольшой промежуток без новых обязательств.",
-        "В выборе станет яснее, какой вариант требует меньше лишних уступок. Сравните последствия на бумаге.",
-        "В отношениях важным окажется не обещание, а последовательность. Отметьте, что повторяется в действиях.",
-        "В обучении или поездке всплывёт полезный ориентир. Сохраните его и проверьте на практике.",
+        "В переговорах появится деталь, которую лучше уточнить до ответа. "
+        "Задайте один прямой вопрос.",
+        "Денежная тема потребует аккуратности с условиями. "
+        "Сверьте цифры до следующего шага.",
+        "Домашний вопрос выйдет на первый план без предупреждения. "
+        "Оставьте место для спокойного разговора.",
+        "Рабочий темп может оказаться неровным. Закройте одну важную задачу прежде, "
+        "чем брать новую.",
+        "В личном общении станет заметнее чужая инициатива. "
+        "Смотрите прежде всего на поступки.",
+        "Новая информация способна поменять первоначальный план. "
+        "Проверьте источник и только потом решайте.",
+        "В карьере проявится возможность показать результат. "
+        "Выберите один вклад, который стоит сделать заметнее.",
+        "Разговор с другом поможет увидеть слабое место в плане. "
+        "Возьмите из него одну практичную идею.",
+        "Пауза сегодня окажется полезнее лишней спешки. "
+        "Освободите небольшой промежуток без новых обязательств.",
+        "В выборе станет яснее, какой вариант требует меньше лишних уступок. "
+        "Сравните последствия на бумаге.",
+        "В отношениях важным окажется не обещание, а последовательность. "
+        "Отметьте, что повторяется в действиях.",
+        "В обучении или поездке всплывёт полезный ориентир. "
+        "Сохраните его и проверьте на практике.",
     )
     signs: list[dict[str, str]] = []
     for index, sign in enumerate(ZodiacSign):
@@ -74,13 +87,17 @@ def _daily_payload() -> dict[str, object]:
     return {"theme": "День про точность перед следующим шагом", "signs": signs}
 
 
+def _default_prompt_version(code: str) -> str:
+    persona = persona_definition(code)
+    assert persona is not None
+    return persona.prompt_version
+
+
 def test_new_personal_prompt_versions_are_defaults_and_legacy_still_loads() -> None:
-    assert persona_definition("tarot_reader").prompt_version == "tarot-reader-v5"  # type: ignore[union-attr]
-    assert persona_definition("love_oracle").prompt_version == "love-oracle-v3"  # type: ignore[union-attr]
-    assert persona_definition("mystical_psychologist").prompt_version == (  # type: ignore[union-attr]
-        "mystical-psychologist-v3"
-    )
-    assert persona_definition("astrologer").prompt_version == "astrologer-v3"  # type: ignore[union-attr]
+    assert _default_prompt_version("tarot_reader") == "tarot-reader-v5"
+    assert _default_prompt_version("love_oracle") == "love-oracle-v3"
+    assert _default_prompt_version("mystical_psychologist") == "mystical-psychologist-v3"
+    assert _default_prompt_version("astrologer") == "astrologer-v3"
 
     assert load_oracle_reading_prompts("tarot-reader-v4")
     assert load_oracle_reading_prompts("tarot-reader-v5")
@@ -129,14 +146,15 @@ async def test_daily_ai_rejects_recent_same_sign_editorial_repeat() -> None:
     llm = FakeDailyLLM(payload)
     editor = DailyHoroscopeAIEditor(llm)
     base = build_daily_horoscope(date(2026, 10, 14))
-    first = payload["signs"][0]  # type: ignore[index]
+    raw_signs = cast(list[dict[str, str]], payload["signs"])
+    first = raw_signs[0]
     history = {
         ZodiacSign.ARIES.value: [
             {
-                "text": f"{first['headline']}. {first['text']}",  # type: ignore[index]
-                "headline": first["headline"],  # type: ignore[index]
-                "central_idea": first["central_idea"],  # type: ignore[index]
-                "action": first["action"],  # type: ignore[index]
+                "text": f"{first['headline']}. {first['text']}",
+                "headline": first["headline"],
+                "central_idea": first["central_idea"],
+                "action": first["action"],
             }
         ]
     }
@@ -147,9 +165,15 @@ async def test_daily_ai_rejects_recent_same_sign_editorial_repeat() -> None:
 
 def test_temporal_daily_benchmark_detects_same_sign_repetition() -> None:
     items = [
-        TemporalDailyItem("2026-10-12", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"),
-        TemporalDailyItem("2026-10-13", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"),
-        TemporalDailyItem("2026-10-14", "Разговор даст новый ориентир.", "Разговор", "ясность", "спросите"),
+        TemporalDailyItem(
+            "2026-10-12", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"
+        ),
+        TemporalDailyItem(
+            "2026-10-13", "Сверьте условия перед решением.", "Условия", "проверка", "сверьте"
+        ),
+        TemporalDailyItem(
+            "2026-10-14", "Разговор даст новый ориентир.", "Разговор", "ясность", "спросите"
+        ),
     ]
     report = evaluate_temporal_daily(items)
     assert report.sample_size == 3
@@ -160,7 +184,14 @@ def test_temporal_daily_benchmark_detects_same_sign_repetition() -> None:
 def test_routing_benchmark_measures_real_rules_without_changing_router() -> None:
     report = evaluate_routing()
     assert report.total >= 60
-    assert set(report.expected_counts) == {"work", "love", "reflection", "decision", "general", "clarify"}
+    assert set(report.expected_counts) == {
+        "work",
+        "love",
+        "reflection",
+        "decision",
+        "general",
+        "clarify",
+    }
     assert 0.0 <= report.accuracy <= 1.0
     assert report.correct + len(report.mistakes) == report.total
 
