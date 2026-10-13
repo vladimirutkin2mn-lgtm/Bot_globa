@@ -3,9 +3,7 @@
 from dataclasses import dataclass
 from importlib.resources import files
 
-KNOWN_READING_FOLLOWUP_PROMPT_VERSIONS = frozenset(
-    {"reading_followup_v1", "reading_followup_v2"}
-)
+KNOWN_READING_FOLLOWUP_PROMPT_VERSIONS = frozenset({"reading_followup_v1", "reading_followup_v2"})
 
 
 class ReadingFollowUpPromptNotFoundError(ValueError):
