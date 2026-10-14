@@ -35,7 +35,8 @@ class DailyHoroscopeSnapshotService:
         self._sessions = sessions
         if llm is None:
             settings = get_settings()
-            # Development/test stubs keep the old deterministic path unless a test explicitly injects LLM.
+            # Development/test stubs keep the old deterministic path unless a test
+            # explicitly injects LLM.
             llm = None if settings.llm_provider == "stub" else create_llm_client(settings)
         self._editor = DailyHoroscopeAIEditor(llm) if llm is not None else None
 
