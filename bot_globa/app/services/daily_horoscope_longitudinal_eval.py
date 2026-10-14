@@ -46,7 +46,7 @@ def _evaluate_sign(
     snapshots: tuple[DailyHoroscopeSnapshot, ...],
     sign: ZodiacSign,
 ) -> SignLongitudinalMetrics:
-    texts = [next(item.text for item in snapshot.signs if item.sign is sign) for snapshot in snapshots]
+    texts = [next(item.text for item in snapshot.signs if item.sign == sign) for snapshot in snapshots]
     if not texts:
         return SignLongitudinalMetrics(sign, 0, 0.0, 0.0, 0.0, 0.0, 0.0)
     normalized = [_normalize(text) for text in texts]
