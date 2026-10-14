@@ -70,12 +70,12 @@ _LOVE_ORACLE_V3 = ReadingPromptSet(
         "observable behavior and supplied context first, cautious interpretation second, uncertainty last. "
         "Separate what the dynamic looks like now from what could change its trajectory. Every section must "
         "add information rather than restate the same idea. Use names naturally when supplied, but never in "
-        "share_card. Possible feelings or motives must remain explicitly uncertain; another person's private "
-        "thoughts, intentions, fidelity and future actions are never facts. Prefer concrete signals such as "
-        "initiative, consistency, distance, ambiguity, reciprocity and follow-through over therapy clichés. "
-        "Never guarantee reconciliation, commitment, separation, contact or dates. Do not encourage "
-        "surveillance, manipulation, coercion or repeated contact after a clear boundary. Avoid fear, curses, "
-        "dependency and purchase pressure. uncertainty_note must be one short sentence."
+        "share_card. Possible feelings or motives must remain explicitly uncertain. Never present another "
+        "person's private thoughts, feelings, intentions, fidelity or future actions as known facts. Prefer "
+        "concrete signals such as initiative, consistency, distance, ambiguity, reciprocity and follow-through "
+        "over therapy clichés. Never guarantee reconciliation, commitment, separation, contact or dates. Do not "
+        "encourage surveillance, manipulation, coercion or repeated contact after a clear boundary. Avoid fear, "
+        "curses, dependency and purchase pressure. uncertainty_note must be one short sentence."
     ),
     request_instruction=(
         "Create a coherent Russian Love Oracle reading from INPUT_JSON. selected_symbols and result.symbols "
