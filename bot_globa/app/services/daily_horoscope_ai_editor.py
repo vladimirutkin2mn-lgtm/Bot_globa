@@ -20,7 +20,11 @@ from app.prompts.daily_horoscope_editor import (
     load_daily_horoscope_editor_prompts,
 )
 from app.providers.llm.base import LLMClient, LLMRequest
-from app.services.daily_sky import DailyHoroscopeSnapshot, DailySignForecast, build_daily_horoscope
+from app.services.daily_sky import (
+    DailyHoroscopeSnapshot,
+    DailySignForecast,
+    build_daily_horoscope,
+)
 
 DAILY_AI_METHOD_VERSION = "solar-sign-daily-ai-v1"
 DAILY_AI_FALLBACK_VERSION = "solar-sign-daily-ai-v1-fallback"
@@ -93,8 +97,9 @@ class DailyHoroscopeAIEditor:
             system_prompt=prompts.system,
             user_prompt=(
                 f"{prompts.request_instruction}\n\nDAILY_FACTS_JSON:\n"
-                f"{json.dumps(facts, ensure_ascii=False, separators=(',', ':'))}\n\n"
-                f"HISTORY_JSON:\n{json.dumps(history_payload, ensure_ascii=False, separators=(',', ':'))}"
+                f"{json.dumps(facts, ensure_ascii=False, separators=(",", ":"))}\n\n"
+                f"HISTORY_JSON:\n"
+                f"{json.dumps(history_payload, ensure_ascii=False, separators=(",", ":"))}"
             ),
             schema=_BatchDraft.model_json_schema(),
             message_ids=(forecast_date.isoformat(),),
@@ -110,7 +115,9 @@ class DailyHoroscopeAIEditor:
         return self._validate_and_build(base, draft, recent)
 
     @staticmethod
-    def _history_for_prompt(history: tuple[DailyHoroscopeSnapshot, ...]) -> dict[str, list[str]]:
+    def _history_for_prompt(
+        history: tuple[DailyHoroscopeSnapshot, ...],
+    ) -> dict[str, list[str]]:
         by_sign: dict[str, list[str]] = {sign.value: [] for sign in ZodiacSign}
         for snapshot in sorted(history, key=lambda item: item.forecast_date, reverse=True):
             for item in snapshot.signs:
@@ -182,12 +189,19 @@ class DailyHoroscopeAIEditor:
         for old in previous:
             old_normalized = cls._normalize(old)
             if normalized == old_normalized:
-                raise DailyHoroscopeAIEditorError("daily AI editor repeated an exact recent forecast")
+                raise DailyHoroscopeAIEditorError(
+                    "daily AI editor repeated an exact recent forecast"
+                )
             if cls._similarity(normalized, old_normalized) >= 0.72:
                 raise DailyHoroscopeAIEditorError("daily AI editor repeated a recent central idea")
-            if cls._similarity(cls._normalize(opening), cls._normalize(cls._opening(old))) >= 0.74:
+            if (
+                cls._similarity(cls._normalize(opening), cls._normalize(cls._opening(old)))
+                >= 0.74
+            ):
                 raise DailyHoroscopeAIEditorError("daily AI editor repeated a recent opening")
-            if cls._similarity(cls._normalize(action), cls._normalize(cls._action(old))) >= 0.78:
+            if (
+                cls._similarity(cls._normalize(action), cls._normalize(cls._action(old))) >= 0.78
+            ):
                 raise DailyHoroscopeAIEditorError("daily AI editor repeated a recent action")
 
     @staticmethod
