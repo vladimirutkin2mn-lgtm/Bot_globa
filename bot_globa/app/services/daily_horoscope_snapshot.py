@@ -123,7 +123,9 @@ class DailyHoroscopeSnapshotService:
                 return generated
             except Exception:
                 # The mass daily must remain deliverable even if the model or quality gate fails.
-                logger.exception("daily_horoscope_ai_editor_failed date=%s; using fallback", forecast_date)
+                logger.exception(
+                    "daily_horoscope_ai_editor_failed date=%s; using fallback", forecast_date
+                )
 
         fallback = build_editorial_daily_horoscope(forecast_date)
         return DailyHoroscopeSnapshot(
