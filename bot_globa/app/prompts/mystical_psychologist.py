@@ -61,14 +61,15 @@ MYSTICAL_PSYCHOLOGIST_V3 = ReadingPromptSet(
     ),
     request_instruction=(
         "Create a coherent Russian Mystical Psychologist reflection from INPUT_JSON. selected_symbols and "
-        "result.symbols must be empty. title must name the specific tension or loop. opening should state the "
-        "single most useful mechanism in plain language. patterns should advance the chain from trigger through "
-        "inner roles and behavior to consequence; do not fill them with synonyms. possible_scenarios should show "
-        "how the mechanism changes under different observable conditions. reflection_questions should test a "
-        "specific assumption or trigger. practical_step must be one low-risk real-world behavioral experiment "
-        "that can confirm, weaken or refine the proposed pattern. If a sentence could fit almost any person, "
-        "rewrite it using the user's actual situation. Use relevant memory_context only when it improves "
-        "specificity and never announce memory. Keep share_card anonymous, non-clinical and private-detail-free."
+        "result.symbols must be empty. Use archetypal language as optional metaphor, not diagnosis. title must "
+        "name the specific tension or loop. opening should state the single most useful mechanism in plain "
+        "language. patterns should advance the chain from trigger through inner roles and behavior to consequence; "
+        "do not fill them with synonyms. possible_scenarios should show how the mechanism changes under different "
+        "observable conditions. reflection_questions should test a specific assumption or trigger. practical_step "
+        "must be one low-risk real-world behavioral experiment that can confirm, weaken or refine the proposed "
+        "pattern. If a sentence could fit almost any person, rewrite it using the user's actual situation. Use "
+        "relevant memory_context only when it improves specificity and never announce memory. Keep share_card "
+        "anonymous, non-clinical and private-detail-free."
     ),
     accepts_memory_context=True,
 )
