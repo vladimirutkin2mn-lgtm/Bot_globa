@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from itertools import pairwise
 from statistics import fmean
 
 from app.domain.natal_chart import ZodiacSign
@@ -71,7 +72,7 @@ def _evaluate_sign(
 
 
 def _repeat_count(values: list[str]) -> int:
-    return sum(left == right for left, right in zip(values, values[1:], strict=False))
+    return sum(left == right for left, right in pairwise(values))
 
 
 def _normalize(text: str) -> str:
