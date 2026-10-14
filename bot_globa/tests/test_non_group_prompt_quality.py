@@ -1,6 +1,6 @@
 """Focused regression tests for the non-group prompt and Daily quality upgrade."""
 
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
@@ -39,10 +39,14 @@ def test_legacy_and_new_individual_prompt_versions_are_both_loadable() -> None:
 
 
 def test_persona_defaults_use_new_prompt_versions() -> None:
-    assert persona_definition("tarot_reader").prompt_version == "tarot-reader-v5"
-    assert persona_definition("love_oracle").prompt_version == "love-oracle-v3"
-    assert persona_definition("mystical_psychologist").prompt_version == "mystical-psychologist-v3"
-    assert persona_definition("astrologer").prompt_version == "astrologer-v3"
+    tarot = persona_definition("tarot_reader")
+    love = persona_definition("love_oracle")
+    psych = persona_definition("mystical_psychologist")
+    astro = persona_definition("astrologer")
+    assert tarot is not None and tarot.prompt_version == "tarot-reader-v5"
+    assert love is not None and love.prompt_version == "love-oracle-v3"
+    assert psych is not None and psych.prompt_version == "mystical-psychologist-v3"
+    assert astro is not None and astro.prompt_version == "astrologer-v3"
 
 
 def test_memory_extraction_prompt_is_versioned() -> None:
