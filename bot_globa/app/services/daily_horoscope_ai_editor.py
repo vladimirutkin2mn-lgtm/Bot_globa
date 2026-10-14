@@ -29,6 +29,29 @@ _HISTORY_IN_PROMPT = 5
 _MIN_TEXT = 70
 _MAX_TEXT = 600
 _TOKEN_RE = re.compile(r"[а-яёa-z0-9]+", re.IGNORECASE)
+_CERTAINTY_RE = re.compile(
+    r"\b(точно|обязательно|гарантирован\w*|неизбежн\w*|произойд[её]т|случится)\b",
+    re.IGNORECASE,
+)
+_ASTROLOGY_TERMS = (
+    "солнц",
+    "лун",
+    "меркур",
+    "венер",
+    "марс",
+    "юпитер",
+    "сатурн",
+    "уран",
+    "нептун",
+    "плутон",
+    "соединен",
+    "соединён",
+    "секстил",
+    "квадрат",
+    "трин",
+    "оппозиц",
+    "асцендент",
+)
 
 
 class DailyHoroscopeAIEditorError(ValueError):
@@ -110,6 +133,10 @@ class DailyHoroscopeAIEditor:
         if len(set(texts)) != len(texts):
             raise DailyHoroscopeAIEditorError("daily AI editor duplicated texts inside one day")
 
+        all_source = " ".join((base.theme, *(item.text for item in base.signs)))
+        clean_theme = self._clean(draft.theme)
+        self._reject_unsupported_claims(clean_theme, all_source)
+
         recent_by_sign: dict[ZodiacSign, list[str]] = {sign: [] for sign in ZodiacSign}
         cutoff = base.forecast_date.toordinal() - _HISTORY_DAYS
         for snapshot in history:
@@ -122,17 +149,30 @@ class DailyHoroscopeAIEditor:
         for source, item, text in zip(base.signs, draft.signs, texts, strict=True):
             if source.sign.value != item.sign:
                 raise DailyHoroscopeAIEditorError("daily AI editor changed sign identity")
+            self._reject_unsupported_claims(text, f"{base.theme} {source.text}")
             self._reject_repetition(text, recent_by_sign[source.sign])
             forecasts.append(DailySignForecast(source.sign, text))
 
         return DailyHoroscopeSnapshot(
             forecast_date=base.forecast_date,
             sky_digest=base.sky_digest,
-            theme=self._clean(draft.theme),
+            theme=clean_theme,
             signs=tuple(forecasts),
             sky_version=base.sky_version,
             methodology_version=DAILY_AI_METHOD_VERSION,
         )
+
+    @staticmethod
+    def _reject_unsupported_claims(candidate: str, source: str) -> None:
+        if _CERTAINTY_RE.search(candidate):
+            raise DailyHoroscopeAIEditorError("daily AI editor introduced deterministic certainty")
+        candidate_lower = candidate.casefold()
+        source_lower = source.casefold()
+        for term in _ASTROLOGY_TERMS:
+            if term in candidate_lower and term not in source_lower:
+                raise DailyHoroscopeAIEditorError(
+                    "daily AI editor introduced unsupported astrology detail"
+                )
 
     @classmethod
     def _reject_repetition(cls, candidate: str, previous: Iterable[str]) -> None:
