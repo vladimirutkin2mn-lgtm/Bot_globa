@@ -101,7 +101,10 @@ class DailyHoroscopeSnapshotService:
             try:
                 snapshots.append(_snapshot(row))
             except (TypeError, ValueError):
-                logger.warning("daily_horoscope_history_snapshot_invalid date=%s", row.forecast_date)
+                logger.warning(
+                    "daily_horoscope_history_snapshot_invalid date=%s",
+                    row.forecast_date,
+                )
         return tuple(snapshots)
 
     async def _generate(
