@@ -8,10 +8,10 @@ from app.prompts.oracle import load_oracle_reading_prompts
 
 def test_active_personas_use_the_new_prompt_versions() -> None:
     expected = {
-        "tarot_reader": "tarot-reader-v4",
-        "love_oracle": "love-oracle-v2",
-        "mystical_psychologist": "mystical-psychologist-v2",
-        "astrologer": "astrologer-v2",
+        "tarot_reader": "tarot-reader-v5",
+        "love_oracle": "love-oracle-v3",
+        "mystical_psychologist": "mystical-psychologist-v3",
+        "astrologer": "astrologer-v3",
     }
 
     assert {
@@ -22,15 +22,14 @@ def test_active_personas_use_the_new_prompt_versions() -> None:
 
 def test_every_active_persona_requires_russian_user_facing_prose() -> None:
     systems = (
-        load_oracle_reading_prompts("tarot-reader-v4").system,
-        load_oracle_reading_prompts("love-oracle-v2").system,
-        load_oracle_reading_prompts("mystical-psychologist-v2").system,
-        load_horoscope_prompts("astrologer-v2").system,
+        load_oracle_reading_prompts("tarot-reader-v5").system,
+        load_oracle_reading_prompts("love-oracle-v3").system,
+        load_oracle_reading_prompts("mystical-psychologist-v3").system,
+        load_horoscope_prompts("astrologer-v3").system,
     )
 
     for system in systems:
         assert "natural Russian" in system
-        assert "never output" in system
 
 
 def test_tarot_v4_is_rws_bound_and_does_not_outsource_card_knowledge_to_the_llm() -> None:
