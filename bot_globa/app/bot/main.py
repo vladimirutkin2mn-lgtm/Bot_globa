@@ -11,6 +11,7 @@ from app.bot.commands import configure_commands
 from app.bot.core_handlers import router as core_router
 from app.bot.daily_conversion_handlers import router as daily_conversion_router
 from app.bot.daily_feedback_handlers import router as daily_feedback_router
+from app.bot.daily_snapshot_handlers import router as daily_snapshot_router
 from app.bot.group_handlers import router as group_router
 from app.bot.group_runtime import install_group_runtime
 from app.bot.horoscope_handlers import create_horoscope_router
@@ -196,6 +197,7 @@ def create_dispatcher(
         telegram_stars,
         payment_gateways=one_time_gateways,
         payment_completion=payment_completion,
+        llm=llm,
     )
     rate_middleware = RateLimitMiddleware(FixedWindowRateLimiter())
     safety_middleware = ReadingSafetyHandoffMiddleware()
@@ -217,6 +219,7 @@ def create_dispatcher(
         dispatcher.include_router(create_persona_router(flow))
     dispatcher.include_router(daily_conversion_router)
     dispatcher.include_router(daily_feedback_router)
+    dispatcher.include_router(daily_snapshot_router)
     dispatcher.include_router(create_horoscope_router())
     dispatcher.include_router(reading_feedback_router)
     dispatcher.include_router(create_reading_followup_router())
@@ -314,6 +317,7 @@ def create_dispatcher(
         analytics,
         settings.llm_provider,
         settings.llm_model,
+        prompt_version="reading_followup_v2",
         max_repair_attempts=settings.llm_max_repair_attempts,
     )
     return dispatcher
