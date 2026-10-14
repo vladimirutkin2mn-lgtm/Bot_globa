@@ -131,7 +131,7 @@ async def test_use_case_freezes_versions_and_passes_topic_specific_symbols() -> 
     _, request = drafts.requests[0]
     assert request.persona_code == "tarot_reader"
     assert request.engine_version == "tarot-symbolic-v2"
-    assert request.prompt_version == "tarot-reader-v4"
+    assert request.prompt_version == "tarot-reader-v5"
     assert request.schema_version == "reading-result-v1"
     assert request.symbol_set_code == "decision_five_v1"
     assert request.cost_units == 0
@@ -288,6 +288,6 @@ async def test_postgres_vertical_slice_persists_validated_preview_and_replays_wi
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
         assert reading.engine_version == "tarot-symbolic-v2"
-        assert reading.prompt_version == "tarot-reader-v4"
+        assert reading.prompt_version == "tarot-reader-v5"
         assert reading.schema_version == "reading-result-v1"
         assert reading.symbol_set_code == "decision_five_v1"
