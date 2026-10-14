@@ -3,7 +3,7 @@
 import logging
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -21,6 +21,7 @@ from app.services.daily_sky import DAILY_SKY_VERSION, DailyHoroscopeSnapshot
 
 logger = logging.getLogger(__name__)
 _HISTORY_DAYS = 60
+_DAILY_LOCK_NAMESPACE = 5_607_000_000
 
 
 class DailyHoroscopeSnapshotService:
@@ -39,6 +40,7 @@ class DailyHoroscopeSnapshotService:
         self._editor = DailyHoroscopeAIEditor(llm) if llm is not None else None
 
     async def get_or_create(self, forecast_date: date) -> DailyHoroscopeSnapshot:
+        # Fast path avoids lock acquisition after the common daily snapshot already exists.
         async with self._sessions() as session:
             existing = await session.get(DailyHoroscopeSnapshotRow, forecast_date)
             if existing is not None:
@@ -46,16 +48,28 @@ class DailyHoroscopeSnapshotService:
                 if _is_current(snapshot):
                     return snapshot
 
-        history = await self._history(forecast_date)
-        generated = await self._generate(forecast_date, history)
-        values = {
-            "forecast_date": forecast_date,
-            "sky_version": generated.sky_version,
-            "methodology_version": generated.methodology_version,
-            "sky_digest": generated.sky_digest,
-            "payload": generated.payload(),
-        }
+        # The advisory transaction lock is date-scoped and works across process replicas. Recheck
+        # after acquiring it so only the first contender performs the one daily LLM batch.
         async with self._sessions.begin() as session:
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(:lock_key)"),
+                {"lock_key": _lock_key(forecast_date)},
+            )
+            existing = await session.get(DailyHoroscopeSnapshotRow, forecast_date)
+            if existing is not None:
+                snapshot = _snapshot(existing)
+                if _is_current(snapshot):
+                    return snapshot
+
+            history = await self._history(session, forecast_date)
+            generated = await self._generate(forecast_date, history)
+            values = {
+                "forecast_date": forecast_date,
+                "sky_version": generated.sky_version,
+                "methodology_version": generated.methodology_version,
+                "sky_digest": generated.sky_digest,
+                "payload": generated.payload(),
+            }
             await session.execute(
                 insert(DailyHoroscopeSnapshotRow)
                 .values(**values)
@@ -64,25 +78,24 @@ class DailyHoroscopeSnapshotService:
                     set_={key: value for key, value in values.items() if key != "forecast_date"},
                 )
             )
-        async with self._sessions() as session:
-            stored = await session.get(DailyHoroscopeSnapshotRow, forecast_date)
-            if stored is None:
-                raise RuntimeError("daily horoscope snapshot upsert did not persist")
-            return _snapshot(stored)
+            return generated
 
-    async def _history(self, forecast_date: date) -> tuple[DailyHoroscopeSnapshot, ...]:
+    async def _history(
+        self,
+        session: AsyncSession,
+        forecast_date: date,
+    ) -> tuple[DailyHoroscopeSnapshot, ...]:
         start = forecast_date - timedelta(days=_HISTORY_DAYS)
-        async with self._sessions() as session:
-            rows = (
-                await session.scalars(
-                    select(DailyHoroscopeSnapshotRow)
-                    .where(
-                        DailyHoroscopeSnapshotRow.forecast_date >= start,
-                        DailyHoroscopeSnapshotRow.forecast_date < forecast_date,
-                    )
-                    .order_by(DailyHoroscopeSnapshotRow.forecast_date.desc())
+        rows = (
+            await session.scalars(
+                select(DailyHoroscopeSnapshotRow)
+                .where(
+                    DailyHoroscopeSnapshotRow.forecast_date >= start,
+                    DailyHoroscopeSnapshotRow.forecast_date < forecast_date,
                 )
-            ).all()
+                .order_by(DailyHoroscopeSnapshotRow.forecast_date.desc())
+            )
+        ).all()
         snapshots: list[DailyHoroscopeSnapshot] = []
         for row in rows:
             try:
@@ -118,6 +131,10 @@ class DailyHoroscopeSnapshotService:
             sky_version=fallback.sky_version,
             methodology_version=DAILY_AI_FALLBACK_VERSION,
         )
+
+
+def _lock_key(forecast_date: date) -> int:
+    return _DAILY_LOCK_NAMESPACE + forecast_date.toordinal()
 
 
 def _is_current(snapshot: DailyHoroscopeSnapshot) -> bool:
