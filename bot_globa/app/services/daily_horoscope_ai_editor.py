@@ -97,9 +97,9 @@ class DailyHoroscopeAIEditor:
             system_prompt=prompts.system,
             user_prompt=(
                 f"{prompts.request_instruction}\n\nDAILY_FACTS_JSON:\n"
-                f"{json.dumps(facts, ensure_ascii=False, separators=(",", ":"))}\n\n"
+                f"{json.dumps(facts, ensure_ascii=False, separators=(',', ':'))}\n\n"
                 f"HISTORY_JSON:\n"
-                f"{json.dumps(history_payload, ensure_ascii=False, separators=(",", ":"))}"
+                f"{json.dumps(history_payload, ensure_ascii=False, separators=(',', ':'))}"
             ),
             schema=_BatchDraft.model_json_schema(),
             message_ids=(forecast_date.isoformat(),),
@@ -194,14 +194,9 @@ class DailyHoroscopeAIEditor:
                 )
             if cls._similarity(normalized, old_normalized) >= 0.72:
                 raise DailyHoroscopeAIEditorError("daily AI editor repeated a recent central idea")
-            if (
-                cls._similarity(cls._normalize(opening), cls._normalize(cls._opening(old)))
-                >= 0.74
-            ):
+            if cls._similarity(cls._normalize(opening), cls._normalize(cls._opening(old))) >= 0.74:
                 raise DailyHoroscopeAIEditorError("daily AI editor repeated a recent opening")
-            if (
-                cls._similarity(cls._normalize(action), cls._normalize(cls._action(old))) >= 0.78
-            ):
+            if cls._similarity(cls._normalize(action), cls._normalize(cls._action(old))) >= 0.78:
                 raise DailyHoroscopeAIEditorError("daily AI editor repeated a recent action")
 
     @staticmethod
