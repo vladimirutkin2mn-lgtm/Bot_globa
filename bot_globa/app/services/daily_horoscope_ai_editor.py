@@ -120,10 +120,10 @@ class DailyHoroscopeAIEditor:
     ) -> dict[str, list[str]]:
         by_sign: dict[str, list[str]] = {sign.value: [] for sign in ZodiacSign}
         for snapshot in sorted(history, key=lambda item: item.forecast_date, reverse=True):
-            for item in snapshot.signs:
-                bucket = by_sign[item.sign.value]
+            for forecast in snapshot.signs:
+                bucket = by_sign[forecast.sign.value]
                 if len(bucket) < _HISTORY_IN_PROMPT:
-                    bucket.append(item.text)
+                    bucket.append(forecast.text)
         return by_sign
 
     def _validate_and_build(
@@ -149,12 +149,12 @@ class DailyHoroscopeAIEditor:
         for snapshot in history:
             if snapshot.forecast_date.toordinal() < cutoff:
                 continue
-            for item in snapshot.signs:
-                recent_by_sign[item.sign].append(item.text)
+            for forecast in snapshot.signs:
+                recent_by_sign[forecast.sign].append(forecast.text)
 
         forecasts: list[DailySignForecast] = []
-        for source, item, text in zip(base.signs, draft.signs, texts, strict=True):
-            if source.sign.value != item.sign:
+        for source, draft_item, text in zip(base.signs, draft.signs, texts, strict=True):
+            if source.sign.value != draft_item.sign:
                 raise DailyHoroscopeAIEditorError("daily AI editor changed sign identity")
             self._reject_unsupported_claims(text, f"{base.theme} {source.text}")
             self._reject_repetition(text, recent_by_sign[source.sign])
