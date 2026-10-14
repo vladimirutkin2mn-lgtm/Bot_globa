@@ -153,12 +153,12 @@ class DiagnosticDependencyLLM:
 
 
 def test_mystical_psychologist_active_prompt_remains_guarded() -> None:
-    prompt = load_oracle_reading_prompts("mystical-psychologist-v2")
+    prompt = load_oracle_reading_prompts("mystical-psychologist-v3")
 
     assert prompt.accepts_memory_context
     assert "not as clinical facts" in prompt.system
     assert "therapeutic authority" in prompt.system
-    assert "Do not validate curses" in prompt.system
+    assert "paranormal causes" in prompt.system
     assert "selected_symbols and result.symbols must be empty" in prompt.request_instruction
     assert "optional metaphor, not diagnosis" in prompt.request_instruction
 
@@ -183,7 +183,7 @@ async def test_use_case_freezes_reflective_versions_and_passes_no_symbols() -> N
     _, request = drafts.requests[0]
     assert request.persona_code == "mystical_psychologist"
     assert request.engine_version == "reflective-v1"
-    assert request.prompt_version == "mystical-psychologist-v2"
+    assert request.prompt_version == "mystical-psychologist-v3"
     assert request.schema_version == "reading-result-v1"
     assert request.cost_units == 0
     assert generation.calls == [
@@ -240,7 +240,7 @@ async def test_postgres_reflection_is_validated_and_idempotent(
         persona = Persona(
             code="mystical_psychologist",
             display_name="Mystical Psychologist",
-            prompt_version="mystical-psychologist-v2",
+            prompt_version="mystical-psychologist-v3",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))
@@ -281,7 +281,7 @@ async def test_postgres_reflection_is_validated_and_idempotent(
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
         assert reading.engine_version == "reflective-v1"
-        assert reading.prompt_version == "mystical-psychologist-v2"
+        assert reading.prompt_version == "mystical-psychologist-v3"
         assert reading.schema_version == "reading-result-v1"
 
 
@@ -295,7 +295,7 @@ async def test_diagnosis_and_dependency_are_rejected_before_persistence(
         persona = Persona(
             code="mystical_psychologist",
             display_name="Mystical Psychologist",
-            prompt_version="mystical-psychologist-v2",
+            prompt_version="mystical-psychologist-v3",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))
