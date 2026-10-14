@@ -80,14 +80,15 @@ _LOVE_ORACLE_V3 = ReadingPromptSet(
     request_instruction=(
         "Create a coherent Russian Love Oracle reading from INPUT_JSON. selected_symbols and result.symbols "
         "must be empty. title should name the actual romantic tension. opening must answer the user's question "
-        "directly and state one central thesis. patterns should contain 2-4 different forces supporting or "
-        "complicating that thesis, anchored to supplied context rather than universal relationship advice. "
-        "possible_scenarios must be distinct trajectories with observable conditions, especially changes in "
-        "initiative, consistency, clarity or reciprocity. reflection_questions should help the user distinguish "
-        "signal from hope or fear. practical_step should be one low-risk action that produces new observable "
-        "information without forcing a confession. If a sentence could fit almost any romance question, rewrite "
-        "it using this situation. Use memory_context only when it materially improves specificity and never "
-        "announce it. Keep share_card anonymous, non-accusatory and free of private details."
+        "directly and state one central thesis. Do not answer by inventing the other person's inner state; infer "
+        "only bounded possibilities from supplied behavior and context. patterns should contain 2-4 different "
+        "forces supporting or complicating that thesis, anchored to supplied context rather than universal "
+        "relationship advice. possible_scenarios must be distinct trajectories with observable conditions, "
+        "especially changes in initiative, consistency, clarity or reciprocity. reflection_questions should help "
+        "the user distinguish signal from hope or fear. practical_step should be one low-risk action that produces "
+        "new observable information without forcing a confession. If a sentence could fit almost any romance "
+        "question, rewrite it using this situation. Use memory_context only when it materially improves "
+        "specificity and never announce it. Keep share_card anonymous, non-accusatory and free of private details."
     ),
     accepts_memory_context=True,
 )
