@@ -83,7 +83,10 @@ def test_routing_eval_is_fixed_and_reports_failures_instead_of_hiding_them() -> 
 
 def _snapshot(forecast_date: date, *, suffix: str) -> DailyHoroscopeSnapshot:
     signs = tuple(
-        DailySignForecast(sign, f"{sign.value} прогноз {suffix}. Проверьте один конкретный шаг сегодня.")
+        DailySignForecast(
+            sign,
+            f"{sign.value} прогноз {suffix}. Проверьте один конкретный шаг сегодня.",
+        )
         for sign in ZodiacSign
     )
     return DailyHoroscopeSnapshot(
