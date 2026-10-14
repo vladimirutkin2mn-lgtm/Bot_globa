@@ -3,9 +3,7 @@
 from dataclasses import dataclass
 from importlib.resources import files
 
-KNOWN_READING_FOLLOWUP_PROMPT_VERSIONS = frozenset(
-    {"reading_followup_v1", "reading_followup_v2"}
-)
+KNOWN_READING_FOLLOWUP_PROMPT_VERSIONS = frozenset({"reading_followup_v1", "reading_followup_v2"})
 
 
 class ReadingFollowUpPromptNotFoundError(ValueError):
@@ -27,7 +25,10 @@ def load_reading_followup_prompts(version: str) -> ReadingFollowUpPromptSet:
     try:
         return ReadingFollowUpPromptSet(
             version,
-            *(root.joinpath(name).read_text("utf-8") for name in ("system.md", "request.md", "repair.md")),
+            *(
+                root.joinpath(name).read_text("utf-8")
+                for name in ("system.md", "request.md", "repair.md")
+            ),
         )
     except (FileNotFoundError, ModuleNotFoundError) as error:
         raise ReadingFollowUpPromptNotFoundError(
