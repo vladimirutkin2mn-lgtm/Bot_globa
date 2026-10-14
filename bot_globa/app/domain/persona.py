@@ -55,7 +55,10 @@ class PersonaDefinition:
                 raise ValueError("astrology persona must require a birth date")
             if PersonaInput.BIRTH_PLACE not in self.required_inputs:
                 raise ValueError("astrology persona must require a birth place")
-            if self.unknown_birth_time_policy is not UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT:
+            if (
+                self.unknown_birth_time_policy
+                is not UnknownBirthTimePolicy.OMIT_HOUSES_AND_ASCENDANT
+            ):
                 raise ValueError("astrology persona must define the unknown birth-time policy")
         elif self.requires_calculation_engine:
             raise ValueError("only an astrology persona may require a calculation engine")
@@ -103,8 +106,19 @@ MVP_PERSONAS: tuple[PersonaDefinition, ...] = (
         display_name="Астролог",
         description="Horoscope interpretation based only on a structured astrology calculation.",
         engine=PersonaEngine.ASTROLOGY,
-        supported_topics=("natal_profile", "day_forecast", "week_forecast", "month_forecast", "decision", "love"),
-        required_inputs=(PersonaInput.QUESTION, PersonaInput.BIRTH_DATE, PersonaInput.BIRTH_PLACE),
+        supported_topics=(
+            "natal_profile",
+            "day_forecast",
+            "week_forecast",
+            "month_forecast",
+            "decision",
+            "love",
+        ),
+        required_inputs=(
+            PersonaInput.QUESTION,
+            PersonaInput.BIRTH_DATE,
+            PersonaInput.BIRTH_PLACE,
+        ),
         optional_inputs=(PersonaInput.OPTIONAL_CONTEXT, PersonaInput.BIRTH_TIME),
         engine_version="astrology-calculation-v1",
         prompt_version="astrologer-v3",
