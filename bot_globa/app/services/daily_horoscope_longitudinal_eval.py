@@ -46,14 +46,18 @@ def _evaluate_sign(
     snapshots: tuple[DailyHoroscopeSnapshot, ...],
     sign: ZodiacSign,
 ) -> SignLongitudinalMetrics:
-    texts = [next(item.text for item in snapshot.signs if item.sign == sign) for snapshot in snapshots]
+    texts = [
+        next(item.text for item in snapshot.signs if item.sign == sign) for snapshot in snapshots
+    ]
     if not texts:
         return SignLongitudinalMetrics(sign, 0, 0.0, 0.0, 0.0, 0.0, 0.0)
     normalized = [_normalize(text) for text in texts]
     exact_duplicates = len(normalized) - len(set(normalized))
     openings = [_normalize(_opening(text)) for text in texts]
     actions = [_normalize(_action(text)) for text in texts]
-    adjacent = [_jaccard(normalized[index - 1], normalized[index]) for index in range(1, len(texts))]
+    adjacent = [
+        _jaccard(normalized[index - 1], normalized[index]) for index in range(1, len(texts))
+    ]
     denominator = max(len(texts) - 1, 1)
     return SignLongitudinalMetrics(
         sign=sign,
