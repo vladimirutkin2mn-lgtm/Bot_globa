@@ -77,11 +77,15 @@ def evaluate_editorial_quality(
     source_terms = _tokens(" ".join((case.question, case.context or "", *sections)))
     practical_terms = _tokens(practical)
     overlap = _jaccard(practical_terms, source_terms)
-    action_marker = 1.0 if re.search(
-        r"\b(сделайте|проверьте|спросите|скажите|сравните|выберите|запишите|наблюдайте|"
-        r"уточните|попробуйте|отделите|зафиксируйте|обсудите|решите)\b",
-        practical,
-    ) else 0.0
+    action_marker = (
+        1.0
+        if re.search(
+            r"\b(сделайте|проверьте|спросите|скажите|сравните|выберите|запишите|наблюдайте|"
+            r"уточните|попробуйте|отделите|зафиксируйте|обсудите|решите)\b",
+            practical,
+        )
+        else 0.0
+    )
     practical_specificity = min(1.0, 0.55 * action_marker + 0.9 * overlap)
     generic_hits = sum(phrase in body for phrase in _GENERIC_PHRASES)
     genericity = min(generic_hits / 3.0, 1.0)
@@ -99,7 +103,9 @@ def evaluate_editorial_quality(
     )
 
 
-def repeated_phrase_flags(results: tuple[ReadingResult | AstrologyReadingResult, ...]) -> dict[str, int]:
+def repeated_phrase_flags(
+    results: tuple[ReadingResult | AstrologyReadingResult, ...],
+) -> dict[str, int]:
     """Detect cross-answer editorial habits such as the same advice appearing repeatedly."""
 
     counts: dict[str, int] = {}
