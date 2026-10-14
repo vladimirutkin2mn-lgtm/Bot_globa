@@ -17,6 +17,7 @@ from app.config import Settings
 from app.domain.billing import BillingCatalog
 from app.domain.products import ProductCatalog
 from app.providers.analytics import AnalyticsClient
+from app.providers.llm.base import LLMClient
 from app.providers.numa_product_analytics import ProductFunnelEvent
 from app.providers.payments.base import PaymentProvider
 from app.providers.payments.gateway import OneTimePaymentGateway
@@ -24,6 +25,7 @@ from app.repositories.users import SqlAlchemyUserRepository
 from app.services.checkout_service import CheckoutService
 from app.services.credits_service import CreditsService
 from app.services.daily_horoscope import DailyHoroscopePreferenceService
+from app.services.daily_horoscope_snapshot import DailyHoroscopeSnapshotService
 from app.services.data_deletion import DataDeletionService
 from app.services.numa_delivery_analytics import NumaDeliveryAnalytics, SqlAlchemyNumaDeliveryStore
 from app.services.numa_product_analytics import NumaProductAnalytics
@@ -65,6 +67,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
         telegram_stars: TelegramStarsPaymentService | None = None,
         payment_gateways: dict[str, OneTimePaymentGateway] | None = None,
         payment_completion: PaymentCompletionService | None = None,
+        llm: LLMClient | None = None,
     ) -> None:
         self._sessions = sessions
         self._analytics = analytics
@@ -90,6 +93,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
         self._telegram_stars = telegram_stars
         self._payment_gateways = payment_gateways or {}
         self._payment_completion = payment_completion
+        self._llm = llm
 
     async def __call__(
         self,
@@ -103,6 +107,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
                 decode_configured_key(self._settings.content_encryption_key.get_secret_value())
             )
             daily_horoscopes = DailyHoroscopePreferenceService(self._sessions)
+            daily_snapshots = DailyHoroscopeSnapshotService(self._sessions, self._llm)
             onboarding = OnboardingService(
                 SqlAlchemyUserRepository(session), self._analytics, daily_horoscopes
             )
@@ -143,6 +148,7 @@ class OracleDependencyMiddleware(BaseMiddleware):
             data["numa_product_analytics"] = self._numa_product_analytics
             data["data_deletion"] = DataDeletionService(session, self._analytics)
             data["daily_horoscopes"] = daily_horoscopes
+            data["daily_snapshots"] = daily_snapshots
             data["privacy_retention_days"] = self._settings.raw_content_retention_days
             try:
                 result = await handler(event, data)
