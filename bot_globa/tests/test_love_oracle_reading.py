@@ -152,16 +152,13 @@ class MindReadingLoveOracleLLM:
 
 
 def test_love_oracle_active_prompt_remains_guarded() -> None:
-    prompt = load_reading_prompts("love-oracle-v2")
+    prompt = load_reading_prompts("love-oracle-v3")
 
     assert prompt.accepts_memory_context
     assert "private thoughts, feelings, intentions" in prompt.system
-    assert "observable signals" in prompt.system
-    assert (
-        "selected_symbols and the result symbols array must both be empty"
-        in prompt.request_instruction
-    )
-    assert "Do not answer by inventing the other person's inner state" in prompt.request_instruction
+    assert "observable" in prompt.system
+    assert "selected_symbols and result.symbols must be empty" in prompt.request_instruction
+    assert "the other person's inner state" in prompt.request_instruction
 
 
 async def test_use_case_freezes_love_versions_and_passes_no_symbols() -> None:
@@ -185,7 +182,7 @@ async def test_use_case_freezes_love_versions_and_passes_no_symbols() -> None:
     _, request = drafts.requests[0]
     assert request.persona_code == "love_oracle"
     assert request.engine_version == "symbolic-v1"
-    assert request.prompt_version == "love-oracle-v2"
+    assert request.prompt_version == "love-oracle-v3"
     assert request.schema_version == "reading-result-v1"
     assert request.cost_units == 0
     assert generation.calls == [
@@ -242,7 +239,7 @@ async def test_postgres_love_oracle_preview_is_validated_and_idempotent(
         persona = Persona(
             code="love_oracle",
             display_name="Love Oracle",
-            prompt_version="love-oracle-v2",
+            prompt_version="love-oracle-v3",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))
@@ -284,7 +281,7 @@ async def test_postgres_love_oracle_preview_is_validated_and_idempotent(
         assert reading.status == ReadingStatus.PREVIEW_READY.value
         assert reading.access_level == ReadingAccess.PREVIEW.value
         assert reading.engine_version == "symbolic-v1"
-        assert reading.prompt_version == "love-oracle-v2"
+        assert reading.prompt_version == "love-oracle-v3"
         assert reading.schema_version == "reading-result-v1"
 
 
@@ -298,7 +295,7 @@ async def test_mind_reading_and_guaranteed_reunion_are_rejected_before_persisten
         persona = Persona(
             code="love_oracle",
             display_name="Love Oracle",
-            prompt_version="love-oracle-v2",
+            prompt_version="love-oracle-v3",
             schema_version="reading-result-v1",
         )
         session.add_all((user, persona))

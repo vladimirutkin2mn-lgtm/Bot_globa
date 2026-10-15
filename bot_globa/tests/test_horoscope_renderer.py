@@ -28,10 +28,10 @@ def test_full_result_promises_current_story_and_followup_rights() -> None:
 
     rendered = HoroscopeRenderer().render(result, bundle)
 
-    assert "Моих историях" in rendered.text
+    assert "Мои разборы" in rendered.text
     assert "до 3 уточняющих вопросов" in rendered.text
     assert "24 часов" in rendered.text
-    assert "Моих разборах" not in rendered.text
+    assert "Моих историях" not in rendered.text
     assert "уточнить один момент" not in rendered.text
 
 

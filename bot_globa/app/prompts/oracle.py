@@ -1,12 +1,18 @@
 """Composed registry for independent versioned oracle prompt packs."""
 
-from app.prompts.mystical_psychologist import MYSTICAL_PSYCHOLOGIST_V2
+from app.prompts.mystical_psychologist import (
+    MYSTICAL_PSYCHOLOGIST_V2,
+    MYSTICAL_PSYCHOLOGIST_V3,
+)
 from app.prompts.reading import ReadingPromptSet, load_reading_prompts
 from app.prompts.tarot_v4 import TAROT_READER_V4
+from app.prompts.tarot_v5 import TAROT_READER_V5
 
 _PERSONA_PACKS: dict[str, ReadingPromptSet] = {
     "tarot-reader-v4": TAROT_READER_V4,
+    "tarot-reader-v5": TAROT_READER_V5,
     "mystical-psychologist-v2": MYSTICAL_PSYCHOLOGIST_V2,
+    "mystical-psychologist-v3": MYSTICAL_PSYCHOLOGIST_V3,
 }
 
 

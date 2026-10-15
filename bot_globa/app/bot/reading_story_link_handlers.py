@@ -30,7 +30,7 @@ _LINK_TO_PREFIX = "stories:link-to:"
 _NEW_CALLBACK = "stories:link-new"
 _MAX_STORIES = 8
 _NOT_ONBOARDED = "Сначала отправьте /start."
-_STALE_READING = "Этот разбор уже недоступен. Откройте «Мои истории» заново."
+_STALE_READING = "Этот разбор уже недоступен. Откройте «Мои разборы» заново."
 
 
 class ReadingStoryLinkStates(StatesGroup):
@@ -50,7 +50,7 @@ def story_picker_keyboard(stories: Sequence[ReadingStoryView]) -> InlineKeyboard
     rows.extend(
         [
             [InlineKeyboardButton(text="＋ Новая история", callback_data=_NEW_CALLBACK)],
-            [InlineKeyboardButton(text="← К моим историям", callback_data="menu:readings")],
+            [InlineKeyboardButton(text="← К моим разборам", callback_data="menu:readings")],
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -65,7 +65,7 @@ def linked_keyboard(story_id: UUID) -> InlineKeyboardMarkup:
                     callback_data=f"stories:open:{story_id}:0",
                 )
             ],
-            [InlineKeyboardButton(text="← К моим историям", callback_data="menu:readings")],
+            [InlineKeyboardButton(text="← К моим разборам", callback_data="menu:readings")],
         ]
     )
 

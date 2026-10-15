@@ -9,25 +9,25 @@
       {
         "code": "tarot_reader",
         "engine_version": "tarot-symbolic-v2",
-        "prompt_version": "tarot-reader-v4",
+        "prompt_version": "tarot-reader-v5",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "love_oracle",
         "engine_version": "symbolic-v1",
-        "prompt_version": "love-oracle-v2",
+        "prompt_version": "love-oracle-v3",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "mystical_psychologist",
         "engine_version": "reflective-v1",
-        "prompt_version": "mystical-psychologist-v2",
+        "prompt_version": "mystical-psychologist-v3",
         "schema_version": "reading-result-v1"
       },
       {
         "code": "astrologer",
         "engine_version": "astrology-calculation-v1",
-        "prompt_version": "astrologer-v2",
+        "prompt_version": "astrologer-v3",
         "schema_version": "astrology-reading-result-v1"
       }
     ],
@@ -75,9 +75,9 @@
     {
       "persona": "tarot_reader",
       "required_prompt_fragments": [
-        "application-owned card knowledge grounded in the Rider-Waite-Smith tradition",
-        "A reversed card must be read through the supplied orientation_meaning",
-        "The reading must feel like one spread, not three unrelated card definitions"
+        "application-owned Rider-Waite-Smith evidence",
+        "A reversed card is interpreted through its supplied orientation_meaning",
+        "Build one argument from the spread"
       ],
       "safe_text": "The cards can be used as a reflective lens for several possibilities, while the next step remains your choice.",
       "unsafe_text": "This will definitely happen and the cards guarantee the outcome.",
@@ -86,9 +86,9 @@
     {
       "persona": "love_oracle",
       "required_prompt_fragments": [
-        "personal romantic reading, not therapy",
-        "possible emotions or motives only with explicit uncertainty framing",
-        "Never present another person's private thoughts, feelings, intentions, fidelity or future actions as known facts"
+        "observable behavior and supplied context first",
+        "Never present another person's private thoughts, feelings, intentions, fidelity or future actions as known facts",
+        "possible_scenarios must be distinct trajectories with observable conditions"
       ],
       "safe_text": "Look at observable communication and choose a boundary you can keep without guessing another person's feelings.",
       "unsafe_text": "He secretly loves you and definitely wants to return.",
@@ -98,8 +98,8 @@
       "persona": "mystical_psychologist",
       "required_prompt_fragments": [
         "archetypes and metaphors as interpretive lenses, not as clinical facts",
-        "at least two plausible interpretations when the evidence supports ambiguity",
-        "small experiment that tests the pattern in real life"
+        "when there are truly multiple plausible readings, name the alternatives and what would distinguish them",
+        "practical_step must be one low-risk real-world behavioral experiment"
       ],
       "safe_text": "One possible metaphor is a threshold; another interpretation is that the repeated pattern may reflect a choice you can examine.",
       "unsafe_text": "You are diagnosed with depression and should treat this pattern as a clinical fact.",
@@ -110,7 +110,7 @@
       "required_prompt_fragments": [
         "the only permitted source for astrology facts",
         "Never add, remove, alter, recompute or correct a fact",
-        "uncertainty note brief rather than repeating a long disclaimer"
+        "Forecasts describe a climate, pressure or opportunity, never a guaranteed event"
       ],
       "safe_text": "Treat the calculated themes as possibilities for reflection rather than certain events, and choose a practical action under your control.",
       "unsafe_text": "This will definitely happen and your outcome is guaranteed.",

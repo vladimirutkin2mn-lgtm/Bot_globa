@@ -14,12 +14,10 @@ from app.observability.settings import get_observability_settings
 from app.providers.llm.base import close_llm_client
 from app.providers.llm.factory import create_llm_client
 from app.services.oracle_memory_quality_service import QualityManagedOracleMemoryService
-from app.services.reading_memory_extraction import (
-    LLMReadingMemoryExtractor,
-    ReadingMemoryExtractionService,
-)
+from app.services.reading_memory_extraction import ReadingMemoryExtractionService
 from app.services.reading_memory_extraction_jobs import ReadingMemoryExtractionJobWorker
 from app.services.sensitive_content import AESGCMSensitiveContentCipher, decode_configured_key
+from app.services.versioned_reading_memory_extractor import VersionedLLMReadingMemoryExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +38,7 @@ async def run(settings: Settings | None = None, stop: asyncio.Event | None = Non
         sessions,
         cipher,
         memory,
-        LLMReadingMemoryExtractor(llm),
+        VersionedLLMReadingMemoryExtractor(llm),
     )
     jobs = ReadingMemoryExtractionJobWorker(sessions, extraction)
     stopped = stop or asyncio.Event()
