@@ -191,4 +191,5 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/bot_globa' }}
           RUN_SMOKE: "1"
+          PUBLIC_ORACLE_URL: https://predict.mypresence.ru
         run: bash tools/deploy_prod_remote.sh
